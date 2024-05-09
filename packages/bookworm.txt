@@ -1,0 +1,26 @@
+#apt dependencies
+
+curl
+wget
+git
+vim
+jq
+unzip
+tree
+net-tools
+dnsutils
+iputils-ping
+nmap
+knot-dnsutils
+docker.io
+docker-compose
+docker-ce
+docker-ce-cli
+containerd.io
+iptables-persistent
+j2
+openssl
+gnupg2
+pass
+xmlstarlet
+isc-dhcp-relay
