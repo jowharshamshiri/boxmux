@@ -194,7 +194,7 @@ login_to_docker_registry_if_needed() {
         return 1
     fi
 
-    docker_config_file="$MG_USER_HOME/.docker/config.json"
+    docker_config_file="$XB_USER_HOME/.docker/config.json"
     touch "$docker_config_file"
 
     # update_json_file "$docker_config_file" "auths.$REGISTRY_HOSTNAME" "$(echo -n "$REGISTRY_USERNAME:$REGISTRY_PASSWORD" | base64)"

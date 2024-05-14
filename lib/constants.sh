@@ -5,8 +5,8 @@ REFERENCE_DOMAIN="google.com"
 REFERENCE_DNS_IP="8.8.8.8"
 
 # defined in root.sh:
-# ABRCITY_HOME="$MG_HOME/abrcity"
-# MACHINEFABRIC_HOME="$MG_HOME/machinefabric"
+# ABRCITY_HOME="$XB_HOME/abrcity"
+# MACHINEFABRIC_HOME="$XB_HOME/machinefabric"
 # LIB_DIR="$INFRA_DIR/lib"
 
 PACKAGES_DIR="$INFRA_DIR/packages"

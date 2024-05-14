@@ -1,0 +1,125 @@
+layout:
+  id: 'dashboard'
+  title: 'Dashboard Layout'
+  refresh_interval: 2 # seconds
+  children:
+    - id: 'header'
+      title: 'Server Dashboard'
+      position:
+        x1: 0%
+        y1: 0%
+        x2: 100%
+        y2: 10%
+      min_width: 80
+      min_height: 3
+      max_width: 100
+      max_height: 3
+      overflow_behavior: 'removed'
+      content: 'Welcome to the server dashboard.'
+      scroll: false
+      refresh_interval: 10
+      on_error: 'echo "Error loading header."'
+      on_enter:
+        - echo "Welcome to the server dashboard."
+        - echo "Please select an option."
+      next_focus_id: 'title'
+      children:
+        - id: 'title'
+          title: 'Title Display'
+          position:
+            x1: 0%
+            y1: 0% # Relative to parent
+            x2: 20%
+            y2: 100% # Relative to parent
+          content: 'Server Dashboard'
+          fill: true
+          fill_color: 'blue'
+          fill_char: 'X'
+          border: true
+          border_color: 'blue'
+          text_color: 'white'
+          scroll: false
+          refresh_interval: 10
+          on_error: -'echo "Error loading title."'
+          next_focus_id: 'time'
+          on_enter:
+            - echo -n "Time:\ "
+            - date
+          on_leave:
+            - echo -n "Time:\ "
+            - date
+        - id: 'time'
+          title: 'Time Display'
+          position:
+            x1: 80%
+            y1: 0% # Relative to parent
+            x2: 100%
+            y2: 100% # Relative to parent
+          fill: true
+          fill_color: 'green'
+          text_color: 'white'
+          title_color: 'green'
+          on_refresh:
+            - echo -n "Time:\ "
+            - date
+          scroll: false
+          refresh_interval: 1
+          on_error: 'echo "Error loading time."'
+          next_focus_id: 'logs'
+          on_enter:
+            - echo "Current Time"
+          on_leave:
+            - echo "Leaving Current Time"
+    - id: 'footer'
+      title: 'Footer'
+      position:
+        x1: 0%
+        y1: 95%
+        x2: 100%
+        y2: 100%
+      content: 'Updated every 5 seconds.'
+      scroll: false
+      refresh_interval: 5
+      on_error: 'echo "Error loading footer."'
+      next_focus_id: 'header'
+
+    - id: 'logs'
+      title: 'Logs'
+      position:
+        x1: 2%
+        y1: 15%
+        x2: 48%
+        y2: 35%
+      content: 'tail -n 10 /var/log/syslog'
+      scroll: true
+      refresh_interval: 5
+      on_error: 'echo "Error loading logs."'
+      next_focus_id: 'memory'
+      overflow_behavior: 'removed'
+
+    - id: 'memory'
+      title: 'Memory Usage'
+      position:
+        x1: 50%
+        y1: 15%
+        x2: 98%
+        y2: 35%
+      content: 'free -m'
+      scroll: false
+      refresh_interval: 5
+      on_error: 'echo "Error loading memory stats."'
+      next_focus_id: 'cpu'
+
+    - id: 'cpu'
+      title: 'CPU Usage'
+      position:
+        x1: 2%
+        y1: 38%
+        x2: 98%
+        y2: 68%
+      content: 'top -b -n 1 | grep "Cpu(s)"'
+      scroll: false
+      refresh_interval: 5
+      on_error: 'echo "Error loading CPU stats."'
+      next_focus_id: 'footer'
+      overflow_behavior: 'filled'
