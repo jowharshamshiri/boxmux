@@ -1,178 +1,267 @@
 #!/usr/bin/env bash
 
-# Load the functions
-source ../map.sh # Replace with the actual path to your script
+DUCKDB_FILE_NAME="crossbash.duckdb"
+source ../lib/map_lib.sh # Source the script with your functions
 
-# Function to run a test and print the result
+# Function to reset the database
+reset() {
+    rm -f "$DUCKDB_FILE_NAME"
+    initialize_db
+}
+
+test_map_new() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_INTEGER
+
+    map_new "$map_name" "$data_type_id" || {
+        echo "map_new test failed"
+        return 1
+    }
+
+    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps WHERE map_name = '$map_name' AND data_type_id = $data_type_id;")
+    result=$(echo "$result" | tail -n 1) # Get the actual count result
+    if [[ "$result" -eq 1 ]]; then
+        echo "map_new test passed" >&2
+        return 0
+    else
+        echo "map_new test failed" >&2
+        return 1
+    fi
+}
+
+test_map_exists() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_INTEGER
+    map_new "$map_name" "$data_type_id"
+
+    local map_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT id FROM maps WHERE map_name = '$map_name';" | tail -n 1)
+
+    if [[ $(map_exists "$map_id") -eq 0 ]]; then
+        echo "map_exists test passed" >&2
+        return 0
+    else
+        echo "map_exists test failed" >&2
+        return 1
+    fi
+}
+
+test_map_add_or_set() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    echo "Debug: map_id is '$map_id'" >&2 # Debug output
+
+    if [[ -z "$map_id" ]]; then
+        echo "Failed to retrieve map_id" >&2
+        return 1
+    fi
+
+    map_add_or_set "$map_id" "key1" "value1"
+
+    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
+    if [[ "$result" == "value1" ]]; then
+        echo "map_add_or_set test passed" >&2
+        return 0
+    else
+        echo "map_add_or_set test failed" >&2
+        return 1
+    fi
+}
+
+test_map_clear() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "value1"
+    map_clear "$map_id"
+
+    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id;" | tail -n 1)
+    if [[ "$result" -eq 0 ]]; then
+        echo "map_clear test passed" >&2
+        return 0
+    else
+        echo "map_clear test failed" >&2
+        return 1
+    fi
+}
+
+# Test map_get
+test_map_get() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+
+    map_add_or_set "$map_id" "key1" "value1"
+
+    local value
+    value=$(map_get "$map_id" "key1")
+
+    echo "Debug: value is '$value'" >&2 # Debug output
+    if [[ "$value" == "value1" ]]; then
+        echo "map_get test passed" >&2
+        return 0
+    else
+        echo "map_get test failed" >&2
+        return 1
+    fi
+}
+
+# Test map_contains_key
+test_map_contains_key() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "value1"
+
+    if [[ $(map_contains_key "$map_id" "key1") -eq 0 ]]; then
+        echo "map_contains_key test passed" >&2
+        return 0
+    else
+        echo "map_contains_key test failed" >&2
+        return 1
+    fi
+}
+
+# Test map_remove function
+test_map_remove() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "value1"
+    map_remove "$map_id" "key1"
+
+    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
+    if [[ "$result" -eq 0 ]]; then
+        echo "map_remove test passed" >&2
+        return 0
+    else
+        echo "map_remove test failed" >&2
+        return 1
+    fi
+}
+
+# Test map_print function
+test_map_print() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "value1"
+    map_add_or_set "$map_id" "key2" "value2"
+
+    map_print "$map_id" || {
+        echo "map_print test failed" >&2
+        return 1
+    }
+    echo "map_print test passed" >&2
+    return 0
+}
+
+# Test map_sort_by_value function
+test_map_sort_by_value() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_INTEGER
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "3"
+    map_add_or_set "$map_id" "key2" "1"
+    map_add_or_set "$map_id" "key3" "2"
+
+    map_sort_by_value "$map_id" || {
+        echo "map_sort_by_value test failed" >&2
+        return 1
+    }
+
+    local keys=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
+    if [[ "${keys[0]}" == "key2" && "${keys[1]}" == "key3" && "${keys[2]}" == "key1" ]]; then
+        echo "map_sort_by_value test passed" >&2
+        return 0
+    else
+        echo "map_sort_by_value test failed" >&2
+        return 1
+    fi
+}
+
+test_map_keys() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "value1"
+    map_add_or_set "$map_id" "key2" "value2"
+
+    local keys=$(map_keys "$map_id")
+    if [[ "$keys" == "key1,key2" ]]; then
+        echo "map_keys test passed" >&2
+        return 0
+    else
+        echo "map_keys test failed" >&2
+        return 1
+    fi
+}
+
+test_map_cascade_subtract() {
+    reset
+    local map_name="test_map"
+    local data_type_id=$DATATYPE_ID_INTEGER
+
+    local map_id=$(map_new "$map_name" "$data_type_id")
+    map_add_or_set "$map_id" "key1" "3"
+    map_add_or_set "$map_id" "key2" "1"
+    map_add_or_set "$map_id" "key3" "2"
+
+    map_cascade_subtract "$map_id" || {
+        echo "map_cascade_subtract test failed" >&2
+        return 1
+    }
+
+    local values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
+    if [[ "${values[0]}" == "1" && "${values[1]}" == "1" && "${values[2]}" == "1" ]]; then
+        echo "map_cascade_subtract test passed" >&2
+        return 0
+    else
+        echo "map_cascade_subtract test failed" >&2
+        return 1
+    fi
+}
+
 run_test() {
     local test_name="$1"
-    local result="$2"
-    if [ "$result" -eq 0 ]; then
-        echo "$test_name: PASSED"
+    echo "Running test: $test_name" >&2
+    $test_name
+    result=$?
+    if [ $result -eq 0 ]; then
+        echo "PASSED: $test_name" >&2
     else
-        echo "$test_name: FAILED"
-    fi
-}
-
-# Test initialization
-test_map_init() {
-    local map_name="testmap"
-    map_init "$map_name"
-    local count
-    count=$(./duckdb mapdata.db -csv "SELECT COUNT(*) FROM map_names WHERE map_name='$map_name';" | tail -n +2)
-    if [ "$count" -eq 1 ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test add or set
-test_map_add_or_set() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "value1"
-    local value
-    value=$(map_get "$map_name" "key1")
-    if [ "$value" == "value1" ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test get
-test_map_get() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "value1"
-    local value
-    value=$(map_get "$map_name" "key1")
-    if [ "$value" == "value1" ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test contains key
-test_map_contains_key() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "value1"
-    map_contains_key "$map_name" "key1"
-    local contains=$?
-    if [ $contains -eq 0 ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test remove
-test_map_remove() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "value1"
-    map_remove "$map_name" "key1"
-    map_contains_key "$map_name" "key1"
-    local contains=$?
-    if [ $contains -eq 1 ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test print
-test_map_print() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "value1"
-    map_add_or_set "$map_name" "key2" "value2"
-    local output
-    output=$(map_print "$map_name")
-    if [[ "$output" == *"key1: value1"* ]] && [[ "$output" == *"key2: value2"* ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test sort by value
-test_map_sort_by_value() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key2" "2"
-    map_add_or_set "$map_name" "key1" "1"
-    local output
-    output=$(map_sort_by_value "$map_name")
-    echo "Output of map_sort_by_value: $output" >&2
-    if [[ "$output" == "key1: 1"* ]] && [[ "$output" == *"key2: 2" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Test cascade subtract
-test_map_cascade_subtract() {
-    local map_name="testmap"
-    map_init "$map_name"
-    map_clear "$map_name"
-    map_add_or_set "$map_name" "key1" "10"
-    map_add_or_set "$map_name" "key2" "30"
-    map_add_or_set "$map_name" "key3" "60"
-    map_cascade_subtract "$map_name"
-    local value1
-    local value2
-    local value3
-    value1=$(map_get "$map_name" "key1")
-    value2=$(map_get "$map_name" "key2")
-    value3=$(map_get "$map_name" "key3")
-    if [ "$value1" == "10" ] && [ "$value2" == "20" ] && [ "$value3" == "30" ]; then
-        return 0
-    else
-        return 1
+        echo "FAILED: $test_name" >&2
+        exit 1
     fi
 }
 
 # Run all tests
-run_test "test_map_init" "$(
-    test_map_init
-    echo $?
-)"
-run_test "test_map_add_or_set" "$(
-    test_map_add_or_set
-    echo $?
-)"
-run_test "test_map_get" "$(
-    test_map_get
-    echo $?
-)"
-run_test "test_map_contains_key" "$(
-    test_map_contains_key
-    echo $?
-)"
-run_test "test_map_remove" "$(
-    test_map_remove
-    echo $?
-)"
-run_test "test_map_print" "$(
-    test_map_print
-    echo $?
-)"
-run_test "test_map_sort_by_value" "$(
-    test_map_sort_by_value
-    echo $?
-)"
-run_test "test_map_cascade_subtract" "$(
-    test_map_cascade_subtract
-    echo $?
-)"
+run_test test_map_new
+run_test test_map_exists
+run_test test_map_add_or_set
+run_test test_map_get
+run_test test_map_clear
+run_test test_map_contains_key
+run_test test_map_remove
+run_test test_map_print
+run_test test_map_sort_by_value
+run_test test_map_keys
+run_test test_map_cascade_subtract

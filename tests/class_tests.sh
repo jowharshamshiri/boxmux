@@ -1,157 +1,206 @@
 #!/usr/bin/env bash
 
-# Load the functions
-source ../class.sh # Adjust the path to your class.sh
+source ../lib/map_lib.sh   # Adjust the path to where your map functions are located
+source ../lib/list_lib.sh  # Adjust the path to where your list functions are located
+source ../lib/class_lib.sh # Adjust the path to where your class functions are located
 
-# Function to run a test and print the result
-run_test() {
-    local test_name="$1"
-    local result="$2"
-    if [ "$result" -eq 0 ]; then
-        echo "$test_name: PASSED"
-    else
-        echo "$test_name: FAILED"
-    fi
+# Function to reset the database
+reset() {
+    rm -f "$DUCKDB_FILE_NAME"
+    initialize_db
 }
 
-# Test class initialization
+# Test class initialization and property/instance setup
 test_class_init() {
-    local class_name="Person"
-    class_init "$class_name"
-    map_exists "${class_name}_properties" && map_exists "${class_name}_instances"
+    reset
+    echo "Testing class initialization..." >&2
+    local class_name="TestClass"
+    local class_id
+    class_id=$(class_init "$class_name")
+    if [ -n "$class_id" ]; then
+        echo "Class initialized with id: $class_id" >&2
+    else
+        echo "Class initialization failed" >&2
+        exit 1
+    fi
 }
 
 # Test adding a property to a class
 test_class_add_property() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_add_property "$class_name" "age"
-    class_add_property "$class_name" "height"
-    map_contains_key "${class_name}_properties" "age" && map_contains_key "${class_name}_properties" "height"
+    reset
+    echo "Testing class add property..." >&2
+    local class_name="TestClass"
+    local class_id
+    local property="TestProperty"
+    class_id=$(class_init "$class_name")
+    class_add_property "$class_id" "$property"
+    local properties_list_id
+    properties_list_id=$(map_get "$class_id" "properties_list_id")
+    if list_get "$properties_list_id" 1 | grep -q "$property"; then
+        echo "Class add property works correctly" >&2
+    else
+        echo "Class add property failed" >&2
+        exit 1
+    fi
 }
 
-# Test creating an instance
+# Test creating an instance of a class
 test_class_create_instance() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    class_create_instance "$class_name" "Jane"
-    map_contains_key "${class_name}_instances" "John" && map_contains_key "${class_name}_instances" "Jane"
+    reset
+    echo "Testing class create instance..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name="TestInstance"
+    class_id=$(class_init "$class_name")
+    instance_id=$(class_create_instance "$class_id" "$instance_name")
+    local instances_map_id
+    instances_map_id=$(map_get "$class_id" "instances_map_id")
+    if map_contains_key "$instances_map_id" "$instance_name"; then
+        echo "Class create instance works correctly" >&2
+    else
+        echo "Class create instance failed" >&2
+        exit 1
+    fi
 }
 
-# Test setting and getting an instance property
-test_instance_set_and_get_property() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    instance_set_property "John" "age" "30"
-    instance_set_property "John" "height" "180"
-    local age
-    age=$(instance_get_property "John" "age")
-    local height
-    height=$(instance_get_property "John" "height")
-    [[ "$age" == "30" && "$height" == "180" ]]
+# Test setting and getting a property for a specific instance
+test_instance_set_get_property() {
+    reset
+    echo "Testing instance set/get property..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name="TestInstance"
+    local property="TestProperty"
+    local value="TestValue"
+    class_id=$(class_init "$class_name")
+    instance_id=$(class_create_instance "$class_id" "$instance_name")
+    instance_set_property "$class_id" "$instance_name" "$property" "$value"
+    local fetched_value
+    fetched_value=$(instance_get_property "$class_id" "$instance_name" "$property")
+    if [ "$fetched_value" == "$value" ]; then
+        echo "Instance set/get property works correctly" >&2
+    else
+        echo "Instance set/get property failed" >&2
+        exit 1
+    fi
 }
 
-# Test listing instances
+# Test listing all instances of a class
 test_class_list_instances() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    class_create_instance "$class_name" "Jane"
-    local output
-    output=$(class_list_instances "$class_name")
-    [[ "$output" == *"John: John"* && "$output" == *"Jane: Jane"* ]]
+    reset
+    echo "Testing class list instances..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name1="TestInstance1"
+    local instance_name2="TestInstance2"
+    class_id=$(class_init "$class_name")
+    class_create_instance "$class_id" "$instance_name1"
+    class_create_instance "$class_id" "$instance_name2"
+    local instances
+    instances=$(class_list_instances "$class_id")
+    if echo "$instances" | grep -q "$instance_name1" && echo "$instances" | grep -q "$instance_name2"; then
+        echo "Class list instances works correctly" >&2
+    else
+        echo "Class list instances failed" >&2
+        exit 1
+    fi
 }
 
-# Test finding instances by property
+# Test getting instances of a class by property value
 test_class_get_by_property() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    instance_set_property "John" "age" "30"
-    class_create_instance "$class_name" "Jane"
-    instance_set_property "Jane" "age" "25"
-    local output
-    output=$(class_get_by_property "$class_name" "age" "30")
-    [[ "$output" == "John" ]]
+    reset
+    echo "Testing class get by property..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name="TestInstance"
+    local property="TestProperty"
+    local value="TestValue"
+    class_id=$(class_init "$class_name")
+    instance_id=$(class_create_instance "$class_id" "$instance_name")
+    instance_set_property "$class_id" "$instance_name" "$property" "$value"
+    local fetched_instance
+    fetched_instance=$(class_get_by_property "$class_id" "$property" "$value")
+    if [ "$fetched_instance" == "$instance_name" ]; then
+        echo "Class get by property works correctly" >&2
+    else
+        echo "Class get by property failed" >&2
+        exit 1
+    fi
 }
 
-# Test sorting instances by property
+# Test sorting instances of a class by a property
 test_class_sort_by_property() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    instance_set_property "John" "age" "30"
-    class_create_instance "$class_name" "Jane"
-    instance_set_property "Jane" "age" "25"
-    local output
-    output=$(class_sort_by_property "$class_name" "age")
-    [[ "$output" == *"Jane: 25"* && "$output" == *"John: 30"* ]]
+    reset
+    echo "Testing class sort by property..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name1="TestInstance1"
+    local instance_name2="TestInstance2"
+    local property="TestProperty"
+    class_id=$(class_init "$class_name")
+    instance_id1=$(class_create_instance "$class_id" "$instance_name1")
+    instance_id2=$(class_create_instance "$class_id" "$instance_name2")
+    instance_set_property "$class_id" "$instance_name1" "$property" 20
+    instance_set_property "$class_id" "$instance_name2" "$property" 10
+    local sorted_instances
+    sorted_instances=$(class_sort_by_property "$class_id" "$property")
+    if [[ "${sorted_instances[0]}" == "$instance_name2" ]] && [[ "${sorted_instances[1]}" == "$instance_name1" ]]; then
+        echo "Class sort by property works correctly" >&2
+    else
+        echo "Class sort by property failed" >&2
+        exit 1
+    fi
 }
 
-# Test cascade subtract property
+# Test cascade subtraction on a property of all instances in a class
 test_class_cascade_subtract_property() {
-    local class_name="Person"
-    class_init "$class_name"
-    class_create_instance "$class_name" "John"
-    instance_set_property "John" "height" "20"
-    class_create_instance "$class_name" "Jane"
-    instance_set_property "Jane" "height" "30"
-    class_create_instance "$class_name" "Joe"
-    instance_set_property "Joe" "height" "60"
+    reset
+    echo "Testing class cascade subtract property..." >&2
+    local class_name="TestClass"
+    local class_id
+    local instance_name1="TestInstance1"
+    local instance_name2="TestInstance2"
+    local instance_name3="TestInstance3"
+    local property="TestProperty"
+    class_id=$(class_init "$class_name")
+    instance_id1=$(class_create_instance "$class_id" "$instance_name1")
+    instance_id2=$(class_create_instance "$class_id" "$instance_name2")
+    instance_id3=$(class_create_instance "$class_id" "$instance_name3")
+    instance_set_property "$class_id" "$instance_name1" "$property" 15
+    instance_set_property "$class_id" "$instance_name2" "$property" 10
+    instance_set_property "$class_id" "$instance_name3" "$property" 25
+    class_cascade_subtract_property "$class_id" "$property"
+    local value1 value2 value3
+    value1=$(instance_get_property "$class_id" "$instance_name1" "$property")
+    value2=$(instance_get_property "$class_id" "$instance_name2" "$property")
+    value3=$(instance_get_property "$class_id" "$instance_name3" "$property")
+    if [ "$value1" -eq 15 ] && [ "$value2" -eq -5 ] && [ "$value3" -eq 15 ]; then
+        echo "Class cascade subtract property works correctly" >&2
+    else
+        echo "Class cascade subtract property failed" >&2
+        exit 1
+    fi
+}
 
-    class_sort_by_property "$class_name" "height"
-
-    echo "Before cascade subtract:" >&2
-    class_list_instances "$class_name" >&2
-
-    class_cascade_subtract_property "$class_name" "height"
-
-    echo "After cascade subtract:" >&2
-    class_list_instances "$class_name" >&2
-
-    local john_height
-    john_height=$(instance_get_property "John" "height")
-    local jane_height
-    jane_height=$(instance_get_property "Jane" "height")
-    local joe_height
-    joe_height=$(instance_get_property "Joe" "height")
-    echo "John's height: $john_height, Jane's height: $jane_height, Joe's height: $joe_height" >&2
-
-    [[ "$john_height" == "20" && "$jane_height" == "10" && "$joe_height" == "30" ]]
+run_test() {
+    local test_name="$1"
+    echo "Running test: $test_name" >&2
+    $test_name
+    result=$?
+    if [ $result -eq 0 ]; then
+        echo "PASSED: $test_name" >&2
+    else
+        echo "FAILED: $test_name" >&2
+        exit 1
+    fi
 }
 
 # Run all tests
-run_test "test_class_init" "$(
-    test_class_init
-    echo $?
-)"
-run_test "test_class_add_property" "$(
-    test_class_add_property
-    echo $?
-)"
-run_test "test_class_create_instance" "$(
-    test_class_create_instance
-    echo $?
-)"
-run_test "test_instance_set_and_get_property" "$(
-    test_instance_set_and_get_property
-    echo $?
-)"
-run_test "test_class_list_instances" "$(
-    test_class_list_instances
-    echo $?
-)"
-run_test "test_class_get_by_property" "$(
-    test_class_get_by_property
-    echo $?
-)"
-# run_test "test_class_sort_by_property" "$(
-#     test_class_sort_by_property
-#     echo $?
-# )"
-# run_test "test_class_cascade_subtract_property" "$(
-#     test_class_cascade_subtract_property
-#     echo $?
-# )"
+run_test test_class_init
+run_test test_class_add_property
+run_test test_class_create_instance
+run_test test_instance_set_get_property
+run_test test_class_list_instances
+run_test test_class_get_by_property
+run_test test_class_sort_by_property
+run_test test_class_cascade_subtract_property
