@@ -1,171 +1,281 @@
 #!/usr/bin/env bash
 
-source "/Users/bahram/ws/prj/machinegenesis/crossbash/lib/map_lib.sh"
-source "/Users/bahram/ws/prj/machinegenesis/crossbash/lib/list_lib.sh"
+source "/Users/bahram/ws/prj/machinegenesis/crossbash/lib/duckdb_lib.sh"
 
-CLASSES_LIST_NAME="classes"
-CLASSES_LIST_ID=""
-CLASSES_MAP_ID=""
-
-class_init() {
+class_new() {
     local class_name="$1"
-    local class_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes (id, class_name) VALUES (nextval('seq_class_id'), '$class_name') ON CONFLICT DO NOTHING RETURNING id;" | tail -n +2)
-    echo "$class_id"
-}
 
-setup_classes() {
-    CLASSES_LIST_ID=$(list_init "$CLASSES_LIST_NAME")
+    if [ -z "$class_name" ]; then
+        echo "Usage: class_new <class_name>" >&2
+        return 1
+    fi
 
-}
+    if [[ $(validate_text "$class_name") -ne 0 ]]; then
+        echo "Invalid class name" >&2
+        return 1
+    fi
 
-class_init() {
-    local class_name="$1"
-    local properties_list_id instances_list_id class_id;
+    class_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes (class_name) VALUES ('$class_name') RETURNING id;" | tail -n +2)
 
-    list_add "$CLASSES_LIST_ID" "$class_name"
-
-    properties_list_id=$(list_init "${class_name}_properties")
-    instances_list_id=$(list_init "${class_name}_instances")
-
-    class_id=$(list_init "class_${class_name}")
-    map_add_or_set "$class_id" "properties_list_id" "$properties_list_id"
-    map_add_or_set "$class_id" "instances_map_id" "$instances_map_id"
+    if [ -z "$class_id" ]; then
+        echo "Failed to create class" >&2
+        return 1
+    fi
 
     echo "$class_id"
 }
 
 class_exists() {
     local class_id="$1"
-    map_exists "$class_id"
+
+    if [ -z "$class_id" ]; then
+        echo "Usage: class_exists <class_id>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 ]]; then
+        echo "Invalid class ID" >&2
+        return 1
+    fi
+
+    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM classes WHERE id = $class_id;")
+    result=$(echo "$result" | tail -n 1) # Get the actual count result
+    if [[ "$result" -eq 1 ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
-# Add a property to a class.
 class_add_property() {
     local class_id="$1"
     local property="$2"
-    local properties_list_id
+    local data_type_id="$3"
 
-    properties_list_id=$(map_get "$class_id" "properties_list_id")
-    list_add "$properties_list_id" "$property"
+    if [ -z "$class_id" ] || [ -z "$property" ] || [ -z "$data_type_id" ]; then
+        echo "Usage: class_add_property <class_id> <property> <data_type_id>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_text "$property") -ne 0 || $(validate_integer "$data_type_id") -ne 0 ]]; then
+        echo "Invalid class ID, property, or data type ID" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || {
+        echo "Class does not exist" >&2
+        return 1
+    }
+
+    property_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_properties (class_id, property, data_type_id) VALUES ($class_id, '$property', $data_type_id) RETURNING id;" | tail -n +2)
+
+    if [ -z "$property_id" ]; then
+        echo "Failed to add property" >&2
+        return 1
+    fi
+
+    echo "$property_id"
 }
 
-
-random_string() {
-    local length="$1:16"
-    local random_string
-    random_string=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w "$length" | head -n 1)
-    echo "$random_string"
-}
-
-# Create an instance of a class.
 class_create_instance() {
     local class_id="$1"
 
-    local instance_name=$(random_string)
+    if [ -z "$class_id" ]; then
+        echo "Usage: class_create_instance <class_id>" >&2
+        return 1
+    fi
 
-    local instances_map_id instance_id
+    if [[ $(validate_integer "$class_id") -ne 0 ]]; then
+        echo "Invalid class ID" >&2
+        return 1
+    fi
 
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    instance_id=$(map_init "${instance_name}_properties")
-    map_add_or_set "$instances_map_id" "$instance_name" "$instance_id"
+    class_exists "$class_id" || {
+        echo "Class does not exist" >&2
+        return 1
+    }
+
+    local max_idx=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COALESCE(MAX(idx), -1) + 1 FROM classes_instances WHERE class_id = $class_id;" | tail -n 1)
+    instance_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_instances (class_id, idx) VALUES ($class_id, $max_idx) RETURNING instance_id;" | tail -n +2)
+
+    if [ -z "$instance_id" ]; then
+        echo "Failed to create instance" >&2
+        return 1
+    fi
 
     echo "$instance_id"
 }
 
-# Set a property for a specific instance.
 instance_set_property() {
     local class_id="$1"
-    local instance_name="$2"
-    local property="$3"
+    local instance_id="$2"
+    local property_id="$3"
     local value="$4"
-    local instances_map_id instance_id
 
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    instance_id=$(map_get "$instances_map_id" "$instance_name")
-    map_add_or_set "$instance_id" "$property" "$value"
+    if [ -z "$class_id" ] || [ -z "$instance_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
+        echo "Usage: instance_set_property <class_id> <instance_id> <property_id> <value>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 || $(validate_integer "$property_id") -ne 0 || $(validate_text "$value") -ne 0 ]]; then
+        echo "Invalid class ID, instance ID, property ID, or value" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || {
+        echo "Class does not exist" >&2
+        return 1
+    }
+
+    ./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_instances_data (instance_id, property_id, value) VALUES ($instance_id, $property_id, '$value') ON CONFLICT (instance_id, property_id) DO UPDATE SET value = EXCLUDED.value;" || {
+        echo "Failed to set property" >&2
+        return 1
+    }
 }
 
-# Get a property value for a specific instance.
 instance_get_property() {
     local class_id="$1"
-    local instance_name="$2"
-    local property="$3"
-    local instances_map_id instance_id
+    local instance_id="$2"
+    local property_id="$3"
 
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    instance_id=$(map_get "$instances_map_id" "$instance_name")
-    map_get "$instance_id" "$property"
-}
+    if [ -z "$class_id" ] || [ -z "$instance_id" ] || [ -z "$property_id" ]; then
+        echo "Usage: instance_get_property <class_id> <instance_id> <property_id>" >&2
+        return 1
+    fi
 
-# List all instances of a class.
-class_list_instances() {
-    local class_id="$1"
-    local instances_map_id
-
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    map_keys "$instances_map_id"
-}
-
-# Get instances of a class by property value.
-class_get_by_property() {
-    local class_id="$1"
-    local property="$2"
-    local value="$3"
-    local instances_map_id instance_name instance_id instance_value
-
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    local keys=($(map_keys "$instances_map_id"))
-    for instance_name in "${keys[@]}"; do
-        instance_id=$(map_get "$instances_map_id" "$instance_name")
-        instance_value=$(map_get "$instance_id" "$property")
-        if [[ "$instance_value" == "$value" ]]; then
-            echo "$instance_name"
-        fi
-    done
-}
-
-# Sort instances of a class by a property.
-class_sort_by_property() {
-    local class_id="$1"
-    local property="$2"
-    local instances_map_id instances instance_name instance_id
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; then
+        echo "Invalid class ID, instance ID, or property ID" >&2
+        return 1
+    fi
 
     class_exists "$class_id" || return 1
 
-    instances_map_id=$(map_get "$class_id" "instances_map_id")
-    properties_list_id=$(map_get "$class_id" "properties_list_id")
+    local value=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM classes_instances_data WHERE instance_id = $instance_id AND property_id = $property_id;" | tail -n 1)
 
-    # Sort the map by values
-    map_sort_by_value "$map_id"
+    if [[ -z "$value" ]]; then
+        echo "Property not found" >&2
+        return 1
+    fi
 
-    # Fetch sorted keys and values
-    local keys
-    local values
-    keys=($(map_keys "$map_id"))
-    values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id=$map_id ORDER BY idx;" | tail -n +2))
-
-    echo "Initial keys: ${keys[@]}" >&2
-    echo "Initial values: ${values[@]}" >&2
-
-    local num_values=${#values[@]}
-    for ((i = 1; i < num_values; i++)); do
-        for ((j = i; j < num_values; j++)); do
-            values[j]=$((values[j] - values[i - 1]))
-        done
-    done
-
-    echo "Updated values after subtraction: ${values[@]}" >&2
-
-    for i in "${!keys[@]}"; do
-        ./duckdb "$DUCKDB_FILE_NAME" -csv "UPDATE maps_data SET value='${values[i]}' WHERE map_id=$map_id AND key='${keys[i]}';"
-    done
+    echo "$value"
 }
 
+class_list_instances() {
+    local class_id="$1"
+
+    if [ -z "$class_id" ]; then
+        echo "Usage: class_list_instances <class_id>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 ]]; then
+        echo "Invalid class ID" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || return 1
+
+    local instances=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT instance_id FROM classes_instances WHERE class_id = $class_id ORDER BY idx;")
+    echo "$instances" | tail -n +2
 }
 
-# Perform cascade subtraction on a property of all instances in a class.
+class_get_by_property() {
+    local class_id="$1"
+    local property_id="$2"
+    local value="$3"
+
+    if [ -z "$class_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
+        echo "Usage: class_get_by_property <class_id> <property_id> <value>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 || $(validate_text "$value") -ne 0 ]]; then
+        echo "Invalid class ID, property ID, or value" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || return 1
+
+    local instances=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT instance_id FROM classes_instances_data WHERE property_id = $property_id AND value = '$value' ORDER BY instance_id;")
+    echo "$instances" | tail -n +2
+}
+
+class_sort_by_property() {
+    local class_id="$1"
+    local property_id="$2"
+
+    if [ -z "$class_id" ] || [ -z "$property_id" ]; then
+        echo "Usage: class_sort_by_property <class_id> <property_id>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; then
+        echo "Invalid class ID or property ID" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || return 1
+
+    ./duckdb "$DUCKDB_FILE_NAME" -csv "CREATE TABLE class_temp_sorted AS SELECT instance_id, value, ROW_NUMBER() OVER (ORDER BY value) - 1 AS new_idx FROM classes_instances_data WHERE property_id = $property_id;"
+    ./duckdb "$DUCKDB_FILE_NAME" -csv "UPDATE classes_instances SET idx = (SELECT new_idx FROM class_temp_sorted WHERE classes_instances.instance_id = class_temp_sorted.instance_id) WHERE class_id = $class_id;"
+    ./duckdb "$DUCKDB_FILE_NAME" -csv "DROP TABLE class_temp_sorted;" || {
+        echo "Failed to sort instances" >&2
+        return 1
+    }
+}
+
 class_cascade_subtract_property() {
     local class_id="$1"
-    local property="$2"
-    local instances_map_id instances instance_name instance_id values
+    local property_id="$2"
+
+    if [ -z "$class_id" ] || [ -z "$property_id" ]; then
+        echo "Usage: class_cascade_subtract_property <class_id> <property_id>" >&2
+        return 1
+    fi
+
+    if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; then
+        echo "Invalid class ID or property ID" >&2
+        return 1
+    fi
+
+    class_exists "$class_id" || return 1
+
+    class_sort_by_property "$class_id" "$property_id"
+
+    local instances_and_values=$(./duckdb "$DUCKDB_FILE_NAME" -csv "
+        SELECT i.instance_id, d.value
+        FROM classes_instances i
+        JOIN classes_instances_data d ON i.instance_id = d.instance_id
+        WHERE i.class_id = $class_id AND d.property_id = $property_id
+        ORDER BY i.idx;
+    ")
+
+    local instances=()
+    local values=()
+    local header_skipped=false
+    while IFS=, read -r instance value; do
+        if ! $header_skipped; then
+            header_skipped=true
+            continue
+        fi
+        instances+=("$instance")
+        values+=("$value")
+    done <<<"$instances_and_values"
+
+    echo "Initial instances: ${instances[*]}" >&2
+    echo "Initial values: ${values[*]}" >&2
+
+    local num_values=${#values[@]}
+    for ((i = num_values - 1; i > 0; i--)); do
+        values[$i]=$((values[i] - values[i - 1]))
+    done
+
+    echo "Updated values after subtraction: ${values[*]}" >&2
+
+    for ((i = 0; i < num_values; i++)); do
+        ./duckdb "$DUCKDB_FILE_NAME" -csv "UPDATE classes_instances_data SET value = '${values[$i]}' WHERE property_id = $property_id AND instance_id = '${instances[$i]}';" || {
+            echo "Failed to update value for instance ${instances[$i]}" >&2
+            return 1
+        }
+    done
 }

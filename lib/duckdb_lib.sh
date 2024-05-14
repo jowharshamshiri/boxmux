@@ -138,17 +138,15 @@ initialize_db() {
     #map tables
     ./duckdb "$DUCKDB_FILE_NAME" -csv "CREATE TABLE IF NOT EXISTS maps (id INTEGER PRIMARY KEY DEFAULT nextval('seq_a'), map_name TEXT, data_type_id INTEGER REFERENCES data_types(id));"
     ./duckdb "$DUCKDB_FILE_NAME" -csv "CREATE TABLE IF NOT EXISTS maps_data (map_id INTEGER REFERENCES maps(id), key TEXT, value TEXT, idx INTEGER, PRIMARY KEY (map_id, key));"
-    # ./duckdb "$DUCKDB_FILE_NAME" -csv "CREATE TABLE IF NOT EXISTS map_temp_sorted (map_id INTEGER REFERENCES maps(id), key TEXT, value TEXT, new_idx INTEGER);"
 
     #list tables
     ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS lists (id INTEGER PRIMARY KEY DEFAULT nextval('seq_a'), list_name TEXT, data_type_id INTEGER REFERENCES data_types(id));"
     ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS lists_data (list_id INTEGER REFERENCES lists(id), value TEXT, idx INTEGER, PRIMARY KEY (list_id, idx));"
-    # ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS list_temp_sorted (list_id INTEGER REFERENCES lists(id), value TEXT, new_idx INTEGER);"
 
     #class tables
     ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS classes (id INTEGER PRIMARY KEY DEFAULT nextval('seq_a'), class_name TEXT);"
     ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS classes_properties (id INTEGER PRIMARY KEY DEFAULT nextval('seq_a'), class_id INTEGER REFERENCES classes(id), property TEXT, data_type_id INTEGER REFERENCES data_types(id));"
-    ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS classes_instances (class_id INTEGER REFERENCES classes(id), instance_id INTEGER UNIQUE DEFAULT nextval('seq_a'), PRIMARY KEY (class_id, instance_id));"
+    ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS classes_instances (class_id INTEGER REFERENCES classes(id), instance_id INTEGER UNIQUE DEFAULT nextval('seq_a'), PRIMARY KEY (class_id, instance_id), idx INTEGER);"
     ./duckdb $DUCKDB_FILE_NAME -csv "CREATE TABLE IF NOT EXISTS classes_instances_data (instance_id INTEGER REFERENCES classes_instances(instance_id), property_id INTEGER REFERENCES classes_properties(id), value TEXT, PRIMARY KEY (instance_id, property_id));"
 
     # Set tables
