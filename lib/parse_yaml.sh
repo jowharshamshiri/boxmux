@@ -14,37 +14,37 @@
 #   parse_yaml file|- [prefix] [separator]
 ###############################################################################
 
-function parse_yaml {
-  unset i
-  unset fs
-  local prefix=$2
-  local separator=${3:-_}
+parse_yaml() {
+    unset i
+    unset fs
+    local prefix=$2
+    local separator=${3:-_}
 
-  local indexfix=-1
-  # Detect awk flavor
-  if awk --version 2>&1 | grep -q "GNU Awk"; then
-    # GNU Awk detected
-    indexfix=-1
-  elif awk -Wv 2>&1 | grep -q "mawk"; then
-    # mawk detected
-    indexfix=0
-  fi
+    local indexfix=-1
+    # Detect awk flavor
+    if awk --version 2>&1 | grep -q "GNU Awk"; then
+        # GNU Awk detected
+        indexfix=-1
+    elif awk -Wv 2>&1 | grep -q "mawk"; then
+        # mawk detected
+        indexfix=0
+    fi
 
-  local s='[[:space:]]*' sm='[ \t]*' w='[a-zA-Z0-9_.]*' fs=${fs:-$(echo @ | tr @ '\034')} i=${i:-  }
+    local s='[[:space:]]*' sm='[ \t]*' w='[a-zA-Z0-9_.]*' fs=${fs:-$(echo @ | tr @ '\034')} i=${i:-  }
 
-  ###############################################################################
-  # cat:   read the yaml file (or stdin) into the stream
-  # awk 1: process multi-line text
-  # sed 1: remove comments and empty lines
-  # sed 2: process lists
-  # sed 3: process dictionaries
-  # sed 4: rearrange anchors
-  # sed 5: remove '---'/'...'/quotes, add file separator to create fields for awk 2
-  # awk 2: convert the formatted data to variable assignments
-  ###############################################################################
+    ###############################################################################
+    # cat:   read the yaml file (or stdin) into the stream
+    # awk 1: process multi-line text
+    # sed 1: remove comments and empty lines
+    # sed 2: process lists
+    # sed 3: process dictionaries
+    # sed 4: rearrange anchors
+    # sed 5: remove '---'/'...'/quotes, add file separator to create fields for awk 2
+    # awk 2: convert the formatted data to variable assignments
+    ###############################################################################
 
-  cat "${1:--}" |
-    awk -F"$fs" "{multi=0;
+    cat "${1:--}" |
+        awk -F"$fs" "{multi=0;
         if(match(\$0,/$sm\|$sm$/)){multi=1; sub(/$sm\|$sm$/,\"\");}
         if(match(\$0,/$sm>$sm$/)){multi=2; sub(/$sm>$sm$/,\"\");}
         while(multi>0){
@@ -70,54 +70,54 @@ function parse_yaml {
             if(match(\$0,/$sm>$sm$/)){multi=2; sub(/$sm>$sm$/,\"\");}
         }
     print}" |
-    sed -e "s|^\($s\)?|\1-|" \
-      -ne "s|^\($s\)-$s\($w\)$s:$s\(.*\)|\1-\n\1 \2: \3|" \
-      -ne "s|^$s#.*||;s|$s#[^\"']*$||;s|^\([^\"'#]*\)#.*|\1|;t 1" \
-      -ne "t" \
-      -ne ":1" \
-      -ne "s|^$s\$||;t 2" \
-      -ne "p" \
-      -ne ":2" \
-      -ne "d" |
-    sed -ne "s|,$s\]|]|g" \
-      -e ":1" \
-      -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: \3[\4]\n\1$i- \5|;t 1" \
-      -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s\[$s\(.*\)$s\]|\1\2: \3\n\1$i- \4|;" \
-      -e ":2" \
-      -e "s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: [\3]\n\1$i- \4|;t 2" \
-      -e "s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s\]|\1\2:\n\1$i- \3|;" \
-      -e ":3" \
-      -e "s|^\($s\)-$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1- [\2]\n\1$i- \3|;t 3" \
-      -e "s|^\($s\)-$s\[$s\(.*\)$s\]|\1-\n\1$i- \2|;p" |
-    sed -ne "s|,$s}|}|g" \
-      -e ":1" \
-      -e "s|^\($s\)-$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1- {\2}\n\1$i\3: \4|;t 1" \
-      -e "s|^\($s\)-$s{$s\(.*\)$s}|\1-\n\1$i\2|;" \
-      -e ":2" \
-      -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1\2: \3 {\4}\n\1$i\5: \6|;t 2" \
-      -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s{$s\(.*\)$s}|\1\2: \3\n\1$i\4|;" \
-      -e ":3" \
-      -e "s|^\($s\)\($w\)$s:$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1\2: {\3}\n\1$i\4: \5|;t 3" \
-      -e "s|^\($s\)\($w\)$s:$s{$s\(.*\)$s}|\1\2:\n\1$i\3|;p" |
-    sed -e "s|^\($s\)\($w\)$s:$s\(&$w\)\(.*\)|\1\2:\4\n\3|" \
-      -e "s|^\($s\)-$s\(&$w\)\(.*\)|\1- \3\n\2|" |
-    sed -ne "s|^\($s\):|\1|" \
-      -e "s|^\($s\)\(---\)\($s\)||" \
-      -e "s|^\($s\)\(\.\.\.\)\($s\)||" \
-      -e "s|^\($s\)-$s[\"']\(.*\)[\"']$s\$|\1$fs$fs\2|p;t" \
-      -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p;t" \
-      -e "s|^\($s\)-$s\(.*\)$s\$|\1$fs$fs\2|" \
-      -e "s|^\($s\)\($w\)$s:$s[\"']\?\(.*\)$s\$|\1$fs\2$fs\3|" \
-      -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)[\"']$s\$|\1$fs$fs$fs\2|" \
-      -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)$s\$|\1$fs$fs$fs\2|" \
-      -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)$s\$|\1$fs\2$fs\3|" \
-      -e "s|^\($s\)[\"']\([^&][^$fs]*\)[\"']$s\$|\1$fs$fs$fs\2|" \
-      -e "s|^\($s\)[\"']\([^&][^$fs]*\)$s\$|\1$fs$fs$fs\2|" \
-      -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|" \
-      -e "s|^\($s\)\([^&][^$fs]*\)[\"']$s\$|\1$fs$fs$fs\2|" \
-      -e "s|^\($s\)\([^&][^$fs]*\)$s\$|\1$fs$fs$fs\2|" \
-      -e "s|$s\$||p" |
-    awk -F"$fs" "{
+        sed -e "s|^\($s\)?|\1-|" \
+            -ne "s|^\($s\)-$s\($w\)$s:$s\(.*\)|\1-\n\1 \2: \3|" \
+            -ne "s|^$s#.*||;s|$s#[^\"']*$||;s|^\([^\"'#]*\)#.*|\1|;t 1" \
+            -ne "t" \
+            -ne ":1" \
+            -ne "s|^$s\$||;t 2" \
+            -ne "p" \
+            -ne ":2" \
+            -ne "d" |
+        sed -ne "s|,$s\]|]|g" \
+            -e ":1" \
+            -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: \3[\4]\n\1$i- \5|;t 1" \
+            -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s\[$s\(.*\)$s\]|\1\2: \3\n\1$i- \4|;" \
+            -e ":2" \
+            -e "s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: [\3]\n\1$i- \4|;t 2" \
+            -e "s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s\]|\1\2:\n\1$i- \3|;" \
+            -e ":3" \
+            -e "s|^\($s\)-$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1- [\2]\n\1$i- \3|;t 3" \
+            -e "s|^\($s\)-$s\[$s\(.*\)$s\]|\1-\n\1$i- \2|;p" |
+        sed -ne "s|,$s}|}|g" \
+            -e ":1" \
+            -e "s|^\($s\)-$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1- {\2}\n\1$i\3: \4|;t 1" \
+            -e "s|^\($s\)-$s{$s\(.*\)$s}|\1-\n\1$i\2|;" \
+            -e ":2" \
+            -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1\2: \3 {\4}\n\1$i\5: \6|;t 2" \
+            -e "s|^\($s\)\($w\)$s:$s\(&$w\)$s{$s\(.*\)$s}|\1\2: \3\n\1$i\4|;" \
+            -e ":3" \
+            -e "s|^\($s\)\($w\)$s:$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1\2: {\3}\n\1$i\4: \5|;t 3" \
+            -e "s|^\($s\)\($w\)$s:$s{$s\(.*\)$s}|\1\2:\n\1$i\3|;p" |
+        sed -e "s|^\($s\)\($w\)$s:$s\(&$w\)\(.*\)|\1\2:\4\n\3|" \
+            -e "s|^\($s\)-$s\(&$w\)\(.*\)|\1- \3\n\2|" |
+        sed -ne "s|^\($s\):|\1|" \
+            -e "s|^\($s\)\(---\)\($s\)||" \
+            -e "s|^\($s\)\(\.\.\.\)\($s\)||" \
+            -e "s|^\($s\)-$s[\"']\(.*\)[\"']$s\$|\1$fs$fs\2|p;t" \
+            -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p;t" \
+            -e "s|^\($s\)-$s\(.*\)$s\$|\1$fs$fs\2|" \
+            -e "s|^\($s\)\($w\)$s:$s[\"']\?\(.*\)$s\$|\1$fs\2$fs\3|" \
+            -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)[\"']$s\$|\1$fs$fs$fs\2|" \
+            -e "s|^\($s\)[\"']\?\([^&][^$fs]\+\)$s\$|\1$fs$fs$fs\2|" \
+            -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)$s\$|\1$fs\2$fs\3|" \
+            -e "s|^\($s\)[\"']\([^&][^$fs]*\)[\"']$s\$|\1$fs$fs$fs\2|" \
+            -e "s|^\($s\)[\"']\([^&][^$fs]*\)$s\$|\1$fs$fs$fs\2|" \
+            -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|" \
+            -e "s|^\($s\)\([^&][^$fs]*\)[\"']$s\$|\1$fs$fs$fs\2|" \
+            -e "s|^\($s\)\([^&][^$fs]*\)$s\$|\1$fs$fs$fs\2|" \
+            -e "s|$s\$||p" |
+        awk -F"$fs" "{
         gsub(/\t/,\"        \",\$1);
         if(NF>3){if(value!=\"\"){value = value \" \";}value = value  \$4;}
         else {
@@ -166,3 +166,23 @@ function parse_yaml {
         }
     }"
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

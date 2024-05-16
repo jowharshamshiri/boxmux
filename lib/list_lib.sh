@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-source "/Users/bahram/ws/prj/machinegenesis/crossbash/lib/duckdb_lib.sh"
-
 list_init() {
     local list_name="$1"
-    local list_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists (id, list_name) VALUES (nextval('seq_list_id'), '$list_name') ON CONFLICT DO NOTHING RETURNING id;" | tail -n +2)
+    local list_id=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists (id, list_name) VALUES (nextval('seq_list_id'), '$list_name') ON CONFLICT DO NOTHING RETURNING id;" | tail -n +2)
     echo "$list_id"
 }
 
@@ -12,7 +10,7 @@ list_init() {
 list_exists() {
     local list_id="$1"
     local count
-    count=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) FROM lists WHERE id=$list_id;" | tail -n +2)
+    count=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) FROM lists WHERE id=$list_id;" | tail -n +2)
     if [ "$count" -eq 0 ]; then
         echo "List with id '$list_id' does not exist. Please initialize it first." >&2
         return 1
@@ -25,7 +23,7 @@ list_exists() {
 list_clear() {
     local list_id="$1"
     list_exists "$list_id" || return 1
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id;"
 }
 
 # Function to add a value to the list
@@ -34,8 +32,8 @@ list_add() {
     local value="$2"
     list_exists "$list_id" || return 1
     local idx
-    idx=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COALESCE(MAX(idx), 0) + 1 FROM lists_data WHERE list_id=$list_id;" | tail -n +2)
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists_data (list_id, value, idx) VALUES ($list_id, '$value', $idx);"
+    idx=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT COALESCE(MAX(idx), 0) + 1 FROM lists_data WHERE list_id=$list_id;" | tail -n +2)
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists_data (list_id, value, idx) VALUES ($list_id, '$value', $idx);"
 }
 
 # Function to get a value at a specific index in the list
@@ -44,7 +42,7 @@ list_get() {
     local idx="$2"
     list_exists "$list_id" || return 1
     local value
-    value=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id AND idx=$idx;" | tail -n +2)
+    value=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id AND idx=$idx;" | tail -n +2)
     if [ -n "$value" ]; then
         echo "$value"
     else
@@ -57,14 +55,14 @@ list_remove() {
     local list_id="$1"
     local idx="$2"
     list_exists "$list_id" || return 1
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id AND idx=$idx;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id AND idx=$idx;"
 }
 
 # Function to print all values in the list
 list_print() {
     local list_id="$1"
     list_exists "$list_id" || return 1
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT idx, value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2 | while IFS=, read -r idx value; do
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT idx, value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2 | while IFS=, read -r idx value; do
         echo "$idx: $value"
     done
 }
@@ -74,23 +72,23 @@ list_sort() {
     local list_id="$1"
     list_exists "$list_id" || return 1
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "
         CREATE TEMP TABLE list_temp_sorted AS
         SELECT list_id, value, ROW_NUMBER() OVER (ORDER BY CAST(value AS INTEGER)) AS new_idx
         FROM lists_data
         WHERE list_id = $list_id;
     "
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "
         DELETE FROM lists_data WHERE list_id = $list_id;
     "
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "
         INSERT INTO lists_data (list_id, value, idx)
         SELECT list_id, value, new_idx FROM list_temp_sorted;
     "
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DROP TABLE list_temp_sorted;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DROP TABLE list_temp_sorted;"
 }
 
 # Function to perform cascade subtraction on the list values
@@ -103,7 +101,7 @@ list_cascade_subtract() {
 
     # Fetch sorted values
     local values
-    values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2))
+    values=($(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2))
 
     echo "Initial values: ${values[@]}" >&2
 
@@ -116,17 +114,37 @@ list_cascade_subtract() {
 
     echo "Updated values after subtraction: ${values[@]}" >&2
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM lists_data WHERE list_id=$list_id;"
 
     for i in "${!values[@]}"; do
         local idx=$((i + 1))
         local value="${values[i]}"
-        ./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists_data (list_id, value, idx) VALUES ($list_id, '$value', $idx);"
+        ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO lists_data (list_id, value, idx) VALUES ($list_id, '$value', $idx);"
     done
 }
 
 list_values() {
     local list_id="$1"
     list_exists "$list_id" || return 1
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM lists_data WHERE list_id=$list_id ORDER BY idx;" | tail -n +2
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

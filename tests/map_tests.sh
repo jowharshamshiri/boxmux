@@ -19,7 +19,7 @@ test_map_new() {
         return 1
     }
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps WHERE map_name = '$map_name' AND data_type_id = $data_type_id;")
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM maps WHERE map_name = '$map_name' AND data_type_id = $data_type_id;")
     result=$(echo "$result" | tail -n 1) # Get the actual count result
     if [[ "$result" -eq 1 ]]; then
         echo "map_new test passed" >&2
@@ -36,7 +36,7 @@ test_map_exists() {
     local data_type_id=$DATATYPE_ID_INTEGER
     map_new "$map_name" "$data_type_id"
 
-    local map_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT id FROM maps WHERE map_name = '$map_name';" | tail -n 1)
+    local map_id=$(run_duckdb_csv_query "SELECT id FROM maps WHERE map_name = '$map_name';" | tail -n 1)
 
     if [[ $(map_exists "$map_id") -eq 0 ]]; then
         echo "map_exists test passed" >&2
@@ -62,7 +62,7 @@ test_map_add_or_set() {
 
     map_add_or_set "$map_id" "key1" "value1"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT value FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
     if [[ "$result" == "value1" ]]; then
         echo "map_add_or_set test passed" >&2
         return 0
@@ -81,7 +81,7 @@ test_map_clear() {
     map_add_or_set "$map_id" "key1" "value1"
     map_clear "$map_id"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id;" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id;" | tail -n 1)
     if [[ "$result" -eq 0 ]]; then
         echo "map_clear test passed" >&2
         return 0
@@ -142,7 +142,7 @@ test_map_remove() {
     map_add_or_set "$map_id" "key1" "value1"
     map_remove "$map_id" "key1"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id AND key = 'key1';" | tail -n 1)
     if [[ "$result" -eq 0 ]]; then
         echo "map_remove test passed" >&2
         return 0
@@ -186,7 +186,7 @@ test_map_sort_by_value() {
         return 1
     }
 
-    local keys=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
+    local keys=($(run_duckdb_csv_query "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
     if [[ "${keys[0]}" == "key2" && "${keys[1]}" == "key3" && "${keys[2]}" == "key1" ]]; then
         echo "map_sort_by_value test passed" >&2
         return 0
@@ -230,7 +230,7 @@ test_map_cascade_subtract() {
         return 1
     }
 
-    local values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
+    local values=($(run_duckdb_csv_query "SELECT value FROM maps_data WHERE map_id = $map_id ORDER BY idx;" | tail -n +2))
     if [[ "${values[0]}" == "1" && "${values[1]}" == "1" && "${values[2]}" == "1" ]]; then
         echo "map_cascade_subtract test passed" >&2
         return 0

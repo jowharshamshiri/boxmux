@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 function setup_nat() {
     local network_1_adapter="$1"
     local network_2_adapter="$2"
@@ -20,15 +22,15 @@ function setup_nat() {
     local rule2="-i $network_2_adapter -o $network_1_adapter -j ACCEPT"
 
     # Check if rule1 exists in the custom chain, if not, add it
-    if ! iptables -C "$chain_name" $rule1 &>/dev/null; then
+    if ! iptables -C "$chain_name" "$rule1" &>/dev/null; then
         log_debug "Adding rule: $rule1 to $chain_name"
-        sudo iptables -A "$chain_name" $rule1
+        sudo iptables -A "$chain_name" "$rule1"
     fi
 
     # Check if rule2 exists in the custom chain, if not, add it
-    if ! iptables -C "$chain_name" $rule2 &>/dev/null; then
+    if ! iptables -C "$chain_name" "$rule2" &>/dev/null; then
         log_debug "Adding rule: $rule2 to $chain_name"
-        sudo iptables -A "$chain_name" $rule2
+        sudo iptables -A "$chain_name" "$rule2"
     fi
 }
 
@@ -39,9 +41,9 @@ ensure_iptables_rule() {
     local full_rule="-t $table -A $chain $rule"
 
     # Check if the rule already exists
-    if ! sudo iptables -t "$table" -C "$chain" $rule 2>/dev/null; then
+    if ! sudo iptables -t "$table" -C "$chain" "$rule" 2>/dev/null; then
         log_debug "Adding rule to $chain: $rule"
-        sudo iptables $full_rule
+        sudo iptables "$full_rule"
     else
         log_debug "Rule already exists in $chain: $rule"
     fi
@@ -65,7 +67,7 @@ setup_custom_chain() {
     fi
 }
 
-delete_custom_chain(){
+delete_custom_chain() {
     local custom_chain="${1:-CUSTOM_CHAIN}"
 
     # If a specific custom chain is provided, try to delete it from all tables
@@ -83,8 +85,8 @@ save_iptables() {
     backup_file "${ip4_backup_file}"
     backup_file "${ip6_backup_file}"
 
-    sudo iptables-save | sudo tee "$ip4_backup_file" > /dev/null
-    sudo ip6tables-save | sudo tee "$ip6_backup_file" > /dev/null
+    sudo iptables-save | sudo tee "$ip4_backup_file" >/dev/null
+    sudo ip6tables-save | sudo tee "$ip6_backup_file" >/dev/null
 }
 
 reset_iptables() {
@@ -155,12 +157,12 @@ create_basic_bridge() {
 
 create_static_bridge() {
     local bridge_name="$1"
-    local bridge_ip="$2"  # Ensure this includes CIDR notation, e.g., 192.168.1.1/24
+    local bridge_ip="$2" # Ensure this includes CIDR notation, e.g., 192.168.1.1/24
     # local bridge_subnet="$3"
     # local bridge_gateway="$4"
     local bridge_mac_address="$3"
-# || -z "$bridge_gateway"|| -z "$bridge_subnet"
-    if [[ -z "$bridge_name" || -z "$bridge_ip" ||  -z "$bridge_mac_address" ]]; then
+    # || -z "$bridge_gateway"|| -z "$bridge_subnet"
+    if [[ -z "$bridge_name" || -z "$bridge_ip" || -z "$bridge_mac_address" ]]; then
         log_fatal "Usage: create_static_bridge <bridge_name> <bridge_ip> <bridge_subnet> <bridge_gateway> [bridge_mac_address]"
         return 1
     fi
@@ -176,7 +178,7 @@ create_static_bridge() {
     sudo ip link set dev "$bridge_name" address "$bridge_mac_address"
     sudo ip addr add "$bridge_ip" dev "$bridge_name"
     # sudo ip route add default via "$bridge_gateway"
-# { [[ -n "$bridge_mac_address" ]] &&
+    # { [[ -n "$bridge_mac_address" ]] &&
     if [[ $? -eq 0 ]]; then
         echo "Bridge $bridge_name created and started successfully."
     else
@@ -251,11 +253,11 @@ create_dhcp_managed_bridge() {
     # echo "Bridge $bridge_name is up and configured via DHCP."
 }
 
-device_broadcast_address(){
-    ip addr show dev $DEV|grep brd|awk '/inet / {print $4}'
+device_broadcast_address() {
+    ip addr show dev "$DEV" | grep brd | awk '/inet / {print $4}'
 }
 
-subnet_broadcast_address(){
+subnet_broadcast_address() {
     IP=$1
     NETMASK=$2
 
@@ -265,8 +267,8 @@ subnet_broadcast_address(){
     fi
 
     # Convert IP and netmask to binary, then perform bitwise OR to get broadcast
-    IFS=. read -r i1 i2 i3 i4 <<< "$IP"
-    IFS=. read -r m1 m2 m3 m4 <<< "$NETMASK"
+    IFS=. read -r i1 i2 i3 i4 <<<"$IP"
+    IFS=. read -r m1 m2 m3 m4 <<<"$NETMASK"
 
     # Calculate broadcast by ORing the inverted netmask with the IP address
     BCAST=$(printf "%d.%d.%d.%d\n" "$((i1 | ~m1 & 255))" "$((i2 | ~m2 & 255))" "$((i3 | ~m3 & 255))" "$((i4 | ~m4 & 255))")
@@ -274,7 +276,7 @@ subnet_broadcast_address(){
     echo "$BCAST"
 }
 
-cidr_broadcast_address(){
+cidr_broadcast_address() {
     cidr_address=$1
 
     if [[ -z "$cidr_address" ]]; then
@@ -283,11 +285,11 @@ cidr_broadcast_address(){
     fi
 
     # Extract IP address and CIDR prefix from input
-    IFS=/ read -r IP CIDR <<< "$cidr_address"
+    IFS=/ read -r IP CIDR <<<"$cidr_address"
 
     # Initialize subnet mask
     MASK=""
-    for (( i=1; i<=32; i++ )); do
+    for ((i = 1; i <= 32; i++)); do
         if [[ $i -le $CIDR ]]; then
             MASK+="1"
         else
@@ -295,18 +297,18 @@ cidr_broadcast_address(){
         fi
 
         # Add dots between octets
-        if (( $i % 8 == 0 )) && [ $i -ne 32 ]; then
+        if (($i % 8 == 0)) && [ $i -ne 32 ]; then
             MASK+="."
         fi
     done
 
     # Convert binary mask to decimal IP form
-    IFS=. read -r mb1 mb2 mb3 mb4 <<< "$MASK"
+    IFS=. read -r mb1 mb2 mb3 mb4 <<<"$MASK"
     MASK_IP=$(printf "%d.%d.%d.%d\n" "$((2#$mb1))" "$((2#$mb2))" "$((2#$mb3))" "$((2#$mb4))")
 
     # Calculate the broadcast address using bitwise operations
-    IFS=. read -r i1 i2 i3 i4 <<< "$IP"
-    IFS=. read -r m1 m2 m3 m4 <<< "$MASK_IP"
+    IFS=. read -r i1 i2 i3 i4 <<<"$IP"
+    IFS=. read -r m1 m2 m3 m4 <<<"$MASK_IP"
 
     # Invert mask for broadcast calculation
     m1=$((~m1 & 0xFF))
@@ -319,9 +321,9 @@ cidr_broadcast_address(){
     echo "$BCAST"
 }
 
-random_mac_address(){
+random_mac_address() {
     MAC=$(hexdump -n6 -e '/1 ":%02X"' /dev/urandom | sed 's/^://; s/\(..\)/\10/' | sed 's/^\(..\)/\1/' | awk -F: '{printf "%02X:%s:%s:%s:%s:%s\n", $1 - ($1 % 2), $2, $3, $4, $5, $6}')
-    echo $MAC
+    echo "$MAC"
 }
 
 delete_bridge() {
@@ -369,7 +371,6 @@ is_bridge_up() {
 
     ip link show "$bridge_name" | grep -q "state UP"
 }
-
 
 get_bridge_ip() {
     local bridge_name="$1"
@@ -506,11 +507,10 @@ bring_bridge_down() {
     fi
 }
 
-
 get_nth_available_ip() {
     local subnet="$1"
     local gateway="$2"
-    local nth="$3"  # The n-th available IP after the gateway
+    local nth="$3" # The n-th available IP after the gateway
 
     if [ -z "$subnet" ] || [ -z "$gateway" ] || [ -z "$nth" ]; then
         log_fatal "Usage: get_nth_available_ip <subnet> <gateway> <nth>"
@@ -524,8 +524,8 @@ get_nth_available_ip() {
     fi
 
     # Extract the base IP and the last octet of the gateway IP
-    local base_ip="${gateway%.*}"  # Remove the last octet
-    local last_octet="${gateway##*.}"  # Extract the last octet
+    local base_ip="${gateway%.*}"     # Remove the last octet
+    local last_octet="${gateway##*.}" # Extract the last octet
 
     # Calculate the nth available IP by incrementing the last octet of the gateway by nth (instead of nth - 1)
     local nth_available=$((last_octet + nth))
@@ -591,3 +591,23 @@ get_nth_available_ip() {
 #         return 1
 #     fi
 # }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

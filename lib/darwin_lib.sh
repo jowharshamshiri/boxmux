@@ -1,5 +1,4 @@
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+#!/usr/bin/env bash
 
 darwin_read_file_to_array() {
     log_trace "function darwin_read_file_to_array()"
@@ -14,7 +13,7 @@ darwin_read_file_to_array() {
     arr=()
     while IFS= read -r line || [[ -n "$line" ]]; do
         arr+=("$line")
-    done < "$filename"
+    done <"$filename"
 }
 
 darwin_read_list_file_to_array() {
@@ -32,11 +31,11 @@ darwin_read_list_file_to_array() {
 
     local line
     while IFS= read -r line || [[ -n "$line" ]]; do
-        line=$(echo "$line" | awk '{$1=$1};1')  # Trim spaces using awk
+        line=$(echo "$line" | awk '{$1=$1};1') # Trim spaces using awk
         [[ "$line" == "" || "$line" =~ ^# ]] && continue
         # Append to the array using eval
         eval "$arr_name+=(\"\$line\")"
-    done < "$filename"
+    done <"$filename"
 }
 
 darwin_install_package() {
@@ -44,7 +43,7 @@ darwin_install_package() {
     local package_name=$1
     if ! brew list --formula | grep -q "^${package_name}$"; then
         log_state "Installing package $package_name..."
-        brew install $package_name
+        brew install "$package_name"
     else
         log_debug "Package $package_name is already installed."
     fi
@@ -54,7 +53,7 @@ darwin_install_packages() {
     log_trace "function darwin_install_packages()"
     local packages=("$@")
     for package in "${packages[@]}"; do
-        darwin_install_package $package
+        darwin_install_package "$package"
     done
 }
 
@@ -68,7 +67,7 @@ darwin_install_dependencies() {
 
 darwin_install_package_repo() {
     log_trace "function darwin_install_package_repo()"
-    local repo_url=$1  # This should be in the format of 'user/repo'
+    local repo_url=$1 # This should be in the format of 'user/repo'
 
     if [ -z "$repo_url" ]; then
         log_fatal "Usage: darwin_install_package_repo <user/repo>"
@@ -77,7 +76,7 @@ darwin_install_package_repo() {
 
     if ! brew tap | grep -q "^${repo_url}$"; then
         log_state "Adding Homebrew tap $repo_url..."
-        brew tap $repo_url
+        brew tap "$repo_url"
     else
         log_debug "Homebrew tap $repo_url is already added."
     fi
@@ -88,7 +87,7 @@ darwin_install_package_repos() {
     local package_repos=("$@")
 
     for repo in "${package_repos[@]}"; do
-        darwin_install_package_repo $repo
+        darwin_install_package_repo "$repo"
     done
 }
 
@@ -108,7 +107,27 @@ darwin_download_homebrew_packages() {
     for package in "${packages[@]}"; do
         if [ ! -f "$download_dir/$package" ]; then
             log_info "Package $package not found, attempting to download..."
-            brew fetch --force-bottle $package
+            brew fetch --force-bottle "$package"
         fi
     done
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

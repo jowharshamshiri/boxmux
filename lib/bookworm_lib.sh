@@ -1,9 +1,8 @@
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+#!/bin/bash
 
 bookworm_read_file_to_array() {
     local filename="$1"
-    local -n arr=$2  # Declare arr as a nameref to reference the passed array variable
+    local -n arr=$2 # Declare arr as a nameref to reference the passed array variable
 
     # Check if the file exists
     if [[ ! -f "$filename" ]]; then
@@ -12,12 +11,12 @@ bookworm_read_file_to_array() {
     fi
 
     # Read the file line by line into the array
-    mapfile -t arr < "$filename"
+    mapfile -t arr <"$filename"
 }
 
 bookworm_read_list_file_to_array() {
     local filename="$1"
-    local -n arr=$2  # Declare arr as a nameref to reference the passed array variable
+    local -n arr=$2 # Declare arr as a nameref to reference the passed array variable
 
     # Check if the file exists
     if [[ ! -f "$filename" ]]; then
@@ -38,14 +37,14 @@ bookworm_read_list_file_to_array() {
 
         # Append the line to the array
         arr+=("$line")
-    done < "$filename"
+    done <"$filename"
 }
 
 bookworm_install_package() {
     local package_name=$1
-    if ! dpkg -l | grep -q $package_name; then
+    if ! dpkg -l | grep -q "$package_name"; then
         log_state "Installing package $package_name..."
-        sudo apt-get install -y $package_name
+        sudo apt-get install -y "$package_name"
     else
         log_debug "Package $package_name is already installed."
     fi
@@ -78,7 +77,7 @@ bookworm_install_packages() {
     fi
 
     for package in "${packages[@]}"; do
-        bookworm_install_package $package
+        bookworm_install_package "$package"
     done
 }
 
@@ -86,7 +85,7 @@ bookworm_install_package_repos() {
     local package_repos=("$@")
 
     for repo in "${package_repos[@]}"; do
-        bookworm_install_package_repo $repo
+        bookworm_install_package_repo "$repo"
     done
 }
 
@@ -114,7 +113,7 @@ bookworm_download_packages() {
         return 1
     fi
 
-    docker run --rm -v $WORKSPACE:/workspace -v $DEB_DIR:/deb -w /workspace debian:12 bash -c "apt update && apt install -y ${apt_deps_bookworm[@]} && cp /var/cache/apt/archives/*.deb /deb"
+    docker run --rm -v "$WORKSPACE":/workspace -v "$DEB_DIR":/deb -w /workspace debian:12 bash -c "apt update && apt install -y ${apt_deps_bookworm[@]} && cp /var/cache/apt/archives/*.deb /deb"
 
     if [ $? -ne 0 ]; then
         log_error "Failed to download apt dependencies deb packages."
@@ -123,3 +122,23 @@ bookworm_download_packages() {
 
     log_state "Apt dependencies deb packages downloaded successfully."
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

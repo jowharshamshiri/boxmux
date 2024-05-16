@@ -1,5 +1,4 @@
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+#!/usr/bin/env bash
 
 # Detecting specific Linux distributions and macOS versions
 detect_distro_and_call_function() {
@@ -33,7 +32,7 @@ detect_distro_and_call_function() {
 
     # Build function name and call it if available
     local function_name="${distro_prefix}_${base_function_name}"
-    if declare -f "$function_name" > /dev/null; then
+    if declare -f "$function_name" >/dev/null; then
         log_debug "Calling function: $function_name"
         "$function_name" "$argument"
     else
@@ -73,3 +72,23 @@ install_dependencies() {
 install_dependency_repos() {
     detect_distro_and_call_function "install_dependency_repos" "$@"
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

@@ -1,5 +1,5 @@
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+#!/bin/bash
+source ~/.xbashrc
 
 REFERENCE_DOMAIN="google.com"
 REFERENCE_DNS_IP="8.8.8.8"
@@ -21,21 +21,21 @@ get_ip_address() {
     local host_lan_ip=""
 
     case "$os_type" in
-        Linux)
-            # Using ip command available in modern Linux distributions
-            host_lan_ip=$(ip -4 addr show $host_lan_adapter | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-            ;;
-        Darwin)
-            # Using ifconfig command, typical in macOS
-            host_lan_ip=$(ifconfig $host_lan_adapter | awk '/inet / {print $2}')
-            ;;
-        *)
-            echo "Unsupported OS."
-            return 1
-            ;;
+    Linux)
+        # Using ip command available in modern Linux distributions
+        host_lan_ip=$(ip -4 addr show "$host_lan_adapter" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        ;;
+    Darwin)
+        # Using ifconfig command, typical in macOS
+        host_lan_ip=$(ifconfig "$host_lan_adapter" | awk '/inet / {print $2}')
+        ;;
+    *)
+        echo "Unsupported OS."
+        return 1
+        ;;
     esac
 
-    echo $host_lan_ip
+    echo "$host_lan_ip"
 }
 
 get_subnet() {
@@ -45,8 +45,8 @@ get_subnet() {
 
     if [[ "$os_type" == "Darwin" ]]; then
         # Get the IP address and hex netmask
-        local ip_address=$(ifconfig $host_lan_adapter | awk '/inet / {print $2}')
-        local hex_netmask=$(ifconfig $host_lan_adapter | awk '/netmask / {print $4}')
+        local ip_address=$(ifconfig "$host_lan_adapter" | awk '/inet / {print $2}')
+        local hex_netmask=$(ifconfig "$host_lan_adapter" | awk '/netmask / {print $4}')
 
         # Convert hex netmask to binary
         local binary_netmask=$(printf '%032b' "0x${hex_netmask}")
@@ -56,22 +56,22 @@ get_subnet() {
 
         host_lan_subnet="${ip_address}/${cidr}"
     elif [[ "$os_type" == "Linux" ]]; then
-        host_lan_subnet=$(ip -4 addr show $host_lan_adapter | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+        host_lan_subnet=$(ip -4 addr show "$host_lan_adapter" | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
     else
         echo "Unsupported OS."
         return 1
     fi
 
-    echo $host_lan_subnet
+    echo "$host_lan_subnet"
 }
 
-HOST_LAN_IP=$(get_ip_address $HOST_LAN_ADAPTER)
-HOST_LAN_SUBNET=$(get_subnet $HOST_LAN_ADAPTER)
+HOST_LAN_IP=$(get_ip_address "$HOST_LAN_ADAPTER")
+HOST_LAN_SUBNET=$(get_subnet "$HOST_LAN_ADAPTER")
 # log_debug "HOST_LAN_IP: $HOST_LAN_IP"
 # log_debug "HOST_LAN_SUBNET: $HOST_LAN_SUBNET"
 
-HOST_WLAN_IP=$(get_ip_address $HOST_WLAN_ADAPTER)
-HOST_WLAN_SUBNET=$(get_subnet $HOST_WLAN_ADAPTER)
+HOST_WLAN_IP=$(get_ip_address "$HOST_WLAN_ADAPTER")
+HOST_WLAN_SUBNET=$(get_subnet "$HOST_WLAN_ADAPTER")
 # log_debug "HOST_WLAN_IP: $HOST_WLAN_IP"
 # log_debug "HOST_WLAN_SUBNET: $HOST_WLAN_SUBNET"
 
@@ -93,10 +93,28 @@ LOG_LEVEL_ALERT=2
 LOG_LEVEL_ERROR=1
 LOG_LEVEL_FATAL=0
 
-RUN_UUID=$(uuidgen)
-RUN_TEMP_DIR="/tmp/mg-$RUN_UUID"
-mkdir -p "$RUN_TEMP_DIR"
-RUN_STATE_FILE="$RUN_TEMP_DIR/state.json"
-RUN_LOG_FILE="$RUN_TEMP_DIR/log.txt"
+WORKSPACES_ROOT="/tmp/xb"
+
+RUN_LAEBL_PREFIX="$(date +"%y%m%d_%H%M%S")_"
+# count similar labels
+RUN_LABEL_COUNT="$(ls -1 $WORKSPACES_ROOT | grep -E "^$RUN_LAEBL_PREFIX" | wc -l)"
+# add one
+RUN_LABEL="$RUN_LAEBL_PREFIX$((RUN_LABEL_COUNT + 1))"
+
+RUN_WORKSPACE="$WORKSPACES_ROOT/$RUN_LABEL"
+mkdir -p "$RUN_WORKSPACE"
+RUN_STATE_FILE="$RUN_WORKSPACE/state.json"
+RUN_LOG_FILE="$RUN_WORKSPACE/log.txt"
 touch "$RUN_LOG_FILE"
 
+DOWNLOADS_DIR="$USER_XB_DIR/downloads"
+DUCKDB_EXECUTABLE_MAC="$XB_HOME/duckdb/duckdb_mac"
+DUCKDB_EXECUTABLE_LINUX_X64="$XB_HOME/duckdb/duckdb_linux_x64"
+DUCKDB_EXECUTABLE_LINUX_ARM64="$XB_HOME/duckdb/duckdb_linux_aarch64"
+DUCKDB_EXECUTABLE="$DUCKDB_EXECUTABLE_MAC"
+
+DUCKDB_FILE_NAME="$USER_XB_DIR/crossbash.duckdb"
+DUCKDB_FKS=false
+
+CLASS_CHECKS=false
+LAYOUT_ROOT_ELEMENT="layout"

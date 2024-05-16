@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Source the YAML parser and stack library
-source "./parse_yaml.sh"
-source "./map.sh"
-source "./stack.sh"
-
 get_os() {
     # Figure out the current operating system to set some specific variables.
     # '$OSTYPE' typically stores the name of the OS kernel.
@@ -834,23 +829,25 @@ random_prefix() {
     echo "$(date +%s | sha256sum | base64 | head -c 6)"
 }
 
-separator="___"
-prefix="$(random_prefix)"$separator""
+setup_menu() {
+    separator="___"
+    prefix="$(random_prefix)"$separator""
 
-id_path_map_name=""${prefix}"id_path_map"
-map_init """$id_path_map_name"""
+    id_path_map_name=""${prefix}"id_path_map"
+    map_new """$id_path_map_name"""
 
-menu_stack_name=""${prefix}"menu_stack"
-stack_init """$menu_stack_name"""
+    menu_stack_name=""${prefix}"menu_stack"
+    stack_new """$menu_stack_name"""
 
-BLUE="\033[44m"
-WHITE="\033[97m"
-RESET="\033[0m"
+    BLUE="\033[44m"
+    WHITE="\033[97m"
+    RESET="\033[0m"
 
-STYLE_INFO=""${BLUE}"${WHITE}"
+    STYLE_INFO=""${BLUE}"${WHITE}"
 
-list=()
-list_total=0
+    list=()
+    list_total=0
+}
 
 add_list_item() {
     local line=""$1""
@@ -1041,7 +1038,7 @@ fill_id_path_map() {
 main() {
     local yaml_file=$1
     local separator="___"
-
+    setup_menu
     # Parse the YAML file into shell variables
     local parsed
     parsed="$(parse_yaml "$yaml_file" "$prefix" "$separator")"
@@ -1123,4 +1120,24 @@ main() {
     done
 }
 
-main "menu.yaml"
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi
+
+# main "menu.yaml"

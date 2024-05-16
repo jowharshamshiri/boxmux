@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 char_A=("╔═╗╠═╣╩ ╩")
 char_B=("╔╗ ╠╩╗╚═╝")
@@ -86,86 +86,86 @@ char_brace_close=(" ┐   > ┘ ")
 
 get_char() {
     case "$1" in
-        A) echo "${char_A[*]}" ;;
-        B) echo "${char_B[*]}" ;;
-        C) echo "${char_C[*]}" ;;
-        D) echo "${char_D[*]}" ;;
-        E) echo "${char_E[*]}" ;;
-        F) echo "${char_F[*]}" ;;
-        G) echo "${char_G[*]}" ;;
-        H) echo "${char_H[*]}" ;;
-        I) echo "${char_I[*]}" ;;
-        J) echo "${char_J[*]}" ;;
-        K) echo "${char_K[*]}" ;;
-        L) echo "${char_L[*]}" ;;
-        M) echo "${char_M[*]}" ;;
-        N) echo "${char_N[*]}" ;;
-        O) echo "${char_O[*]}" ;;
-        P) echo "${char_P[*]}" ;;
-        Q) echo "${char_Q[*]}" ;;
-        R) echo "${char_R[*]}" ;;
-        S) echo "${char_S[*]}" ;;
-        T) echo "${char_T[*]}" ;;
-        U) echo "${char_U[*]}" ;;
-        V) echo "${char_V[*]}" ;;
-        W) echo "${char_W[*]}" ;;
-        X) echo "${char_X[*]}" ;;
-        Y) echo "${char_Y[*]}" ;;
-        Z) echo "${char_Z[*]}" ;;
-        a) echo "${char_a[*]}" ;;
-        b) echo "${char_b[*]}" ;;
-        c) echo "${char_c[*]}" ;;
-        d) echo "${char_d[*]}" ;;
-        e) echo "${char_e[*]}" ;;
-        f) echo "${char_f[*]}" ;;
-        g) echo "${char_g[*]}" ;;
-        h) echo "${char_h[*]}" ;;
-        i) echo "${char_i[*]}" ;;
-        j) echo "${char_j[*]}" ;;
-        k) echo "${char_k[*]}" ;;
-        l) echo "${char_l[*]}" ;;
-        m) echo "${char_m[*]}" ;;
-        n) echo "${char_n[*]}" ;;
-        o) echo "${char_o[*]}" ;;
-        p) echo "${char_p[*]}" ;;
-        q) echo "${char_q[*]}" ;;
-        r) echo "${char_r[*]}" ;;
-        s) echo "${char_s[*]}" ;;
-        t) echo "${char_t[*]}" ;;
-        u) echo "${char_u[*]}" ;;
-        v) echo "${char_v[*]}" ;;
-        w) echo "${char_w[*]}" ;;
-        x) echo "${char_x[*]}" ;;
-        y) echo "${char_y[*]}" ;;
-        z) echo "${char_z[*]}" ;;
-        " ") echo "${char_space[*]}" ;;
-        "!") echo "${char_exclamation[*]}" ;;
-        "?") echo "${char_question[*]}" ;;
-        "_") echo "${char_underline[*]}" ;;
-        "-") echo "${char_dash[*]}" ;;
-        ",") echo "${char_comma[*]}" ;;
-        ".") echo "${char_period[*]}" ;;
-        "[") echo "${char_bracket_open[*]}" ;;
-        "]") echo "${char_bracket_close[*]}" ;;
-        "@") echo "${char_at_sign[*]}" ;;
-        "$") echo "${char_dollar_sign[*]}" ;;
-        "%") echo "${char_percent_sign[*]}" ;;
-        "^") echo "${char_power_sign[*]}" ;;
-        "&") echo "${char_ampersand[*]}" ;;
-        "*") echo "${char_asterisk[*]}" ;;
-        "#") echo "${char_hashtag[*]}" ;;
-        "'") echo "${char_single_quote[*]}" ;;
-        "\"") echo "${char_double_quote[*]}" ;;
-        "/") echo "${char_forward_slash[*]}" ;;
-        "\\") echo "${char_back_slash[*]}" ;;
-        "+") echo "${char_plus_sign[*]}" ;;
-        "=") echo "${char_equals_sign[*]}" ;;
-        ":") echo "${char_colon[*]}" ;;
-        ";") echo "${char_semicolon[*]}" ;;
-        "~") echo "${char_tilde[*]}" ;;
-        "{") echo "${char_brace_open[*]}" ;;
-        "}") echo "${char_brace_close[*]}" ;;
-        *) echo -e "\n\n" ;;
+    A) echo "${char_A[*]}" ;;
+    B) echo "${char_B[*]}" ;;
+    C) echo "${char_C[*]}" ;;
+    D) echo "${char_D[*]}" ;;
+    E) echo "${char_E[*]}" ;;
+    F) echo "${char_F[*]}" ;;
+    G) echo "${char_G[*]}" ;;
+    H) echo "${char_H[*]}" ;;
+    I) echo "${char_I[*]}" ;;
+    J) echo "${char_J[*]}" ;;
+    K) echo "${char_K[*]}" ;;
+    L) echo "${char_L[*]}" ;;
+    M) echo "${char_M[*]}" ;;
+    N) echo "${char_N[*]}" ;;
+    O) echo "${char_O[*]}" ;;
+    P) echo "${char_P[*]}" ;;
+    Q) echo "${char_Q[*]}" ;;
+    R) echo "${char_R[*]}" ;;
+    S) echo "${char_S[*]}" ;;
+    T) echo "${char_T[*]}" ;;
+    U) echo "${char_U[*]}" ;;
+    V) echo "${char_V[*]}" ;;
+    W) echo "${char_W[*]}" ;;
+    X) echo "${char_X[*]}" ;;
+    Y) echo "${char_Y[*]}" ;;
+    Z) echo "${char_Z[*]}" ;;
+    a) echo "${char_a[*]}" ;;
+    b) echo "${char_b[*]}" ;;
+    c) echo "${char_c[*]}" ;;
+    d) echo "${char_d[*]}" ;;
+    e) echo "${char_e[*]}" ;;
+    f) echo "${char_f[*]}" ;;
+    g) echo "${char_g[*]}" ;;
+    h) echo "${char_h[*]}" ;;
+    i) echo "${char_i[*]}" ;;
+    j) echo "${char_j[*]}" ;;
+    k) echo "${char_k[*]}" ;;
+    l) echo "${char_l[*]}" ;;
+    m) echo "${char_m[*]}" ;;
+    n) echo "${char_n[*]}" ;;
+    o) echo "${char_o[*]}" ;;
+    p) echo "${char_p[*]}" ;;
+    q) echo "${char_q[*]}" ;;
+    r) echo "${char_r[*]}" ;;
+    s) echo "${char_s[*]}" ;;
+    t) echo "${char_t[*]}" ;;
+    u) echo "${char_u[*]}" ;;
+    v) echo "${char_v[*]}" ;;
+    w) echo "${char_w[*]}" ;;
+    x) echo "${char_x[*]}" ;;
+    y) echo "${char_y[*]}" ;;
+    z) echo "${char_z[*]}" ;;
+    " ") echo "${char_space[*]}" ;;
+    "!") echo "${char_exclamation[*]}" ;;
+    "?") echo "${char_question[*]}" ;;
+    "_") echo "${char_underline[*]}" ;;
+    "-") echo "${char_dash[*]}" ;;
+    ",") echo "${char_comma[*]}" ;;
+    ".") echo "${char_period[*]}" ;;
+    "[") echo "${char_bracket_open[*]}" ;;
+    "]") echo "${char_bracket_close[*]}" ;;
+    "@") echo "${char_at_sign[*]}" ;;
+    "$") echo "${char_dollar_sign[*]}" ;;
+    "%") echo "${char_percent_sign[*]}" ;;
+    "^") echo "${char_power_sign[*]}" ;;
+    "&") echo "${char_ampersand[*]}" ;;
+    "*") echo "${char_asterisk[*]}" ;;
+    "#") echo "${char_hashtag[*]}" ;;
+    "'") echo "${char_single_quote[*]}" ;;
+    "\"") echo "${char_double_quote[*]}" ;;
+    "/") echo "${char_forward_slash[*]}" ;;
+    "\\") echo "${char_back_slash[*]}" ;;
+    "+") echo "${char_plus_sign[*]}" ;;
+    "=") echo "${char_equals_sign[*]}" ;;
+    ":") echo "${char_colon[*]}" ;;
+    ";") echo "${char_semicolon[*]}" ;;
+    "~") echo "${char_tilde[*]}" ;;
+    "{") echo "${char_brace_open[*]}" ;;
+    "}") echo "${char_brace_close[*]}" ;;
+    *) echo -e "\n\n" ;;
     esac
 }
 
@@ -182,16 +182,16 @@ print_title() {
     local line3=""
 
     local i
-    for (( i=0; i<${#input}; i++ )); do
+    for ((i = 0; i < ${#input}; i++)); do
         char="${input:$i:1}"
         char=$(get_char "$char")
 
-        if (( ${#char} % 3 != 0 )); then
+        if ((${#char} % 3 != 0)); then
             echo "Error: Font data for '$char' is not correctly formatted."
             continue
         fi
 
-        local segment_length=$(( ${#char} / 3 ))
+        local segment_length=$((${#char} / 3))
 
         segment1="${char:0:$segment_length}"
         segment2="${char:$segment_length:$segment_length}"
@@ -241,8 +241,8 @@ print_title() {
 clear_lines() {
     local num_lines=$1
     local i
-    for (( i=0; i<num_lines; i++ )); do
-        echo -ne "\033[1A\033[2K"  # Move up and clear line
+    for ((i = 0; i < num_lines; i++)); do
+        echo -ne "\033[1A\033[2K" # Move up and clear line
     done
 }
 
@@ -251,21 +251,21 @@ title_marquee() {
     local width=${2:-$(console_width)}
     local speed=${3:-0.1}
     local compact=${4:-true}
-    local separation=${5:-5}  # Control the separation between repetitions of the marquee
+    local separation=${5:-5} # Control the separation between repetitions of the marquee
     local prefix=${6:-"[ "}  # Prefix that stays at the beginning
     local suffix=${7:-" ]"}  # Suffix that stays at the end
 
     local text_width=$((width - ${#prefix} - ${#suffix}))
 
     # Create a separator string of spaces based on the desired separation
-    local separator=$(printf '%*s' $separation '')
+    local separator=$(printf '%*s' "$separation" '')
 
     # Create a repeating string that is long enough to fill the width multiple times
     local repeat_factor=$((width / (${#input} + separation) + 2))
     local marquee_text=""
     local i
-    for (( i=0; i<repeat_factor; i++ )); do
-        marquee_text+="${input}${separator}"  # Add separator between repetitions
+    for ((i = 0; i < repeat_factor; i++)); do
+        marquee_text+="${input}${separator}" # Add separator between repetitions
     done
 
     # The marquee buffer that includes enough text to scroll smoothly
@@ -284,11 +284,11 @@ title_marquee() {
         buffer="${buffer:1}${buffer:0:1}"
 
         # Sleep to control the speed of the marquee
-        sleep $speed
+        sleep "$speed"
     done
 }
 
-marquee() {
+print_marquee() {
     local input="$1"
     local width=${2:-$(console_width)}
     local speed=${3:-0.1}
@@ -301,14 +301,14 @@ marquee() {
     local text_width=$((width - ${#prefix} - ${#suffix}))
 
     # Create a separator string of spaces based on the desired separation
-    local separator=$(printf '%*s' $separation '')
+    local separator=$(printf '%*s' "$separation" '')
 
     # Create a repeating string that is long enough to fill the width multiple times
     local repeat_factor=$((width / (${#input} + separation) + 2))
     local marquee_text=""
     local i
-    for (( i=0; i<repeat_factor; i++ )); do
-        marquee_text+="${input}${separator}"  # Add separator between repetitions
+    for ((i = 0; i < repeat_factor; i++)); do
+        marquee_text+="${input}${separator}" # Add separator between repetitions
     done
 
     # The marquee buffer that includes enough text to scroll smoothly
@@ -319,9 +319,9 @@ marquee() {
     local length=${#buffer}
 
     local x=0
-    while [ $x -lt $iterations ]; do
+    while [ $x -lt "$iterations" ]; do
         # Print a slice of the marquee buffer based on the current offset and width
-        if [ $x -gt 0 ] || [ $clear_first == "true" ]; then
+        if [ $x -gt 0 ] || [ "$clear_first" == "true" ]; then
             clear_lines 1
         fi
 
@@ -331,8 +331,8 @@ marquee() {
         buffer="${buffer:1}${buffer:0:1}"
 
         # Sleep to control the speed of the marquee
-        sleep $speed
-        x=$((x+1))
+        sleep "$speed"
+        x=$((x + 1))
     done
 }
 
@@ -342,93 +342,6 @@ console_height() {
 # Function to get the current console width
 console_width() {
     tput cols
-}
-
-# Initial setup of variables
-LAST_RECORDED_WIDTH=$(console_width)
-LAST_WIDTH_UPDATE_TIME=$(date +%s)
-
-# Configuration for the threshold in seconds
-CONSOLE_WIDTH_CHANGE_DETECTION_THRESHOLD_SECONDS=3
-
-# Function to update and check the console width
-update_and_check_console_width() {
-    local new_width=$(console_width)
-    local current_time=$(date +%s)
-    local time_since_last_update=$((current_time - LAST_WIDTH_UPDATE_TIME))
-
-    # Check if the threshold time has passed
-    if [ "$time_since_last_update" -ge "$CONSOLE_WIDTH_CHANGE_DETECTION_THRESHOLD_SECONDS" ]; then
-        LAST_RECORDED_WIDTH=$new_width
-        LAST_WIDTH_UPDATE_TIME=$current_time
-        echo "Width baseline updated to $LAST_RECORDED_WIDTH at $LAST_WIDTH_UPDATE_TIME" >&2
-    fi
-
-    echo "$LAST_RECORDED_WIDTH"
-}
-
-# Function to report if there has been a width change within the threshold
-console_width_just_changed() {
-    local new_width=$(console_width)
-    local last_checked_width=$(update_and_check_console_width)
-
-    local width_difference=$(($new_width - $last_checked_width))
-
-    # Report change if any
-    if [ "$width_difference" -ne 0 ]; then
-        echo "Width changed by $width_difference columns since last reset." >&2
-        echo "$width_difference"
-        return 0  # Change detected
-    else
-        echo "No change detected." >&2
-        echo "0"
-        return 1  # No change
-    fi
-}
-
-
-ceil() {
-    local a="$1"
-    local b="$2"
-
-    # Perform integer division
-    local quotient=$(( a / b ))
-    local remainder=$(( a % b ))
-
-    # If there's any remainder, increment quotient to achieve ceiling
-    if [ "$remainder" -ne 0 ]; then
-        quotient=$(( quotient + 1 ))
-    fi
-
-    # Return the result
-    echo "$quotient"
-}
-
-floor() {
-    local a="$1"
-    local b="$2"
-
-    # Perform integer division
-    local quotient=$(( a / b ))
-
-    # Return the result
-    echo "$quotient"
-}
-
-lines_to_clear() {
-    local change=$(console_width_just_changed)
-
-    echo "change: $change" >&2
-
-    if [ $change -eq 0 ]; then
-        echo "1"
-    else
-        current_width=$(console_width)
-        old_width=$(($current_width - $change))
-        local reduction=$(ceil $old_width $current_width)
-        echo "reduction: $reduction" >&2
-        echo "$reduction"
-    fi
 }
 
 progress_bar() {
@@ -447,7 +360,7 @@ progress_bar() {
         return
     fi
 
-    if [ $percentage -lt 0 ] || [ $percentage -gt 100 ]; then
+    if [ "$percentage" -lt 0 ] || [ "$percentage" -gt 100 ]; then
         echo "Error: Percentage must be between 0 and 100."
         return
     fi
@@ -458,20 +371,20 @@ progress_bar() {
     local bar_filled=$(printf '%*s' $filled_length '' | tr ' ' "$filled_char")
     local bar_empty=$(printf '%*s' $((bar_width - filled_length)) '' | tr ' ' "$empty_char")
 
-    if [ $percentage -lt 10 ]; then
+    if [ "$percentage" -lt 10 ]; then
         suffix="$suffix   %$percentage"
-    elif [ $percentage -lt 100 ]; then
+    elif [ "$percentage" -lt 100 ]; then
         suffix="$suffix  %$percentage"
     else
         suffix="$suffix %$percentage"
     fi
 
-    if [ ! $percentage -eq 0 ]; then
-        # clear_lines 1
+    if [ ! "$percentage" -eq 0 ]; then
+        clear_lines 1
         # if console_width_just_changed; then
         #     clear_lines 1
         # fi
-        reduction_multiple=$(lines_to_clear)
+        # reduction_multiple=$(lines_to_clear)
         # echo "reduction_multiple: $reduction_multiple"
         # clear_lines $reduction_multiple +1
 
@@ -487,7 +400,7 @@ progress_bar() {
     echo -e "$prefix$bar_filled$bar_empty$suffix"
 }
 
-marquee_progress_bar_percentage(){
+marquee_progress_bar_percentage() {
     local percentage=$1
 
     if [ -z "$percentage" ]; then
@@ -495,34 +408,108 @@ marquee_progress_bar_percentage(){
         return
     fi
 
-    if [ $percentage -lt 0 ] || [ $percentage -gt 100 ]; then
+    if [ "$percentage" -lt 0 ] || [ "$percentage" -gt 100 ]; then
         echo "Error: Percentage must be between 0 and 100."
         return
     fi
 
-    # create suffix
+    # cre"ate suffix"
     local suffix="  ]"
-    if [ $percentage -lt 10 ]; then
+    if [ "$percentage" -lt 10 ]; then
         suffix="$suffix   %$percentage"
-    elif [ $percentage -lt 100 ]; then
+    elif [ "$percentage" -lt 100 ]; then
         suffix="$suffix  %$percentage"
     else
         suffix="$suffix% $percentage"
     fi
 
     local clear_first=true
-    if [ $percentage -eq 0 ]; then
+    if [ "$percentage" -eq 0 ]; then
         clear_first=false
     fi
 
     print_marquee "--" 40 0.1 2 3 $clear_first "[  " "$suffix"
 }
 
-i=0
+marquee_wait() {
+    while true; do
+        print_marquee "----" 80 0.1
+    done
+}
 
-while [ $i -le 100 ]; do
-    progress_bar $i
-    i=$((i+1))
-    sleep 0.2
-done
+add_wait_marquee() {
+    marquee_wait &
+    WAIT_MARQUEE_PID=$!
+    set_env_var "WAIT_MARQUEE_PID" "$WAIT_MARQUEE_PID"
 
+    trap "kill $WAIT_MARQUEE_PID; exit" INT
+}
+
+remove_wait_marquee() {
+    if [ -n "$WAIT_MARQUEE_PID" ]; then
+        kill "$WAIT_MARQUEE_PID" >/dev/null 2>&1
+        unset_env_var "WAIT_MARQUEE_PID"
+    fi
+}
+
+# Function to print a scrolling marquee while allowing logs to scroll above it
+scrolling_marquee() {
+    local message="$1"
+    local width=${2:-$(console_width)}
+    local speed=${3:-0.1}
+    local lines_above=${4:-5} # Number of lines allowed to scroll above the marquee
+
+    local message_length=${#message}
+    local buffer="${message}$(printf '%*s' "$width" '' | tr ' ' ' ')"
+
+    while true; do
+        clear_lines $((lines_above + 1))
+
+        for ((i = 0; i < message_length + width; i++)); do
+            echo -ne "\033[1A\033[2K" # Move up and clear line
+            echo -e "${buffer:i:width}"
+            sleep "$speed"
+        done
+
+        # Allow logs to scroll above
+        for ((i = 0; i < lines_above; i++)); do
+            echo -e "\033[1A" # Move up
+        done
+    done
+}
+
+test() {
+    # i=0
+
+    # while [ $i -le 100 ]; do
+    #     progress_bar $i
+    #     i=$((i + 1))
+    #     sleep 0.2
+    # done
+    message="$1"
+    width="${2:-$(console_width)}"
+    speed="${3:-0.1}"
+    lines_above="${4:-5}"
+
+    scrolling_marquee "$message" "$width" "$speed" "$lines_above"
+}
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

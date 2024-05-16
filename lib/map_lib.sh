@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-source "/Users/bahram/ws/prj/machinegenesis/crossbash/lib/duckdb_lib.sh"
-
 map_new() {
     local map_name="$1"
     local data_type_id="$2"
@@ -16,7 +14,7 @@ map_new() {
         return 1
     fi
 
-    map_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO maps (map_name, data_type_id) VALUES ('$map_name', $data_type_id) RETURNING id;" | tail -n +2)
+    map_id=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO maps (map_name, data_type_id) VALUES ('$map_name', $data_type_id) RETURNING id;" | tail -n +2)
 
     if [ -z "$map_id" ]; then
         echo "Failed to create map" >&2
@@ -39,7 +37,7 @@ map_exists() {
         return 1
     fi
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps WHERE id = $map_id;")
+    local result=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps WHERE id = $map_id;")
     result=$(echo "$result" | tail -n 1) # Get the actual count result
     if [[ "$result" -eq 1 ]]; then
         return 0
@@ -66,7 +64,7 @@ map_clear() {
         return 1
     }
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DELETE FROM maps_data WHERE map_id = $map_id;" || {
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM maps_data WHERE map_id = $map_id;" || {
         echo "Failed to clear map" >&2
         return 1
     }
@@ -92,7 +90,7 @@ map_add_or_set() {
         return 1
     }
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "INSERT INTO maps_data (map_id, key, value, idx) VALUES ($map_id, '$key', '$value', nextval('seq_a')) ON CONFLICT (map_id, key) DO UPDATE SET value = EXCLUDED.value;" || {
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO maps_data (map_id, key, value, idx) VALUES ($map_id, '$key', '$value', nextval('seq_a')) ON CONFLICT (map_id, key) DO UPDATE SET value = EXCLUDED.value;" || {
         echo "Failed to add or set key-value pair" >&2
         return 1
     }
@@ -114,7 +112,7 @@ map_get() {
 
     map_exists "$map_id" || return 1
 
-    local value=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id AND key = '$key';" | tail -n 1)
+    local value=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id AND key = '$key';" | tail -n 1)
 
     echo "value is $value" >&2
 
@@ -142,7 +140,7 @@ map_contains_key() {
 
     map_exists "$map_id" || return 1
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id AND key = '$key';")
+    local result=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM maps_data WHERE map_id = $map_id AND key = '$key';")
     result=$(echo "$result" | tail -n 1) # Get the actual count result
 
     if [[ "$result" -eq 1 ]]; then
@@ -171,7 +169,7 @@ map_remove() {
         return 1
     }
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DELETE FROM maps_data WHERE map_id = $map_id AND key = '$key';" || {
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM maps_data WHERE map_id = $map_id AND key = '$key';" || {
         echo "Failed to remove key-value pair" >&2
         return 1
     }
@@ -195,7 +193,7 @@ map_print() {
         return 1
     }
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT key, value FROM maps_data WHERE map_id = $map_id ORDER BY idx;" || {
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT key, value FROM maps_data WHERE map_id = $map_id ORDER BY idx;" || {
         echo "Failed to print map" >&2
         return 1
     }
@@ -219,9 +217,9 @@ map_sort_by_value() {
         return 1
     }
 
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "CREATE TABLE map_temp_sorted AS SELECT key, value, ROW_NUMBER() OVER (ORDER BY value) - 1 AS new_idx FROM maps_data WHERE map_id = $map_id;"
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "UPDATE maps_data SET idx = (SELECT new_idx FROM map_temp_sorted WHERE maps_data.map_id = $map_id AND maps_data.key = map_temp_sorted.key) WHERE map_id = $map_id;"
-    ./duckdb "$DUCKDB_FILE_NAME" -csv "DROP TABLE map_temp_sorted;" || {
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "CREATE TABLE map_temp_sorted AS SELECT key, value, ROW_NUMBER() OVER (ORDER BY value) - 1 AS new_idx FROM maps_data WHERE map_id = $map_id;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "UPDATE maps_data SET idx = (SELECT new_idx FROM map_temp_sorted WHERE maps_data.map_id = $map_id AND maps_data.key = map_temp_sorted.key) WHERE map_id = $map_id;"
+    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DROP TABLE map_temp_sorted;" || {
         echo "Failed to sort map" >&2
         return 1
     }
@@ -245,7 +243,7 @@ map_keys() {
         return 1
     }
 
-    local keys=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;")
+    local keys=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;")
     echo "$keys" | tail -n +2 | paste -sd "," -
 }
 
@@ -269,8 +267,8 @@ map_cascade_subtract() {
 
     map_sort_by_value "$map_id"
 
-    local keys=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;"))
-    local values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id ORDER BY idx;"))
+    local keys=($(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT key FROM maps_data WHERE map_id = $map_id ORDER BY idx;"))
+    local values=($(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM maps_data WHERE map_id = $map_id ORDER BY idx;"))
 
     echo "Initial keys: ${keys[*]}" >&2
     echo "Initial values: ${values[*]}" >&2
@@ -283,9 +281,29 @@ map_cascade_subtract() {
     echo "Updated values: ${values[*]}" >&2
 
     for ((i = 0; i < num_values; i++)); do
-        ./duckdb "$DUCKDB_FILE_NAME" -csv "UPDATE maps_data SET value = '${values[$i]}' WHERE map_id = $map_id AND key = '${keys[$i]}';" || {
+        ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "UPDATE maps_data SET value = '${values[$i]}' WHERE map_id = $map_id AND key = '${keys[$i]}';" || {
             echo "Failed to update value for key ${keys[$i]}" >&2
             return 1
         }
     done
 }
+
+source ~/.xbashrc
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ -z "$1" ]; then
+        # No function name supplied, do nothing
+        exit 0
+    fi
+
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
+
+    # Check if the function exists
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
+    else
+        log_fatal "'$func_name' is not a valid function name."
+        exit 1
+    fi
+fi

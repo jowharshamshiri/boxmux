@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 
 DUCKDB_FILE_NAME="crossbash.duckdb"
-source "../lib/class_lib.sh" # Source the script with your functions
+source "../lib/class_lib.sh"
+
+initialize_test_db() {
+    run_duck_db_csv_script "$XB_HOME/assets/db_no_fks.sql"
+    setup_data_types
+}
 
 # Function to reset the database
 reset() {
     rm -f "$DUCKDB_FILE_NAME"
-    initialize_db
+    initialize_test_db
 }
 
 test_class_new() {
@@ -18,7 +23,7 @@ test_class_new() {
         return 1
     }
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM classes WHERE class_name = '$class_name';")
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes WHERE class_name = '$class_name';")
     result=$(echo "$result" | tail -n 1) # Get the actual count result
     if [[ "$result" -eq 1 ]]; then
         echo "class_new test passed" >&2
@@ -34,7 +39,7 @@ test_class_exists() {
     local class_name="test_class"
     class_new "$class_name"
 
-    local class_id=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT id FROM classes WHERE class_name = '$class_name';" | tail -n 1)
+    local class_id=$(run_duckdb_csv_query "SELECT id FROM classes WHERE class_name = '$class_name';" | tail -n 1)
 
     if [[ $(class_exists "$class_id") -eq 0 ]]; then
         echo "class_exists test passed" >&2
@@ -60,7 +65,7 @@ test_class_add_property() {
 
     class_add_property "$class_id" "$property" "$data_type_id"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM classes_properties WHERE class_id = $class_id AND property = '$property';" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_properties WHERE class_id = $class_id AND property = '$property';" | tail -n 1)
     if [[ "$result" -eq 1 ]]; then
         echo "class_add_property test passed" >&2
         return 0
@@ -82,7 +87,7 @@ test_class_create_instance() {
 
     class_create_instance "$class_id"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM classes_instances WHERE class_id = $class_id;" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances WHERE class_id = $class_id;" | tail -n 1)
     if [[ "$result" -eq 1 ]]; then
         echo "class_create_instance test passed" >&2
         return 0
@@ -103,7 +108,7 @@ test_instance_set_property() {
 
     instance_set_property "$class_id" "$instance_id" "$property_id" "test_value"
 
-    local result=$(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM classes_instances_data WHERE instance_id = $instance_id AND property_id = $property_id ORDER BY instance_id;" | tail -n 1)
+    local result=$(run_duckdb_csv_query "SELECT value FROM classes_instances_data WHERE instance_id = $instance_id AND property_id = $property_id ORDER BY instance_id;" | tail -n 1)
     if [[ "$result" == "test_value" ]]; then
         echo "instance_set_property test passed" >&2
         return 0
@@ -201,7 +206,7 @@ test_class_sort_by_property() {
         return 1
     }
 
-    local instances=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT instance_id FROM classes_instances WHERE class_id = $class_id ORDER BY idx;" | tail -n +2))
+    local instances=($(run_duckdb_csv_query "SELECT instance_id FROM classes_instances WHERE class_id = $class_id ORDER BY idx;" | tail -n +2))
     if [[ "${instances[0]}" == "$instance_id_2" && "${instances[1]}" == "$instance_id_3" && "${instances[2]}" == "$instance_id_1" ]]; then
         echo "class_sort_by_property test passed" >&2
         return 0
@@ -231,7 +236,7 @@ test_class_cascade_subtract_property() {
         return 1
     }
 
-    local values=($(./duckdb "$DUCKDB_FILE_NAME" -csv "SELECT value FROM classes_instances_data WHERE property_id = $property_id ORDER BY instance_id;" | tail -n +2))
+    local values=($(run_duckdb_csv_query "SELECT value FROM classes_instances_data WHERE property_id = $property_id ORDER BY instance_id;" | tail -n +2))
 
     echo "Values: ${values[*]}" >&2
 
@@ -240,6 +245,85 @@ test_class_cascade_subtract_property() {
         return 0
     else
         echo "class_cascade_subtract_property test failed" >&2
+        return 1
+    fi
+}
+
+test_cache_get_instance() {
+    reset
+    local class_name="test_class"
+    local property_1="property_1"
+    local property_2="property_2"
+    local data_type_id_1=$DATATYPE_ID_TEXT
+    local data_type_id_2=$DATATYPE_ID_INTEGER
+
+    local class_id=$(class_new "$class_name")
+    local property_id_1=$(class_add_property "$class_id" "$property_1" "$data_type_id_1")
+    local property_id_2=$(class_add_property "$class_id" "$property_2" "$data_type_id_2")
+    local instance_id=$(class_create_instance "$class_id")
+
+    instance_set_property "$class_id" "$instance_id" "$property_id_1" "test_value_1"
+    instance_set_property "$class_id" "$instance_id" "$property_id_2" "123"
+
+    # Fetch properties from the database (should not use cache)
+    local properties
+    properties=$(cache_get_instance "$class_id" "$instance_id" "true")
+    echo "First fetch (forced): $properties"
+    if [[ "$properties" != *"$property_id_1,test_value_1"* ]] || [[ "$properties" != *"$property_id_2,123"* ]]; then
+        echo "cache_get_instance test (force fetch) failed" >&2
+        return 1
+    fi
+
+    # Fetch properties again (should use cache)
+    properties=$(cache_get_instance "$class_id" "$instance_id" "false")
+    echo "Second fetch (cached): $properties"
+    if [[ "$properties" != *"$property_id_1,test_value_1"* ]] || [[ "$properties" != *"$property_id_2,123"* ]]; then
+        echo "cache_get_instance test (cache fetch) failed" >&2
+        return 1
+    fi
+
+    # Change a property value and force fetch (should reflect new value)
+    instance_set_property "$class_id" "$instance_id" "$property_id_1" "new_test_value_1"
+    properties=$(cache_get_instance "$class_id" "$instance_id" "true")
+    echo "Third fetch (forced after update): $properties"
+    if [[ "$properties" != *"$property_id_1,new_test_value_1"* ]] || [[ "$properties" != *"$property_id_2,123"* ]]; then
+        echo "cache_get_instance test (force fetch after update) failed" >&2
+        return 1
+    fi
+
+    # Fetch properties again (should use cache and reflect new value due to forced update)
+    properties=$(cache_get_instance "$class_id" "$instance_id" "false")
+    echo "Fourth fetch (cached after update): $properties"
+    if [[ "$properties" != *"$property_id_1,new_test_value_1"* ]] || [[ "$properties" != *"$property_id_2,123"* ]]; then
+        echo "cache_get_instance test (cache fetch after update) failed" >&2
+        return 1
+    fi
+
+    echo "cache_get_instance test passed" >&2
+    return 0
+}
+
+test_cache_get_property() {
+    reset
+    local class_name="test_class"
+    local property="test_property"
+    local data_type_id=$DATATYPE_ID_TEXT
+    local property_value="test_value"
+
+    local class_id=$(class_new "$class_name")
+    local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
+    local instance_id=$(class_create_instance "$class_id")
+
+    instance_set_property "$class_id" "$instance_id" "$property_id" "$property_value"
+
+    local value
+    value=$(cache_get_property "$class_id" "$instance_id" "$property_id")
+
+    if [[ "$value" == "$property_value" ]]; then
+        echo "cache_get_property test passed" >&2
+        return 0
+    else
+        echo "cache_get_property test failed" >&2
         return 1
     fi
 }
@@ -268,3 +352,5 @@ run_test test_class_list_instances
 run_test test_class_get_by_property
 run_test test_class_sort_by_property
 run_test test_class_cascade_subtract_property
+run_test test_cache_get_instance
+run_test test_cache_get_property

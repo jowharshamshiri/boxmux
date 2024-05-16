@@ -1,19 +1,21 @@
+#!/bin/bash
+
 backup_file() {
-  local filepath=$1
-  local basepath=$(dirname "$filepath")
-  local filename=$(basename "$filepath")
+    local filepath=$1
+    local basepath=$(dirname "$filepath")
+    local filename=$(basename "$filepath")
 
-  # Find the next backup number
-  local n=0
-  while [ -e "$basepath/$filename.bak$n" ]; do
-    let n++
-  done
+    # Find the next backup number
+    local n=0
+    while [ -e "$basepath/$filename.bak$n" ]; do
+        let n++
+    done
 
-  # Copy the current file to the next backup number
-  sudo cp "$filepath" "$basepath/$filename.bak$n"
+    # Copy the current file to the next backup number
+    sudo cp "$filepath" "$basepath/$filename.bak$n"
 }
 
-fix_virtualbox(){
+fix_virtualbox() {
     sudo chown root:root /usr
     sudo chown root:root /usr/lib
     sudo chown root:root /usr/lib/virtualbox
@@ -24,7 +26,7 @@ function instantiate_template() {
     local output_file="$2"
 
     # Immediately check for the minimum number of arguments
-    if [ $# -lt 4 ] || [ $(( $# % 2 )) -ne 0 ]; then
+    if [ $# -lt 4 ] || [ $(($# % 2)) -ne 0 ]; then
         log_fatal "Usage: instantiate_template <template-file> <output-file> <placeholder_1> <value_1> [<placeholder_2> <value_2> ...]"
         return 1
     fi
@@ -71,6 +73,11 @@ function instantiate_template() {
 }
 
 download_file() {
+
+    # Download tables
+    # run_duckdb_csv_query "CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY DEFAULT nextval('seq_a'), url TEXT, expected_checksum TEXT, checksum TEXT, hash_type TEXT, downloaded BOOLEAN, download_time TIMESTAMP);"
+    # run_duckdb_csv_query "CREATE TABLE IF NOT EXISTS downloads_links (download_id INTEGER REFERENCES downloads(id), link_path TEXT, PRIMARY KEY (download_id, link_path));"
+    # }
     local url="$1"
     local output_path="$2"
     local hash_type="$3"
@@ -98,12 +105,11 @@ download_file() {
         return 1
     fi
 
-
     # Check if file exists and compare hashes if necessary
     if [ -f "$output_path" ]; then
         if [ -n "$hash_type" ] && [ -n "$expected_hash" ]; then
             local hash_command="${hash_type}sum"
-            if $hash_command -c <(echo "$expected_hash  $output_path") > /dev/null 2>&1; then
+            if $hash_command -c <(echo "$expected_hash  $output_path") >/dev/null 2>&1; then
                 log_debug "File '$output_path' already exists and has the correct $hash_type hash. Skipping download."
                 return 0
             else
@@ -121,7 +127,7 @@ download_file() {
         if [ -n "$hash_type" ] && [ -n "$expected_hash" ]; then
             if hash_check; then
                 local hash_command="${hash_type}sum"
-                if $hash_command -c <(echo "$expected_hash  $output_path") > /dev/null 2>&1; then
+                if $hash_command -c <(echo "$expected_hash  $output_path") >/dev/null 2>&1; then
                     log_debug "File '$output_path' has the correct $hash_type hash."
                 else
                     log_error "File '$output_path' has an incorrect $hash_type hash. Removing the file."
@@ -139,6 +145,102 @@ download_file() {
         fi
         return 1
     fi
+}
+
+check_file_hash() {
+    local file_path="$1"
+    local hash_type="$2"
+    local expected_hash="$3"
+
+    # Check for mandatory parameters
+    if [ -z "$file_path" ] || [ -z "$hash_type" ] || [ -z "$expected_hash" ]; then
+        log_fatal "Usage: check_file_hash <file-path> <hash-type> <expected-hash>"
+        return 1
+    fi
+
+    # Verify that the provided hash type is supported
+    if ! [[ "$hash_type" =~ ^(md5|sha1|sha256)$ ]]; then
+        log_fatal "Unsupported hash type '$hash_type'. Supported types: md5, sha1, sha256."
+        return 1
+    fi
+
+    # Check if the file exists
+    if [ ! -f "$file_path" ]; then
+        log_error "File '$file_path' not found."
+        return 1
+    fi
+
+    # Check the hash of the file
+    local hash_command="${hash_type}sum"
+    if $hash_command -c <(echo "$expected_hash  $file_path") >/dev/null 2>&1; then
+        log_debug "File '$file_path' has the correct $hash_type hash."
+        return 0
+    else
+        log_error "File '$file_path' has an incorrect $hash_type hash."
+        return 1
+    fi
+}
+
+get_file_hash() {
+    local file_path="$1"
+    local hash_type="$2"
+
+    # Check for mandatory parameters
+    if [ -z "$file_path" ] || [ -z "$hash_type" ]; then
+        log_fatal "Usage: get_file_hash <file-path> <hash-type>"
+        return 1
+    fi
+
+    # Verify that the provided hash type is supported
+    if ! [[ "$hash_type" =~ ^(md5|sha1|sha256)$ ]]; then
+        log_fatal "Unsupported hash type '$hash_type'. Supported types: md5, sha1, sha256."
+        return 1
+    fi
+
+    # Check if the file exists
+    if [ ! -f "$file_path" ]; then
+        log_error "File '$file_path' not found."
+        return 1
+    fi
+
+    # Calculate the hash of the file
+    local hash_command="${hash_type}sum"
+    local file_hash=$($hash_command "$file_path" | awk '{print $1}')
+
+    if [ -z "$file_hash" ]; then
+        log_error "Failed to calculate the $hash_type hash of file '$file_path'."
+        return 1
+    fi
+
+    echo "$file_hash"
+}
+
+hash_string() {
+    local input_string="$1"
+    local hash_type="$2"
+
+    # Check for mandatory parameters
+    if [ -z "$input_string" ] || [ -z "$hash_type" ]; then
+        log_fatal "Usage: hash_string <input-string> <hash-type>"
+        return 1
+    fi
+
+    # Verify that the provided hash type is supported
+    if ! [[ "$hash_type" =~ ^(md5|sha1|sha256)$ ]]; then
+        log_fatal "Unsupported hash type '$hash_type'. Supported types: md5, sha1, sha256."
+        return 1
+    fi
+
+    # Calculate the hash of the input string
+    local hash_command="${hash_type}sum"
+    local string_hash=$(echo -n "$input_string" | $hash_command | awk '{print $1}')
+
+    if [ -z "$string_hash" ]; then
+        log_error "Failed to calculate the $hash_type hash of the input string."
+        return 1
+    fi
+
+    echo "$string_hash"
 }
 
 update_file_section() {
@@ -177,16 +279,15 @@ update_file_section() {
             }
             $0 ~ end {print $0; print_section=1; next}
             print_section {print}
-        ' "${output_file}.bak" > "$output_file"
+        ' "${output_file}.bak" >"$output_file"
     else
         # The section does not exist, append it
-        echo "$start_marker" >> "$output_file"
-        echo "$comment" >> "$output_file"
-        cat "$section_file" >> "$output_file"
-        echo "$end_marker" >> "$output_file"
+        echo "$start_marker" >>"$output_file"
+        echo "$comment" >>"$output_file"
+        cat "$section_file" >>"$output_file"
+        echo "$end_marker" >>"$output_file"
     fi
 }
-
 
 function update_coredns_forward() {
     local new_dns_ip=$1
@@ -196,7 +297,7 @@ function update_coredns_forward() {
     fi
 
     # Fetch the current CoreDNS ConfigMap to a local file
-    kubectl -n kube-system get configmap coredns -o yaml > /tmp/coredns-config.yaml
+    kubectl -n kube-system get configmap coredns -o yaml >/tmp/coredns-config.yaml
 
     # Check if the file was fetched successfully
     if [[ ! -s /tmp/coredns-config.yaml ]]; then
@@ -208,7 +309,7 @@ function update_coredns_forward() {
     awk -v new_dns_ip="$new_dns_ip" '
         /forward ./ { print "        forward . " new_dns_ip; next }
         { print }
-    ' /tmp/coredns-config.yaml > /tmp/coredns-config-modified.yaml
+    ' /tmp/coredns-config.yaml >/tmp/coredns-config-modified.yaml
 
     # Apply the modified ConfigMap
     if ! kubectl apply -f /tmp/coredns-config-modified.yaml; then
@@ -281,13 +382,13 @@ replace_with_lines() {
     # Use sed to find the pattern and replace the whole line with new lines
     sed "/$pattern/c\\
 $replacement_text
-" "$file" > "$tmp_file"
+" "$file" >"$tmp_file"
 
     # Overwrite the original file with the modified temporary file
     mv "$tmp_file" "$file"
 }
 
-setup_ssh_keys_for_user(){
+setup_ssh_keys_for_user() {
     local user_name="$1"
     local ip_address="$2"
 
@@ -298,17 +399,17 @@ setup_ssh_keys_for_user(){
 
     log_debug "Setting up SSH keys for $user_name@$ip_address..."
 
-    local user_home=$(eval echo ~$user_name)
+    local user_home=$(eval echo ~"$user_name")
 
-    if [ -f $user_home/.ssh/known_hosts ]; then
-        sudo touch $user_home/.ssh/known_hosts
-        sudo chown $user_name:$user_name $user_home/.ssh/known_hosts
-        sudo chmod 600 $user_home/.ssh/known_hosts
+    if [ -f "$user_home"/.ssh/known_hosts ]; then
+        sudo touch "$user_home"/.ssh/known_hosts
+        sudo chown "$user_name":"$user_name" "$user_home"/.ssh/known_hosts
+        sudo chmod 600 "$user_home"/.ssh/known_hosts
     fi
 
-    sudo ssh-keygen -f "$user_home/.ssh/known_hosts" -R $ip_address
+    sudo ssh-keygen -f "$user_home/.ssh/known_hosts" -R "$ip_address"
 
-    sudo ssh-keyscan -H $ip_address | sudo tee -a $user_home/.ssh/known_hosts >/dev/null
+    sudo ssh-keyscan -H "$ip_address" | sudo tee -a "$user_home"/.ssh/known_hosts >/dev/null
 }
 
 is_loopback_address() {
@@ -341,10 +442,10 @@ is_ip_valid() {
 
     if [[ "$ip_address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log_trace "IP address $ip_address is valid."
-        return 0  # IP address is valid
+        return 0 # IP address is valid
     else
         log_error "IP address $ip_address is not valid."
-        return 1  # IP address is not valid
+        return 1 # IP address is not valid
     fi
 }
 
@@ -360,16 +461,16 @@ is_ip_reachable() {
         return 1
     fi
 
-    if ping -c 1 -W 1 "$ip_address" > /dev/null 2>&1; then
+    if ping -c 1 -W 1 "$ip_address" >/dev/null 2>&1; then
         log_trace "IP address $ip_address is reachable."
-        return 0  # IP address is reachable
+        return 0 # IP address is reachable
     else
         log_trace "IP address $ip_address is not reachable."
-        return 1  # IP address is not reachable
+        return 1 # IP address is not reachable
     fi
 }
 
-tcp_port_open_at_ip(){
+tcp_port_open_at_ip() {
     local ip_address="$1"
     local port="$2"
 
@@ -383,13 +484,13 @@ tcp_port_open_at_ip(){
     fi
 
     if nc -z -w1 "$ip_address" "$port"; then
-        return 0  # Port is open
+        return 0 # Port is open
     else
-        return 1  # Port is closed
+        return 1 # Port is closed
     fi
 }
 
-udp_port_open_at_ip(){
+udp_port_open_at_ip() {
     local ip_address="$1"
     local port="$2"
 
@@ -403,9 +504,9 @@ udp_port_open_at_ip(){
     fi
 
     if nc -z -w1 -u "$ip_address" "$port"; then
-        return 0  # Port is open
+        return 0 # Port is open
     else
-        return 1  # Port is closed
+        return 1 # Port is closed
     fi
 }
 
@@ -620,10 +721,10 @@ check_domain_resolution() {
         return 1
     fi
 
-    if nslookup "$domain" > /dev/null 2>&1; then
-        return 0  # Domain resolves
+    if nslookup "$domain" >/dev/null 2>&1; then
+        return 0 # Domain resolves
     else
-        return 1  # Domain does not resolve
+        return 1 # Domain does not resolve
     fi
 }
 
@@ -671,7 +772,7 @@ check_dns_over_tls_at_ip() {
         return 1
     fi
 
-    if kdig +tls -d @$ip_address -p $dot_port $domain > /dev/null 2>&1; then
+    if kdig +tls -d @"$ip_address" -p "$dot_port" "$domain" >/dev/null 2>&1; then
         log_debug "DNS over TLS at $ip_address:$dot_port is working."
         return 0
     else
@@ -787,7 +888,7 @@ check_dns_at_ip() {
         return 1
     fi
 
-    if dig +short @"$dns_ip" "$reference_domain" > /dev/null 2>&1; then
+    if dig +short @"$dns_ip" "$reference_domain" >/dev/null 2>&1; then
         log_debug "Can resolve $reference_domain using DNS at $dns_ip."
         return 0
     else
@@ -978,7 +1079,7 @@ print_env() {
         [[ "$line" == "" || "$line" =~ ^# ]] && continue
 
         log_state "$line"
-    done < "$ENV_FILE"
+    done <"$ENV_FILE"
 
     return 0
 }
@@ -987,7 +1088,7 @@ install_yq_with_xml_support() {
     local yq_binary="/usr/local/bin/yq"
 
     # Check if yq is already installed
-    if [ -f "$yq_binary" ] || command -v yq &> /dev/null; then
+    if [ -f "$yq_binary" ] || command -v yq &>/dev/null; then
         log_debug "yq is already installed."
         return 0
     fi
@@ -1012,7 +1113,7 @@ install_yq_with_xml_support() {
     # Make yq executable
     sudo chmod +x "$yq_binary"
 
-    popd
+    popd || exit
     rm -rf "$tmp_dir"
 
     # Check if yq is installed correctly
@@ -1024,7 +1125,7 @@ install_yq_with_xml_support() {
     fi
 }
 
-manual_setup(){
+manual_setup() {
     install_yq_with_xml_support
 }
 
@@ -1055,16 +1156,16 @@ ensure_json_file_exists() {
 
     if [ ! -f "$file_path" ]; then
         log_trace "Creating JSON file $file_path..."
-        echo "{}" > "$file_path"
+        echo "{}" >"$file_path"
     else
         log_trace "JSON file $file_path already exists."
 
         if [ ! -s "$file_path" ]; then
             log_trace "JSON file $file_path is empty. Adding default content..."
-            echo "{}" > "$file_path"
+            echo "{}" >"$file_path"
         fi
 
-        if ! is_valid_json "$(cat $file_path)"; then
+        if ! is_valid_json "$(cat "$file_path")"; then
             log_error "JSON file $file_path is not valid."
             return 1
         fi
@@ -1082,7 +1183,7 @@ update_json_file() {
         return 1
     fi
 
-    if [ $create_if_not_exists = "true" ]; then
+    if [ "$create_if_not_exists" = "true" ]; then
         ensure_json_file_exists "$file_path"
     fi
 
@@ -1092,7 +1193,7 @@ update_json_file() {
         return 1
     fi
 
-    if ! is_valid_json "$(cat $file_path)"; then
+    if ! is_valid_json "$(cat "$file_path")"; then
         log_error "Error: JSON file is not valid."
         return 1
     fi
@@ -1100,17 +1201,17 @@ update_json_file() {
     if [ -z "$new_value" ]; then
         log_trace "Removing key '$key' from the JSON file."
         # If the new value is not provided, remove the key from the JSON file
-        jq --arg key "$key" 'del(.[$key])' "$file_path" > "$file_path.tmp" && mv "$file_path.tmp" "$file_path"
+        jq --arg key "$key" 'del(.[$key])' "$file_path" >"$file_path.tmp" && mv "$file_path.tmp" "$file_path"
     else
         log_trace "Updating key '$key' in the JSON file $file_path with value '$new_value'."
         # Update the JSON file in-place using jq
         jq --arg key "$key" --arg value "$new_value" \
-        '(.[$key] = $value)' "$file_path" > "$file_path.tmp" && mv "$file_path.tmp" "$file_path"
+            '(.[$key] = $value)' "$file_path" >"$file_path.tmp" && mv "$file_path.tmp" "$file_path"
     fi
 
     if [ $? -eq 0 ]; then
         log_debug "Successfully updated the JSON file $file_path."
-        log_trace "Updated JSON file content: \n$(cat $file_path)"
+        log_trace "Updated JSON file content: \n$(cat "$file_path")"
     else
         log_error "Failed to update the JSON file $file_path."
         return 1
@@ -1131,7 +1232,7 @@ read_json_file() {
         return 1
     fi
 
-    if ! is_valid_json "$(cat $file_path)"; then
+    if ! is_valid_json "$(cat "$file_path")"; then
         log_error "Error: JSON file is not valid."
         return 1
     fi
@@ -1151,7 +1252,7 @@ read_json_file() {
     echo "$value"
 }
 
-write_to_run_state(){
+write_to_run_state() {
     local key="$1"
     local value="$2"
 
@@ -1166,7 +1267,7 @@ write_to_run_state(){
     fi
 }
 
-read_from_run_state(){
+read_from_run_state() {
     local key="$1"
     result=$(read_json_file "$RUN_STATE_FILE" "$key")
     if [ $? -eq 0 ]; then
@@ -1183,7 +1284,7 @@ remove_whitespace_and_control_chars() {
     echo "$input" | tr -d '[:space:]' | tr -d '[:cntrl:]'
 }
 
-is_set_in_run_state(){
+is_set_in_run_state() {
     local key="$1"
 
     if [ -z "$key" ]; then
@@ -1200,8 +1301,7 @@ is_set_in_run_state(){
     fi
 }
 
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+source ~/.xbashrc
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [ -z "$1" ]; then
@@ -1209,15 +1309,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 0
     fi
 
-    func_name="$1"  # Store the first argument (function name)
-    shift           # Remove the first argument, now $@ contains only the arguments for the function
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
 
     # Check if the function exists
-    if declare -f "$func_name" > /dev/null; then
-        "$func_name" "$@"  # Call the function with the remaining arguments
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
     else
         log_fatal "'$func_name' is not a valid function name."
         exit 1
     fi
 fi
-

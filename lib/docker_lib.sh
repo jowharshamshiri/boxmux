@@ -1,3 +1,5 @@
+#!/bin/bash
+
 check_and_push_image() {
     local image_url=$1
     local directory=$2
@@ -9,12 +11,12 @@ check_and_push_image() {
     fi
 
     # Check if image exists
-    if [ $force_rebuild = "false" ] && check_image_exists "$image_url"; then
+    if [ "$force_rebuild" = "false" ] && check_image_exists "$image_url"; then
         log_debug "Image already exists: $image_url"
     else
-        if [ $force_rebuild = "true" ]; then
+        if [ "$force_rebuild" = "true" ]; then
             log_debug "Force rebuild is enabled. Removing the existing image..."
-            docker rmi "$image_url" > /dev/null 2>&1
+            docker rmi "$image_url" >/dev/null 2>&1
         else
             log_debug "Image does not exist, attempting to build and push..."
         fi
@@ -29,7 +31,7 @@ check_and_push_image() {
         docker-compose build && docker-compose push
 
         # Return to the original directory
-        cd $current_dir
+        cd "$current_dir" || exit
 
         # Check again if the image exists
         if check_image_exists "$image_url"; then
@@ -52,12 +54,12 @@ check_and_build_image() {
     fi
 
     # Check if image exists
-    if [ $force_rebuild = "false" ] && check_image_exists "$image_url"; then
+    if [ "$force_rebuild" = "false" ] && check_image_exists "$image_url"; then
         log_debug "Image already exists: $image_url"
     else
-        if [ $force_rebuild = "true" ]; then
+        if [ "$force_rebuild" = "true" ]; then
             log_debug "Force rebuild is enabled. Removing the existing image..."
-            docker rmi "$image_url" > /dev/null 2>&1
+            docker rmi "$image_url" >/dev/null 2>&1
         else
             log_debug "Image does not exist, attempting to build..."
         fi
@@ -71,7 +73,7 @@ check_and_build_image() {
         docker-compose build
 
         # Return to the original directory
-        cd $current_dir
+        cd "$current_dir" || exit
 
         # Check again if the image exists
         if check_image_exists "$image_url"; then
@@ -94,10 +96,10 @@ check_image_exists() {
     # docker pull "$image_url" > /dev/null 2>&1
     #     return $?
 
-    if docker image inspect "$image_url" > /dev/null 2>&1; then
-        return 0  # Image exists
+    if docker image inspect "$image_url" >/dev/null 2>&1; then
+        return 0 # Image exists
     else
-        return 1  # Image does not exist
+        return 1 # Image does not exist
     fi
 }
 
@@ -129,7 +131,7 @@ sync_docker_image() {
     local local_full_image_url="$2"
 
     # Check if the image exists in the local registry
-    if ! docker manifest inspect "${local_full_image_url}" > /dev/null 2>&1; then
+    if ! docker manifest inspect "${local_full_image_url}" >/dev/null 2>&1; then
         log_debug "Image not found in local registry. Syncing now..."
 
         # Pull the image from the remote location
@@ -162,17 +164,17 @@ kill_and_remove_container_if_exists() {
     #check if container exists
     if container_exists "$container_name"; then
         # Check if the container is running and kill it
-        if [ "$(docker ps -q -f name=^/${container_name}$)" ]; then
+        if [ "$(docker ps -q -f name=^/"${container_name}"$)" ]; then
             log_state "Container $container_name is running, killing it..."
-            docker kill "$container_name" > /dev/null 2>&1
+            docker kill "$container_name" >/dev/null 2>&1
         else
             log_debug "Container $container_name is not running."
         fi
 
         # Check if the container exists (running or stopped) and remove it
-        if [ "$(docker ps -a -q -f name=^/${container_name}$)" ]; then
+        if [ "$(docker ps -a -q -f name=^/"${container_name}"$)" ]; then
             log_debug "Removing container $container_name..."
-            docker rm -v "$container_name" > /dev/null 2>&1
+            docker rm -v "$container_name" >/dev/null 2>&1
         else
             log_debug "Container $container_name does not exist, no action taken."
         fi
@@ -220,7 +222,7 @@ pull_docker_image_if_not_exists() {
         return 1
     fi
 
-    if ! docker image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
+    if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
         log_debug "Image $IMAGE_NAME not found locally. Pulling..."
         docker pull "$IMAGE_NAME"
     else
@@ -228,13 +230,12 @@ pull_docker_image_if_not_exists() {
     fi
 }
 
-
 function remove_all_docker_containers() {
     local docker_containers=$(docker ps -aq)
 
     if [ -n "$docker_containers" ]; then
-        log_state "Stopping $(echo $docker_containers | wc -w) running Docker containers..."
-        docker stop $docker_containers
+        log_state "Stopping $(echo "$docker_containers" | wc -w) running Docker containers..."
+        docker stop "$docker_containers"
     else
         log_debug "No running Docker containers found to stop."
     fi
@@ -242,13 +243,12 @@ function remove_all_docker_containers() {
     docker_containers=$(docker ps -aq)
 
     if [ -n "$docker_containers" ]; then
-        log_debug "Removing $(echo $docker_containers | wc -w) Docker containers..."
-        docker rm -f $docker_containers
+        log_debug "Removing $(echo "$docker_containers" | wc -w) Docker containers..."
+        docker rm -f "$docker_containers"
     else
         log_debug "No Docker containers found to remove."
     fi
 }
-
 
 function container_exists() {
     local container_name="$1"
@@ -259,9 +259,9 @@ function container_exists() {
     fi
 
     if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        return 0  # Container exists
+        return 0 # Container exists
     else
-        return 1  # Container does not exist
+        return 1 # Container does not exist
     fi
 }
 
@@ -274,9 +274,9 @@ function is_container_running() {
     fi
 
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        return 0  # Container is running
+        return 0 # Container is running
     else
-        return 1  # Container is not running
+        return 1 # Container is not running
     fi
 }
 
@@ -285,11 +285,11 @@ function check_all_containers_exist() {
 
     for container_name in "${container_names[@]}"; do
         if ! container_exists "$container_name"; then
-            return 1  # At least one container does not exist
+            return 1 # At least one container does not exist
         fi
     done
 
-    return 0  # All containers exist
+    return 0 # All containers exist
 }
 
 function check_all_containers_running() {
@@ -298,12 +298,12 @@ function check_all_containers_running() {
     for container_name in "${container_names[@]}"; do
         if container_exists "$container_name"; then
             if ! is_container_running "$container_name"; then
-                return 1  # At least one container is not running
+                return 1 # At least one container is not running
             fi
         fi
     done
 
-    return 0  # All containers are running
+    return 0 # All containers are running
 }
 
 function start_containers_if_not_running() {
@@ -416,7 +416,7 @@ setup_docker_network() {
     local network_name="$1"
     local subnet="$2"
     local gateway="$3"
-    local force_reset="${4:-false}"  # Default to false if not provided
+    local force_reset="${4:-false}" # Default to false if not provided
 
     if [ -z "$network_name" ] || [ -z "$subnet" ] || [ -z "$gateway" ]; then
         log_fatal "Usage: setup_docker_network <network_name> <subnet> <gateway> [force_reset]"
@@ -424,7 +424,7 @@ setup_docker_network() {
     fi
 
     # Check if the network exists
-    local existing_network=$(docker network ls --filter name=^${network_name}$ --format "{{.Name}}")
+    local existing_network=$(docker network ls --filter name=^"${network_name}"$ --format "{{.Name}}")
 
     if [[ "$existing_network" == "$network_name" ]]; then
         log_debug "Network $network_name already exists."
@@ -433,32 +433,31 @@ setup_docker_network() {
             log_state "Force reset is enabled. Removing and recreating the network..."
         else
             # Fetch the existing network's subnet and gateway
-            local existing_subnet=$(docker network inspect $network_name --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
-            local existing_gateway=$(docker network inspect $network_name --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
+            local existing_subnet=$(docker network inspect "$network_name" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+            local existing_gateway=$(docker network inspect "$network_name" --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
 
             # Compare the existing subnet and gateway with the desired configuration
             if [[ "$existing_subnet" == "$subnet" && "$existing_gateway" == "$gateway" ]]; then
                 log_debug "Network $network_name is correctly configured."
-                return 0  # Exit if no updates are needed
+                return 0 # Exit if no updates are needed
             else
                 log_state "Network configuration differs. Updating network..."
             fi
         fi
 
         # Remove the existing network
-        docker network rm $network_name
+        docker network rm "$network_name"
         # There may be a delay needed here if the network deletion takes time to propagate
         sleep 2
     fi
 
     # Network does not exist or was removed, so create it
     log_debug "Creating network $network_name with subnet $subnet and gateway $gateway..."
-    docker network create --subnet $subnet --gateway $gateway $network_name
+    docker network create --subnet "$subnet" --gateway "$gateway" "$network_name"
     log_debug "Network $network_name has been created or updated with new settings."
 }
 
-source "/etc/machinegenesis/mg_env"
-source "$INFRA_DIR/root.sh"
+source ~/.xbashrc
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [ -z "$1" ]; then
@@ -466,15 +465,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 0
     fi
 
-    func_name="$1"  # Store the first argument (function name)
-    shift           # Remove the first argument, now $@ contains only the arguments for the function
+    func_name="$1" # Store the first argument (function name)
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
 
     # Check if the function exists
-    if declare -f "$func_name" > /dev/null; then
-        "$func_name" "$@"  # Call the function with the remaining arguments
+    if declare -f "$func_name" >/dev/null; then
+        "$func_name" "$@" # Call the function with the remaining arguments
     else
         log_fatal "'$func_name' is not a valid function name."
         exit 1
     fi
 fi
-
