@@ -14,21 +14,21 @@ download_duckdb() {
             elif [[ "$arch" == "aarch64" ]]; then
                 url="https://github.com/duckdb/duckdb/releases/download/v0.10.2/duckdb_cli-linux-aarch64.zip"
             else
-                echo "Unsupported architecture: $arch"
+                log_fatal "Unsupported architecture: $arch"
                 return 1
             fi
         else
-            echo "Unsupported OS: $OSTYPE"
+            log_fatal "Unsupported OS: $OSTYPE"
             return 1
         fi
 
-        echo "Downloading DuckDB binary from $url..."
+        log_state "Downloading DuckDB binary from $url..."
         add_download_and_download "$url"
 
         download_path=$(get_download_path "$url")
 
         if was_downloaded "$url"; then
-            echo "DuckDB binary downloaded successfully"
+            log_debug "DuckDB binary downloaded successfully"
 
             unzip "$download_path" -d "$RUN_WORKSPACE/duckdb_bin"
 
@@ -37,7 +37,7 @@ download_duckdb() {
             extracted_duckdb=$(find "$RUN_WORKSPACE/duckdb_bin" -type f -name 'duckdb*' | head -n 1)
 
             if [[ -z "$extracted_duckdb" ]]; then
-                echo "Failed to find DuckDB executable in the extracted files. Deleting the extracted files..."
+                log_error "Failed to find DuckDB executable in the extracted files. Deleting the extracted files..."
                 rm -rf "$RUN_WORKSPACE/duckdb_bin"
                 return 1
             fi
@@ -47,13 +47,13 @@ download_duckdb() {
             chmod +x "$DUCKDB_EXECUTABLE"
             set_env_var "DUCKDB_EXECUTABLE" "$DUCKDB_EXECUTABLE"
             rm -rf "$RUN_WORKSPACE/duckdb.zip" "$RUN_WORKSPACE/duckdb_bin"
-            echo "DuckDB binary saved to $DUCKDB_EXECUTABLE"
+            log_debug "DuckDB binary saved to $DUCKDB_EXECUTABLE"
         else
-            echo "Failed to download DuckDB binary"
+            log_error "Failed to download DuckDB binary"
             return 1
         fi
     else
-        echo "DuckDB binary already exists at $DUCKDB_EXECUTABLE"
+        log_debug "DuckDB binary already exists at $DUCKDB_EXECUTABLE"
     fi
 }
 
@@ -62,7 +62,7 @@ validate_data_type() {
     local value=$2
 
     if [[ $(validate_integer "$data_type_id") -ne 0 ]]; then
-        echo "Invalid data type ID" >&2
+        log_error "Invalid data type ID"
         return 1
     fi
 
@@ -70,61 +70,61 @@ validate_data_type() {
     data_type=$(run_duckdb_csv_query "SELECT type FROM data_types WHERE id=$data_type_id;" | tail -n +2)
 
     if [ -z "$data_type" ]; then
-        echo "Data type with ID $data_type_id does not exist" >&2
+        log_error "Data type with ID $data_type_id does not exist"
         return 1
     fi
 
     case "$data_type" in
     INTEGER)
         if [[ $(validate_integer "$value") -ne 0 ]]; then
-            echo "Invalid INTEGER value" >&2
+            log_error "Invalid INTEGER value"
             return 1
         fi
         ;;
     TEXT)
         if [[ $(validate_text "$value") -ne 0 ]]; then
-            echo "Invalid TEXT value" >&2
+            log_error "Invalid TEXT value"
             return 1
         fi
         ;;
     REAL)
         if [[ $(validate_real "$value") -ne 0 ]]; then
-            echo "Invalid REAL value" >&2
+            log_error "Invalid REAL value"
             return 1
         fi
         ;;
     BOOLEAN)
         if [[ $(validate_boolean "$value") -ne 0 ]]; then
-            echo "Invalid BOOLEAN value" >&2
+            log_error "Invalid BOOLEAN value"
             return 1
         fi
         ;;
     DATE)
         if [[ $(validate_date "$value") -ne 0 ]]; then
-            echo "Invalid DATE value" >&2
+            log_error "Invalid DATE value"
             return 1
         fi
         ;;
     TIME)
         if [[ $(validate_time "$value") -ne 0 ]]; then
-            echo "Invalid TIME value" >&2
+            log_error "Invalid TIME value"
             return 1
         fi
         ;;
     TIMESTAMP)
         if [[ $(validate_timestamp "$value") -ne 0 ]]; then
-            echo "Invalid TIMESTAMP value" >&2
+            log_error "Invalid TIMESTAMP value"
             return 1
         fi
         ;;
     BLOB)
         if [[ $(validate_blob "$value") -ne 0 ]]; then
-            echo "Invalid BLOB value" >&2
+            log_error "Invalid BLOB value"
             return 1
         fi
         ;;
     *)
-        echo "Unsupported data type: $data_type" >&2
+        log_error "Unsupported data type: $data_type"
         return 1
         ;;
     esac
@@ -295,41 +295,40 @@ setup_data_types() {
 run_duck_db_csv_script() {
     local file_path="$1"
 
-    # Check if the file exists
+    # -- Check if the file exists
     if [[ ! -f "$file_path" ]]; then
-        echo "File not found: $file_path"
+        log_fatal "File not found: $file_path"
         return 1
     fi
 
-    # Read the file line by line
+    # -- Read the file line by line
     while IFS= read -r line; do
-        # Trim leading and trailing whitespace
+        # -- Trim leading and trailing whitespace
         line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
-        # Ignore lines that begin with # or whitespace followed by #
-        [[ "$line" =~ ^#.* ]] && continue
-        [[ "$line" =~ ^[[:space:]]*#.* ]] && continue
+        # -- Ignore lines that begin with -- or whitespace followed by --
+        [[ "$line" =~ ^--.* ]] && continue
+        [[ "$line" =~ ^[[:space:]]*--.* ]] && continue
 
-        # Ignore everything after the first #
-        line=$(echo "$line" | sed 's/#.*//')
+        # -- Ignore everything after the first --
+        line=$(echo "$line" | sed 's/--.*//')
 
-        # Trim the line again to remove any trailing whitespace after removing comments
+        # -- Trim the line again to remove any trailing whitespace after removing comments
         line=$(echo "$line" | sed 's/[[:space:]]*$//')
 
-        # Print the processed line if it is not empty
+        # -- Print the processed line if it is not empty
         [[ -n "$line" ]] && { run_duckdb_csv_query "$line" && log_trace "DUCKDB: $line"; }
     done <"$file_path"
 }
 
 # Function to initialize the DuckDB database
 initialize_db() {
-    setup_data_types
-
     if [ "$DUCKDB_FKS" = "false" ]; then
         run_duck_db_csv_script "$XB_HOME/assets/db_no_fks.sql"
     else
         run_duck_db_csv_script "$XB_HOME/assets/db_with_fks.sql"
     fi
+    setup_data_types
 }
 
 setting() {

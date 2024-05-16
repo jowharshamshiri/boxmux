@@ -7,9 +7,8 @@ unzip
 tree
 
 # Network utilities
-net-tools
+# net-tools
 bind  # Often used for DNS utilities
-iputils  # For ping
 nmap
 knot  # For knot-dnsutils
 

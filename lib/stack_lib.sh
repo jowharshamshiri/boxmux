@@ -15,7 +15,7 @@ stack_new() {
         return 1
     fi
 
-    stack_id=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks (stack_name, data_type_id) VALUES ('$stack_name', $data_type_id) RETURNING id;" | tail -n +2)
+    stack_id=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks (stack_name, data_type_id) VALUES ('$stack_name', $data_type_id) RETURNING id;" | tail -n +2)
 
     if [ -z "$stack_id" ]; then
         echo "Failed to create stack" >&2
@@ -40,7 +40,7 @@ stack_push() {
         return 1
     fi
 
-    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks_data (stack_id, value, idx) VALUES ($stack_id, '$value', nextval('seq_a'));" || {
+    """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks_data (stack_id, value, idx) VALUES ($stack_id, '$value', nextval('seq_a'));" || {
         echo "Failed to push value onto stack" >&2
         return 1
     }
@@ -60,14 +60,14 @@ stack_pop() {
         return 1
     fi
 
-    local value=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1;" | tail -n 1)
+    local value=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1;" | tail -n 1)
 
     if [[ -z "$value" ]]; then
         echo "Stack is empty" >&2
         return 1
     fi
 
-    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM stacks_data WHERE stack_id = $stack_id AND value = '$value' AND idx = (SELECT idx FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1);" || {
+    """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM stacks_data WHERE stack_id = $stack_id AND value = '$value' AND idx = (SELECT idx FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1);" || {
         echo "Failed to pop value from stack" >&2
         return 1
     }
@@ -89,7 +89,7 @@ stack_top() {
         return 1
     fi
 
-    local value=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1;" | tail -n 1)
+    local value=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx DESC LIMIT 1;" | tail -n 1)
 
     if [[ -z "$value" ]]; then
         echo "Stack is empty" >&2
@@ -113,7 +113,7 @@ stack_clear() {
         return 1
     fi
 
-    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "DELETE FROM stacks_data WHERE stack_id = $stack_id;" || {
+    """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM stacks_data WHERE stack_id = $stack_id;" || {
         echo "Failed to clear stack" >&2
         return 1
     }
@@ -133,7 +133,7 @@ stack_print() {
         return 1
     fi
 
-    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx;" || {
+    """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM stacks_data WHERE stack_id = $stack_id ORDER BY idx;" || {
         echo "Failed to print stack" >&2
         return 1
     }
@@ -153,7 +153,7 @@ stack_size() {
         return 1
     fi
 
-    local size=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM stacks_data WHERE stack_id = $stack_id;" | tail -n 1)
+    local size=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT COUNT(*) AS count FROM stacks_data WHERE stack_id = $stack_id;" | tail -n 1)
 
     echo "$size"
 }
@@ -195,8 +195,8 @@ stack_duplicate() {
         return 1
     fi
 
-    local stack_name=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT stack_name FROM stacks WHERE id = $stack_id;" | tail -n 1)
-    local data_type_id=$(""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "SELECT data_type_id FROM stacks WHERE id = $stack_id;" | tail -n 1)
+    local stack_name=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT stack_name FROM stacks WHERE id = $stack_id;" | tail -n 1)
+    local data_type_id=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT data_type_id FROM stacks WHERE id = $stack_id;" | tail -n 1)
 
     if [[ -z "$stack_name" || -z "$data_type_id" ]]; then
         echo "Stack not found" >&2
@@ -205,7 +205,7 @@ stack_duplicate() {
 
     local new_stack_id=$(stack_new "${stack_name}_copy" "$data_type_id")
 
-    ""$DUCKDB_EXECUTABLE"" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks_data (stack_id, value, idx) SELECT $new_stack_id, value, idx FROM stacks_data WHERE stack_id = $stack_id;" || {
+    """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO stacks_data (stack_id, value, idx) SELECT $new_stack_id, value, idx FROM stacks_data WHERE stack_id = $stack_id;" || {
         echo "Failed to duplicate stack" >&2
         return 1
     }

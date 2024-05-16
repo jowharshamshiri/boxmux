@@ -74,7 +74,7 @@ test_class_add_property() {
         return 1
     fi
 }
-test_class_create_instance() {
+test_instance_new() {
     reset
     local class_name="test_class"
 
@@ -85,14 +85,14 @@ test_class_create_instance() {
         return 1
     fi
 
-    class_create_instance "$class_id"
+    instance_new "$class_id"
 
     local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances WHERE class_id = $class_id;" | tail -n 1)
     if [[ "$result" -eq 1 ]]; then
-        echo "class_create_instance test passed" >&2
+        echo "instance_new test passed" >&2
         return 0
     else
-        echo "class_create_instance test failed" >&2
+        echo "instance_new test failed" >&2
         return 1
     fi
 }
@@ -104,7 +104,7 @@ test_instance_set_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id=$(class_create_instance "$class_id")
+    local instance_id=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id" "$property_id" "test_value"
 
@@ -125,7 +125,7 @@ test_instance_get_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id=$(class_create_instance "$class_id")
+    local instance_id=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id" "$property_id" "test_value"
 
@@ -149,8 +149,8 @@ test_class_get_by_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id_1=$(class_create_instance "$class_id")
-    local instance_id_2=$(class_create_instance "$class_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id_1" "$property_id" "value1"
     instance_set_property "$class_id" "$instance_id_2" "$property_id" "value2"
@@ -166,21 +166,21 @@ test_class_get_by_property() {
     fi
 }
 
-test_class_list_instances() {
+test_instance_list() {
     reset
     local class_name="test_class"
 
     local class_id=$(class_new "$class_name")
-    local instance_id_1=$(class_create_instance "$class_id")
-    local instance_id_2=$(class_create_instance "$class_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
 
-    local instances=$(class_list_instances "$class_id")
+    local instances=$(instance_list "$class_id")
 
     if [[ "$instances" == "$instance_id_1"$'\n'"$instance_id_2" ]]; then
-        echo "class_list_instances test passed" >&2
+        echo "instance_list test passed" >&2
         return 0
     else
-        echo "class_list_instances test failed" >&2
+        echo "instance_list test failed" >&2
         return 1
     fi
 }
@@ -193,9 +193,9 @@ test_class_sort_by_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id_1=$(class_create_instance "$class_id")
-    local instance_id_2=$(class_create_instance "$class_id")
-    local instance_id_3=$(class_create_instance "$class_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
+    local instance_id_3=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id_1" "$property_id" "3"
     instance_set_property "$class_id" "$instance_id_2" "$property_id" "1"
@@ -223,9 +223,9 @@ test_class_cascade_subtract_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id_1=$(class_create_instance "$class_id")
-    local instance_id_2=$(class_create_instance "$class_id")
-    local instance_id_3=$(class_create_instance "$class_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
+    local instance_id_3=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id_1" "$property_id" "3"
     instance_set_property "$class_id" "$instance_id_2" "$property_id" "1"
@@ -260,7 +260,7 @@ test_cache_get_instance() {
     local class_id=$(class_new "$class_name")
     local property_id_1=$(class_add_property "$class_id" "$property_1" "$data_type_id_1")
     local property_id_2=$(class_add_property "$class_id" "$property_2" "$data_type_id_2")
-    local instance_id=$(class_create_instance "$class_id")
+    local instance_id=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id" "$property_id_1" "test_value_1"
     instance_set_property "$class_id" "$instance_id" "$property_id_2" "123"
@@ -312,7 +312,7 @@ test_cache_get_property() {
 
     local class_id=$(class_new "$class_name")
     local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
-    local instance_id=$(class_create_instance "$class_id")
+    local instance_id=$(instance_new "$class_id")
 
     instance_set_property "$class_id" "$instance_id" "$property_id" "$property_value"
 
@@ -326,6 +326,106 @@ test_cache_get_property() {
         echo "cache_get_property test failed" >&2
         return 1
     fi
+}
+
+test_class_delete() {
+    reset
+    local class_name="test_class"
+    local property="test_property"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local class_id=$(class_new "$class_name")
+    local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
+    local instance_id=$(instance_new "$class_id")
+
+    instance_set_property "$class_id" "$instance_id" "$property_id" "test_value"
+
+    class_delete "$class_id" || {
+        echo "class_delete test failed: class_delete returned error" >&2
+        return 1
+    }
+
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes WHERE id = $class_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "class_delete test failed: class was not deleted" >&2
+        return 1
+    fi
+
+    result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_properties WHERE class_id = $class_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "class_delete test failed: properties were not deleted" >&2
+        return 1
+    fi
+
+    result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances WHERE class_id = $class_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "class_delete test failed: instances were not deleted" >&2
+        return 1
+    fi
+
+    result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances_data WHERE instance_id = $instance_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "class_delete test failed: instance properties were not deleted" >&2
+        return 1
+    fi
+
+    echo "class_delete test passed" >&2
+    return 0
+}
+
+test_instance_exists() {
+    reset
+    local class_name="test_class"
+
+    local class_id=$(class_new "$class_name")
+    local instance_id=$(instance_new "$class_id")
+
+    if [[ $(instance_exists "$class_id" "$instance_id") -eq 0 ]]; then
+        echo "instance_exists test passed" >&2
+        return 0
+    else
+        echo "instance_exists test failed" >&2
+        return 1
+    fi
+}
+
+test_instance_delete() {
+    reset
+    local class_name="test_class"
+    local property="test_property"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local class_id=$(class_new "$class_name")
+    local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
+    local instance_id=$(instance_new "$class_id")
+
+    instance_set_property "$class_id" "$instance_id" "$property_id" "test_value"
+
+    instance_delete "$class_id" "$instance_id" || {
+        echo "instance_delete test failed: instance_delete returned error" >&2
+        return 1
+    }
+
+    local result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances WHERE instance_id = $instance_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "instance_delete test failed: instance was not deleted" >&2
+        return 1
+    fi
+
+    result=$(run_duckdb_csv_query "SELECT COUNT(*) AS count FROM classes_instances_data WHERE instance_id = $instance_id;")
+    result=$(echo "$result" | tail -n 1)
+    if [[ "$result" -ne 0 ]]; then
+        echo "instance_delete test failed: instance properties were not deleted" >&2
+        return 1
+    fi
+
+    echo "instance_delete test passed" >&2
+    return 0
 }
 
 run_test() {
@@ -345,12 +445,15 @@ run_test() {
 run_test test_class_new
 run_test test_class_exists
 run_test test_class_add_property
-run_test test_class_create_instance
+run_test test_instance_new
 run_test test_instance_set_property
 run_test test_instance_get_property
-run_test test_class_list_instances
+run_test test_instance_list
 run_test test_class_get_by_property
 run_test test_class_sort_by_property
 run_test test_class_cascade_subtract_property
 run_test test_cache_get_instance
 run_test test_cache_get_property
+run_test test_class_delete
+run_test test_instance_exists
+run_test test_instance_delete

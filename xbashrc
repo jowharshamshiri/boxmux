@@ -416,7 +416,7 @@ print_xb_header() {
     MAGENTA='\033[0;35m'
 
     echo -e "${YELLOW}"
-    print_title "$(to_uppercase "$PROJECT_NAME") crossbash"
+    print_title "$(to_uppercase "$PROJECT_NAME") | crossbash"
     echo -e "${MAGENTA}xbash v$(xb_version)${NC}"
 
     echo -e "${YELLOW}State file: ${MAGENTA}$RUN_STATE_FILE${NC}"
@@ -465,7 +465,7 @@ initialize_xb() {
     # INFRA_DIR="$XB_HOME/infra"
 
     if [ -z "$LOG_LEVEL" ]; then
-        LOG_LEVEL=3
+        LOG_LEVEL=5
         set_env_var "LOG_LEVEL" "$LOG_LEVEL"
     fi
 
@@ -479,28 +479,26 @@ initialize_xb() {
         set_env_var "PROJECT_NAME" "$PROJECT_NAME"
     fi
 
-    if [ -z "$SUB_PROJECTS" ]; then
-        defined_sub_projects=$(get_env_var "SUB_PROJECTS")
-
-        if [ ${#defined_sub_projects[@]} -eq 0 ]; then
-            echo "The xbash profile at your project home directory does not define any sub projects."
-            # echo "Please enter the sub projects paths separated by space:"
-            # read -p "[$entered_subprojects]: " input
-            # entered_subprojects=${input:-$entered_subprojects}
-            # set_env_var "SUB_PROJECTS" "$entered_subprojects"
-        else
-            echo "The xbash profile at your project home directory defines the following sub projects:"
-            echo "$defined_sub_projects"
-            # echo "Do you want to add more sub projects?"
-            # read -p "[y/n]: " input
-            # if [ "$input" == "y" ]; then
-            #     echo "Please enter the sub projects paths separated by space:"
-            #     read -p "[$defined_sub_projects]: " input
-            #     entered_subprojects=${input:-$defined_sub_projects}
-            #     set_env_var "SUB_PROJECTS" "$entered_subprojects"
-            # fi
-        fi
-    fi
+    # if [ -z "$SUB_PROJECTS" ]; then
+    # if [ ${#defined_sub_projects[@]} -eq 0 ]; then
+    # echo "The xbash profile at your project home directory does not define any sub projects."
+    #     # echo "Please enter the sub projects paths separated by space:"
+    #     # read -p "[$entered_subprojects]: " input
+    #     # entered_subprojects=${input:-$entered_subprojects}
+    #     # set_env_var "SUB_PROJECTS" "$entered_subprojects"
+    # else
+    #     echo "The xbash profile at your project home directory defines the following sub projects:"
+    #     echo "$defined_sub_projects"
+    #     # echo "Do you want to add more sub projects?"
+    #     # read -p "[y/n]: " input
+    #     # if [ "$input" == "y" ]; then
+    #     #     echo "Please enter the sub projects paths separated by space:"
+    #     #     read -p "[$defined_sub_projects]: " input
+    #     #     entered_subprojects=${input:-$defined_sub_projects}
+    #     #     set_env_var "SUB_PROJECTS" "$entered_subprojects"
+    #     # fi
+    # fi
+    # fi
 
     if [ -z "$PROJECT_WORKDIR" ]; then
         PROJECT_WORKDIR="$USER_XB_DIR/$PROJECT_NAME"
@@ -547,6 +545,7 @@ initialize_xb() {
     manual_setup
     download_duckdb
     initialize_db
+    initialize_layouts
 
     write_to_run_state "timestamp" "$(date +'%Y-%m-%d %H:%M:%S')"
     write_to_run_state "xb_version" "$(xb_version)"

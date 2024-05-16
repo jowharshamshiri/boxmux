@@ -31,8 +31,12 @@ darwin_read_list_file_to_array() {
 
     local line
     while IFS= read -r line || [[ -n "$line" ]]; do
-        line=$(echo "$line" | awk '{$1=$1};1') # Trim spaces using awk
-        [[ "$line" == "" || "$line" =~ ^# ]] && continue
+        # Remove everything after the first #
+        line="${line%%#*}"
+        # Trim spaces
+        line=$(echo "$line" | awk '{$1=$1};1')
+        # Ignore empty lines
+        [[ -z "$line" ]] && continue
         # Append to the array using eval
         eval "$arr_name+=(\"\$line\")"
     done <"$filename"
@@ -41,7 +45,7 @@ darwin_read_list_file_to_array() {
 darwin_install_package() {
     log_trace "function darwin_install_package()"
     local package_name=$1
-    if ! brew list --formula | grep -q "^${package_name}$"; then
+    if ! brew list --versions "$package_name" >/dev/null 2>&1; then
         log_state "Installing package $package_name..."
         brew install "$package_name"
     else

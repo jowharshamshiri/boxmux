@@ -1218,6 +1218,19 @@ update_json_file() {
     fi
 }
 
+concat_with_separator() {
+    local separator="$1"
+    shift
+    local result="$1"
+    shift
+
+    for arg in "$@"; do
+        result="${result}${separator}${arg}"
+    done
+
+    echo "$result"
+}
+
 read_json_file() {
     local file_path="$1"
     local key="$2"

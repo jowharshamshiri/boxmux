@@ -83,6 +83,7 @@ char_semicolon=("    o  ┘ ")
 char_tilde=("   /\/   ")
 char_brace_open=(" ┌ <   └ ")
 char_brace_close=(" ┐   > ┘ ")
+char_pipe=(" |  |  | ")
 
 get_char() {
     case "$1" in
@@ -165,6 +166,7 @@ get_char() {
     "~") echo "${char_tilde[*]}" ;;
     "{") echo "${char_brace_open[*]}" ;;
     "}") echo "${char_brace_close[*]}" ;;
+    "|") echo "${char_pipe[*]}" ;;
     *) echo -e "\n\n" ;;
     esac
 }
@@ -493,6 +495,206 @@ test() {
 
     scrolling_marquee "$message" "$width" "$speed" "$lines_above"
 }
+
+change_color() {
+    ##log_trace "layout_lib.sh: change_color($1)"
+    local color=$1
+    printf """""""$color"""""""
+}
+
+clear_screen() {
+    ##log_trace "layout_lib.sh: clear_screen()"
+    printf "\033[2J"
+}
+
+screen_height() {
+    ##log_trace "layout_lib.sh: screen_height()"
+    tput lines
+}
+
+screen_width() {
+    ##log_trace "layout_lib.sh: screen_width()"
+    tput cols
+}
+
+# Function to move the cursor to a specific location (row, col)
+move_cursor() {
+    ##log_trace "layout_lib.sh: move_cursor()"
+    printf "\033[%d;%dH" """""""""$1""""""""" """""""""$2"""""""""
+}
+
+print_at() {
+    ##log_trace "layout_lib.sh: print_at(x=$2, y=$1, text=$3)"
+    local y=$1
+    local x=$2
+    local text=$3
+
+    move_cursor """""""""$y""""""""" """""""""$x"""""""""
+
+    printf "%s" """""""$text"""""""
+}
+
+print_with_color_at() {
+    ##log_trace "layout_lib.sh: print_with_color_at(x=$2, y=$1, text=$3, color=$4)"
+    local y=$1
+    local x=$2
+    local text=$3
+    local color=${4:-"black"}
+
+    ansi_color=$(get_color "$color")
+
+    move_cursor """""""$y""""""" """""""$x"""""""
+    change_color """""""$ansi_color"""""""
+
+    printf "%s" """""""$text"""""""
+}
+
+vertical_line() {
+    ##log_trace "layout_lib.sh: vertical_line(x=$1, y1=$2, y2=$3, color=$4)"
+    local x=$1
+    local y1=$2
+    local y2=$3
+    local color=$4
+    local character=${5:-"$VER_LINE_CHAR"}
+
+    [ -n """""""$color""""""" ] && change_color """""""$color"""""""
+
+    for ((i = y1; i <= y2; i++)); do
+        move_cursor ""$i"" """""""$x"""""""
+        printf "%s" """""""$character"""""""
+    done
+}
+
+horizontal_line() {
+    ##log_trace "layout_lib.sh: horizontal_line(y=$1, x1=$2, x2=$3, color=$4)"
+    local y=$1
+    local x1=$2
+    local x2=$3
+    local color=$4
+    local character=${5:-"$HOR_LINE_CHAR"}
+
+    [ -n """""""$color""""""" ] && change_color """""""$color"""""""
+    for ((i = x1; i <= x2; i++)); do
+        move_cursor """""""$y""""""" ""$i""
+        printf "%s" """""""$character"""""""
+    done
+}
+
+box() {
+    ##log_trace "layout_lib.sh: box(x1=$1, y1=$2, x2=$3, y2=$4, color=$5)"
+    local x1=$1
+    local y1=$2
+    local x2=$3
+    local y2=$4
+    local color=${5:-"white"}
+
+    ansi_color=$(get_color "$color")
+
+    change_color "$ansi_color"
+
+    # Draw vertical lines
+    vertical_line "$x1" "$((y1 + 1))" "$((y2 - 1))"
+    vertical_line "$x2" "$((y1 + 1))" "$((y2 - 1))"
+
+    # Draw horizontal lines
+    horizontal_line "$y1" "$((x1 + 1))" "$((x2 - 1))"
+    horizontal_line "$y2" "$((x1 + 1))" "$((x2 - 1))"
+
+    # Draw corners
+    print_at "$y1" "$x1" "$TOP_LEFT_CHAR"
+    print_at "$y1" "$x2" "$TOP_RIGHT_CHAR"
+    print_at "$y2" "$x1" "$BOTTOM_LEFT_CHAR"
+    print_at "$y2" "$x2" "$BOTTOM_RIGHT_CHAR"
+
+    change_color "$RESET"
+}
+
+get_color() {
+    ##log_trace "layout_lib.sh: get_color($1)"
+    local color=$1
+
+    case $color in
+    red)
+        echo "$RED"
+        ;;
+    green)
+        echo "$GREEN"
+        ;;
+    yellow)
+        echo "$YELLOW"
+        ;;
+    blue)
+        echo "$BLUE"
+        ;;
+    magenta)
+        echo "$MAGENTA"
+        ;;
+    cyan)
+        echo "$CYAN"
+        ;;
+    white)
+        echo "$WHITE"
+        ;;
+    black)
+        echo "$BLACK"
+        ;;
+    *)
+        echo "$color"
+        ;;
+    esac
+
+}
+
+fill_box() {
+    ##log_trace "layout_lib.sh: fill_box(x1=$1, y1=$2, x2=$3, y2=$4, color=$5, char=$6)"
+    local x1=$1
+    local y1=$2
+    local x2=$3
+    local y2=$4
+    local fill_color=${5:-"red"}
+    local fill_char=${6:-"█"}
+
+    local i j
+
+    ansi_fill_color=$(get_color "$fill_color")
+    change_color "$ansi_fill_color"
+
+    for ((i = y1; i <= y2; i++)); do
+        for ((j = x1; j <= x2; j++)); do
+            move_cursor "$i" "$j"
+            printf "%s" "$fill_char"
+        done
+    done
+
+    change_color "$RESET"
+}
+
+reset_terminal() {
+    ##log_trace "layout_lib.sh: reset_terminal()"
+    # Reset the terminal to a useable state (undo all changes).
+    # '\e[?7h':   Re-enable line wrapping.
+    # '\e[?25h':  Unhide the cursor.
+    # '\e[2J':    Clear the terminal.
+    # '\e[;r':    Set the scroll region to its default value.
+    #             Also sets cursor to (0,0).
+    # '\e[?1049l: Restore main screen buffer.
+    printf '\e[?7h\e[?25h\e[2J\e[;r\e[?1049l'
+
+    # Show user input.
+    stty echo
+}
+
+# clear_screen() {
+#     # Only clear the scrolling window (dir item list).
+#     # '\e[%sH':    Move cursor to bottom of scroll area.
+#     # '\e[9999C':  Move cursor to right edge of the terminal.
+#     # '\e[1J':     Clear screen to top left corner (from cursor up).
+#     # '\e[2J':     Clear screen fully (if using tmux) (fixes clear issues).
+#     # '\e[1;%sr':  Clearing the screen resets the scroll region(?). Re-set it.
+#     #              Also sets cursor to (0,0).
+#     printf '\e[%sH\e[9999C\e[1J%b\e[1;%sr' \
+#         "$((LINES - 2))" "${TMUX:+\e[2J}" ""$max_items""
+# }
 
 source ~/.xbashrc
 

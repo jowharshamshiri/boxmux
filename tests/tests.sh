@@ -27,12 +27,12 @@ test_class_functions() {
         echo "class_add_property failed"
     fi
 
-    # Test class_create_instance
-    class_create_instance "$class_name" "$instance_name"
+    # Test instance_new
+    instance_new "$class_name" "$instance_name"
     if map_contains_key "${class_name}_instances" "$instance_name"; then
-        echo "class_create_instance passed"
+        echo "instance_new passed"
     else
-        echo "class_create_instance failed"
+        echo "instance_new failed"
     fi
 
     # Test instance_set_property
@@ -50,20 +50,20 @@ test_class_functions() {
         echo "instance_get_property failed"
     fi
 
-    # Test class_get_by_property
-    if [[ "$(class_get_by_property "$class_name" "$property_name" "$property_value")" == "$instance_name" ]]; then
-        echo "class_get_by_property passed"
+    # Test instance_get_by_property
+    if [[ "$(instance_get_by_property "$class_name" "$property_name" "$property_value")" == "$instance_name" ]]; then
+        echo "instance_get_by_property passed"
     else
-        echo "class_get_by_property failed"
+        echo "instance_get_by_property failed"
     fi
 
-    # Test class_list_instances
-    class_create_instance "$class_name" "Instance1"
-    class_create_instance "$class_name" "Instance2"
-    if [[ "$(class_list_instances "$class_name")" == *"$instance_name Instance1 Instance2"* ]]; then
-        echo "class_list_instances passed"
+    # Test instance_list
+    instance_new "$class_name" "Instance1"
+    instance_new "$class_name" "Instance2"
+    if [[ "$(instance_list "$class_name")" == *"$instance_name Instance1 Instance2"* ]]; then
+        echo "instance_list passed"
     else
-        echo "class_list_instances failed"
+        echo "instance_list failed"
     fi
 
     # Test instance_get_by_property

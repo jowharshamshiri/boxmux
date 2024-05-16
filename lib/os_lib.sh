@@ -66,11 +66,25 @@ install_package_repos() {
 }
 
 install_dependencies() {
-    detect_distro_and_call_function "install_dependencies" "$@"
+    if [ -z "$DEPENDENCIES_INSTALLED" ] || [ "$DEPENDENCIES_INSTALLED" != "true" ]; then
+        log_debug "Installing dependencies..."
+        detect_distro_and_call_function "install_dependencies" "$@"
+        set_env_var "DEPENDENCIES_INSTALLED" "true"
+    else
+        log_debug "Dependencies already installed."
+        return 0
+    fi
 }
 
 install_dependency_repos() {
-    detect_distro_and_call_function "install_dependency_repos" "$@"
+    if [ -z "$DEPENDENCY_REPOS_INSTALLED" ] || [ "$DEPENDENCY_REPOS_INSTALLED" != "true" ]; then
+        log_debug "Installing dependency repos..."
+        detect_distro_and_call_function "install_dependency_repos" "$@"
+        set_env_var "DEPENDENCY_REPOS_INSTALLED" "true"
+    else
+        log_debug "Dependency repos already installed."
+        return 0
+    fi
 }
 
 source ~/.xbashrc
