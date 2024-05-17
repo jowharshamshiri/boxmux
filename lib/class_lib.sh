@@ -230,7 +230,6 @@ instance_set_property() {
         return 1
     }
 }
-
 instance_get_property() {
     local class_id="$1"
     local instance_id="$2"
@@ -250,10 +249,13 @@ instance_get_property() {
 
     local value=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "SELECT value FROM classes_instances_data WHERE instance_id = $instance_id AND property_id = $property_id;" | tail -n 1)
 
-    # if [[ -z "$value" ]]; then
-    #     echo "instance_get_property: Property not found: $property_id for instance: $instance_id in class: $class_id" >&2
-    #     return 1
-    # fi
+    # Remove surrounding quotes if present
+    value=$(echo "$value" | sed 's/^"\(.*\)"$/\1/')
+
+    if [ -z "$value" ]; then
+        log_debug "instance_get_property: Property not found: $property_id for instance: $instance_id in class: $class_id"
+        return 1
+    fi
 
     echo "$value"
 }
@@ -385,7 +387,7 @@ instance_get_by_properties() {
     shift
 
     if [ -z "$class_id" ] || [ "$#" -lt 2 ] || [ $(($# % 2)) -ne 0 ]; then
-        echo "Usage: instance_get_by_properties <class_id> <property_id1> <value1> [<property_id2> <value2> ...]" >&2
+        log_fatal "Usage: instance_get_by_properties <class_id> <property_id1> <value1> [<property_id2> <value2> ...]"
         return 1
     fi
 
@@ -396,7 +398,7 @@ instance_get_by_properties() {
         shift 2
 
         if [ -z "$property_id" ] || [ -z "$value" ]; then
-            echo "instance_get_by_properties: Invalid property ID or value" >&2
+            log_fatal "instance_get_by_properties: Invalid property ID or value"
             return 1
         fi
 
@@ -412,12 +414,12 @@ instance_get_by_properties() {
     local results=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "$query" | tail -n +2)
 
     if [ -z "$results" ]; then
-        echo "instance_get_by_properties: No instances found for the given properties and values" >&2
+        log_debug "instance_get_by_properties: No instances found for the given properties and values"
         return 1
     fi
 
     if [ "$(echo "$results" | wc -l)" -gt 1 ]; then
-        echo "instance_get_by_properties: Multiple instances found for the given properties and values" >&2
+        log_debug "instance_get_by_properties: Multiple instances found for the given properties and values"
         return 1
     fi
 
@@ -562,8 +564,6 @@ find_cache_index() {
     done
     echo "-1"
 }
-
-# Function to read and cache all properties of a given instance
 cache_get_instance() {
     local class_id="$1"
     local instance_id="$2"
@@ -617,6 +617,9 @@ cache_get_instance() {
         return 1
     fi
 
+    # Remove surrounding quotes from each field if present
+    result=$(echo "$result" | sed 's/^"\(.*\)"$/\1/')
+
     # Update the cache
     if [[ "$cache_index" -ge 0 ]]; then
         CACHE_VALUES[$cache_index]="$result"
@@ -629,7 +632,6 @@ cache_get_instance() {
 
     echo "$result"
 }
-
 cache_get_property() {
     local class_id="$1"
     local instance_id="$2"
@@ -650,7 +652,10 @@ cache_get_property() {
     fi
 
     local result
-    result=$(echo "$properties" | grep "^$property_id," | cut -d ',' -f 2)
+    result=$(echo "$properties" | grep "^$property_id," | cut -d ',' -f 2-)
+
+    # Remove surrounding quotes if present
+    result=$(echo "$result" | sed 's/^"\(.*\)"$/\1/')
 
     if [ -z "$result" ]; then
         echo "Property '$property_id' not found for instance_id: $instance_id in class_id: $class_id" >&2

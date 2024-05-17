@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-DUCKDB_FILE_NAME="crossbash.duckdb"
+#temp file
+DUCKDB_FILE_NAME=$(mktemp)
+echo "Using temp file: $DUCKDB_FILE_NAME" >&2
 source "../lib/class_lib.sh"
 
 initialize_test_db() {
@@ -141,7 +143,7 @@ test_instance_get_property() {
     fi
 }
 
-test_class_get_by_property() {
+test_instance_get_by_property() {
     reset
     local class_name="test_class"
     local property="test_property"
@@ -155,13 +157,13 @@ test_class_get_by_property() {
     instance_set_property "$class_id" "$instance_id_1" "$property_id" "value1"
     instance_set_property "$class_id" "$instance_id_2" "$property_id" "value2"
 
-    local instances=$(class_get_by_property "$class_id" "$property_id" "value1")
+    local instances=$(instance_get_by_property "$class_id" "$property_id" "value1")
 
     if [[ "$instances" == "$instance_id_1" ]]; then
-        echo "class_get_by_property test passed" >&2
+        echo "instance_get_by_property test passed" >&2
         return 0
     else
-        echo "class_get_by_property test failed" >&2
+        echo "instance_get_by_property test failed" >&2
         return 1
     fi
 }
@@ -428,6 +430,91 @@ test_instance_delete() {
     return 0
 }
 
+test_instance_get_by_properties() {
+    reset
+    local class_name="test_class"
+    local property_1="property_1"
+    local property_2="property_2"
+    local data_type_id_1=$DATATYPE_ID_TEXT
+    local data_type_id_2=$DATATYPE_ID_TEXT
+
+    local class_id=$(class_new "$class_name")
+    local property_id_1=$(class_add_property "$class_id" "$property_1" "$data_type_id_1")
+    local property_id_2=$(class_add_property "$class_id" "$property_2" "$data_type_id_2")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
+
+    instance_set_property "$class_id" "$instance_id_1" "$property_id_1" "value1"
+    instance_set_property "$class_id" "$instance_id_1" "$property_id_2" "value2"
+    instance_set_property "$class_id" "$instance_id_2" "$property_id_1" "value3"
+    instance_set_property "$class_id" "$instance_id_2" "$property_id_2" "value4"
+
+    local result=$(instance_get_by_properties "$class_id" "$property_id_1" "value1" "$property_id_2" "value2")
+    if [[ "$result" == "$instance_id_1" ]]; then
+        echo "instance_get_by_properties test passed" >&2
+        return 0
+    else
+        echo "instance_get_by_properties test failed" >&2
+        return 1
+    fi
+}
+
+test_instance_list_by_property() {
+    reset
+    local class_name="test_class"
+    local property="test_property"
+    local data_type_id=$DATATYPE_ID_TEXT
+
+    local class_id=$(class_new "$class_name")
+    local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
+
+    instance_set_property "$class_id" "$instance_id_1" "$property_id" "value1"
+    instance_set_property "$class_id" "$instance_id_2" "$property_id" "value1"
+
+    local instances=$(instance_list_by_property "$class_id" "$property_id" "value1")
+
+    if [[ "$instances" == "$instance_id_1"$'\n'"$instance_id_2" ]]; then
+        echo "instance_list_by_property test passed" >&2
+        return 0
+    else
+        echo "instance_list_by_property test failed" >&2
+        return 1
+    fi
+}
+
+test_class_sort_by_property() {
+    reset
+    local class_name="test_class"
+    local property="test_property"
+    local data_type_id=$DATATYPE_ID_INTEGER
+
+    local class_id=$(class_new "$class_name")
+    local property_id=$(class_add_property "$class_id" "$property" "$data_type_id")
+    local instance_id_1=$(instance_new "$class_id")
+    local instance_id_2=$(instance_new "$class_id")
+    local instance_id_3=$(instance_new "$class_id")
+
+    instance_set_property "$class_id" "$instance_id_1" "$property_id" "3"
+    instance_set_property "$class_id" "$instance_id_2" "$property_id" "1"
+    instance_set_property "$class_id" "$instance_id_3" "$property_id" "2"
+
+    class_sort_by_property "$class_id" "$property_id" || {
+        echo "class_sort_by_property test failed" >&2
+        return 1
+    }
+
+    local instances=($(run_duckdb_csv_query "SELECT instance_id FROM classes_instances WHERE class_id = $class_id ORDER BY idx;" | tail -n +2))
+    if [[ "${instances[0]}" == "$instance_id_2" && "${instances[1]}" == "$instance_id_3" && "${instances[2]}" == "$instance_id_1" ]]; then
+        echo "class_sort_by_property test passed" >&2
+        return 0
+    else
+        echo "class_sort_by_property test failed" >&2
+        return 1
+    fi
+}
+
 run_test() {
     local test_name="$1"
     echo "Running test: $test_name" >&2
@@ -449,7 +536,7 @@ run_test test_instance_new
 run_test test_instance_set_property
 run_test test_instance_get_property
 run_test test_instance_list
-run_test test_class_get_by_property
+run_test test_instance_get_by_property
 run_test test_class_sort_by_property
 run_test test_class_cascade_subtract_property
 run_test test_cache_get_instance
@@ -457,3 +544,7 @@ run_test test_cache_get_property
 run_test test_class_delete
 run_test test_instance_exists
 run_test test_instance_delete
+run_test test_instance_get_by_properties
+run_test test_instance_list_by_property
+run_test test_class_sort_by_property
+echo "All tests passed" >&2

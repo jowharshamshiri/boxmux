@@ -60,7 +60,6 @@ layout:
           text_color: 'white'
           title_color: 'green'
           on_refresh:
-            - echo -n "Time:\ "
             - date
           scroll: false
           refresh_interval: 1

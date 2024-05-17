@@ -29,8 +29,8 @@ setup_layout_data() {
     BOX_PROP_PATH=$(class_add_property "$BOX_CLS_ID" "path" "$DATATYPE_ID_TEXT")
     set_env_var "BOX_PROP_PATH" "$BOX_PROP_PATH"
 
-    BOX_PROP_LAYOUT_ID=$(class_add_property "$BOX_CLS_ID" "layout_id" "$DATATYPE_ID_TEXT")
-    set_env_var "BOX_PROP_LAYOUT_ID" "$BOX_PROP_LAYOUT_ID"
+    BOX_PROP_LAYOUT_INSTANCE_ID=$(class_add_property "$BOX_CLS_ID" "layout_id" "$DATATYPE_ID_TEXT")
+    set_env_var "BOX_PROP_LAYOUT_INSTANCE_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID"
 
     BOX_PROP_IS_ROOT=$(class_add_property "$BOX_CLS_ID" "is_root" "$DATATYPE_ID_TEXT")
     set_env_var "BOX_PROP_IS_ROOT" "$BOX_PROP_IS_ROOT"

@@ -465,7 +465,7 @@ initialize_xb() {
     # INFRA_DIR="$XB_HOME/infra"
 
     if [ -z "$LOG_LEVEL" ]; then
-        LOG_LEVEL=5
+        LOG_LEVEL=3
         set_env_var "LOG_LEVEL" "$LOG_LEVEL"
     fi
 

@@ -329,47 +329,58 @@ get_root_elem() {
     echo "$prefix$LAYOUT_ROOT_ELEMENT"
 }
 
-trigger_event() {
+trigger_box_event() {
+    log_trace "layout_lib.sh: trigger_event(box_instance_id=$1, event=$2)"
     local box_instance_id="$1"
-    local event=${2:-enter}
-    local i=1
+    local event_name=${2:-"enter"}
 
-    if [ -z "$base_instance_id" ]; then
-        log_fatal "Usage: trigger_event <box_instance_id> <event>"
+    if [ -z "$box_instance_id" ]; then
+        log_fatal "Usage: trigger_box_event <box_instance_id> <event>"
         return 1
     fi
 
-    event=$(instance_get_by_properties "$EVENT_CLS_ID" "$EVENT_PROP_BOX_INSTANCE_ID" "$box_instance_id" "$EVENT_PROP_NAME" "$event")
+    event_instance_id=$(instance_get_by_properties "$EVENT_CLS_ID" "$EVENT_PROP_BOX_INSTANCE_ID" "$box_instance_id" "$EVENT_PROP_NAME" "$event_name")
 
-    event_script=$(cache_get_property "$EVENT_CLS_ID" "$event" "$EVENT_PROP_SCRIPT")
+    if [ -z "$event_instance_id" ]; then
+        log_debug "Event '$event_name' not found for box instance '$box_instance_id'"
+        return 0
+    fi
+
+    log_debug "Found event '$event_name' for box instance '$box_instance_id'"
+
+    event_script=$(cache_get_property "$EVENT_CLS_ID" "$event_instance_id" "$EVENT_PROP_SCRIPT")
+
+    log_debug "Executing event script for event '$event_instance_id': '$event_script'"
 
     output=""
 
-    IFS=$'\n' read -d '' -ra script_lines <<<"$event_script"
-    while [ $i -le ${#script_lines[@]} ]; do
-        output+=$(eval "${script_lines[i]}")
-        ((i++))
+    split_result=$(split_into_array "$event_script" $'____')
+
+    for line in $split_result; do
+        log_debug "Executing event script line: $line"
+        output+=$(eval "$line")
     done
 
     echo "$output"
 }
 
-refresh_cycle() {
+event_loop() {
     local layout_instance_id="$1"
 
-    if [ -z "$layout_id" ]; then
-        log_fatal "Usage: refresh_cycle <layout_id>"
+    if [ -z "$layout_instance_id" ]; then
+        log_fatal "Usage: event_loop <layout_instance_id>"
         return 1
     fi
 
-    root_box_instance_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
+    root_box_instance_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
 
     if [ -z "$root_box_instance_id" ]; then
-        log_fatal "Error: Root box not found for layout '$layout_id'"
+        log_fatal "Error: Root box not found for layout '$layout_instance_id'"
         return 1
     fi
 
-    instances=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_ID" "$layout_instance_id")
+    instances=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id")
+    IFS=$'\n' read -r -d '' -a instances <<<"$instances"
     local total_keys=${#instances[@]}
 
     if [ "$total_keys" -eq 0 ]; then
@@ -380,24 +391,28 @@ refresh_cycle() {
     local cycle_start_time=$(date +%s)
     local current_time=0
     local next_event_time=0
-    local next_event_index=0
 
     redraw_box "$root_box_instance_id"
 
     local instance_ids=()
     local next_event_times=()
 
+    log_debug "Starting event loop for layout instance '$layout_instance_id'"
+
     while true; do
         read -t 1 -n 1 key && handle_key "$key"
         local current_time=$(date +%s)
-        local elapsed_time=$((current_time - cycle_start_time))
 
         # Refresh instance list if needed
-        instances=$(instance_list "$BOX_CLS_ID") # Refresh list to capture any runtime changes
+        instances=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id")
+        IFS=$'\n' read -r -d '' -a instances <<<"$instances"
+        log_debug "Found instances: ${instances[*]}"
         total_keys=${#instances[@]}
 
         # Schedule next events for all instances
-        for instance_id in $instances; do
+
+        for instance_id in "${instances[@]}"; do
+            log_debug "Scheduling next event for instance $instance_id"
             local interval=$(get_box_interval "$instance_id")
             next_event_time=$((current_time + interval))
             instance_ids+=("$instance_id")
@@ -406,8 +421,9 @@ refresh_cycle() {
 
         # Process events that are due
         for ((i = 0; i < total_keys; i++)); do
+            log_debug "Processing event for instance '${instance_ids[i]}'"
             if [ "${next_event_times[i]}" -le "$current_time" ]; then
-                local output=$(trigger_event "${instance_ids[i]}" "refresh")
+                local output=$(trigger_box_event "${instance_ids[i]}" "refresh")
 
                 if [ -n "$output" ]; then
                     instance_set_property "$BOX_CLS_ID" "${instance_ids[i]}" "$BOX_PROP_OUTPUT" "$output"
@@ -562,7 +578,7 @@ load_layout() {
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ID" "$box_id"
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PATH" "$box_path"
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_IS_ROOT" "$is_root"
-    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_LAYOUT_ID" "$layout_instance_id"
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id"
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_INTERVAL" "${box_refresh_interval:-$root_refresh_interval}"
 
     # events
@@ -587,7 +603,7 @@ load_layout() {
         done
 
         local event_script
-        event_script=$(concat_with_separator "${script_lines[@]}" "\n")
+        event_script=$(concat_with_separator "____" "${script_lines[@]}")
 
         if [ -n "$event_script" ]; then
             local event_instance_id=$(instance_new "$EVENT_CLS_ID")
@@ -705,7 +721,7 @@ start_layout() {
         return 1
     fi
 
-    layout_root_box_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
+    layout_root_box_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
 
     if [ -z "$layout_root_box_id" ]; then
         log_fatal "Error: Root box not found for layout '$layout_id'"
@@ -744,7 +760,7 @@ start_layout() {
     # setup_options
     setup_terminal
 
-    refresh_cycle "$layout_instance_id"
+    event_loop "$layout_instance_id"
 }
 
 load_layouts() {

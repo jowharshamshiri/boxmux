@@ -1221,14 +1221,39 @@ update_json_file() {
 concat_with_separator() {
     local separator="$1"
     shift
-    local result="$1"
-    shift
+
+    local result=""
+    local first=true
 
     for arg in "$@"; do
-        result="${result}${separator}${arg}"
+        if [ "$first" = true ]; then
+            result="$arg"
+            first=false
+        else
+            result="${result}${separator}${arg}"
+        fi
     done
 
-    echo "$result"
+    echo -e "$result"
+}
+
+split_into_array() {
+    local input="$1"
+    local separator="$2"
+    local -a array=()
+
+    while [[ "$input" ]]; do
+        # Extract the part before the separator
+        if [[ "$input" == *"$separator"* ]]; then
+            array+=("${input%%"$separator"*}")
+            input="${input#*"$separator"}"
+        else
+            array+=("$input")
+            break
+        fi
+    done
+
+    echo "${array[@]}"
 }
 
 read_json_file() {
