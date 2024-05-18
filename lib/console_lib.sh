@@ -499,7 +499,12 @@ test() {
 change_color() {
     ##log_trace "layout_lib.sh: change_color($1)"
     local color=$1
-    printf """""""$color"""""""
+    printf "$color"
+}
+
+reset_color() {
+    ##log_trace "layout_lib.sh: reset_color()"
+    printf "$RESET"
 }
 
 clear_screen() {
@@ -520,7 +525,7 @@ screen_width() {
 # Function to move the cursor to a specific location (row, col)
 move_cursor() {
     ##log_trace "layout_lib.sh: move_cursor()"
-    printf "\033[%d;%dH" """""""""$1""""""""" """""""""$2"""""""""
+    printf "\033[%d;%dH" "$1" "$2"
 }
 
 print_at() {
@@ -529,26 +534,36 @@ print_at() {
     local x=$2
     local text=$3
 
-    move_cursor """""""""$y""""""""" """""""""$x"""""""""
+    move_cursor "$y" "$x"
 
-    printf "%s" """""""$text"""""""
+    printf "%s" "$text"
 }
 
 print_with_color_at() {
-    ##log_trace "layout_lib.sh: print_with_color_at(x=$2, y=$1, text=$3, color=$4)"
     local y=$1
     local x=$2
-    local text=$3
-    local color=${4:-"black"}
+    local color=$3
+    local text=$4
 
-    ansi_color=$(get_color "$color")
+    local ansi_color=$(get_color "$color")
 
-    move_cursor """""""$y""""""" """""""$x"""""""
-    change_color """""""$ansi_color"""""""
+    # Save the current cursor position and color settings
+    move_cursor "$y" "$x"
+    change_color "$ansi_color"
 
-    printf "%s" """""""$text"""""""
+    old_ifs=$IFS
+    # Split the text into lines using a while loop and `IFS`
+    IFS=$'\n'
+    local line
+    while IFS= read -r line; do
+        printf "%s" "$line"
+        y=$((y + 1))
+        move_cursor "$y" "$x"
+    done <<<"$text"
+
+    reset_color
+    IFS=$old_ifs
 }
-
 vertical_line() {
     ##log_trace "layout_lib.sh: vertical_line(x=$1, y1=$2, y2=$3, color=$4)"
     local x=$1
@@ -557,11 +572,11 @@ vertical_line() {
     local color=$4
     local character=${5:-"$VER_LINE_CHAR"}
 
-    [ -n """""""$color""""""" ] && change_color """""""$color"""""""
+    [ -n "$color" ] && change_color "$color"
 
     for ((i = y1; i <= y2; i++)); do
-        move_cursor ""$i"" """""""$x"""""""
-        printf "%s" """""""$character"""""""
+        move_cursor "$i" "$x"
+        printf "%s" "$character"
     done
 }
 
@@ -573,10 +588,10 @@ horizontal_line() {
     local color=$4
     local character=${5:-"$HOR_LINE_CHAR"}
 
-    [ -n """""""$color""""""" ] && change_color """""""$color"""""""
+    [ -n "$color" ] && change_color "$color"
     for ((i = x1; i <= x2; i++)); do
-        move_cursor """""""$y""""""" ""$i""
-        printf "%s" """""""$character"""""""
+        move_cursor "$y" "$i"
+        printf "%s" "$character"
     done
 }
 

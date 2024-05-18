@@ -4,12 +4,12 @@ class_exists() {
     local class_id="$1"
 
     if [ -z "$class_id" ]; then
-        echo "Usage: class_exists <class_id>" >&2
+        log_fatal "Usage: class_exists <class_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && [[ $(validate_integer "$class_id") -ne 0 ]]; then
-        echo "class_exists: Invalid class ID" >&2
+        log_error "class_exists: Invalid class ID"
         return 1
     fi
 
@@ -49,41 +49,41 @@ class_delete() {
     local class_id="$1"
 
     if [ -z "$class_id" ]; then
-        echo "Usage: class_delete <class_id>" >&2
+        log_fatal "Usage: class_delete <class_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && [[ $(validate_integer "$class_id") -ne 0 ]]; then
-        echo "class_delete: Invalid class ID: $class_id" >&2
+        log_error "class_delete: Invalid class ID: $class_id"
         return 1
     fi
 
     [ "$CLASS_CHECKS" == "true" ] && { class_exists "$class_id" || {
-        echo "class_delete: Class does not exist: $class_id" >&2
+        log_error "class_delete: Class does not exist: $class_id"
         return 1
     }; }
 
     # Delete the properties of instances associated with the class
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes_instances_data WHERE instance_id IN (SELECT instance_id FROM classes_instances WHERE class_id = $class_id);" || {
-        echo "class_delete: Failed to delete properties of instances for class: $class_id" >&2
+        log_error "class_delete: Failed to delete properties of instances for class: $class_id"
         return 1
     }
 
     # Delete the instances associated with the class
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes_instances WHERE class_id = $class_id;" || {
-        echo "class_delete: Failed to delete instances for class: $class_id" >&2
+        log_error "class_delete: Failed to delete instances for class: $class_id"
         return 1
     }
 
     # Delete the properties associated with the class
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes_properties WHERE class_id = $class_id;" || {
-        echo "class_delete: Failed to delete properties for class: $class_id" >&2
+        log_error "class_delete: Failed to delete properties for class: $class_id"
         return 1
     }
 
     # Delete the class itself
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes WHERE id = $class_id;" || {
-        echo "class_delete: Failed to delete class: $class_id" >&2
+        log_error "class_delete: Failed to delete class: $class_id"
         return 1
     }
 }
@@ -94,24 +94,24 @@ class_add_property() {
     local data_type_id="$3"
 
     if [ -z "$class_id" ] || [ -z "$property" ] || [ -z "$data_type_id" ]; then
-        echo "Usage: class_add_property <class_id> <property> <data_type_id>" >&2
+        log_fatal "Usage: class_add_property <class_id> <property> <data_type_id>: $class_id, $property, $data_type_id"
         return 1
     fi
 
     if [[ $(validate_integer "$class_id") -ne 0 || $(validate_text "$property") -ne 0 || $(validate_integer "$data_type_id") -ne 0 ]]; then
-        echo "class_add_property: Invalid class ID, property, or data type ID. class_id: $class_id, property: $property, data_type_id: $data_type_id" >&2
+        log_error "class_add_property: Invalid class ID, property, or data type ID. class_id: $class_id, property: $property, data_type_id: $data_type_id"
         return 1
     fi
 
     [ "$CLASS_CHECKS" == "true" ] && { class_exists "$class_id" || {
-        echo "class_add_property: Class does not exist: $class_id" >&2
+        log_error "class_add_property: Class does not exist: $class_id"
         return 1
     }; }
 
     property_id=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_properties (class_id, property, data_type_id) VALUES ($class_id, '$property', $data_type_id) RETURNING id;" | tail -n +2)
 
     if [ -z "$property_id" ]; then
-        echo "class_add_property: Failed to add property: $property" >&2
+        log_error "class_add_property: Failed to add property: $property"
         return 1
     fi
 
@@ -123,12 +123,12 @@ instance_exists() {
     local instance_id="$2"
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ]; then
-        echo "Usage: instance_exists <class_id> <instance_id>" >&2
+        log_fatal "Usage: instance_exists <class_id> <instance_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 ]]; }; then
-        echo "instance_exists: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id" >&2
+        log_error "instance_exists: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id"
         return 1
     fi
 
@@ -147,17 +147,17 @@ instance_new() {
     local class_id="$1"
 
     if [ -z "$class_id" ]; then
-        echo "Usage: instance_new <class_id>" >&2
+        log_fatal "Usage: instance_new <class_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && [[ $(validate_integer "$class_id") -ne 0 ]]; then
-        echo "instance_new: Invalid class ID: $class_id" >&2
+        log_error "instance_new: Invalid class ID: $class_id"
         return 1
     fi
 
     [ "$CLASS_CHECKS" == "true" ] && { class_exists "$class_id" || {
-        echo "instance_new: Class does not exist: $class_id" >&2
+        log_error "instance_new: Class does not exist: $class_id"
         return 1
     }; }
 
@@ -165,7 +165,7 @@ instance_new() {
     instance_id=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_instances (class_id, idx) VALUES ($class_id, $max_idx) RETURNING instance_id;" | tail -n +2)
 
     if [ -z "$instance_id" ]; then
-        echo "instance_new: Failed to create instance: $class_id" >&2
+        log_error "instance_new: Failed to create instance: $class_id"
         return 1
     fi
 
@@ -177,29 +177,29 @@ instance_delete() {
     local instance_id="$2"
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ]; then
-        echo "Usage: instance_delete <class_id> <instance_id>" >&2
+        log_fatal "Usage: instance_delete <class_id> <instance_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 ]]; }; then
-        echo "instance_delete: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id" >&2
+        log_error "instance_delete: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id"
         return 1
     fi
 
     [ "$CLASS_CHECKS" == "true" ] && { class_exists "$class_id" || {
-        echo "instance_delete: Class does not exist: $class_id" >&2
+        log_error "instance_delete: Class does not exist: $class_id"
         return 1
     }; }
 
     # Delete the properties associated with the instance
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes_instances_data WHERE instance_id = $instance_id;" || {
-        echo "instance_delete: Failed to delete properties for instance: $instance_id" >&2
+        log_error "instance_delete: Failed to delete properties for instance: $instance_id"
         return 1
     }
 
     # Delete the instance
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DELETE FROM classes_instances WHERE instance_id = $instance_id;" || {
-        echo "instance_delete: Failed to delete instance: $instance_id" >&2
+        log_error "instance_delete: Failed to delete instance: $instance_id"
         return 1
     }
 }
@@ -211,22 +211,32 @@ instance_set_property() {
     local value="$4"
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
-        echo "Usage: instance_set_property <class_id> <instance_id> <property_id> <value>: $class_id, $instance_id, $property_id, $value" >&2
+        log_fatal "Usage: instance_set_property <class_id> <instance_id> <property_id> <value>: $class_id, $instance_id, $property_id, $value"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 || $(validate_integer "$property_id") -ne 0 || $(validate_text "$value") -ne 0 ]]; }; then
-        echo "instance_set_property: Invalid class ID, instance ID, property ID, or value: class_id: $class_id, instance_id: $instance_id, property_id: $property_id, value: $value" >&2
+        log_error "instance_set_property: Invalid class ID, instance ID, property ID, or value: class_id: $class_id, instance_id: $instance_id, property_id: $property_id, value: $value"
         return 1
     fi
 
     [ "$CLASS_CHECKS" == "true" ] && { class_exists "$class_id" || {
-        echo "instance_set_property: Class does not exist: $class_id" >&2
+        log_error "instance_set_property: Class does not exist: $class_id"
         return 1
     }; }
 
+    if [ -z "$value" ]; then
+        log_debug "instance_set_property: Setting property $property_id to empty string"
+        value=""
+    fi
+
+    #escape single quotes
+    value=$(echo "$value" | sed "s/'/''/g")
+
+    # log_trace "$DUCKDB_EXECUTABLE $DUCKDB_FILE_NAME -csv INSERT INTO classes_instances_data (instance_id, property_id, value) VALUES ($instance_id, $property_id, '$value') ON CONFLICT (instance_id, property_id) DO UPDATE SET value = EXCLUDED.value;"
+
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "INSERT INTO classes_instances_data (instance_id, property_id, value) VALUES ($instance_id, $property_id, '$value') ON CONFLICT (instance_id, property_id) DO UPDATE SET value = EXCLUDED.value;" || {
-        echo "instance_set_property: Failed to set property: $property_id" >&2
+        log_error "instance_set_property: Failed to set property $property_id to ''$value''"
         return 1
     }
 }
@@ -236,12 +246,12 @@ instance_get_property() {
     local property_id="$3"
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ] || [ -z "$property_id" ]; then
-        echo "Usage: instance_get_property <class_id> <instance_id> <property_id>: $class_id, $instance_id, $property_id" >&2
+        log_fatal "Usage: instance_get_property <class_id> <instance_id> <property_id>: $class_id, $instance_id, $property_id"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; }; then
-        echo "instance_get_property: Invalid class ID, instance ID, or property ID: class_id: $class_id, instance_id: $instance_id, property_id: $property_id" >&2
+        log_error "instance_get_property: Invalid class ID, instance ID, or property ID: class_id: $class_id, instance_id: $instance_id, property_id: $property_id"
         return 1
     fi
 
@@ -265,13 +275,13 @@ cache_get_instance_old() {
     local instance_id="$2"
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ]; then
-        echo "Usage: cache_get_instance <class_id> <instance_id>" >&2
+        log_fatal "Usage: cache_get_instance <class_id> <instance_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ]; then
         if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 ]]; then
-            echo "cache_get_instance: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id" >&2
+            log_error "cache_get_instance: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id"
             return 1
         fi
         class_exists "$class_id" || return 1
@@ -285,7 +295,7 @@ cache_get_instance_old() {
     local result=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "$query" | tail -n +2)
 
     if [ -z "$result" ]; then
-        echo "cache_get_instance: No properties found for instance: $instance_id in class: $class_id" >&2
+        log_error "cache_get_instance: No properties found for instance: $instance_id in class: $class_id"
         return 1
     fi
 
@@ -296,12 +306,12 @@ instance_list() {
     local class_id="$1"
 
     if [ -z "$class_id" ]; then
-        echo "Usage: instance_list <class_id>" >&2
+        log_fatal "Usage: instance_list <class_id>"
         return 1
     fi
 
     if [[ $(validate_integer "$class_id") -ne 0 ]]; then
-        echo "instance_list: Invalid class ID: $class_id" >&2
+        log_error "instance_list: Invalid class ID: $class_id"
         return 1
     fi
 
@@ -317,12 +327,12 @@ instance_list_by_property() {
     local value="$3"
 
     if [ -z "$class_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
-        echo "Usage: instance_get_by_property <class_id> <property_id> <value>" >&2
+        log_fatal "Usage: instance_get_by_property <class_id> <property_id> <value>"
         return 1
     fi
 
     if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 || $(validate_text "$value") -ne 0 ]]; then
-        echo "instance_get_by_property: Invalid class ID, property ID, or value: class_id: $class_id, property_id: $property_id, value: $value" >&2
+        log_error "instance_get_by_property: Invalid class ID, property ID, or value: class_id: $class_id, property_id: $property_id, value: $value"
         return 1
     fi
 
@@ -338,12 +348,12 @@ instance_delete_by_property() {
     local value="$3"
 
     if [ -z "$class_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
-        echo "Usage: instance_get_by_property <class_id> <property_id> <value>" >&2
+        log_fatal "Usage: instance_get_by_property <class_id> <property_id> <value>"
         return 1
     fi
 
     if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 || $(validate_text "$value") -ne 0 ]]; then
-        echo "instance_get_by_property: Invalid class ID, property ID, or value: class_id: $class_id, property_id: $property_id, value: $value" >&2
+        log_error "instance_get_by_property: Invalid class ID, property ID, or value: class_id: $class_id, property_id: $property_id, value: $value"
         return 1
     fi
 
@@ -363,19 +373,19 @@ instance_get_by_property() {
     local value="$3"
 
     if [ -z "$class_id" ] || [ -z "$property_id" ] || [ -z "$value" ]; then
-        echo "Usage: instance_get_by_property <class_id> <property_id> <value>" >&2
+        log_fatal "Usage: instance_get_by_property <class_id> <property_id> <value>"
         return 1
     fi
 
     results=$(instance_list_by_property "$class_id" "$property_id" "$value")
 
     # if [ -z "$results" ]; then
-    #     echo "instance_get_by_property: No instances found for property: $property_id, value: $value" >&2
+    #     log_error "instance_get_by_property: No instances found for property: $property_id, value: $value"
     #     return 1
     # fi
 
     if [ "$(echo "$results" | wc -l)" -gt 1 ]; then
-        echo "instance_get_by_property: Multiple instances found for property: $property_id, value: $value" >&2
+        log_error "instance_get_by_property: Multiple instances found for property: $property_id, value: $value"
         return 1
     fi
 
@@ -431,7 +441,7 @@ instance_list_by_properties() {
     shift
 
     if [ -z "$class_id" ] || [ "$#" -lt 2 ] || [ $(($# % 2)) -ne 0 ]; then
-        echo "Usage: instance_list_by_properties <class_id> <property_id1> <value1> [<property_id2> <value2> ...]" >&2
+        log_fatal "Usage: instance_list_by_properties <class_id> <property_id1> <value1> [<property_id2> <value2> ...]"
         return 1
     fi
 
@@ -442,7 +452,7 @@ instance_list_by_properties() {
         shift 2
 
         if [ -z "$property_id" ] || [ -z "$value" ]; then
-            echo "instance_list_by_properties: Invalid property ID or value" >&2
+            log_error "instance_list_by_properties: Invalid property ID or value"
             return 1
         fi
 
@@ -457,11 +467,6 @@ instance_list_by_properties() {
 
     local results=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "$query" | tail -n +2)
 
-    if [ -z "$results" ]; then
-        echo "instance_list_by_properties: No instances found for the given properties and values" >&2
-        return 1
-    fi
-
     echo "$results"
 }
 
@@ -470,12 +475,12 @@ class_sort_by_property() {
     local property_id="$2"
 
     if [ -z "$class_id" ] || [ -z "$property_id" ]; then
-        echo "Usage: class_sort_by_property <class_id> <property_id>" >&2
+        log_fatal "Usage: class_sort_by_property <class_id> <property_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; }; then
-        echo "class_sort_by_property: Invalid class ID or property ID: class_id: $class_id, property_id: $property_id" >&2
+        log_error "class_sort_by_property: Invalid class ID or property ID: class_id: $class_id, property_id: $property_id"
         return 1
     fi
 
@@ -484,7 +489,7 @@ class_sort_by_property() {
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "CREATE TABLE class_temp_sorted AS SELECT instance_id, value, ROW_NUMBER() OVER (ORDER BY value) - 1 AS new_idx FROM classes_instances_data WHERE property_id = $property_id;"
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "UPDATE classes_instances SET idx = (SELECT new_idx FROM class_temp_sorted WHERE classes_instances.instance_id = class_temp_sorted.instance_id) WHERE class_id = $class_id;"
     """$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "DROP TABLE class_temp_sorted;" || {
-        echo "Failed to sort instances" >&2
+        log_error "Failed to sort instances"
         return 1
     }
 }
@@ -494,12 +499,12 @@ class_cascade_subtract_property() {
     local property_id="$2"
 
     if [ -z "$class_id" ] || [ -z "$property_id" ]; then
-        echo "Usage: class_cascade_subtract_property <class_id> <property_id>" >&2
+        log_fatal "Usage: class_cascade_subtract_property <class_id> <property_id>"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ] && { [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$property_id") -ne 0 ]]; }; then
-        echo "class_cascade_subtract_property: Invalid class ID or property ID: class_id: $class_id, property_id: $property_id" >&2
+        log_error "class_cascade_subtract_property: Invalid class ID or property ID: class_id: $class_id, property_id: $property_id"
         return 1
     fi
 
@@ -592,13 +597,13 @@ cache_get_instance() {
     fi
 
     if [ -z "$class_id" ] || [ -z "$instance_id" ]; then
-        echo "Usage: cache_get_instance <class_id> <instance_id> [force]" >&2
+        log_fatal "Usage: cache_get_instance <class_id> <instance_id> [force]"
         return 1
     fi
 
     if [ "$CLASS_CHECKS" == "true" ]; then
         if [[ $(validate_integer "$class_id") -ne 0 || $(validate_integer "$instance_id") -ne 0 ]]; then
-            echo "cache_get_instance: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id" >&2
+            log_error "cache_get_instance: Invalid class ID or instance ID: class_id: $class_id, instance_id: $instance_id"
             return 1
         fi
         class_exists "$class_id" || return 1
@@ -613,7 +618,7 @@ cache_get_instance() {
     result=$("""$DUCKDB_EXECUTABLE""" "$DUCKDB_FILE_NAME" -csv "$query" | tail -n +2)
 
     if [ -z "$result" ]; then
-        echo "cache_get_instance: No properties found for instance: $instance_id in class: $class_id" >&2
+        log_error "cache_get_instance: No properties found for instance: $instance_id in class: $class_id"
         return 1
     fi
 
@@ -632,6 +637,7 @@ cache_get_instance() {
 
     echo "$result"
 }
+
 cache_get_property() {
     local class_id="$1"
     local instance_id="$2"
@@ -647,7 +653,7 @@ cache_get_property() {
     properties=$(cache_get_instance "$class_id" "$instance_id" "$force")
 
     if [ $? -ne 0 ]; then
-        echo "Failed to get properties for class_id: $class_id, instance_id: $instance_id" >&2
+        log_error "Failed to get properties for class_id: $class_id, instance_id: $instance_id"
         return 1
     fi
 
@@ -658,7 +664,7 @@ cache_get_property() {
     result=$(echo "$result" | sed 's/^"\(.*\)"$/\1/')
 
     if [ -z "$result" ]; then
-        echo "Property '$property_id' not found for instance_id: $instance_id in class_id: $class_id" >&2
+        log_error "Property '$property_id' not found for instance_id: $instance_id in class_id: $class_id"
         return 1
     fi
 

@@ -236,6 +236,7 @@ run_duckdb_csv_query() {
     fi
 
     # check_duckdb_state
+    # output=$("$DUCKDB_EXECUTABLE" "$DUCKDB_FILE_NAME" -c "$query" -csv ".exit" 2>&1)
 
     "$DUCKDB_EXECUTABLE" "$DUCKDB_FILE_NAME" -csv "$query"
 }

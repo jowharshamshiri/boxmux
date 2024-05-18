@@ -229,6 +229,11 @@ draw_box() {
 
     local border_color
     border_color=$(get_box_border_color "$box_instance_id")
+
+    if [ "$box_instance_id" == "$LAYOUT_SELECTED_BOX_INSTANCE_ID" ]; then
+        border_color=$LAYOUT_SELECTED_BOX_BORDER_COLOR
+    fi
+
     box "$absolute_x1" "$absolute_y1" "$absolute_x2" "$absolute_y2" "$border_color"
 
     local title
@@ -237,7 +242,7 @@ draw_box() {
     if [ -n "$title" ]; then
         local title_color
         title_color=$(get_box_title_color "$box_instance_id")
-        print_with_color_at "$((absolute_y1 + 1))" "$((absolute_x1 + 1))" "$title" "$title_color"
+        print_with_color_at "$((absolute_y1 + 1))" "$((absolute_x1 + 1))" "$title_color" "$title"
     fi
 
     local output
@@ -246,8 +251,21 @@ draw_box() {
     if [ -n "$output" ]; then
         local text_color
         text_color=$(get_box_text_color "$box_instance_id")
-        print_with_color_at "$((absolute_y1 + 3))" "$((absolute_x1 + 3))" "$output" "$text_color"
+        # text_color="red"
+        # log_debug "output: ''$output''"
+        # log_state "text_color: $text_color"
+        # local split_output=$(split_into_array "$output" $'____')
+
+        local split_output=$(replace_with_newlines "$output")
+
+        print_in_boxes "$((absolute_x1 + 3))" "$((absolute_y1 + 3))" "$((absolute_x2 - 2))" "$((absolute_y2 - 1))" 0 "$text_color" "$split_output"
+        # print_with_color_at "$((absolute_y1 + 3))" "$((absolute_x1 + 3))" "$output" "$text_color"
     fi
+}
+
+replace_with_newlines() {
+    local text="$1"
+    echo "${text//____/$'\n'}"
 }
 
 calculate_absolute_position() {
@@ -265,8 +283,13 @@ calculate_absolute_position() {
 
     local is_root=$(instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_IS_ROOT")
 
+    local abs_x1 abs_y1 abs_x2 abs_y2
+
     if [ -n "$is_root" ] && [ "$is_root" == "true" ]; then
-        echo "0 0 $(screen_width) $(screen_height)"
+        abs_x1=0
+        abs_y1=0
+        abs_x2=$(screen_width)
+        abs_y2=$(screen_height)
     else
         local box_x1
         local box_y1
@@ -279,20 +302,61 @@ calculate_absolute_position() {
         box_y2=$(get_box_y2 "$box_instance_id" | tr -d '%')
 
         # Calculate absolute position using bash arithmetic and ensure values are integers
-        local abs_x1=$((parent_abs_x1 + (parent_abs_x2 - parent_abs_x1) * box_x1 / 100))
-        local abs_y1=$((parent_abs_y1 + (parent_abs_y2 - parent_abs_y1) * box_y1 / 100))
-        local abs_x2=$((parent_abs_x1 + (parent_abs_x2 - parent_abs_x1) * box_x2 / 100))
-        local abs_y2=$((parent_abs_y1 + (parent_abs_y2 - parent_abs_y1) * box_y2 / 100))
-
-        instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X1" "$abs_x1"
-        instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y1" "$abs_y1"
-        instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X2" "$abs_x2"
-        instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y2" "$abs_y2"
-
-        echo "$abs_x1 $abs_y1 $abs_x2 $abs_y2"
+        abs_x1=$((parent_abs_x1 + (parent_abs_x2 - parent_abs_x1) * box_x1 / 100))
+        abs_y1=$((parent_abs_y1 + (parent_abs_y2 - parent_abs_y1) * box_y1 / 100))
+        abs_x2=$((parent_abs_x1 + (parent_abs_x2 - parent_abs_x1) * box_x2 / 100))
+        abs_y2=$((parent_abs_y1 + (parent_abs_y2 - parent_abs_y1) * box_y2 / 100))
     fi
+
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X1" "$abs_x1"
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y1" "$abs_y1"
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X2" "$abs_x2"
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y2" "$abs_y2"
+
+    echo "$abs_x1 $abs_y1 $abs_x2 $abs_y2"
 }
 
+print_in_boxes() {
+    local x1=$1
+    local y1=$2
+    local x2=$3
+    local y2=$4
+    local start_line=$5
+    local text_color=$6
+    local text_lines=$7
+
+    # Calculate the box width and height
+    local box_width=$((x2 - x1 + 1))
+    local box_height=$((y2 - y1 + 1))
+
+    old_IFS=$IFS
+
+    # Split the text into an array of lines
+    IFS=$'\n' read -r -d '' -a lines <<<"$text_lines"
+
+    IFS=$old_IFS
+    # Prepare an array to hold the wrapped lines
+    local wrapped_lines=()
+    local f=0 #for box_height
+    for ((f = start_line; f < ${#lines[@]} && f < start_line + box_height; f++)); do
+        local text_line="${lines[$f]}"
+        while [ ${#text_line} -gt $box_width ]; do
+            wrapped_lines+=("${text_line:0:$box_width}")
+            text_line="${text_line:$box_width}"
+        done
+        wrapped_lines+=("$text_line")
+    done
+
+    # Print the wrapped lines in the specified box area
+    local y_pos=$y1
+    for line in "${wrapped_lines[@]}"; do
+        if [ "$y_pos" -gt "$y2" ]; then
+            b"reak"
+        fi
+        print_with_color_at "$y_pos" "$x1" "$text_color" "$line"
+        y_pos=$((y_pos + 1))""
+    done
+}
 draw_boxes() {
     #log_trace "layout_lib.sh: draw_boxes(box_path=$1, parent_x1=$2, parent_y1=$3, parent_x2=$4, parent_y2=$5)"
     local box_instance_id="$1"
@@ -329,8 +393,26 @@ get_root_elem() {
     echo "$prefix$LAYOUT_ROOT_ELEMENT"
 }
 
+has_event() {
+    local box_instance_id="$1"
+    local event_name="$2"
+
+    if [ -z "$box_instance_id" ] || [ -z "$event_name" ]; then
+        log_fatal "Usage: has_event <box_instance_id> <event_name>"
+        return 1
+    fi
+
+    local event_instance_id=$(instance_get_by_properties "$EVENT_CLS_ID" "$EVENT_PROP_BOX_INSTANCE_ID" "$box_instance_id" "$EVENT_PROP_NAME" "$event_name")
+
+    if [ -n "$event_instance_id" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 trigger_box_event() {
-    log_trace "layout_lib.sh: trigger_event(box_instance_id=$1, event=$2)"
+    # log_trace "layout_lib.sh: trigger_event(box_instance_id=$1, event=$2)"
     local box_instance_id="$1"
     local event_name=${2:-"enter"}
 
@@ -352,34 +434,37 @@ trigger_box_event() {
 
     log_debug "Executing event script for event '$event_instance_id': '$event_script'"
 
-    output=""
+    local split_result=$(split_into_array "$event_script" $'____')
 
-    split_result=$(split_into_array "$event_script" $'____')
+    old_ifs=$IFS
+
+    IFS=$'\n'
 
     for line in $split_result; do
         log_debug "Executing event script line: $line"
-        output+=$(eval "$line")
+
+        IFS=$'\n' read -r -d '' -a output_lines <<<"$(eval "$line")"
     done
 
-    echo "$output"
+    IFS=$old_ifs
+
+    local event_output=$(concat_with_separator "____" "${output_lines[@]}")
+
+    echo "$event_output"
 }
+
+REFRESHING_BOXES=()
+SELECTABLE_BOXES=()
 
 event_loop() {
     local layout_instance_id="$1"
 
     if [ -z "$layout_instance_id" ]; then
-        log_fatal "Usage: event_loop <layout_instance_id>"
+        log_fatal "Usage: refresh_event_loop <layout_instance_id>"
         return 1
     fi
 
-    root_box_instance_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
-
-    if [ -z "$root_box_instance_id" ]; then
-        log_fatal "Error: Root box not found for layout '$layout_instance_id'"
-        return 1
-    fi
-
-    instances=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id")
+    instances=$LAYOUT_BOXES
     IFS=$'\n' read -r -d '' -a instances <<<"$instances"
     local total_keys=${#instances[@]}
 
@@ -388,71 +473,189 @@ event_loop() {
         return 1
     fi
 
-    local cycle_start_time=$(date +%s)
     local current_time=0
     local next_event_time=0
 
-    redraw_box "$root_box_instance_id"
+    redraw_box "$LAYOUT_ROOT_BOX_INSTANCE_ID"
 
     local instance_ids=()
     local next_event_times=()
 
     log_debug "Starting event loop for layout instance '$layout_instance_id'"
 
+    instances=$LAYOUT_BOXES
+
+    local intervals=()
+
+    for instance_id in "${REFRESHING_BOXES[@]}"; do
+        local interval=$(get_box_interval "$instance_id")
+        intervals+=("$interval")
+    done
+
+    stty -echo -icanon time 0 min 0
+
     while true; do
-        read -t 1 -n 1 key && handle_key "$key"
-        local current_time=$(date +%s)
+        char=$(dd if=/dev/tty bs=1 count=1 2>/dev/null)
+        if [ -n "$char" ]; then
+            handle_key "$char"
+        fi
 
-        # Refresh instance list if needed
-        instances=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id")
-        IFS=$'\n' read -r -d '' -a instances <<<"$instances"
-        log_debug "Found instances: ${instances[*]}"
-        total_keys=${#instances[@]}
+        current_time=$(date +%s)
 
-        # Schedule next events for all instances
+        for i in "${!intervals[@]}"; do
+            task_interval=${intervals[$i]}
+            if ((current_time % task_interval == 0)); then
+                box_instance_id=${REFRESHING_BOXES[$i]}
 
-        for instance_id in "${instances[@]}"; do
-            log_debug "Scheduling next event for instance $instance_id"
-            local interval=$(get_box_interval "$instance_id")
-            next_event_time=$((current_time + interval))
-            instance_ids+=("$instance_id")
-            next_event_times+=("$next_event_time")
-        done
+                log_debug "Processing refresh event for instance '$box_instance_id"
 
-        # Process events that are due
-        for ((i = 0; i < total_keys; i++)); do
-            log_debug "Processing event for instance '${instance_ids[i]}'"
-            if [ "${next_event_times[i]}" -le "$current_time" ]; then
-                local output=$(trigger_box_event "${instance_ids[i]}" "refresh")
+                local output=$(trigger_box_event "$box_instance_id" "refresh")
 
                 if [ -n "$output" ]; then
-                    instance_set_property "$BOX_CLS_ID" "${instance_ids[i]}" "$BOX_PROP_OUTPUT" "$output"
-                    redraw_box "${instance_ids[i]}"
+                    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_OUTPUT" "$output"
+                    redraw_box "$box_instance_id"
                 fi
-
-                # Reschedule the next event for this instance
-                next_event_times[i]=$((current_time + interval))
             fi
         done
 
         # Exit if no terminal is attached
         [[ -t 1 ]] || exit 1
     done
+
+    stty sane
 }
 
 # Handler for key input
 handle_key() {
-    ##log_trace "layout_lib.sh: handle_key(key=$1)"
-    local key=$1
-    case "$key" in
+    # Handle special key presses.
+    [[ $1 == $'\e' ]] && {
+        read "${read_flags[@]}" -rsn 2
+
+        # Handle a normal escape key press.
+        [[ ${1}${REPLY} == $'\e\e['* ]] &&
+            read "${read_flags[@]}" -rsn 1 _
+
+        local special_key=${1}${REPLY}
+    }
+
+    case ${special_key:-$1} in
     q)
         echo "Exiting..."
         exit 0
         ;;
+        # arrow keys:
+        # up
+        # '\e[A' or '\eOA'
+    ${FFF_KEY_SCROLL_UP1:=k} | \
+        ${FFF_KEY_SCROLL_UP2:=$'\e[A'} | \
+        ${FFF_KEY_SCROLL_UP3:=$'\eOA'})
+        change_box_selection "up"
+        ;;
+        # down
+
+    ${FFF_KEY_SCROLL_DOWN1:=j} | \
+        ${FFF_KEY_SCROLL_DOWN2:=$'\e[B'} | \
+        ${FFF_KEY_SCROLL_DOWN3:=$'\eOB'})
+        change_box_selection "down"
+        ;;
+    # right
+    $'\e[C' | $'\eOC')
+        change_box_selection "right"
+        ;;
+    # left
+    $'\e[D' | $'\eOD')
+        change_box_selection "left"
+        ;;
     *)
-        echo "Pressed: $key"
+        log_debug "Unknown key: $key"
         ;;
     esac
+}
+
+change_box_selection() {
+    direction="$1"
+
+    if [ -z "$direction" ]; then
+        log_fatal "Usage: change_box_selection <direction>"
+        return 1
+    fi
+
+    current_selected_box_instance_id=$LAYOUT_SELECTED_BOX_INSTANCE_ID
+
+    if [ -z "$current_selected_box_instance_id" ]; then
+        log_fatal "Error: No box selected"
+        return 1
+    fi
+
+    next_box_instance_id=$(next_box "$current_selected_box_instance_id" "$direction")
+
+    if [ -z "$next_box_instance_id" ]; then
+        log_debug "No box found in direction '$direction' from box '$current_selected_box_instance_id'"
+        return 0
+    fi
+
+    LAYOUT_SELECTED_BOX_INSTANCE_ID=$next_box_instance_id
+
+    redraw_box "$next_box_instance_id"
+
+    redraw_box "$current_selected_box_instance_id"
+
+    return 0
+}
+next_box() {
+    local current_box_instance_id="$1"
+    local direction="$2"
+
+    if [ -z "$current_box_instance_id" ] || [ -z "$direction" ]; then
+        log_fatal "Usage: next_box <current_box_instance_id> <direction>"
+        return 1
+    fi
+
+    local box_count=${#SELECTABLE_BOXES[@]}
+
+    if [ "$box_count" -eq 0 ]; then
+        log_fatal "Error: No selectable boxes found"
+        return 1
+    fi
+
+    # Find the current box index
+    local current_index=-1
+    for ((k = 0; k < $box_count; k++)); do
+        if [ "${SELECTABLE_BOXES[$k]}" == "$current_box_instance_id" ]; then
+            current_index=$k
+            break
+        fi
+    done
+
+    if [ "$current_index" -eq -1 ]; then
+        log_fatal "Error: Current box instance ID not found in selectable boxes"
+        return 1
+    fi
+
+    local result=$current_box_instance_id
+
+    case "$direction" in
+    up | left)
+        if ((current_index == 0)); then
+            result=${SELECTABLE_BOXES[$box_count - 1]}
+        else
+            result=${SELECTABLE_BOXES[$current_index - 1]}
+        fi
+        ;;
+    down | right)
+        if ((current_index == $box_count - 1)); then
+            result=${SELECTABLE_BOXES[0]}
+        else
+            result=${SELECTABLE_BOXES[$current_index + 1]}
+        fi
+        ;;
+    *)
+        log_fatal "Invalid direction: $direction"
+        return 1
+        ;;
+    esac
+
+    echo "$result"
 }
 
 load_layout_yaml() {
@@ -509,8 +712,8 @@ load_layout_yaml() {
 
     load_layout "$layout_instance_id" "$prefix" "$root_box_path" "true"
 
-    class_sort_by_property "$BOX_CLS_ID" "$BOX_PROP_INTERVAL"
-    class_cascade_subtract_property "$BOX_CLS_ID" "$BOX_PROP_INTERVAL"
+    # class_sort_by_property "$BOX_CLS_ID" "$BOX_PROP_INTERVAL"
+    # class_cascade_subtract_property "$BOX_CLS_ID" "$BOX_PROP_INTERVAL"
 }
 
 reload_layout() {
@@ -705,6 +908,30 @@ load_layout() {
     done
 }
 
+handle_resize() {
+    get_term_size
+
+    calculate_absolute_position "$LAYOUT_ROOT_BOX_INSTANCE_ID" 0 0 "$(screen_width)" "$(screen_height)"
+
+    redraw_box "$LAYOUT_ROOT_BOX_INSTANCE_ID"
+
+    local instances=$LAYOUT_BOXES
+    IFS=$'\n' read -r -d '' -a instances <<<"$instances"
+    local total_keys=${#instances[@]}
+
+    for instance_id in "${instances[@]}"; do
+        redraw_box "$instance_id"
+    done
+
+    return 0
+}
+
+LAYOUT_ROOT_BOX_INSTANCE_ID=""
+LAYOUT_SELECTED_BOX_INSTANCE_ID=""
+LAYOUT_SELECTED_BOX_BORDER_COLOR="red"
+
+LAYOUT_BOXES=()
+
 start_layout() {
     ##log_trace "layout_lib.sh: start_layout()"
     local layout_id="$1"
@@ -714,19 +941,45 @@ start_layout() {
         return 1
     fi
 
-    layout_instance_id=$(instance_get_by_property "$LAYOUT_CLS_ID" "$LAYOUT_PROP_ID" "$layout_id")
+    local layout_instance_id=$(instance_get_by_property "$LAYOUT_CLS_ID" "$LAYOUT_PROP_ID" "$layout_id")
 
     if [ -z "$layout_instance_id" ]; then
         log_fatal "Error: Layout with ID '$layout_id' not found"
         return 1
     fi
 
-    layout_root_box_id=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
+    LAYOUT_ROOT_BOX_INSTANCE_ID=$(instance_get_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_IS_ROOT" "true")
 
-    if [ -z "$layout_root_box_id" ]; then
+    if [ -z "$LAYOUT_ROOT_BOX_INSTANCE_ID" ]; then
         log_fatal "Error: Root box not found for layout '$layout_id'"
         return 1
     fi
+
+    LAYOUT_BOXES=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id")
+
+    IFS=$'\n' read -r -d '' -a LB <<<"$LAYOUT_BOXES"
+
+    for box_instance_id in "${LB[@]}"; do
+        local box_id=$(instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ID")
+        # if [ -z "$box_id" ]; then
+        #     log_fatal "Error: Box ID not found for box instance '$box_instance_id'"
+        #     # return 1
+        # fi
+        children=$(instance_list_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_PARENT_ID" "$box_id")
+
+        if has_event "$box_instance_id" "refresh"; then
+            REFRESHING_BOXES+=("$box_instance_id")
+        fi
+
+        if [ -z "$children" ]; then
+            SELECTABLE_BOXES+=("$box_instance_id")
+        fi
+    done
+
+    #select the first selectable box
+    LAYOUT_SELECTED_BOX_INSTANCE_ID=${SELECTABLE_BOXES[0]}
+
+    # layout_root_box_id=$(instance_get_property "$BOX_CLS_ID" "$LAYOUT_ROOT_BOX_INSTANCE_ID" "$BOX_PROP_ID")
 
     # layout_prefix=$(cache_get_property "$LAYOUT_CLS_ID" "$layout_instance_id" "$LAYOUT_PROP_PREFIX")
 
@@ -753,7 +1006,7 @@ start_layout() {
     trap 'reset_terminal' EXIT
 
     # Trap the window resize signal (handle window resize events).
-    trap "get_term_size; redraw_box ""$layout_root_box_id""" SIGWINCH
+    trap "get_term_size; handle_resize" SIGWINCH
 
     get_os
     get_term_size
@@ -768,7 +1021,7 @@ load_layouts() {
     IFS=' ' read -r -a layouts <<<"$@"
 
     for layout_path in "${layouts[@]}"; do
-        log_state "Loading layout from '$layout_path'"
+        log_debug "Loading layout from '$layout_path'"
         load_layout_yaml "$layout_path"
     done
 }
@@ -777,7 +1030,7 @@ initialize_layouts() {
     setup_layout_data
 
     layouts=$(list_directory_contents "$LAYOUTS_DIR")
-    log_state "Found layouts: $layouts"
+    log_debug "Found layouts: $layouts"
     load_layouts "${layouts[@]}"
 }
 

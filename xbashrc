@@ -149,7 +149,7 @@ set_env_var() {
 
     # Check if variable name and value were provided
     if [[ -z "$var_name" || -z "$value" ]]; then
-        log_fatal "Usage: set_env_var <variable_name> <value>"
+        log_fatal "Usage: set_env_var <variable_name> <value>: $var_name $value"
         return 1
     fi
 
@@ -519,7 +519,7 @@ initialize_xb() {
         echo "Please enter the host LAN adapter:"
         read -p "[$HOST_LAN_ADAPTER]: " input
         HOST_LAN_ADAPTER=${input:-$HOST_LAN_ADAPTER}
-        set_env_var "HOST_LAN_ADAPTER" "$HOST_LAN_ADAPTER"
+        set_env_var "HOST_LAN_ADAPTER" "$HOST_LAN_ADAPTER" "$MASTER_ENV_FILE"
     fi
 
     if [ -z "$HOST_WLAN_ADAPTER" ]; then
@@ -528,7 +528,7 @@ initialize_xb() {
         echo "Please enter the host WLAN adapter:"
         read -p "[$HOST_WLAN_ADAPTER]: " input
         HOST_WLAN_ADAPTER=${input:-$HOST_WLAN_ADAPTER}
-        set_env_var "HOST_WLAN_ADAPTER" "$HOST_WLAN_ADAPTER"
+        set_env_var "HOST_WLAN_ADAPTER" "$HOST_WLAN_ADAPTER" "$MASTER_ENV_FILE"
     fi
 
     scripts_to_source=$(list_directory_contents "$LIB_DIR")
@@ -553,6 +553,50 @@ initialize_xb() {
     # remove_wait_marquee
 }
 
+purge() {
+    local hard=${1:-false}
+    if [ -n "$USER_XB_DIR" ]; then
+        if [ "$hard" == "true" ]; then
+            echo "PERFORMING A HARD PURGE"
+            echo "Purging dir $USER_XB_DIR, including the master.env file."
+            rm -rf "$USER_XB_DIR"
+        else
+            #delete everything from USER_XB_DIR except master_env file
+            echo "PERFORMING A SOFT PURGE"
+            echo "Purging dir $USER_XB_DIR, except the master.env file."
+            find "$USER_XB_DIR" -mindepth 1 -maxdepth 1 -not -name "master_env" -exec rm -rf {} \;
+        fi
+    else
+        log_error "User xbash directory is not set."
+    fi
+
+    if [ -n "$PROJ_HOME_DIR" ]; then
+        echo "Removing xbash profile from project home directory, $PROJ_HOME_DIR."
+        rm -f "$PROJ_HOME_DIR/.xbash_profile"
+    else
+        echo "Project home directory is not set."
+    fi
+    rm -f "$ENV_FILE"
+}
+
+check_for_immediate_commands() {
+    if [ -z "$1" ]; then
+        return 0
+    fi
+
+    args=("$@")
+
+    case "$1" in
+    "purge")
+        purge "${args[1]}"
+        exit 0
+        ;;
+    *)
+        log_error "Invalid command: $1"
+        ;;
+    esac
+}
+
 # Prevent the file from being sourced multiple times
 if [ -z "$ROOT_BASH_SOURCED" ]; then
     ROOT_BASH_SOURCED=1
@@ -565,6 +609,8 @@ if [ -z "$ROOT_BASH_SOURCED" ]; then
     mkdir -p "$USER_XB_DIR"
     touch "$MASTER_ENV_FILE"
     source "$MASTER_ENV_FILE"
+
+    check_for_immediate_commands "$@"
 
     initialize_xb
 fi

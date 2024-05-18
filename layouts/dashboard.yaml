@@ -32,7 +32,7 @@ layout:
             x2: 20%
             y2: 100% # Relative to parent
           content: 'Server Dashboard'
-          fill: true
+          fill: false
           fill_color: 'blue'
           fill_char: 'X'
           border: true
@@ -55,7 +55,7 @@ layout:
             y1: 0% # Relative to parent
             x2: 100%
             y2: 100% # Relative to parent
-          fill: true
+          fill: false
           fill_color: 'green'
           text_color: 'white'
           title_color: 'green'
@@ -82,8 +82,8 @@ layout:
       on_error: 'echo "Error loading footer."'
       next_focus_id: 'header'
 
-    - id: 'logs'
-      title: 'Logs'
+    - id: 'cpu'
+      title: 'Cpu Usage'
       position:
         x1: 2%
         y1: 15%
@@ -109,16 +109,17 @@ layout:
       on_error: 'echo "Error loading memory stats."'
       next_focus_id: 'cpu'
 
-    - id: 'cpu'
-      title: 'CPU Usage'
+    - id: 'log'
+      title: 'LOGS'
       position:
         x1: 2%
         y1: 38%
         x2: 98%
         y2: 68%
-      content: 'top -b -n 1 | grep "Cpu(s)"'
+      on_refresh:
+        - tail -n 20 /tmp/xblog.txt
       scroll: false
-      refresh_interval: 5
+      refresh_interval: 1
       on_error: 'echo "Error loading CPU stats."'
       next_focus_id: 'footer'
       overflow_behavior: 'filled'

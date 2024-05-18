@@ -2,5 +2,5 @@
 
 if [ -z "$PROJ_HOME_DIR" ]; then
     echo "PROJ_HOME_DIR is not set"
-    exit 1
+    return 1
 fi

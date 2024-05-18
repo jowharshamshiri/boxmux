@@ -179,7 +179,7 @@ get_box_abs_y2() {
 
 get_box_interval() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_INTERVAL"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_INTERVAL"
 }
 
 get_box_parent_id() {
