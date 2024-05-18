@@ -72,6 +72,10 @@ setup_layout_data() {
     set_env_var "BOX_PROP_OUTPUT" "$BOX_PROP_OUTPUT"
     BOX_PROP_TEXT_COLOR=$(class_add_property "$BOX_CLS_ID" "text_color" "$DATATYPE_ID_TEXT")
     set_env_var "BOX_PROP_TEXT_COLOR" "$BOX_PROP_TEXT_COLOR"
+    BOX_PROP_TAB_ORDER=$(class_add_property "$BOX_CLS_ID" "tab_order" "$DATATYPE_ID_INTEGER")
+    set_env_var "BOX_PROP_TAB_ORDER" "$BOX_PROP_TAB_ORDER"
+    BOX_PROP_FOCUS_KEY=$(class_add_property "$BOX_CLS_ID" "focus_key" "$DATATYPE_ID_TEXT")
+    set_env_var "BOX_PROP_FOCUS_KEY" "$BOX_PROP_FOCUS_KEY"
 
     EVENT_CLS_ID=$(class_new "box_event")
     set_env_var "EVENT_CLS_ID" "$EVENT_CLS_ID"
@@ -94,37 +98,37 @@ get_box_instance_id() {
 get_box_id() {
     ##log_trace "layout_lib.sh: get_box_id(box_instance_id=$1)"
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ID"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ID"
 }
 
 get_box_fill() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL"
 }
 
 get_box_fill_color() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL_COLOR"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL_COLOR"
 }
 
 get_box_fill_char() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL_CHAR"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FILL_CHAR"
 }
 
 get_box_border_color() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_BORDER_COLOR"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_BORDER_COLOR"
 }
 
 get_box_title() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TITLE"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TITLE"
 }
 
 get_box_title_color() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TITLE_COLOR"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TITLE_COLOR"
 }
 
 get_box_output() {
@@ -134,47 +138,61 @@ get_box_output() {
 
 get_box_text_color() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TEXT_COLOR"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TEXT_COLOR"
 }
 
 get_box_x1() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_X1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_X1"
 }
 
 get_box_y1() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_Y1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_Y1"
 }
 
 get_box_x2() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_X2"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_X2"
 }
 
 get_box_y2() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_Y2"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_Y2"
+}
+
+get_box_height() {
+    local box_instance_id="$1"
+    local y1=$(get_box_y1 "$box_instance_id")
+    local y2=$(get_box_y2 "$box_instance_id")
+    echo $((y2 - y1))
+}
+
+get_box_width() {
+    local box_instance_id="$1"
+    local x1=$(get_box_x1 "$box_instance_id")
+    local x2=$(get_box_x2 "$box_instance_id")
+    echo $((x2 - x1))
 }
 
 get_box_abs_x1() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X1"
 }
 
 get_box_abs_y1() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y1"
 }
 
 get_box_abs_x2() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X2"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_X2"
 }
 
 get_box_abs_y2() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y2"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ABS_Y2"
 }
 
 get_box_interval() {
@@ -184,17 +202,63 @@ get_box_interval() {
 
 get_box_parent_id() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PARENT_ID"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PARENT_ID"
 }
 
 get_box_parent_path() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PARENT_PATH"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PARENT_PATH"
 }
 
 get_box_path() {
     local box_instance_id="$1"
-    instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PATH"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_PATH"
+}
+
+get_box_tab_order() {
+    local box_instance_id="$1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TAB_ORDER"
+}
+
+get_box_is_root() {
+    local box_instance_id="$1"
+    cache_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_IS_ROOT"
+}
+
+get_box_children() {
+    local layout_instance_id="$1"
+    local box_id="$2"
+
+    if [ -z "$layout_instance_id" ] || [ -z "$box_id" ]; then
+        log_fatal "Usage: get_box_children <layout_instance_id> <box_id>"
+        return 1
+    fi
+
+    instance_list_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_PARENT_ID" "$box_id"
+}
+
+get_layout_instance_id() {
+    ##log_trace "layout_lib.sh: get_layout_instance_id(layout_id=$1)"
+    local layout_id="$1"
+    instance_get_by_property "$LAYOUT_CLS_ID" "$LAYOUT_PROP_ID" "$layout_id"
+}
+
+get_layout_id() {
+    ##log_trace "layout_lib.sh: get_layout_id(layout_instance_id=$1)"
+    local layout_instance_id="$1"
+    cache_get_property "$LAYOUT_CLS_ID" "$layout_instance_id" "$LAYOUT_PROP_ID"
+}
+
+get_layout_file_path() {
+    ##log_trace "layout_lib.sh: get_layout_file_path(layout_instance_id=$1)"
+    local layout_instance_id="$1"
+    cache_get_property "$LAYOUT_CLS_ID" "$layout_instance_id" "$LAYOUT_PROP_FILE_PATH"
+}
+
+get_layout_prefix() {
+    ##log_trace "layout_lib.sh: get_layout_prefix(layout_instance_id=$1)"
+    local layout_instance_id="$1"
+    cache_get_property "$LAYOUT_CLS_ID" "$layout_instance_id" "$LAYOUT_PROP_PREFIX"
 }
 
 source ~/.xbashrc

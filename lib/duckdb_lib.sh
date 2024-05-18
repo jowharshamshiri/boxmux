@@ -133,54 +133,54 @@ validate_data_type() {
 validate_integer() {
     local value=$1
     if [[ "$value" =~ ^-?[0-9]+$ ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
 validate_text() {
     local value=$1
     if [[ -n "$value" && ! "$value" =~ ^[[:space:]]*$ ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
 validate_real() {
     local value=$1
     if [[ "$value" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
 validate_boolean() {
     local value=$1
     if [[ "$value" == "TRUE" || "$value" == "FALSE" || "$value" == "true" || "$value" == "false" ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
 validate_date() {
     local value=$1
     if [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$value" > "0000-00-00" ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
 validate_time() {
     local value=$1
     if [[ "$value" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}$ && "$value" < "24:00:00" ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 
@@ -188,19 +188,19 @@ validate_timestamp() {
     local value=$1
     if [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
         if [[ "$value" > "0000-00-00 00:00:00" ]]; then
-            echo 0
+            return 0
             return
         fi
     fi
-    echo 1
+    return 1
 }
 
 validate_blob() {
     local value=$1
     if [[ -n "$value" ]]; then
-        echo 0
+        return 0
     else
-        echo 1
+        return 1
     fi
 }
 

@@ -564,7 +564,7 @@ purge() {
             #delete everything from USER_XB_DIR except master_env file
             echo "PERFORMING A SOFT PURGE"
             echo "Purging dir $USER_XB_DIR, except the master.env file."
-            find "$USER_XB_DIR" -mindepth 1 -maxdepth 1 -not -name "master_env" -exec rm -rf {} \;
+            find "$USER_XB_DIR" -mindepth 1 -maxdepth 1 -not -name "master.env" -exec rm -rf {} \;
         fi
     else
         log_error "User xbash directory is not set."

@@ -44,8 +44,6 @@ save_function_call() {
     func_name="$1"
     func_args="$2"
 
-    echo "2 Function name: $func_name, Function arguments: $func_args" >&2
-
     if [ -z "$func_name" ]; then
         log_fatal "Usage: save_function_call <function_name> <function_arguments>"
         return 1
@@ -308,9 +306,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     fi
 
     func_name="$1" # The first argument is the function name
-    echo "Function name: $func_name" >&2
-    shift # Remove the first argument, now $@ contains only the arguments for the function
-    echo "Function arguments: $@" >&2
+    shift          # Remove the first argument, now $@ contains only the arguments for the function
     # Check if the function exists
     if declare -f "$func_name" >/dev/null; then
         save_function_call "$func_name" "$@"

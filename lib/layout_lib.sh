@@ -164,9 +164,17 @@ get_parent_box_path() {
 
 redraw_box() {
     local box_instance_id="$1"
+    local scroll_value=$2
+
+    if [ -z "$scroll_value" ]; then
+        local index_in_refreshing_boxes=$(index_of "$box_instance_id" "${REFRESHING_BOXES[@]}")
+        if [ -n "$index_in_refreshing_boxes" ]; then
+            scroll_value=${REFRESHING_BOXES_SCROLL_VALUES[$index_in_refreshing_boxes]}
+        fi
+    fi
 
     if [ -z "$box_instance_id" ]; then
-        log_fatal "Usage: redraw_box <box_instance_id>"
+        log_fatal "Usage: redraw_box <box_instance_id> [scroll_value]"
         return 1
     fi
 
@@ -174,7 +182,7 @@ redraw_box() {
 
     if [ -n "$is_root" ] && [ "$is_root" == "true" ]; then
         clear_screen
-        draw_boxes "$box_instance_id" 0 0 "$(screen_width)" "$(screen_height)"
+        draw_boxes "$box_instance_id" 0 0 "$(screen_width)" "$(screen_height)" "$scroll_value"
     else
         local box_path
 
@@ -199,7 +207,7 @@ redraw_box() {
         local box_absolute_y2
         IFS=' ' read -r box_absolute_x1 box_absolute_y1 box_absolute_x2 box_absolute_y2 <<<"$(calculate_absolute_position "$box_instance_id" "$parent_abs_x1" "$parent_abs_y1" "$parent_abs_x2" "$parent_abs_y2")"
 
-        draw_box "$box_instance_id" "$box_absolute_x1" "$box_absolute_y1" "$box_absolute_x2" "$box_absolute_y2"
+        draw_box "$box_instance_id" "$box_absolute_x1" "$box_absolute_y1" "$box_absolute_x2" "$box_absolute_y2" "$scroll_value"
     fi
 }
 
@@ -210,10 +218,19 @@ draw_box() {
     local absolute_y1="$3"
     local absolute_x2="$4"
     local absolute_y2="$5"
+    local scroll_value=$6
 
     if [ -z "$box_instance_id" ] || [ -z "$absolute_x1" ] || [ -z "$absolute_y1" ] || [ -z "$absolute_x2" ] || [ -z "$absolute_y2" ]; then
-        log_fatal "Usage: draw_box <box_instance_id> <absolute_x1> <absolute_y1> <absolute_x2> <absolute_y2>"
+        log_fatal "Usage: draw_box <box_instance_id> <absolute_x1> <absolute_y1> <absolute_x2> <absolute_y2> [scroll_value]"
         return 1
+    fi
+
+    local index_in_refreshing_boxes=$(index_of "$box_instance_id" "${REFRESHING_BOXES[@]}")
+
+    if [ -z "$scroll_value" ]; then
+        if [ -n "$index_in_refreshing_boxes" ]; then
+            scroll_value=${REFRESHING_BOXES_SCROLL_VALUES[$index_in_refreshing_boxes]}
+        fi
     fi
 
     local fill
@@ -258,8 +275,16 @@ draw_box() {
 
         local split_output=$(replace_with_newlines "$output")
 
-        print_in_boxes "$((absolute_x1 + 3))" "$((absolute_y1 + 3))" "$((absolute_x2 - 2))" "$((absolute_y2 - 1))" 0 "$text_color" "$split_output"
+        print_in_boxes "$((absolute_x1 + 3))" "$((absolute_y1 + 3))" "$((absolute_x2 - 2))" "$((absolute_y2 - 1))" "$scroll_value" "$text_color" "$split_output"
         # print_with_color_at "$((absolute_y1 + 3))" "$((absolute_x1 + 3))" "$output" "$text_color"
+    fi
+
+    max_scroll_value=${REFRESHING_BOXES_MAX_SCROLL_VALUES[$index_in_refreshing_boxes]}
+    if [ "$max_scroll_value" -gt 0 ]; then
+        local scroll_indicator="[$scroll_value/$max_scroll_value]"
+        scroll_indicator_char_count=${#scroll_indicator}
+
+        print_with_color_at "$((absolute_y2 - 1))" "$((absolute_x2 - scroll_indicator_char_count - 1))" "$border_color" "$scroll_indicator"
     fi
 }
 
@@ -364,16 +389,24 @@ draw_boxes() {
     local parent_abs_y1=$3
     local parent_abs_x2=$4
     local parent_abs_y2=$5
+    local scroll_value=$6
 
     if [ -z "$box_instance_id" ]; then
-        log_fatal "Usage: draw_boxes <box_instance_id> [parent_abs_x1] [parent_abs_y1] [parent_abs_x2] [parent_abs_y2]"
+        log_fatal "Usage: draw_boxes <box_instance_id> [parent_abs_x1] [parent_abs_y1] [parent_abs_x2] [parent_abs_y2] [scroll_value]"
         return 1
+    fi
+
+    if [ -z "$scroll_value" ]; then
+        local index_in_refreshing_boxes=$(index_of "$box_instance_id" "${REFRESHING_BOXES[@]}")
+        if [ -n "$index_in_refreshing_boxes" ]; then
+            scroll_value=${REFRESHING_BOXES_SCROLL_VALUES[$index_in_refreshing_boxes]}
+        fi
     fi
 
     local box_absolute_x1 box_absolute_y1 box_absolute_x2 box_absolute_y2
     IFS=' ' read -r box_absolute_x1 box_absolute_y1 box_absolute_x2 box_absolute_y2 <<<"$(calculate_absolute_position "$box_instance_id" "$parent_abs_x1" "$parent_abs_y1" "$parent_abs_x2" "$parent_abs_y2")"
 
-    draw_box "$box_instance_id" "$box_absolute_x1" "$box_absolute_y1" "$box_absolute_x2" "$box_absolute_y2"
+    draw_box "$box_instance_id" "$box_absolute_x1" "$box_absolute_y1" "$box_absolute_x2" "$box_absolute_y2" "$scroll_value"
     box_id=$(instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_ID")
 
     local childrens_instance_ids=$(instance_list_by_property "$BOX_CLS_ID" "$BOX_PROP_PARENT_ID" "$box_id")
@@ -454,7 +487,12 @@ trigger_box_event() {
 }
 
 REFRESHING_BOXES=()
+REFRESHING_BOXES_SCROLL_VALUES=()
+REFRESHING_BOXES_OUTPUTS=()
+REFRESHING_BOXES_MAX_SCROLL_VALUES=()
 SELECTABLE_BOXES=()
+SELECTABLE_BOXES_TAB_ORDER=()
+SELECTABLE_BOXES_FOCUS_KEYS=()
 
 event_loop() {
     local layout_instance_id="$1"
@@ -510,10 +548,21 @@ event_loop() {
                 log_debug "Processing refresh event for instance '$box_instance_id"
 
                 local output=$(trigger_box_event "$box_instance_id" "refresh")
+                local last_output=${REFRESHING_BOXES_OUTPUTS[$i]}
 
-                if [ -n "$output" ]; then
+                if [ "$output" != "$last_output" ]; then
                     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_OUTPUT" "$output"
-                    redraw_box "$box_instance_id"
+                    REFRESHING_BOXES_OUTPUTS[i]="$output"
+
+                    local scroll_value=${REFRESHING_BOXES_SCROLL_VALUES[$i]}
+
+                    REFRESHING_BOXES_MAX_SCROLL_VALUES[i]=$(count_occurrences "$output" $'____')
+
+                    if [ "$scroll_value" -gt "${REFRESHING_BOXES_MAX_SCROLL_VALUES[$i]}" ]; then
+                        REFRESHING_BOXES_SCROLL_VALUES[i]=${REFRESHING_BOXES_MAX_SCROLL_VALUES[$i]}
+                    fi
+
+                    redraw_box "$box_instance_id" "${REFRESHING_BOXES_SCROLL_VALUES[$i]}"
                 fi
             fi
         done
@@ -539,8 +588,7 @@ handle_key() {
     }
 
     case ${special_key:-$1} in
-    q)
-        echo "Exiting..."
+    q | Q)
         exit 0
         ;;
         # arrow keys:
@@ -549,27 +597,98 @@ handle_key() {
     ${FFF_KEY_SCROLL_UP1:=k} | \
         ${FFF_KEY_SCROLL_UP2:=$'\e[A'} | \
         ${FFF_KEY_SCROLL_UP3:=$'\eOA'})
-        change_box_selection "up"
+        scroll_box "$LAYOUT_SELECTED_BOX_INSTANCE_ID" "up"
         ;;
         # down
 
     ${FFF_KEY_SCROLL_DOWN1:=j} | \
         ${FFF_KEY_SCROLL_DOWN2:=$'\e[B'} | \
         ${FFF_KEY_SCROLL_DOWN3:=$'\eOB'})
-        change_box_selection "down"
+        scroll_box "$LAYOUT_SELECTED_BOX_INSTANCE_ID" "down"
         ;;
     # right
     $'\e[C' | $'\eOC')
-        change_box_selection "right"
+        # change_box_selection "right"
         ;;
     # left
     $'\e[D' | $'\eOD')
-        change_box_selection "left"
+        # change_box_selection "left"
+        ;;
+    # shift + down
+    $'\e[1;2B')
+        scroll_box "$LAYOUT_SELECTED_BOX_INSTANCE_ID" "bottom"
+        ;;
+    # Shift + up
+    $'\e[1;2A')
+        scroll_box "$LAYOUT_SELECTED_BOX_INSTANCE_ID" "top"
+        ;;
+    # tab
+    $'\t')
+        change_box_selection "next"
         ;;
     *)
-        log_debug "Unknown key: $key"
+        lower_case_key=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+        focus_key_index=$(index_of "$lower_case_key" "${SELECTABLE_BOXES_FOCUS_KEYS[@]}")
+        if [ -n "$focus_key_index" ]; then
+            select_box "${SELECTABLE_BOXES[$focus_key_index]}"
+        else
+            log_debug "Unknown key: $1"
+        fi
         ;;
     esac
+}
+
+scroll_box() {
+    local box_instance_id="$1"
+    local direction="$2"
+
+    if [ -z "$box_instance_id" ] || [ -z "$direction" ]; then
+        log_fatal "Usage: scroll_box <box_instance_id> <direction>"
+        return 1
+    fi
+
+    local index=$(index_of "$box_instance_id" "${REFRESHING_BOXES[@]}")
+
+    local scroll_value=${REFRESHING_BOXES_SCROLL_VALUES[$index]}
+
+    local max_scroll_value=${REFRESHING_BOXES_MAX_SCROLL_VALUES[$index]}
+
+    if [ -z "$max_scroll_value" ]; then
+        log_fatal "Error: Max scroll value not found for box instance '$box_instance_id'"
+        return 1
+    fi
+
+    case "$direction" in
+    up)
+        scroll_value=$((scroll_value - 10))
+        ;;
+    down)
+        scroll_value=$((scroll_value + 10))
+        ;;
+    top)
+        scroll_value=0
+        ;;
+    bottom)
+        scroll_value=$max_scroll_value
+        ;;
+    *)
+
+        log_fatal "Invalid direction: $direction"
+        return 1
+        ;;
+    esac
+
+    if [ "$scroll_value" -lt 0 ]; then
+        scroll_value=0
+    fi
+
+    if [ "$scroll_value" -gt "$max_scroll_value" ]; then
+        scroll_value=$max_scroll_value
+    fi
+
+    REFRESHING_BOXES_SCROLL_VALUES[i]=$scroll_value
+
+    redraw_box "$box_instance_id" "$scroll_value"
 }
 
 change_box_selection() {
@@ -602,6 +721,31 @@ change_box_selection() {
 
     return 0
 }
+
+select_box() {
+    local box_instance_id="$1"
+
+    if [ -z "$box_instance_id" ]; then
+        log_fatal "Usage: select_box <box_instance_id>"
+        return 1
+    fi
+
+    if ! instance_exists "$BOX_CLS_ID" "$box_instance_id"; then
+        log_fatal "Error: Box instance '$box_instance_id' not found"
+        return 1
+    fi
+
+    old_selected_box_instance_id=$LAYOUT_SELECTED_BOX_INSTANCE_ID
+
+    LAYOUT_SELECTED_BOX_INSTANCE_ID=$box_instance_id
+
+    redraw_box "$box_instance_id"
+
+    redraw_box "$old_selected_box_instance_id"
+
+    return 0
+}
+
 next_box() {
     local current_box_instance_id="$1"
     local direction="$2"
@@ -635,14 +779,14 @@ next_box() {
     local result=$current_box_instance_id
 
     case "$direction" in
-    up | left)
+    previous | left)
         if ((current_index == 0)); then
             result=${SELECTABLE_BOXES[$box_count - 1]}
         else
             result=${SELECTABLE_BOXES[$current_index - 1]}
         fi
         ;;
-    down | right)
+    next | right)
         if ((current_index == $box_count - 1)); then
             result=${SELECTABLE_BOXES[0]}
         else
@@ -839,10 +983,9 @@ load_layout() {
     fi
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_BORDER_COLOR" "$box_border_color"
     box_title=$(eval "echo \${${box_path}___title}")
-    if [ -z "$box_title" ]; then
-        box_title=$box_id
-    fi
+    box_title=${box_title:-"$box_id"}
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TITLE" "$box_title"
+
     box_title_color=$(eval "echo \${${box_path}___title_color}")
     if [ -z "$box_title_color" ]; then
         box_title_color=$LAYOUT_DEFAULT_BOX_TITLE_COLOR
@@ -853,6 +996,18 @@ load_layout() {
         box_text_color=$LAYOUT_DEFAULT_BOX_TEXT_COLOR
     fi
     instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TEXT_COLOR" "$box_text_color"
+
+    box_tab_order=$(eval "echo \${${box_path}___tab_order}")
+    if [ -z "$box_tab_order" ]; then
+        box_tab_order=$LAYOUT_DEFAULT_BOX_TAB_ORDER
+    fi
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_TAB_ORDER" "${box_tab_order:-"none"}"
+    box_focus_key=$(eval "echo \${${box_path}___focus_key}")
+    if [ -z "$box_focus_key" ]; then
+        # choose first character of title as focus key
+        box_focus_key=$(echo "$box_title" | head -c 1 | tr '[:upper:]' '[:lower:]')
+    fi
+    instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FOCUS_KEY" "$box_focus_key"
 
     if [ "$box_path" != "$root_path" ]; then
         local box_parent_path=$(get_parent_box_path "$prefix" "$box_path")
@@ -965,16 +1120,30 @@ start_layout() {
         #     log_fatal "Error: Box ID not found for box instance '$box_instance_id'"
         #     # return 1
         # fi
-        children=$(instance_list_by_properties "$BOX_CLS_ID" "$BOX_PROP_LAYOUT_INSTANCE_ID" "$layout_instance_id" "$BOX_PROP_PARENT_ID" "$box_id")
 
         if has_event "$box_instance_id" "refresh"; then
             REFRESHING_BOXES+=("$box_instance_id")
+            REFRESHING_BOXES_SCROLL_VALUES+=(0)
+
+            local output=$(trigger_box_event "$box_instance_id" "refresh")
+            local last_output=${REFRESHING_BOXES_OUTPUTS[$i]}
+
+            instance_set_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_OUTPUT" "$output"
+            REFRESHING_BOXES_OUTPUTS+=("$output")
+
+            REFRESHING_BOXES_MAX_SCROLL_VALUES+=($(count_occurrences "$output" $'____'))
         fi
 
-        if [ -z "$children" ]; then
+        box_tab_order=$(get_box_tab_order "$box_instance_id")
+
+        if [ -n "$box_tab_order" ] && [ "$box_tab_order" != "none" ] && validate_integer "$box_tab_order"; then
             SELECTABLE_BOXES+=("$box_instance_id")
+            SELECTABLE_BOXES_TAB_ORDER+=("$box_tab_order")
+            SELECTABLE_BOXES_FOCUS_KEYS+=("$(instance_get_property "$BOX_CLS_ID" "$box_instance_id" "$BOX_PROP_FOCUS_KEY")")
         fi
     done
+
+    sort_arrays SELECTABLE_BOXES_TAB_ORDER SELECTABLE_BOXES SELECTABLE_BOXES_FOCUS_KEYS
 
     #select the first selectable box
     LAYOUT_SELECTED_BOX_INSTANCE_ID=${SELECTABLE_BOXES[0]}

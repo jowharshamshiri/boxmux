@@ -18,6 +18,7 @@ layout:
       content: 'Welcome to the server dashboard.'
       scroll: false
       refresh_interval: 10
+      tab_order: none
       on_error: 'echo "Error loading header."'
       on_enter:
         - echo "Welcome to the server dashboard."
@@ -40,6 +41,7 @@ layout:
           text_color: 'white'
           scroll: false
           refresh_interval: 10
+          tab_order: none
           on_error: -'echo "Error loading title."'
           next_focus_id: 'time'
           on_enter:
@@ -63,6 +65,7 @@ layout:
             - date
           scroll: false
           refresh_interval: 1
+          tab_order: 1
           on_error: 'echo "Error loading time."'
           next_focus_id: 'logs'
           on_enter:
@@ -78,8 +81,9 @@ layout:
         y2: 100%
       content: 'Updated every 5 seconds.'
       scroll: false
-      refresh_interval: 5
-      on_error: 'echo "Error loading footer."'
+      refresh_interval: 1
+      tab_order: none
+      on_error: 'echo $"TAB: Next Box\tARROW KEYS: Scroll Box"'
       next_focus_id: 'header'
 
     - id: 'cpu'
@@ -92,6 +96,7 @@ layout:
       content: 'tail -n 10 /var/log/syslog'
       scroll: true
       refresh_interval: 5
+      tab_order: 2
       on_error: 'echo "Error loading logs."'
       next_focus_id: 'memory'
       overflow_behavior: 'removed'
@@ -106,6 +111,7 @@ layout:
       content: 'free -m'
       scroll: false
       refresh_interval: 5
+      tab_order: 3
       on_error: 'echo "Error loading memory stats."'
       next_focus_id: 'cpu'
 
@@ -117,9 +123,10 @@ layout:
         x2: 98%
         y2: 68%
       on_refresh:
-        - tail -n 20 /tmp/xblog.txt
+        - cat /tmp/xblog.txt | tail -n 100
       scroll: false
-      refresh_interval: 1
+      refresh_interval: 60
+      tab_order: 4
       on_error: 'echo "Error loading CPU stats."'
       next_focus_id: 'footer'
       overflow_behavior: 'filled'

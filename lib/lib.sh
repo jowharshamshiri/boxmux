@@ -289,6 +289,79 @@ update_file_section() {
     fi
 }
 
+count_occurrences() {
+    local string=$1
+    local substring=$2
+    local count=0
+    local tmp=${string}
+
+    while [[ $tmp == *"$substring"* ]]; do
+        tmp=${tmp#*"$substring"}
+        ((count++))
+    done
+
+    echo $count
+}
+
+sort_arrays() {
+    # Store the first array name separately
+    local array1_name=$1
+    shift
+    local array_names=("$@")
+
+    # Use eval to retrieve the first array by its name
+    eval "array1=(\"\${${array1_name}[@]}\")"
+
+    # Retrieve all other arrays
+    for name in "${array_names[@]}"; do
+        eval "arrays_$name=(\"\${${name}[@]}\")"
+    done
+
+    # Get the length of the first array
+    local length=${#array1[@]}
+
+    # Bubble sort implementation
+    for ((i = 0; i < length; i++)); do
+        for ((j = 0; j < length - i - 1; j++)); do
+            if ((array1[j] > array1[j + 1])); then
+                # Swap elements in array1
+                temp=${array1[j]}
+                array1[j]=${array1[j + 1]}
+                array1[j + 1]=$temp
+
+                # Swap corresponding elements in all other arrays
+                for name in "${array_names[@]}"; do
+                    eval "temp=\${arrays_$name[j]}"
+                    eval "arrays_$name[j]=\${arrays_$name[j + 1]}"
+                    eval "arrays_$name[j + 1]=\$temp"
+                done
+            fi
+        done
+    done
+
+    # Use eval to update the original arrays
+    eval "${array1_name}=(\"\${array1[@]}\")"
+    for name in "${array_names[@]}"; do
+        eval "${name}=(\"\${arrays_$name[@]}\")"
+    done
+}
+
+index_of() {
+    local value=$1
+    shift
+    local array=("$@")
+
+    for i in "${!array[@]}"; do
+        if [[ "${array[$i]}" == "$value" ]]; then
+            echo "$i"
+            return 0
+        fi
+    done
+
+    # echo "-1"
+    return 1
+}
+
 function update_coredns_forward() {
     local new_dns_ip=$1
     if [[ -z "$new_dns_ip" ]]; then
