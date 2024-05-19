@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
 use std::fs::File;
 use std::io::Write as IoWrite;
 use std::io::{stdin, stdout, Read};
@@ -423,16 +424,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // Handle terminal resize
+    let resize_tx = tx.clone();
+    thread::spawn(move || {
+        let mut signals = Signals::new(&[SIGWINCH]).unwrap();
+        for _ in signals.forever() {
+            resize_tx.send("resize").unwrap();
+        }
+    });
+
     // Main drawing loop
     loop {
         app.draw(&mut stdout);
         // Check for input
         if let Ok(msg) = rx.try_recv() {
-            if msg == "exit" {
-                break;
+            match msg {
+                "exit" => break,
+                "resize" => {
+                    write!(stdout, "{}", termion::clear::All).unwrap();
+                    app.draw(&mut stdout);
+                }
+                _ => {}
             }
         }
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(10));
     }
 
     Ok(())
