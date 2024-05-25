@@ -1,7 +1,20 @@
 layouts:
   - id: 'dashboard'
     title: 'Dashboard Layout'
-    refresh_interval: 2 # seconds
+    fg_color: 'white'
+    selected_fg_color: 'bright_yellow'
+    bg_color: 'bright_black'
+    selected_bg_color: 'bright_black'
+    title_fg_color: 'bright_white'
+    selected_title_fg_color: 'bright_white'
+    title_bg_color: 'green'
+    selected_title_bg_color: 'bright_green'
+    border: true
+    border_color: 'bright_white'
+    selected_border_color: 'bright_green'
+    # fill_char: 'X'
+    overflow_behavior: 'removed'
+
     children:
       - id: 'header'
         position:
@@ -13,35 +26,26 @@ layouts:
         min_height: 3
         max_width: 100
         max_height: 3
-        overflow_behavior: 'removed'
         scroll: false
-        refresh_interval: 10
         tab_order: none
-        on_error: 'echo "Error loading header."'
+        on_error:
+          - echo "Error loading header."
         on_enter:
           - echo "Welcome to the server dashboard."
           - echo "Please select an option."
-        next_focus_id: 'title'
         children:
           - id: 'title'
             title: 'Title Display'
             position:
               x1: 00%
-              y1: 00% # Relative to parent
+              y1: 00%
               x2: 20%
-              y2: 100% # Relative to parent
+              y2: 100%
             content: 'Server Dashboard'
-            fill: true
-            fill_color: 'blue'
-            fill_char: 'X'
-            border: true
-            border_color: 'blue'
-            text_color: 'white'
             scroll: false
-            refresh_interval: 10
             tab_order: none
-            on_error: -'echo "Error loading title."'
-            next_focus_id: 'time'
+            on_error:
+              - echo "Error loading title."
             on_enter:
               - echo -n "Time:\ "
               - date
@@ -52,38 +56,20 @@ layouts:
             title: 'Time Display'
             position:
               x1: 80%
-              y1: 0% # Relative to parent
+              y1: 0%
               x2: 100%
-              y2: 100% # Relative to parent
-            fill: true
-            fill_color: 'green'
-            text_color: 'white'
-            title_color: 'green'
+              y2: 100%
             on_refresh:
               - date
             scroll: false
-            refresh_interval: 1
             tab_order: 1
-            on_error: 'echo "Error loading time."'
-            next_focus_id: 'logs'
+            on_error:
+              - echo "Error loading time."
             on_enter:
               - echo "Current Time"
             on_leave:
               - echo "Leaving Current Time"
-      - id: 'footer'
-        title: 'Footer'
-        position:
-          x1: 0%
-          y1: 95%
-          x2: 100%
-          y2: 100%
-        content: 'Updated every 5 seconds.'
-        scroll: false
-        refresh_interval: 1
-        tab_order: none
-        on_error: 'echo $"TAB: Next Box\tARROW KEYS: Scroll Box"'
-        next_focus_id: 'header'
-
+            thread: true
       - id: 'cpu'
         title: 'Cpu Usage'
         position:
@@ -93,11 +79,9 @@ layouts:
           y2: 35%
         content: 'tail -n 10 /var/log/syslog'
         scroll: true
-        refresh_interval: 5
-        border: true
         tab_order: 2
-        on_error: 'echo "Error loading logs."'
-        next_focus_id: 'memory'
+        on_error:
+          - echo "Error loading CPU stats."
         overflow_behavior: 'removed'
 
       - id: 'memory'
@@ -109,11 +93,9 @@ layouts:
           y2: 35%
         content: 'free -m'
         scroll: false
-        refresh_interval: 5
         tab_order: 3
-        border: true
-        on_error: 'echo "Error loading memory stats."'
-        next_focus_id: 'cpu'
+        on_error:
+          - echo "Error loading memory stats."
 
       - id: 'log'
         title: 'LOGS'
@@ -125,9 +107,54 @@ layouts:
         on_refresh:
           - cat /tmp/xblog.txt | tail -n 100
         scroll: false
-        refresh_interval: 60
-        tab_order: 4
-        on_error: 'echo "Error loading CPU stats."'
-        next_focus_id: 'footer'
-        overflow_behavior: 'filled'
-        border: true
+        on_error:
+          - echo "Error loading logs."
+        children:
+          - id: 'log_input'
+            title: 'Log Input'
+            position:
+              x1: 5%
+              y1: 5%
+              x2: 45%
+              y2: 95%
+            content: 'echo "Enter a message to log:"'
+            scroll: false
+            tab_order: 4
+            on_error:
+              - echo "Error loading log input."
+            on_enter:
+              - echo "Enter a message to log:"
+              - read message
+              - echo $message >> /tmp/xblog.txt
+              - echo "Message logged."
+            on_leave:
+              - echo "Leaving log input."
+          - id: 'log_output'
+            title: 'Log Output'
+            position:
+              x1: 55%
+              y1: 5%
+              x2: 95%
+              y2: 95%
+            content: 'cat /tmp/xblog.txt | tail -n 100'
+            scroll: true
+            tab_order: 5
+            on_error:
+              - echo "Error loading log output."
+            on_enter:
+              - echo "Last 100 log entries"
+            on_leave:
+              - echo "Leaving log output."
+
+      - id: 'footer'
+        title: 'Footer'
+        position:
+          x1: 0%
+          y1: 90%
+          x2: 100%
+          y2: 100%
+        content: 'Updated every 5 seconds.'
+        scroll: false
+        tab_order: 6
+        on_error:
+          - echo "Error loading footer."
