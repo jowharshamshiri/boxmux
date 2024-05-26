@@ -12,6 +12,7 @@ layouts:
     border: true
     border_color: 'bright_white'
     selected_border_color: 'bright_green'
+    title_position: 'start'
     # fill_char: 'X'
     overflow_behavior: 'removed'
 
@@ -83,6 +84,7 @@ layouts:
         on_error:
           - echo "Error loading CPU stats."
         overflow_behavior: 'removed'
+        title_position: 'center'
 
       - id: 'memory'
         title: 'Memory Usage'
@@ -129,6 +131,7 @@ layouts:
               - echo "Message logged."
             on_leave:
               - echo "Leaving log input."
+            title_position: 'start'
           - id: 'log_output'
             title: 'Log Output'
             position:
@@ -145,6 +148,7 @@ layouts:
               - echo "Last 100 log entries"
             on_leave:
               - echo "Leaving log output."
+            title_position: 'end'
 
       - id: 'footer'
         title: 'Footer'
