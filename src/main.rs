@@ -319,6 +319,7 @@ fn draw_box(
     title: Option<&str>,
     title_fg_color: &str,
     title_bg_color: &str,
+    title_position: &str,
     content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,
@@ -377,7 +378,7 @@ fn draw_box(
                 Some(&formatted_title),
                 title_fg_color,
                 title_bg_color,
-                "center",
+                title_position,
                 screen,
                 buffer,
             );
@@ -770,13 +771,14 @@ struct BoxEntity {
     border_color: Option<String>,
     selected_border_color: Option<String>,
     bg_color: Option<String>,
-    selected_bg_color: Option<String>, // Fix here
+    selected_bg_color: Option<String>,
     fg_color: Option<String>,
-    selected_fg_color: Option<String>, // Fix here
+    selected_fg_color: Option<String>,
     title_fg_color: Option<String>,
     title_bg_color: Option<String>,
     selected_title_bg_color: Option<String>,
     selected_title_fg_color: Option<String>,
+    title_position: Option<String>,
     on_refresh: Option<Vec<String>>,
     thread: Option<bool>,
     #[serde(skip)]
@@ -814,6 +816,7 @@ struct Layout {
     selected_fg_color: Option<String>,
     title_fg_color: Option<String>,
     title_bg_color: Option<String>,
+    title_position: Option<String>,
     selected_title_bg_color: Option<String>,
     selected_title_fg_color: Option<String>,
     overflow_behavior: Option<String>,
@@ -1060,6 +1063,24 @@ impl BoxEntity {
         }
         "default"
     }
+
+    fn calc_title_position(&self) -> &str {
+        if let Some(title_position) = &self.title_position {
+            return title_position;
+        }
+        if let Some(parent) = &self.parent {
+            if let Some(title_position) = parent.title_position.as_deref() {
+                return title_position;
+            }
+        }
+        if let Some(parent_layout) = &self.parent_layout {
+            if let Some(title_position) = parent_layout.title_position.as_deref() {
+                return title_position;
+            }
+        }
+        "start"
+    }
+
     fn calc_fill_char(&self) -> char {
         if self.is_selected() {
             if let Some(selected_fill_char) = self.selected_fill_char {
@@ -1188,6 +1209,7 @@ impl BoxEntity {
             self.title.as_deref(),
             &title_fg_color,
             &title_bg_color,
+            self.calc_title_position(),
             content,
             &fg_color,
             self.calc_overflow_behavior(),
