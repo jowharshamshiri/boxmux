@@ -25,6 +25,15 @@ enum BoxEvent {
     EnterLeave(Arc<Mutex<BoxEntity>>),
 }
 
+enum InputMessage {
+    Exit,
+    NextBox,
+    PreviousBox,
+    Resize,
+    RedrawBox(BoxEntity),
+    RedrawApp,
+}
+
 #[derive(Clone, PartialEq)]
 struct Cell {
     fg_color: String,
@@ -311,6 +320,9 @@ fn draw_horizontal_line_with_title(
     }
 }
 
+static H_SCROLL_CHAR: &str = "|";
+static V_SCROLL_CHAR: &str = "-";
+
 fn draw_box(
     bounds: &Bounds,
     border_color: &str,
@@ -323,16 +335,39 @@ fn draw_box(
     content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,
+    horizontal_scroll: f64,
+    vertical_scroll: f64,
     screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>,
     buffer: &mut ScreenBuffer,
 ) {
+    log::debug!(
+        "Drawing box with bounds '{:?}', border color '{}', background color '{}', parent background color '{}', title '{}', title fg color '{}', title bg color '{}', title position '{}', content '{:?}', fg color '{}', overflow behavior '{}', horizontal scroll '{}', vertical scroll '{}'",
+        bounds,
+        border_color,
+        bg_color.unwrap_or("default"),
+        parent_bg_color.unwrap_or("default"),
+        title.unwrap_or("None"),
+        title_fg_color,
+        title_bg_color,
+        title_position,
+        content,
+        fg_color,
+        overflow_behavior,
+        horizontal_scroll,
+        vertical_scroll
+    );
     let border_color_code = get_fg_color(border_color);
     let title_fg_color_code = get_fg_color(title_fg_color);
     let title_bg_color_code = get_bg_color(title_bg_color);
     let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color.unwrap_or("default"));
     let parent_bg_color_code = get_bg_color(parent_bg_color.unwrap_or("default"));
+    let mut _title_overflowing = false;
+    let mut _x_offset = 0;
+    let mut _y_offset = 0;
     let mut _overflowing = false;
+    let mut horizontal_scrollbar_position = 0;
+    let mut vertical_scrollbar_position = 0;
 
     log::debug!(
         "Drawing box with title '{}', background color '{}', background color code '{}'",
@@ -356,7 +391,7 @@ fn draw_box(
 
         if title_length < top_border_length {
             if top_border_length < 5 {
-                _overflowing = true;
+                _title_overflowing = true;
             } else {
                 if max_title_length > top_border_length.saturating_sub(3) {
                     max_title_length = top_border_length.saturating_sub(3);
@@ -368,7 +403,7 @@ fn draw_box(
             }
         }
 
-        if !_overflowing {
+        if !_title_overflowing {
             draw_horizontal_line_with_title(
                 bounds.top(),
                 bounds.left(),
@@ -397,23 +432,114 @@ fn draw_box(
 
     if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
-        if content_width > bounds.width().saturating_sub(4)
-            || content_height > bounds.height().saturating_sub(4)
-        {
-            _overflowing = true;
-        } else {
-            print_with_color_at(
-                bounds.top() + 2,
-                bounds.left() + 2,
-                fg_color,
-                content,
-                screen,
-                buffer,
-            );
+        let viewable_width = bounds.width().saturating_sub(4);
+        let viewable_height = bounds.height().saturating_sub(4);
+
+        let content_lines: Vec<&str> = content.lines().collect();
+
+        let max_content_width = content_lines
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0);
+
+        let max_content_height = content_lines.len();
+
+        if content_width > viewable_width {
+            _x_offset = (max_content_width as f64 * horizontal_scroll / 100.0).round() as usize;
+        }
+
+        if content_height > viewable_height {
+            _y_offset = (max_content_height as f64 * vertical_scroll / 100.0).round() as usize;
+        }
+
+        _overflowing = content_width > viewable_width || content_height > viewable_height;
+
+        if _overflowing && overflow_behavior == "scroll" {
+            for (i, line) in content_lines
+                .iter()
+                .enumerate()
+                .skip(_y_offset)
+                .take(viewable_height)
+            {
+                let visible_line = &line
+                    .chars()
+                    .skip(_x_offset)
+                    .take(viewable_width)
+                    .collect::<String>();
+                print_with_color_at(
+                    bounds.top() + 2 + i,
+                    bounds.left() + 2,
+                    fg_color,
+                    visible_line,
+                    screen,
+                    buffer,
+                );
+            }
+
+            // Draw vertical scrollbar
+            if content_height > viewable_height {
+                let scrollbar_height = bounds.height().saturating_sub(4);
+                let scroll_ratio =
+                    vertical_scroll as f64 / (content_height - viewable_height) as f64;
+                vertical_scrollbar_position =
+                    (scroll_ratio * scrollbar_height as f64).round() as usize;
+
+                // for i in 0..scrollbar_height {
+                //     let ch = if i == scrollbar_position { '█' } else { ' ' };
+                //     buffer.update(
+                //         bounds.right() - 1,
+                //         bounds.top() + 2 + i,
+                //         Cell {
+                //             fg_color: border_color_code.clone(),
+                //             bg_color: bg_color_code.clone(),
+                //             ch,
+                //         },
+                //     );
+                // }
+            }
+
+            // Draw horizontal scrollbar
+            if content_width > viewable_width {
+                let scrollbar_width = bounds.width().saturating_sub(4);
+                let scroll_ratio =
+                    horizontal_scroll as f64 / (content_width - viewable_width) as f64;
+                horizontal_scrollbar_position =
+                    (scroll_ratio * scrollbar_width as f64).round() as usize;
+
+                // for i in 0..scrollbar_width {
+                //     let ch = if i == scrollbar_position { '█' } else { ' ' };
+                //     buffer.update(
+                //         bounds.left() + 2 + i,
+                //         bounds.bottom() - 1,
+                //         Cell {
+                //             fg_color: border_color_code.clone(),
+                //             bg_color: bg_color_code.clone(),
+                //             ch,
+                //         },
+                //     );
+                // }
+            }
+        } else if !_overflowing {
+            for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
+                let visible_line = &line
+                    .chars()
+                    .skip(_x_offset)
+                    .take(viewable_width)
+                    .collect::<String>();
+                print_with_color_at(
+                    bounds.top() + 2 + i,
+                    bounds.left() + 2,
+                    fg_color,
+                    visible_line,
+                    screen,
+                    buffer,
+                );
+            }
         }
     }
 
-    if _overflowing {
+    if _overflowing && overflow_behavior != "scroll" {
         if overflow_behavior == "fill" {
             fill_box(
                 &bounds,
@@ -467,6 +593,26 @@ fn draw_box(
             bounds.bottom() - 1,
             border_color,
             bg_color.unwrap_or("default"),
+            screen,
+            buffer,
+        );
+
+        print_with_color_and_background_at(
+            bounds.top() + 2 + vertical_scrollbar_position,
+            bounds.right(),
+            border_color,
+            bg_color.unwrap_or("default"),
+            V_SCROLL_CHAR,
+            screen,
+            buffer,
+        );
+
+        print_with_color_and_background_at(
+            bounds.bottom(),
+            bounds.left() + 2 + horizontal_scrollbar_position,
+            border_color,
+            bg_color.unwrap_or("default"),
+            H_SCROLL_CHAR,
             screen,
             buffer,
         );
@@ -785,6 +931,10 @@ struct BoxEntity {
     output: String,
     parent: Option<Box<BoxEntity>>,
     parent_layout: Option<Box<Layout>>,
+    #[serde(skip)]
+    horizontal_scroll: Option<f64>,
+    #[serde(skip)]
+    vertical_scroll: Option<f64>,
 }
 
 impl PartialEq for BoxEntity {
@@ -1145,7 +1295,7 @@ impl BoxEntity {
                 return overflow_behavior;
             }
         }
-        "removed"
+        "scroll"
     }
 
     fn calc_refresh_interval(&self) -> Option<u64> {
@@ -1200,6 +1350,12 @@ impl BoxEntity {
             content = Some(&self.output);
         }
 
+        log::info!(
+            "Drawing box '{}' with horizontal scroll '{}', vertical scroll '{}'",
+            self.id,
+            self.current_horizontal_scroll(),
+            self.current_vertical_scroll()
+        );
         // Draw border with title
         draw_box(
             &bounds,
@@ -1213,6 +1369,8 @@ impl BoxEntity {
             content,
             &fg_color,
             self.calc_overflow_behavior(),
+            self.current_horizontal_scroll(),
+            self.current_vertical_scroll(),
             screen,
             buffer,
         );
@@ -1231,6 +1389,50 @@ impl BoxEntity {
 
     fn is_selected(&self) -> bool {
         *SELECTED_BOX.lock().unwrap() == Some(self.clone())
+    }
+
+    fn scroll_down(&mut self, amount: Option<f64>) {
+        let amount = amount.unwrap_or(5.0);
+        if let Some(scroll) = self.vertical_scroll {
+            self.vertical_scroll = Some((scroll + amount).min(100.0));
+        } else {
+            self.vertical_scroll = Some(amount.min(100.0));
+        }
+    }
+
+    fn scroll_up(&mut self, amount: Option<f64>) {
+        let amount = amount.unwrap_or(5.0);
+        if let Some(scroll) = self.vertical_scroll {
+            self.vertical_scroll = Some((scroll - amount).max(0.0));
+        } else {
+            self.vertical_scroll = Some(0.0);
+        }
+    }
+
+    fn scroll_right(&mut self, amount: Option<f64>) {
+        let amount = amount.unwrap_or(5.0);
+        if let Some(scroll) = self.horizontal_scroll {
+            self.horizontal_scroll = Some((scroll + amount).min(100.0));
+        } else {
+            self.horizontal_scroll = Some(amount.min(100.0));
+        }
+    }
+
+    fn scroll_left(&mut self, amount: Option<f64>) {
+        let amount = amount.unwrap_or(5.0);
+        if let Some(scroll) = self.horizontal_scroll {
+            self.horizontal_scroll = Some((scroll - amount).max(0.0));
+        } else {
+            self.horizontal_scroll = Some(0.0);
+        }
+    }
+
+    fn current_vertical_scroll(&self) -> f64 {
+        self.vertical_scroll.unwrap_or(0.0)
+    }
+
+    fn current_horizontal_scroll(&self) -> f64 {
+        self.horizontal_scroll.unwrap_or(0.0)
     }
 
     fn has_events(&self) -> bool {
@@ -1633,16 +1835,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') => {
-                    input_tx.send("exit").unwrap();
+                    input_tx.send(InputMessage::Exit).unwrap();
                     break;
                 }
                 // tab
                 Key::Char('\t') => {
-                    input_tx.send("next_box").unwrap();
+                    input_tx.send(InputMessage::NextBox).unwrap();
                 }
                 // shift-tab
                 Key::BackTab => {
-                    input_tx.send("previous_box").unwrap();
+                    input_tx.send(InputMessage::PreviousBox).unwrap();
+                }
+                // down arrow
+                Key::Down => {
+                    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
+                    if let Some(ref mut selected_box) = *selected_box_guard {
+                        selected_box.scroll_down(None);
+                        input_tx
+                            .send(InputMessage::RedrawBox(selected_box.clone()))
+                            .unwrap();
+                        log::info!("scrolled down, {}", selected_box.vertical_scroll.unwrap());
+                    }
+                }
+                // up arrow
+                Key::Up => {
+                    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
+                    if let Some(ref mut selected_box) = *selected_box_guard {
+                        selected_box.scroll_up(None);
+                        input_tx
+                            .send(InputMessage::RedrawBox(selected_box.clone()))
+                            .unwrap();
+                        log::info!("scrolled up, {}", selected_box.vertical_scroll.unwrap());
+                    }
                 }
                 _ => {}
             }
@@ -1657,57 +1881,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     thread::spawn(move || {
         let mut signals = Signals::new(&[SIGWINCH]).unwrap();
         for _ in signals.forever() {
-            resize_tx.send("resize").unwrap();
+            resize_tx.send(InputMessage::Resize).unwrap();
         }
     });
 
     // Main drawing loop
     let mut screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
     let mut prev_screen_buffer = screen_buffer.clone();
-    loop {
-        app.draw(&mut stdout, &mut screen_buffer);
-        // Compare screen buffers and update only the differences
-        for y in 0..screen_buffer.height {
-            for x in 0..screen_buffer.width {
-                if screen_buffer.get(x, y) != prev_screen_buffer.get(x, y) {
-                    if let Some(cell) = screen_buffer.get(x, y) {
-                        write!(
-                            stdout,
-                            "{}{}{}{}",
-                            cursor::Goto((x + 1) as u16, (y + 1) as u16),
-                            cell.bg_color,
-                            cell.fg_color,
-                            cell.ch
-                        )
-                        .unwrap();
-                    }
-                }
-            }
-        }
-        stdout.flush().unwrap();
-        prev_screen_buffer = screen_buffer.clone();
 
+    app.draw(&mut stdout, &mut screen_buffer);
+    loop {
         // Check for input
         if let Ok(msg) = rx.try_recv() {
             match msg {
-                "exit" => break,
-                "resize" => {
+                InputMessage::Exit => break,
+                InputMessage::Resize => {
                     write!(stdout, "{}", termion::clear::All).unwrap();
                     screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
                     prev_screen_buffer = screen_buffer.clone();
                     app.draw(&mut stdout, &mut screen_buffer);
                 }
-                "next_box" => {
+                InputMessage::NextBox => {
                     for layout in &app.layouts {
                         select_next_box(layout);
                     }
+                    tx.send(InputMessage::RedrawApp).unwrap();
                 }
-                "previous_box" => {
+                InputMessage::PreviousBox => {
                     for layout in &app.layouts {
                         select_previous_box(layout);
                     }
+                    tx.send(InputMessage::RedrawApp).unwrap();
                 }
-                _ => {}
+                InputMessage::RedrawBox(mut box_entity) => {
+                    log::info!(
+                        "Redrawing box '{}' with vertical scroll '{}'",
+                        box_entity.id,
+                        box_entity.current_vertical_scroll()
+                    );
+                    box_entity.draw(&mut stdout, &mut screen_buffer);
+                    // tx.send(InputMessage::RedrawApp).unwrap();
+                }
+                InputMessage::RedrawApp => {
+                    app.draw(&mut stdout, &mut screen_buffer);
+                    // Compare screen buffers and update only the differences
+                    for y in 0..screen_buffer.height {
+                        for x in 0..screen_buffer.width {
+                            if screen_buffer.get(x, y) != prev_screen_buffer.get(x, y) {
+                                if let Some(cell) = screen_buffer.get(x, y) {
+                                    write!(
+                                        stdout,
+                                        "{}{}{}{}",
+                                        cursor::Goto((x + 1) as u16, (y + 1) as u16),
+                                        cell.bg_color,
+                                        cell.fg_color,
+                                        cell.ch
+                                    )
+                                    .unwrap();
+                                }
+                            }
+                        }
+                    }
+                    stdout.flush().unwrap();
+                    prev_screen_buffer = screen_buffer.clone();
+                }
             }
         }
         thread::sleep(Duration::from_millis(10));
@@ -1715,3 +1952,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+// the instances of box_entity that the app.draw function reaches are not the same instances that are in selected_box, and i think might be their clones, so when i scroll them up or down the result is not reflected in app redraw. how do i fix that. this is the current state of my code, just give me the updated sections.

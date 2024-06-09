@@ -7,14 +7,14 @@ layouts:
     selected_bg_color: 'bright_black'
     title_fg_color: 'bright_white'
     selected_title_fg_color: 'bright_white'
-    title_bg_color: 'green'
-    selected_title_bg_color: 'bright_green'
+    title_bg_color: 'red'
+    selected_title_bg_color: 'bright_red'
     border: true
     border_color: 'bright_white'
-    selected_border_color: 'bright_green'
+    selected_border_color: 'bright_red'
     title_position: 'start'
     # fill_char: 'X'
-    overflow_behavior: 'removed'
+    # #overflow_behavior: 'removed'
 
     children:
       - id: 'header'
@@ -78,12 +78,29 @@ layouts:
           y1: 15%
           x2: 48%
           y2: 35%
-        content: 'tail -n 10 /var/log/syslog'
+        content: |
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
         scroll: true
         tab_order: 2
         on_error:
           - echo "Error loading CPU stats."
-        overflow_behavior: 'removed'
+        #overflow_behavior: 'removed'
         title_position: 'center'
 
       - id: 'memory'
