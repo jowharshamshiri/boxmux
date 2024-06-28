@@ -1,4 +1,18 @@
-use crate::entities::BoxEntity;
-use std::sync::Mutex;
+extern crate lazy_static;
 
-pub static SELECTED_BOX: Mutex<Option<BoxEntity>> = Mutex::new(None);
+use crate::model::box_entity::BoxEntityWrapper;
+use lazy_static::lazy_static;
+use std::sync::{Arc, Mutex};
+
+lazy_static! {
+    pub static ref SELECTED_BOX: Arc<Mutex<Option<BoxEntityWrapper>>> = Arc::new(Mutex::new(None));
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_state_initialization() {
+        // Add test for state initialization
+    }
+}

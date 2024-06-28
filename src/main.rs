@@ -1,3 +1,8 @@
+#[macro_use]
+extern crate lazy_static;
+
+use draw_loop::DrawLoop;
+use input_loop::InputLoop;
 use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
 use simplelog::*;
 use std::fs::File;
@@ -14,280 +19,211 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
+use thread_manager::{Runnable, ThreadManager};
 
 use serde::{
     de::MapAccess, de::SeqAccess, de::Visitor, Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::fmt;
 
-mod entities;
-mod state;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+mod model {
+    pub mod app;
+    pub mod common;
+    pub mod layout;
+    pub mod panel;
+}
+
+#[macro_use]
+pub mod thread_manager;
+mod draw_loop;
+mod input_loop;
+mod panel_loop;
+mod resize_loop;
 mod utils;
 
-use crate::entities::*;
-use crate::state::*;
+use crate::model::app::*;
+use crate::model::common::*;
+use crate::model::layout::*;
+use crate::model::panel::*;
 use crate::utils::*;
 
-// BOX_EVENTS! {
-//     "on_error",
-//     "on_enter",
-//     "on_leave",
-//     "on_refresh",
+// fn main() -> Result<(), Box<dyn std::error::Error>> {
+//     env_logger::init();
+
+//     CombinedLogger::init(vec![WriteLogger::new(
+//         LevelFilter::Debug,
+//         Config::default(),
+//         File::create("app.log")?,
+//     )])?;
+
+//     let mut manager = ThreadManager::new();
+//     manager.spawn_thread(MyRunnable);
+//     manager.spawn_thread(MyRunnable);
+
+//     let data = App::new();
+//     manager.send_data_to_thread(data.clone(), 0);
+//     manager.send_data_to_thread(data.clone(), 1);
+
+//     if let Some(received_data) = manager.receive_data_from_thread() {
+//         let initial_hash = manager.get_hash(&data);
+//         let received_hash = manager.get_hash(&received_data);
+
+//         if initial_hash != received_hash {
+//             manager.send_update_to_all_threads(received_data);
+//         }
+//     }
+
+//     manager.join_threads();
 // }
 
-fn get_box_list_in_tab_order(box_list: &Vec<BoxEntity>, tab_order: &str) -> Vec<BoxEntity> {
-    let mut tab_order_list = tab_order
-        .split(',')
-        .map(|id| {
-            box_list
-                .iter()
-                .find(|b| b.id == id)
-                .expect(&format!("Box with id {} not found", id))
-                .clone()
-        })
-        .collect::<Vec<BoxEntity>>();
+// fn mai3n() {
+//     let (app, app_graph) =
+//         load_app_from_yaml("/Users/bahram/ws/prj/machinegenesis/crossbash2/layouts/dashboard.yaml")
+//             .expect("Failed to load app");
 
-    // Sort by tab order
-    tab_order_list.sort_by(|a, b| {
-        let a_index = tab_order.split(',').position(|id| id == a.id).unwrap();
-        let b_index = tab_order.split(',').position(|id| id == b.id).unwrap();
-        a_index.cmp(&b_index)
-    });
+//     if let Some(layout) = app.get_layout_by_id("dashboard") {
+//         if let Some(panel) = app_graph.get_panel_by_id(&layout.id, "header") {
+//             println!("Found panel: {:?}", panel);
+//         }
 
-    tab_order_list
-}
+//         if let Some(parent) = app_graph.get_parent(&layout.id, "time") {
+//             println!("Parent panel: {:?}", parent);
+//         }
 
-fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Error>> {
-    let mut file = File::open(file_path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+//         let children = app_graph.get_children(&layout.id, "footer");
+//         for child in children {
+//             println!("Child panel: {:?}", child);
+//         }
+//     }
+// }
 
-    let mut app: App = serde_yaml::from_str(&contents)?;
+// fn start_panel_event_threads(app: &mut App, app_graph: &AppGraph,thread_manager: &mut ThreadManager) {
+// 	for layout in &app.layouts {
+// 		for panel in &layout.children {
+// 			if panel.has_refresh() {
+// 				let app = Arc::new(Mutex::new(app.clone()));
+// 				let app_clone = app.clone();
+// 				let panel_clone = panel.clone();
 
-    // Populate parent fields recursively
-    for layout in &mut app.layouts {
-        let layout_clone = layout.clone();
-        load_layout(&mut layout.children, &layout_clone, None);
-    }
+// 				thread_manager.spawn_thread(move || {
+// 					let mut app = app_clone.lock().unwrap();
+// 					let mut panel = app.get_panel_by_id(&panel_clone.id).unwrap();
 
-    Ok(app)
-}
+// 					loop {
+// 						let mut app = app.clone();
+// 						let mut panel = app.get_panel_by_id(&panel.id).unwrap();
 
-fn load_layout(
-    children: &mut Vec<BoxEntity>,
-    parent_layout: &Layout,
-    parent: Option<Box<BoxEntity>>,
-) {
-    for child in children.iter_mut() {
-        child.parent_layout = Some(Box::new(parent_layout.clone()));
-        child.parent = parent.clone();
+// 						if let Some(refresh) = &panel.refresh {
+// 							match refresh {
+// 								Refresh::Command(command) => {
+// 									let output = Command::new("sh")
+// 										.arg("-c")
+// 										.arg(command)
+// 										.output()
+// 										.expect("Failed to execute command");
 
-        if let Some(mut child_children) = child.children.take() {
-            let parent_clone = Box::new(child.clone());
-            load_layout(&mut child_children, parent_layout, Some(parent_clone));
-            child.children = Some(child_children);
-        }
-    }
-}
+// 									let output = String::from_utf8_lossy(&output.stdout);
+// 									panel.content = output.to_string();
+// 								}
+// 								Refresh::Interval(interval) => {
+// 									thread::sleep(Duration::from_secs(*interval));
+// 								}
+// 							}
+// 						}
 
-fn select_next_box(layout: &Layout) {
-    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-    let tab_order_list = &layout.box_list_in_tab_order;
+// 						thread::sleep(Duration::from_secs(1));
+// 					}
+// 				});
+// 			}
+// 		}
+// 	}
 
-    if tab_order_list.is_empty() {
-        return;
-    }
+// 	for layout in &app.layouts {
+// 		for panel in &layout.children {
+// 			if panel.has_refresh() {
+// 				let app = Arc::new(Mutex::new(app.clone()));
+// 				let app_clone = app.clone();
+// 				let panel_clone = panel.clone();
 
-    let next_index = match selected_box_guard.as_ref() {
-        Some(selected_box) => {
-            let selected_index = tab_order_list
-                .iter()
-                .position(|b| b == selected_box)
-                .unwrap_or(0);
-            (selected_index + 1) % tab_order_list.len()
-        }
-        None => 0,
-    };
+// 				thread::spawn(move || {
+// 					let mut app = app_clone.lock().unwrap();
+// 					let mut panel = app.get_panel_by_id(&panel_clone.id).unwrap();
 
-    *selected_box_guard = Some(tab_order_list[next_index].clone());
-}
+// 					loop {
+// 						let mut app = app.clone();
+// 						let mut panel = app.get_panel_by_id(&panel.id).unwrap();
 
-fn select_previous_box(layout: &Layout) {
-    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-    let tab_order_list = &layout.box_list_in_tab_order;
+// 						if let Some(refresh) = &panel.refresh {
+// 							match refresh {
+// 								Refresh::Command(command) => {
+// 									let output = Command::new("sh")
+// 										.arg("-c")
+// 										.arg(command)
+// 										.output()
+// 										.expect("Failed to execute command");
 
-    if tab_order_list.is_empty() {
-        return;
-    }
+// 									let output = String::from_utf8_lossy(&output.stdout);
+// 									panel.content = output.to_string();
+// 								}
+// 								Refresh::Interval(interval) => {
+// 									thread::sleep(Duration::from_secs(*interval));
+// 								}
+// 							}
+// 						}
 
-    let prev_index = match selected_box_guard.as_ref() {
-        Some(selected_box) => {
-            let selected_index = tab_order_list
-                .iter()
-                .position(|b| b == selected_box)
-                .unwrap_or(0);
-            if selected_index == 0 {
-                tab_order_list.len() - 1
-            } else {
-                selected_index - 1
-            }
-        }
-        None => tab_order_list.len() - 1,
-    };
-
-    *selected_box_guard = Some(tab_order_list[prev_index].clone());
-}
+// 						thread::sleep(Duration::from_secs(1));
+// 					}
+// 				});
+// 			}
+// 		}
+// 	}
+// }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     CombinedLogger::init(vec![WriteLogger::new(
         LevelFilter::Debug,
         Config::default(),
-        File::create("/Users/bahram/ws/prj/machinegenesis/crossbash/trash/app.log").unwrap(),
-    )])
-    .unwrap();
+        File::create("app.log")?,
+    )])?;
 
     log::info!("Starting app");
-    let mut stdout = AlternateScreen::from(stdout().into_raw_mode()?);
+    // let mut stdout = AlternateScreen::from(stdout().into_raw_mode()?);
+    let app_context =
+        load_app_from_yaml("/Users/bahram/ws/prj/machinegenesis/crossbash/layouts/dashboard.yaml")
+            .expect("Failed to load app");
 
-    // Load layout from YAML
-    let mut app =
-        load_app_from_yaml("/Users/bahram/ws/prj/machinegenesis/crossbash/layouts/dashboard.yaml")?;
+    let mut manager = ThreadManager::new(app_context.deep_clone());
 
-    for layout in &mut app.layouts {
-        layout.populate_tab_order();
-        if !layout.box_list_in_tab_order.is_empty() {
-            let first_box = layout.box_list_in_tab_order[0].clone();
-            println!("Initially selecting box: {}", first_box.id); // Debug print
-            *SELECTED_BOX.lock().unwrap() = Some(first_box);
-        }
-    }
+    let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.deep_clone()));
+    let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.deep_clone()));
 
-    // Channel to communicate between input handling and drawing
-    let (tx, rx) = mpsc::channel();
-
-    // Handle input in a separate thread
-    let input_tx = tx.clone();
-    thread::spawn(move || {
-        let stdin = stdin();
-        for c in stdin.keys() {
-            match c.unwrap() {
-                Key::Char('q') => {
-                    input_tx.send(InputMessage::Exit).unwrap();
-                    break;
-                }
-                // tab
-                Key::Char('\t') => {
-                    input_tx.send(InputMessage::NextBox).unwrap();
-                }
-                // shift-tab
-                Key::BackTab => {
-                    input_tx.send(InputMessage::PreviousBox).unwrap();
-                }
-                // down arrow
-                Key::Down => {
-                    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-                    if let Some(ref mut selected_box) = *selected_box_guard {
-                        selected_box.scroll_down(None);
-                        input_tx
-                            .send(InputMessage::RedrawBox(selected_box.clone()))
-                            .unwrap();
-                        log::info!("scrolled down, {}", selected_box.vertical_scroll.unwrap());
-                    }
-                }
-                // up arrow
-                Key::Up => {
-                    let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-                    if let Some(ref mut selected_box) = *selected_box_guard {
-                        selected_box.scroll_up(None);
-                        input_tx
-                            .send(InputMessage::RedrawBox(selected_box.clone()))
-                            .unwrap();
-                        log::info!("scrolled up, {}", selected_box.vertical_scroll.unwrap());
-                    }
-                }
-                _ => {}
-            }
-        }
-    });
-
-    // Start refresh threads for each box with a refresh interval
-    app.start_event_threads();
-
-    // Handle terminal resize
-    let resize_tx = tx.clone();
-    thread::spawn(move || {
-        let mut signals = Signals::new(&[SIGWINCH]).unwrap();
-        for _ in signals.forever() {
-            resize_tx.send(InputMessage::Resize).unwrap();
-        }
-    });
-
-    // Main drawing loop
-    let mut screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
-    let mut prev_screen_buffer = screen_buffer.clone();
-
-    app.draw(&mut stdout, &mut screen_buffer);
-    loop {
-        // Check for input
-        if let Ok(msg) = rx.try_recv() {
-            match msg {
-                InputMessage::Exit => break,
-                InputMessage::Resize => {
-                    write!(stdout, "{}", termion::clear::All).unwrap();
-                    screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                    prev_screen_buffer = screen_buffer.clone();
-                    app.draw(&mut stdout, &mut screen_buffer);
-                }
-                InputMessage::NextBox => {
-                    for layout in &app.layouts {
-                        select_next_box(layout);
-                    }
-                    tx.send(InputMessage::RedrawApp).unwrap();
-                }
-                InputMessage::PreviousBox => {
-                    for layout in &app.layouts {
-                        select_previous_box(layout);
-                    }
-                    tx.send(InputMessage::RedrawApp).unwrap();
-                }
-                InputMessage::RedrawBox(mut box_entity) => {
-                    log::info!(
-                        "Redrawing box '{}' with vertical scroll '{}'",
-                        box_entity.id,
-                        box_entity.current_vertical_scroll()
-                    );
-                    box_entity.draw(&mut stdout, &mut screen_buffer);
-                    // tx.send(InputMessage::RedrawApp).unwrap();
-                }
-                InputMessage::RedrawApp => {
-                    app.draw(&mut stdout, &mut screen_buffer);
-                    // Compare screen buffers and update only the differences
-                    for y in 0..screen_buffer.height {
-                        for x in 0..screen_buffer.width {
-                            if screen_buffer.get(x, y) != prev_screen_buffer.get(x, y) {
-                                if let Some(cell) = screen_buffer.get(x, y) {
-                                    write!(
-                                        stdout,
-                                        "{}{}{}{}",
-                                        cursor::Goto((x + 1) as u16, (y + 1) as u16),
-                                        cell.bg_color,
-                                        cell.fg_color,
-                                        cell.ch
-                                    )
-                                    .unwrap();
-                                }
-                            }
-                        }
-                    }
-                    stdout.flush().unwrap();
-                    prev_screen_buffer = screen_buffer.clone();
-                }
-            }
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
+    manager.run();
 
     Ok(())
 }
 
-// the instances of box_entity that the app.draw function reaches are not the same instances that are in selected_box, and i think might be their clones, so when i scroll them up or down the result is not reflected in app redraw. how do i fix that. this is the current state of my code, just give me the updated sections.
+// fn main() {
+//     env_logger::init();
+//     let app_context = AppContext::new(App::new());
+//     let mut manager = ThreadManager::new(app_context.clone());
+//     let uuid1 = manager.spawn_thread(TestRunnableOne::new(app_context.clone()));
+//     let uuid2 = manager.spawn_thread(TestRunnableTwo::new(app_context.clone()));
+//     let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
+
+//     let data = AppContext::new(App::new());
+//     manager.send_data_to_thread(data.clone(), uuid1);
+//     manager.send_data_to_thread(data.clone(), uuid2);
+//     manager.send_data_to_thread(data.clone(), uuid3);
+
+//     // Run the manager's loop in a separate thread
+//     let manager = Arc::new(manager);
+//     let manager_clone = Arc::clone(&manager);
+
+//     let handle = thread::spawn(move || {
+//         manager_clone.run();
+//     });
+
+//     handle.join().unwrap();
+// }
