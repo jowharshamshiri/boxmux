@@ -1,5 +1,6 @@
 layouts:
   - id: 'dashboard'
+    root: true
     title: 'Dashboard Layout'
     fg_color: 'white'
     selected_fg_color: 'bright_yellow'

@@ -1,7 +1,8 @@
-use std::io::Write;
+use std::{collections::HashMap, io::Write};
 
-use crate::model::common::{Bounds, Cell, InputBounds, ScreenBuffer};
+use crate::{model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, AppContext, Layout, Panel};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
+use uuid::Uuid;
 
 pub fn get_fg_color(color: &str) -> String {
     //log::debug!("Getting foreground color '{}'", color);
@@ -53,13 +54,7 @@ pub fn get_bg_color(color: &str) -> String {
     }
 }
 
-pub fn print_with_color_at(
-    y: usize,
-    x: usize,
-    color: &str,
-    text: &str,
-    buffer: &mut ScreenBuffer,
-) {
+pub fn print_with_color_at(y: usize, x: usize, color: &str, text: &str, buffer: &mut ScreenBuffer) {
     //log::debug!(
     //     "Printing text '{}' with color '{}' at x='{}', y='{}'",
     //     text,
@@ -482,13 +477,7 @@ pub fn draw_panel(
 
     if _overflowing && overflow_behavior != "scroll" {
         if overflow_behavior == "fill" {
-            fill_panel(
-                &bounds,
-                true,
-                bg_color.unwrap_or("default"),
-                '█',
-                buffer,
-            );
+            fill_panel(&bounds, true, bg_color.unwrap_or("default"), '█', buffer);
         } else if overflow_behavior == "cross_out" {
             for i in 0..bounds.width() {
                 let cell = Cell {
@@ -697,234 +686,237 @@ pub fn content_size(text: &str) -> (usize, usize) {
 }
 
 pub fn inherit_string(
-	child_value: Option<&String>,
-	parent_value: Option<&String>,
-	parent_layout_value: Option<&String>,
-	default_value: &str,
+    child_value: Option<&String>,
+    parent_value: Option<&String>,
+    parent_layout_value: Option<&String>,
+    default_value: &str,
 ) -> String {
-	if let Some(value) = child_value {
-		if !value.is_empty() {
-			return value.clone();
-		}
-	}
-	if let Some(value) = parent_value {
-		if !value.is_empty() {
-			return value.clone();
-		}
-	}
-	if let Some(value) = parent_layout_value {
-		if !value.is_empty() {
-			return value.clone();
-		}
-	}
-	default_value.to_string()
+    if let Some(value) = child_value {
+        if !value.is_empty() {
+            return value.clone();
+        }
+    }
+    if let Some(value) = parent_value {
+        if !value.is_empty() {
+            return value.clone();
+        }
+    }
+    if let Some(value) = parent_layout_value {
+        if !value.is_empty() {
+            return value.clone();
+        }
+    }
+    default_value.to_string()
 }
 
 pub fn inherit_char(
-	child_char: Option<&char>,
-	parent_char: Option<&char>,
-	parent_layout_char: Option<&char>,
-	default_char: char,
+    child_char: Option<&char>,
+    parent_char: Option<&char>,
+    parent_layout_char: Option<&char>,
+    default_char: char,
 ) -> char {
-	if let Some(&char) = child_char {
-		return char;
-	}
-	if let Some(&char) = parent_char {
-		return char;
-	}
-	if let Some(&char) = parent_layout_char {
-		return char;
-	}
-	default_char
+    if let Some(&char) = child_char {
+        return char;
+    }
+    if let Some(&char) = parent_char {
+        return char;
+    }
+    if let Some(&char) = parent_layout_char {
+        return char;
+    }
+    default_char
 }
 
 pub fn inherit_bool(
-	child_bool: Option<&bool>,
-	parent_bool: Option<&bool>,
-	parent_layout_bool: Option<&bool>,
-	default_bool: bool,
+    child_bool: Option<&bool>,
+    parent_bool: Option<&bool>,
+    parent_layout_bool: Option<&bool>,
+    default_bool: bool,
 ) -> bool {
-	if let Some(bool) = child_bool {
-		return *bool;
-	}
-	if let Some(bool) = parent_bool {
-		return *bool;
-	}
-	if let Some(bool) = parent_layout_bool {
-		return *bool;
-	}
-	default_bool
+    if let Some(bool) = child_bool {
+        return *bool;
+    }
+    if let Some(bool) = parent_bool {
+        return *bool;
+    }
+    if let Some(bool) = parent_layout_bool {
+        return *bool;
+    }
+    default_bool
 }
 
 pub fn inherit_u64(
-	child_value: Option<&u64>,
-	parent_value: Option<&u64>,
-	parent_layout_value: Option<&u64>,
-	default_value: u64,
+    child_value: Option<&u64>,
+    parent_value: Option<&u64>,
+    parent_layout_value: Option<&u64>,
+    default_value: u64,
 ) -> u64 {
-	if let Some(value) = child_value {
-		return *value;
-	}
-	if let Some(value) = parent_value {
-		return *value;
-	}
-	if let Some(value) = parent_layout_value {
-		return *value;
-	}
-	default_value
+    if let Some(value) = child_value {
+        return *value;
+    }
+    if let Some(value) = parent_value {
+        return *value;
+    }
+    if let Some(value) = parent_layout_value {
+        return *value;
+    }
+    default_value
 }
 
 pub fn inherit_i64(
-	child_value: Option<&i64>,
-	parent_value: Option<&i64>,
-	parent_layout_value: Option<&i64>,
-	default_value: i64,
+    child_value: Option<&i64>,
+    parent_value: Option<&i64>,
+    parent_layout_value: Option<&i64>,
+    default_value: i64,
 ) -> i64 {
-	if let Some(value) = child_value {
-		return *value;
-	}
-	if let Some(value) = parent_value {
-		return *value;
-	}
-	if let Some(value) = parent_layout_value {
-		return *value;
-	}
-	default_value
+    if let Some(value) = child_value {
+        return *value;
+    }
+    if let Some(value) = parent_value {
+        return *value;
+    }
+    if let Some(value) = parent_layout_value {
+        return *value;
+    }
+    default_value
 }
 
 pub fn inherit_f64(
-	child_value: Option<&f64>,
-	parent_value: Option<&f64>,
-	parent_layout_value: Option<&f64>,
-	default_value: f64,
+    child_value: Option<&f64>,
+    parent_value: Option<&f64>,
+    parent_layout_value: Option<&f64>,
+    default_value: f64,
 ) -> f64 {
-	if let Some(value) = child_value {
-		return *value;
-	}
-	if let Some(value) = parent_value {
-		return *value;
-	}
-	if let Some(value) = parent_layout_value {
-		return *value;
-	}
-	default_value
+    if let Some(value) = child_value {
+        return *value;
+    }
+    if let Some(value) = parent_value {
+        return *value;
+    }
+    if let Some(value) = parent_layout_value {
+        return *value;
+    }
+    default_value
 }
 
 pub fn inherit_optional_string(
-	child_value: Option<&String>,
-	parent_value: Option<&String>,
-	parent_layout_value: Option<&String>,
-	default_value: Option<String>,
+    child_value: Option<&String>,
+    parent_value: Option<&String>,
+    parent_layout_value: Option<&String>,
+    default_value: Option<String>,
 ) -> Option<String> {
-	if let Some(value) = child_value {
-		if !value.is_empty() {
-			return Some(value.clone());
-		}
-	}
-	if let Some(value) = parent_value {
-		if !value.is_empty() {
-			return Some(value.clone());
-		}
-	}
-	if let Some(value) = parent_layout_value {
-		if !value.is_empty() {
-			return Some(value.clone());
-		}
-	}
-	default_value
+    if let Some(value) = child_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    if let Some(value) = parent_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    if let Some(value) = parent_layout_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    default_value
 }
 
 pub fn inherit_optional_char(
-	child_char: Option<&char>,
-	parent_char: Option<&char>,
-	parent_layout_char: Option<&char>,
-	default_char: Option<char>,
+    child_char: Option<&char>,
+    parent_char: Option<&char>,
+    parent_layout_char: Option<&char>,
+    default_char: Option<char>,
 ) -> Option<char> {
-	if let Some(&char) = child_char {
-		return Some(char);
-	}
-	if let Some(&char) = parent_char {
-		return Some(char);
-	}
-	if let Some(&char) = parent_layout_char {
-		return Some(char);
-	}
-	default_char
+    if let Some(&char) = child_char {
+        return Some(char);
+    }
+    if let Some(&char) = parent_char {
+        return Some(char);
+    }
+    if let Some(&char) = parent_layout_char {
+        return Some(char);
+    }
+    default_char
 }
 
 pub fn inherit_optional_bool(
-	child_bool: Option<&bool>,
-	parent_bool: Option<&bool>,
-	parent_layout_bool: Option<&bool>,
-	default_bool: Option<bool>,
+    child_bool: Option<&bool>,
+    parent_bool: Option<&bool>,
+    parent_layout_bool: Option<&bool>,
+    default_bool: Option<bool>,
 ) -> Option<bool> {
-	if let Some(bool) = child_bool {
-		return Some(*bool);
-	}
-	if let Some(bool) = parent_bool {
-		return Some(*bool);
-	}
-	if let Some(bool) = parent_layout_bool {
-		return Some(*bool);
-	}
-	default_bool
+    if let Some(bool) = child_bool {
+        return Some(*bool);
+    }
+    if let Some(bool) = parent_bool {
+        return Some(*bool);
+    }
+    if let Some(bool) = parent_layout_bool {
+        return Some(*bool);
+    }
+    default_bool
 }
 
 pub fn inherit_optional_u64(
-	child_value: Option<&u64>,
-	parent_value: Option<&u64>,
-	parent_layout_value: Option<&u64>,
-	default_value: Option<u64>,
+    child_value: Option<&u64>,
+    parent_value: Option<&u64>,
+    parent_layout_value: Option<&u64>,
+    default_value: Option<u64>,
 ) -> Option<u64> {
-	if let Some(value) = child_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_layout_value {
-		return Some(*value);
-	}
-	default_value
+    if let Some(value) = child_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_layout_value {
+        return Some(*value);
+    }
+    default_value
 }
 
 pub fn inherit_optional_i64(
-	child_value: Option<&i64>,
-	parent_value: Option<&i64>,
-	parent_layout_value: Option<&i64>,
-	default_value: Option<i64>,
+    child_value: Option<&i64>,
+    parent_value: Option<&i64>,
+    parent_layout_value: Option<&i64>,
+    default_value: Option<i64>,
 ) -> Option<i64> {
-	if let Some(value) = child_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_layout_value {
-		return Some(*value);
-	}
-	default_value
+    if let Some(value) = child_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_layout_value {
+        return Some(*value);
+    }
+    default_value
 }
 
 pub fn inherit_optional_f64(
-	child_value: Option<&f64>,
-	parent_value: Option<&f64>,
-	parent_layout_value: Option<&f64>,
-	default_value: Option<f64>,
+    child_value: Option<&f64>,
+    parent_value: Option<&f64>,
+    parent_layout_value: Option<&f64>,
+    default_value: Option<f64>,
 ) -> Option<f64> {
-	if let Some(value) = child_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_value {
-		return Some(*value);
-	}
-	if let Some(value) = parent_layout_value {
-		return Some(*value);
-	}
-	default_value
+    if let Some(value) = child_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_value {
+        return Some(*value);
+    }
+    if let Some(value) = parent_layout_value {
+        return Some(*value);
+    }
+    default_value
 }
 
-pub fn apply_buffer(screen_buffer: &mut ScreenBuffer, alternate_screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>) {
+pub fn apply_buffer(
+    screen_buffer: &mut ScreenBuffer,
+    alternate_screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>,
+) {
     for y in 0..screen_buffer.height {
         for x in 0..screen_buffer.width {
             if let Some(cell) = screen_buffer.get(x, y) {
@@ -943,23 +935,91 @@ pub fn apply_buffer(screen_buffer: &mut ScreenBuffer, alternate_screen: &mut Alt
     alternate_screen.flush().unwrap();
 }
 
-pub fn apply_buffer_if_changed(previous_buffer: &ScreenBuffer, current_buffer: &ScreenBuffer, alternate_screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>) {
-	for y in 0..current_buffer.height {
-		for x in 0..current_buffer.width {
-			if current_buffer.get(x, y) != previous_buffer.get(x, y) {
-				if let Some(cell) = current_buffer.get(x, y) {
-					write!(
-						alternate_screen,
-						"{}{}{}{}",
-						termion::cursor::Goto((x + 1) as u16, (y + 1) as u16),
-						cell.bg_color,
-						cell.fg_color,
-						cell.ch
-					)
-					.unwrap();
-				}
-			}
+pub fn apply_buffer_if_changed(
+    previous_buffer: &ScreenBuffer,
+    current_buffer: &ScreenBuffer,
+    alternate_screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>,
+) {
+    for y in 0..current_buffer.height {
+        for x in 0..current_buffer.width {
+            if current_buffer.get(x, y) != previous_buffer.get(x, y) {
+                if let Some(cell) = current_buffer.get(x, y) {
+                    write!(
+                        alternate_screen,
+                        "{}{}{}{}",
+                        termion::cursor::Goto((x + 1) as u16, (y + 1) as u16),
+                        cell.bg_color,
+                        cell.fg_color,
+                        cell.ch
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+    alternate_screen.flush().unwrap();
+}
+
+pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
+	for panel in &layout.children {
+		if Some(true) == panel.selected {
+			return Some(panel.id.clone());
 		}
 	}
-	alternate_screen.flush().unwrap();
+
+    None
+}
+
+pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
+	let mut result:HashMap<String, i32>= HashMap::new();
+
+	for panel in &layout.children {
+		let tab_order=panel.tab_order.clone();
+		if tab_order.is_some() {
+            result.insert(panel.id.clone(), tab_order.unwrap().parse::<i32>().expect("Invalid tab order"));
+		}
+	}
+
+	// Sort the hashmap by value
+	let mut sorted_result: Vec<(String, i32)> = result.into_iter().collect();
+	sorted_result.sort_by(|a, b| a.1.cmp(&b.1));
+
+	let mut tab_order: Vec<String> = Vec::new();
+	for (key, _) in sorted_result {
+		tab_order.push(key);
+	}
+
+	tab_order
+}
+
+pub fn find_next_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
+	let tab_order = calculate_tab_order(layout);
+	let mut found_current_panel = false;
+
+	for panel_uuid in tab_order {
+		if found_current_panel {
+			return Some(panel_uuid);
+		}
+
+		if panel_uuid == current_panel_uuid {
+			found_current_panel = true;
+		}
+	}
+
+	None
+}
+
+pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
+	let tab_order = calculate_tab_order(layout);
+	let mut previous_panel_uuid: Option<String> = None;
+
+	for panel_uuid in tab_order {
+		if panel_uuid == current_panel_uuid {
+			return previous_panel_uuid;
+		}
+
+		previous_panel_uuid = Some(panel_uuid);
+	}
+
+	None
 }

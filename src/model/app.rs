@@ -59,6 +59,44 @@ impl App {
     pub fn get_layout_by_id_mut(&mut self, id: &str) -> Option<&mut Layout> {
         self.layouts.iter_mut().find(|l| l.id == id)
     }
+
+	pub fn get_root_layout(&self) -> Option<&Layout> {
+		let mut roots = self.layouts.iter().filter(|l| l.root.unwrap_or(false));
+		match roots.clone().count() {
+			1 => roots.next(),
+			0 => None,
+			_ => panic!("Multiple root layouts found, which is not allowed."),
+		}
+	}
+
+	pub fn get_root_layout_mut(&mut self) -> Option<&mut Layout> {
+		let mut roots: Vec<&mut Layout> = self.layouts.iter_mut().filter(|l| l.root.unwrap_or(false)).collect();
+	
+		match roots.len() {
+			1 => Some(roots.remove(0)), 
+			0 => None,
+			_ => panic!("Multiple root layouts found, which is not allowed."),
+		}
+	}
+	
+	pub fn get_active_layout(&self) -> Option<&Layout> {
+		let mut actives = self.layouts.iter().filter(|l| l.active.unwrap_or(false));
+		match actives.clone().count() {
+			1 => actives.next(),
+			0 => None,
+			_ => panic!("Multiple active layouts found, which is not allowed."),
+		}
+	}
+
+	pub fn get_active_layout_mut(&mut self) -> Option<&mut Layout> {
+		let mut actives: Vec<&mut Layout> = self.layouts.iter_mut().filter(|l| l.active.unwrap_or(false)).collect();
+	
+		match actives.len() {
+			1 => Some(actives.remove(0)), 
+			0 => None,
+			_ => panic!("Multiple active layouts found, which is not allowed."),
+		}
+	}
 }
 
 impl App {
@@ -201,17 +239,59 @@ impl PartialEq for AppContext {
 }
 
 impl AppContext {
-	pub fn new(app: App) -> Self {
+	pub fn new(mut app: App) -> Self {
 		let mut app_graph = AppGraph::new();
 		let mut id_set = HashSet::new();
 		let screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
-
+	
+		let mut root_layout_id: Option<String> = None;
 		for layout in &app.layouts {
-			check_unique_ids(&layout, &mut id_set);
+			let result = check_unique_ids(layout, &mut id_set);
+			if let Err(e) = result {
+				panic!("Error: {}", e);
+			}
+			if layout.root.unwrap_or(false) {
+				if root_layout_id.is_some() {
+					panic!("Multiple root layouts detected, which is not allowed.");
+				}
+				root_layout_id = Some(layout.id.clone());
+			}
 			app_graph.add_layout(layout);
 		}
+	
+		if root_layout_id.is_none() {
+			log::debug!("No root layout defined in the application, defaulting to first layout.");
+			if let Some(first_layout) = app.layouts.first() {
+				root_layout_id = Some(first_layout.id.clone());
+			}else {
+				panic!("No layouts defined in the application.");
+			}
+		}
 
-		AppContext { app, app_graph, screen_buffer}
+		// Set the root layout as active
+		if let Some(root_layout_id) = root_layout_id {
+			if let Some(root_layout) = app.get_layout_by_id_mut(&root_layout_id){
+				if root_layout.active.is_none() || !root_layout.active.unwrap() {
+					log::debug!("Setting root layout '{}' as active", root_layout_id);
+					root_layout.active = Some(true);
+					root_layout.root = Some(true);
+
+					// Set all other layouts as inactive
+					for layout in &mut app.layouts {
+						if layout.id != root_layout_id {
+							layout.active = Some(false);
+							layout.root = Some(false);
+						}
+					}
+				}
+			}
+		}
+	
+		AppContext {
+			app,
+			app_graph,
+			screen_buffer,
+		}
 	}
 
     pub fn deep_clone(&self) -> Self {

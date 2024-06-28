@@ -49,56 +49,6 @@ use crate::model::layout::*;
 use crate::model::panel::*;
 use crate::utils::*;
 
-// fn main() -> Result<(), Box<dyn std::error::Error>> {
-//     env_logger::init();
-
-//     CombinedLogger::init(vec![WriteLogger::new(
-//         LevelFilter::Debug,
-//         Config::default(),
-//         File::create("app.log")?,
-//     )])?;
-
-//     let mut manager = ThreadManager::new();
-//     manager.spawn_thread(MyRunnable);
-//     manager.spawn_thread(MyRunnable);
-
-//     let data = App::new();
-//     manager.send_data_to_thread(data.clone(), 0);
-//     manager.send_data_to_thread(data.clone(), 1);
-
-//     if let Some(received_data) = manager.receive_data_from_thread() {
-//         let initial_hash = manager.get_hash(&data);
-//         let received_hash = manager.get_hash(&received_data);
-
-//         if initial_hash != received_hash {
-//             manager.send_update_to_all_threads(received_data);
-//         }
-//     }
-
-//     manager.join_threads();
-// }
-
-// fn mai3n() {
-//     let (app, app_graph) =
-//         load_app_from_yaml("/Users/bahram/ws/prj/machinegenesis/crossbash2/layouts/dashboard.yaml")
-//             .expect("Failed to load app");
-
-//     if let Some(layout) = app.get_layout_by_id("dashboard") {
-//         if let Some(panel) = app_graph.get_panel_by_id(&layout.id, "header") {
-//             println!("Found panel: {:?}", panel);
-//         }
-
-//         if let Some(parent) = app_graph.get_parent(&layout.id, "time") {
-//             println!("Parent panel: {:?}", parent);
-//         }
-
-//         let children = app_graph.get_children(&layout.id, "footer");
-//         for child in children {
-//             println!("Child panel: {:?}", child);
-//         }
-//     }
-// }
-
 // fn start_panel_event_threads(app: &mut App, app_graph: &AppGraph,thread_manager: &mut ThreadManager) {
 // 	for layout in &app.layouts {
 // 		for panel in &layout.children {
@@ -189,10 +139,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )])?;
 
     log::info!("Starting app");
+    let current_dir_path = std::env::current_dir().expect("Failed to get current directory path");
+	// add /layouts/dashboard.yaml to the current directory
+	let dashboard_path = current_dir_path.join("layouts/dashboard.yaml");
+
     // let mut stdout = AlternateScreen::from(stdout().into_raw_mode()?);
-    let app_context =
-        load_app_from_yaml("/Users/bahram/ws/prj/machinegenesis/crossbash/layouts/dashboard.yaml")
-            .expect("Failed to load app");
+    let app_context = load_app_from_yaml(dashboard_path.to_str().unwrap())
+        .expect("Failed to load app");
 
     let mut manager = ThreadManager::new(app_context.deep_clone());
 
@@ -203,27 +156,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-// fn main() {
-//     env_logger::init();
-//     let app_context = AppContext::new(App::new());
-//     let mut manager = ThreadManager::new(app_context.clone());
-//     let uuid1 = manager.spawn_thread(TestRunnableOne::new(app_context.clone()));
-//     let uuid2 = manager.spawn_thread(TestRunnableTwo::new(app_context.clone()));
-//     let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
-
-//     let data = AppContext::new(App::new());
-//     manager.send_data_to_thread(data.clone(), uuid1);
-//     manager.send_data_to_thread(data.clone(), uuid2);
-//     manager.send_data_to_thread(data.clone(), uuid3);
-
-//     // Run the manager's loop in a separate thread
-//     let manager = Arc::new(manager);
-//     let manager_clone = Arc::clone(&manager);
-
-//     let handle = thread::spawn(move || {
-//         manager_clone.run();
-//     });
-
-//     handle.join().unwrap();
-// }

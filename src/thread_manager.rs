@@ -154,6 +154,7 @@ impl Runnable for RunnableImpl {
 
     fn update_app_context(&mut self, app_context: AppContext) {
         self.app_context = app_context;
+		self.send_state_update();
     }
 
     fn set_uuid(&mut self, uuid: Uuid) {
@@ -269,10 +270,11 @@ impl ThreadManager {
                 }
             }
 
-            // // Sleep only if there were no updates to process
-            // if !has_updates {
-            //     thread::sleep(std::time::Duration::from_millis(100));
-            // }
+            // Sleep only if there were no updates to process
+            if !has_updates {
+                thread::sleep(std::time::Duration::from_millis(100));
+            }
+			// std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
