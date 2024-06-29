@@ -209,6 +209,21 @@ impl Layout {
 		}
 	}
 
+	pub fn get_all_panels(&self) -> Vec<&Panel> {
+		fn recursive_collect<'a>(panels: &'a [Panel], all_panels: &mut Vec<&'a Panel>) {
+			for panel in panels {
+				all_panels.push(panel);
+				if let Some(ref children) = panel.children {
+					recursive_collect(children, all_panels);
+				}
+			}
+		}
+	
+		let mut all_panels = Vec::new();
+		recursive_collect(&self.children, &mut all_panels);
+		all_panels
+	}
+	
 	pub fn select_next_panel(&mut self) {
 		let panels = self.get_panels_in_tab_order();
 		if panels.is_empty() {

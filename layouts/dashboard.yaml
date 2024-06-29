@@ -122,6 +122,8 @@ layouts:
           x2: 98%
           y2: 35%
         content: 'free -m'
+        on_refresh:
+          - ifconfig
         scroll: false
         tab_order: 3
         on_error:

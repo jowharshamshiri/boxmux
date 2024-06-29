@@ -27,6 +27,7 @@ pub enum Message {
     PanelEventEnter(String),
     PanelEventLeave(String),
     PanelEventError(String),
+	PanelOutputUpdate(String, String),
 }
 
 impl Hash for Message {
@@ -66,6 +67,11 @@ impl Hash for Message {
 			Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
 			Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
 			Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
+			Message::PanelOutputUpdate(panel_id, output) => {
+				"panel_output_update".hash(state);
+				panel_id.hash(state);
+				output.hash(state);
+			}
         }
     }
 }
@@ -425,6 +431,101 @@ macro_rules! create_runnable {
                 }
                 self.inner
                     ._run(&mut |inner, state, messages| $process_body(inner, state, messages))
+            }
+
+            fn receive_updates(&mut self) -> (AppContext, Vec<Message>) {
+                self.inner.receive_updates()
+            }
+
+            fn process(&mut self, state: AppContext, messages: Vec<Message>) {
+                self.inner.process(state.clone(), messages.clone());
+            }
+
+            fn update_app_context(&mut self, app_context: AppContext) {
+                self.inner.update_app_context(app_context)
+            }
+
+            fn set_uuid(&mut self, uuid: Uuid) {
+                self.inner.set_uuid(uuid)
+            }
+
+            fn get_uuid(&self) -> Uuid {
+                self.inner.get_uuid()
+            }
+
+            fn set_state_sender(&mut self, state_sender: mpsc::Sender<(Uuid, AppContext)>) {
+                self.inner.set_state_sender(state_sender)
+            }
+
+            fn set_message_sender(&mut self, message_sender: mpsc::Sender<(Uuid, Message)>) {
+                self.inner.set_message_sender(message_sender)
+            }
+
+            fn set_state_receiver(&mut self, state_receiver: mpsc::Receiver<(Uuid, AppContext)>) {
+                self.inner.set_state_receiver(state_receiver)
+            }
+
+            fn set_message_receiver(&mut self, message_receiver: mpsc::Receiver<(Uuid, Message)>) {
+                self.inner.set_message_receiver(message_receiver)
+            }
+
+            fn get_app_context(&self) -> &AppContext {
+                self.inner.get_app_context()
+            }
+
+            fn get_state_sender(&self) -> &Option<mpsc::Sender<(Uuid, AppContext)>> {
+                self.inner.get_state_sender()
+            }
+
+            fn get_message_sender(&self) -> &Option<mpsc::Sender<(Uuid, Message)>> {
+                self.inner.get_message_sender()
+            }
+
+            fn send_state_update(&self) {
+                self.inner.send_state_update()
+            }
+
+            fn send_message(&self, msg: Message) {
+                self.inner.send_message(msg)
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! create_runnable_with_dynamic_input {
+    ($name:ident, $vec_fn:expr, $init_body:expr, $process_body:expr) => {
+        pub struct $name {
+            inner: RunnableImpl,
+            vec_fn: Box<dyn Fn() -> Vec<String> + Send>,
+        }
+
+        impl $name {
+            pub fn new(app_context: AppContext, vec_fn: Box<dyn Fn() -> Vec<String> + Send>) -> Self {
+                $name {
+                    inner: RunnableImpl::new(app_context),
+                    vec_fn,
+                }
+            }
+        }
+
+        impl Runnable for $name {
+            fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+                // Call the init block before the loop
+                {
+                    let inner = &mut self.inner;
+                    let state = inner.app_context.clone();
+                    let messages = Vec::new();
+                    let vec = (self.vec_fn)();
+                    let init_result = $init_body(inner, state, messages, vec);
+                    if !init_result {
+                        return Ok(false);
+                    }
+                }
+                self.inner._run(&mut |inner, state, messages| {
+                    let vec = (self.vec_fn)();
+                    $process_body(inner, state, messages, vec)
+                })
             }
 
             fn receive_updates(&mut self) -> (AppContext, Vec<Message>) {

@@ -38,7 +38,6 @@ create_runnable!(
         true 
     },
     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
-
         let stdin = stdin();
         let mut should_continue = true;
         for c in stdin.keys() {

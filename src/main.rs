@@ -5,6 +5,7 @@ use draw_loop::DrawLoop;
 use input_loop::InputLoop;
 use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
 use simplelog::*;
+use uuid::Uuid;
 use std::fs::File;
 use std::io::Write as IoWrite;
 use std::io::{stdin, stdout, Read};
@@ -19,7 +20,7 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
-use thread_manager::{Runnable, ThreadManager};
+use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 
 use serde::{
     de::MapAccess, de::SeqAccess, de::Visitor, Deserialize, Deserializer, Serialize, Serializer,
@@ -46,6 +47,8 @@ use crate::model::common::*;
 use crate::model::layout::*;
 use crate::model::panel::*;
 use crate::utils::*;
+
+
 
 // fn start_panel_event_threads(app: &mut App, app_graph: &AppGraph,thread_manager: &mut ThreadManager) {
 // 	for layout in &app.layouts {
@@ -129,6 +132,7 @@ use crate::utils::*;
 // 	}
 // }
 
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     CombinedLogger::init(vec![WriteLogger::new(
         LevelFilter::Debug,
@@ -136,7 +140,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         File::create("app.log")?,
     )])?;
 
-    log::info!("Starting app");
     let current_dir_path = std::env::current_dir().expect("Failed to get current directory path");
 	// add /layouts/dashboard.yaml to the current directory
 	let dashboard_path = current_dir_path.join("layouts/dashboard.yaml");
@@ -149,6 +152,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.deep_clone()));
     let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.deep_clone()));
+
+	let active_layout = app_context.app.get_active_layout();
+
+	let event_thread_uuids: Vec<Uuid>= vec![];
+
+	for panel in &active_layout.unwrap().get_all_panels() {
+        if panel.has_refresh() {
+            let panel_id = panel.id.clone(); 
+
+            let vec_fn = move || vec![panel_id.clone()];
+
+            create_runnable_with_dynamic_input!(
+                PanelRefreshLoop,
+                Box::new(vec_fn),
+                |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>, vec: Vec<String>| -> bool {
+					let mut state_unwrapped = state.deep_clone();
+
+
+					// state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap().content = Some("Hello".to_string());
+					let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
+					let output=execute_commands(panel.on_refresh.clone().unwrap().as_ref());
+					inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
+                    log::debug!("Init vec: {:?}", vec);
+
+
+
+                    true
+                },
+                |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>, vec: Vec<String>| -> bool {
+                    log::debug!("Process vec: {:?}", vec);
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    true
+                }
+            );
+
+            let panel_refresh_loop = PanelRefreshLoop::new(app_context.deep_clone(), Box::new(vec_fn));
+            let panel_refresh_loop_uuid = manager.spawn_thread(panel_refresh_loop);
+        }
+    }
 
     manager.run();
 
