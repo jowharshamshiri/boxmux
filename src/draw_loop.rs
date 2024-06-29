@@ -153,39 +153,51 @@ create_runnable!(
 						}
                     }
 					Message::ScrollPanelDown() => {
-						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
-						if let Some(found_panel) = panel {
-							found_panel.scroll_down(Some(1.0));
-							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(selected_id));
+						let selected_panels = state_unwrapped.app.get_active_layout().unwrap().get_selected_panels();
+						if ! selected_panels.is_empty() {
+							let selected_id=selected_panels.first().unwrap().id.clone();
+							let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+							if let Some(found_panel) = panel {
+								found_panel.scroll_down(Some(1.0));
+								inner.update_app_context(state_unwrapped.deep_clone());
+								inner.send_message(Message::RedrawPanel(selected_id));
+							}
 						}
 					},
 					Message::ScrollPanelUp() => {
-						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
-						if let Some(found_panel) = panel {
-							found_panel.scroll_up(Some(1.0));
-							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(selected_id));
+						let selected_panels = state_unwrapped.app.get_active_layout().unwrap().get_selected_panels();
+						if ! selected_panels.is_empty() {
+							let selected_id=selected_panels.first().unwrap().id.clone();
+							let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+							if let Some(found_panel) = panel {
+								found_panel.scroll_up(Some(1.0));
+								inner.update_app_context(state_unwrapped.deep_clone());
+								inner.send_message(Message::RedrawPanel(selected_id));
+							}
 						}
 					},
 					Message::ScrollPanelLeft() => {
-						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
-						if let Some(found_panel) = panel {
-							found_panel.scroll_left(Some(1.0));
-							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(selected_id));
+						let selected_panels = state_unwrapped.app.get_active_layout().unwrap().get_selected_panels();
+						if ! selected_panels.is_empty() {
+							let selected_id=selected_panels.first().unwrap().id.clone();
+							let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+							if let Some(found_panel) = panel {
+								found_panel.scroll_left(Some(1.0));
+								inner.update_app_context(state_unwrapped.deep_clone());
+								inner.send_message(Message::RedrawPanel(selected_id));
+							}
 						}
 					},
 					Message::ScrollPanelRight() => {
-						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
-						if let Some(found_panel) = panel {
-							found_panel.scroll_right(Some(1.0));
-							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(selected_id));
+						let selected_panels = state_unwrapped.app.get_active_layout().unwrap().get_selected_panels();
+						if ! selected_panels.is_empty() {
+							let selected_id=selected_panels.first().unwrap().id.clone();
+							let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+							if let Some(found_panel) = panel {
+								found_panel.scroll_right(Some(1.0));
+								inner.update_app_context(state_unwrapped.deep_clone());
+								inner.send_message(Message::RedrawPanel(selected_id));
+							}
 						}
 					},
                     Message::RedrawPanel(panel_id) => {
