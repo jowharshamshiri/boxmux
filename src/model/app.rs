@@ -433,7 +433,6 @@ mod tests {
     }
 
     fn setup_app_context() -> AppContext {
-        // Assumes the existence of the helper function load_test_app_context from the previous example
         load_test_app_context()
     }
 

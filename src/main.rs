@@ -39,8 +39,6 @@ mod model {
 pub mod thread_manager;
 mod draw_loop;
 mod input_loop;
-mod panel_loop;
-mod resize_loop;
 mod utils;
 
 use crate::model::app::*;
