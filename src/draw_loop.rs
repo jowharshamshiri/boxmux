@@ -208,6 +208,15 @@ create_runnable!(
 						*buffer = new_buffer;
                     }
                     Message::UpdatePanel(panel_id) => todo!(),
+					Message::PanelOutputUpdate(panel_id, output) => {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+						if let Some(found_panel) = panel {
+							found_panel.content = Some(output.clone());
+							inner.update_app_context(state_unwrapped.deep_clone());
+							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+						}
+					}
+					_ => {}
                 }
             }
             // Ensure the loop continues by sleeping briefly

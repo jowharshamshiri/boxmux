@@ -1,4 +1,6 @@
-use std::{collections::HashMap, io::Write};
+use std::io::{self, Write};
+use std::process::{Command, Stdio};
+use std::{collections::HashMap};
 
 use crate::{model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, AppContext, Layout, Panel};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
@@ -1000,4 +1002,54 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
 	}
 
 	None
+}
+
+
+pub fn run_script(script: &str) -> io::Result<String> {
+    // Create a new Command for the bash shell
+    let mut child = Command::new("bash")
+        .arg("-c")
+        .arg(script)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Wait for the script to finish and collect the output
+    let output = child.wait_with_output()?;
+
+    // Convert the output to a string and return it
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+    if !stderr.is_empty() {
+        Err(io::Error::new(io::ErrorKind::Other, stderr))
+    } else {
+        Ok(stdout)
+    }
+}
+
+pub fn execute_commands(commands: &Vec<String>) -> String {
+	let output = commands
+		.iter()
+		.map(|cmd| {
+			let output = Command::new("sh")
+				.arg("-c")
+				.arg(cmd)
+				.output();
+
+			match output {
+				Ok(output) => {
+					if output.status.success() {
+						String::from_utf8_lossy(&output.stdout).to_string()
+					} else {
+						format!("Error executing '{}': {}", cmd, String::from_utf8_lossy(&output.stderr))
+					}
+				}
+				Err(e) => format!("Failed to execute command '{}': {:?}", cmd, e),
+			}
+		})
+		.collect::<Vec<_>>()
+		.join("\n");
+
+	output
 }
