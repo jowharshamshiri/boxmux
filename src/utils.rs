@@ -280,22 +280,6 @@ pub fn draw_panel(
     vertical_scroll: f64,
     buffer: &mut ScreenBuffer,
 ) {
-    //log::debug!(
-    //     "Drawing panel with bounds '{:?}', border color '{}', background color '{}', parent background color '{}', title '{}', title fg color '{}', title bg color '{}', title position '{}', content '{:?}', fg color '{}', overflow behavior '{}', horizontal scroll '{}', vertical scroll '{}'",
-    //     bounds,
-    //     border_color,
-    //     bg_color.unwrap_or("default"),
-    //     parent_bg_color.unwrap_or("default"),
-    //     title.unwrap_or("None"),
-    //     title_fg_color,
-    //     title_bg_color,
-    //     title_position,
-    //     content,
-    //     fg_color,
-    //     overflow_behavior,
-    //     horizontal_scroll,
-    //     vertical_scroll
-    // );
     let border_color_code = get_fg_color(border_color);
     let title_fg_color_code = get_fg_color(title_fg_color);
     let title_bg_color_code = get_bg_color(title_bg_color);
@@ -308,13 +292,7 @@ pub fn draw_panel(
     let mut _overflowing = false;
     let mut horizontal_scrollbar_position = 0;
     let mut vertical_scrollbar_position = 0;
-
-    //log::debug!(
-    //     "Drawing panel with title '{}', background color '{}', background color code '{}'",
-    //     title.unwrap_or("None"),
-    //     bg_color.unwrap_or("default"),
-    //     bg_color_code
-    // );
+	let mut scrollbars_drawn = false;
 
     // Ensure bounds stay within screen limits
     let screen_bounds = screen_bounds();
@@ -370,93 +348,110 @@ pub fn draw_panel(
 
     if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
-        let viewable_width = bounds.width().saturating_sub(4);
-        let viewable_height = bounds.height().saturating_sub(4);
+		let viewable_width = bounds.width().saturating_sub(4);
+		let viewable_height = bounds.height().saturating_sub(4);
 
-        let content_lines: Vec<&str> = content.lines().collect();
+		let content_lines: Vec<&str> = content.lines().collect();
+		let max_content_width = content_lines.iter().map(|line| line.len()).max().unwrap_or(0);
+		let max_content_height = content_lines.len();
 
-        let max_content_width = content_lines
-            .iter()
-            .map(|line| line.len())
-            .max()
-            .unwrap_or(0);
+		if content_width > viewable_width {
+			_x_offset = (max_content_width as f64 * horizontal_scroll / 100.0).round() as usize;
+		}
 
-        let max_content_height = content_lines.len();
+		if content_height > viewable_height {
+			_y_offset = (max_content_height as f64 * vertical_scroll / 100.0).round() as usize;
+		}
 
-        if content_width > viewable_width {
-            _x_offset = (max_content_width as f64 * horizontal_scroll / 100.0).round() as usize;
-        }
+		_overflowing = content_width > viewable_width || content_height > viewable_height;
 
-        if content_height > viewable_height {
-            _y_offset = (max_content_height as f64 * vertical_scroll / 100.0).round() as usize;
-        }
+		if _overflowing && overflow_behavior == "scroll" {
+			let viewable_width = bounds.width();
+			let viewable_height = bounds.height() - 1; // minus one to avoid overwriting the bottom border
 
-        _overflowing = content_width > viewable_width || content_height > viewable_height;
+			// Calculate the maximum allowable offsets based on content size
+			let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
+			let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
 
-        if _overflowing && overflow_behavior == "scroll" {
-            for (i, line) in content_lines
-                .iter()
-                .enumerate()
-                .skip(_y_offset)
-                .take(viewable_height)
-            {
-                let visible_line = &line
-                    .chars()
-                    .skip(_x_offset)
-                    .take(viewable_width)
-                    .collect::<String>();
-                print_with_color_at(
-                    bounds.top() + 2 + i,
-                    bounds.left() + 2,
-                    fg_color,
-                    visible_line,
-                    buffer,
-                );
-            }
+			// Calculate the current offsets based on scroll percentages
+			let horizontal_offset = ((horizontal_scroll / 100.0) * max_horizontal_offset as f64).floor() as usize;
+			let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
 
-            // Draw vertical scrollbar
-            if content_height > viewable_height {
-                let scrollbar_height = bounds.height().saturating_sub(4);
-                let scroll_ratio =
-                    vertical_scroll as f64 / (content_height - viewable_height) as f64;
-                vertical_scrollbar_position =
-                    (scroll_ratio * scrollbar_height as f64).round() as usize;
+			// Ensure the offsets are within the allowable range
+			let horizontal_offset = horizontal_offset.min(max_horizontal_offset);
+			let vertical_offset = vertical_offset.min(max_vertical_offset);
 
-                // for i in 0..scrollbar_height {
-                //     let ch = if i == scrollbar_position { '█' } else { ' ' };
-                //     buffer.update(
-                //         bounds.right() - 1,
-                //         bounds.top() + 2 + i,
-                //         Cell {
-                //             fg_color: border_color_code.clone(),
-                //             bg_color: bg_color_code.clone(),
-                //             ch,
-                //         },
-                //     );
-                // }
-            }
+			// Calculate scroll knob positions
+			let scroll_nob_position_x = if max_horizontal_offset > 0 {
+				((horizontal_offset as f64 / max_horizontal_offset as f64) * viewable_width as f64).floor() as usize
+			} else {
+				0
+			};
+			let scroll_nob_position_y = if max_vertical_offset > 0 {
+				((vertical_offset as f64 / max_vertical_offset as f64) * viewable_height as f64).floor() as usize
+			} else {
+				0
+			};
 
-            // Draw horizontal scrollbar
-            if content_width > viewable_width {
-                let scrollbar_width = bounds.width().saturating_sub(4);
-                let scroll_ratio =
-                    horizontal_scroll as f64 / (content_width - viewable_width) as f64;
-                horizontal_scrollbar_position =
-                    (scroll_ratio * scrollbar_width as f64).round() as usize;
+			// Debugging output
+			log::info!("horizontal_offset: {}, vertical_offset: {}", horizontal_offset, vertical_offset);
+			log::info!("scroll_nob_position_x: {}, scroll_nob_position_y: {}", scroll_nob_position_x, scroll_nob_position_y);
 
-                // for i in 0..scrollbar_width {
-                //     let ch = if i == scrollbar_position { '█' } else { ' ' };
-                //     buffer.update(
-                //         bounds.left() + 2 + i,
-                //         bounds.bottom() - 1,
-                //         Cell {
-                //             fg_color: border_color_code.clone(),
-                //             bg_color: bg_color_code.clone(),
-                //             ch,
-                //         },
-                //     );
-                // }
-            }
+			let visible_lines = content_lines.iter().skip(vertical_offset).take(viewable_height);
+
+			for (line_idx, line) in visible_lines.enumerate() {
+				let visible_part = line.chars().skip(horizontal_offset).take(viewable_width).collect::<String>();
+				print_with_color_at(bounds.top() + 1 + line_idx, bounds.left(), &fg_color_code, &visible_part, buffer);
+			}
+
+			// Draw bottom border
+			draw_horizontal_line(
+				bounds.bottom(),
+				bounds.left(),
+				bounds.right(),
+				border_color,
+				bg_color.unwrap_or("default"),
+				buffer,
+			);
+
+			// Draw right border
+			draw_vertical_line(
+				bounds.right(),
+				bounds.top() + 1,
+				bounds.bottom() - 1,
+				border_color,
+				bg_color.unwrap_or("default"),
+				buffer,
+			);
+
+			
+			// Drawing the scroll nobs within the borders
+			if max_content_height > viewable_height {
+				let scrollbar_position = ((vertical_scroll as f64 / 100.0) * (viewable_height -1) as f64).floor() as usize;
+				print_with_color_and_background_at(
+					bounds.top() + 1 + scrollbar_position,
+					bounds.right(),
+					border_color,
+					bg_color.unwrap_or("default"),
+					V_SCROLL_CHAR,
+					buffer,
+				);
+			}
+
+			if max_content_width > viewable_width {
+				let scrollbar_position = ((horizontal_scroll as f64 / 100.0) * (viewable_width -2) as f64).floor() as usize;
+				print_with_color_and_background_at(
+					bounds.bottom(),
+					bounds.left() + 1 + scrollbar_position,
+					border_color,
+					bg_color.unwrap_or("default"),
+					H_SCROLL_CHAR,
+					buffer,
+				);
+			}
+
+			scrollbars_drawn = true;
+
         } else if !_overflowing {
             for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
                 let visible_line = &line
@@ -497,14 +492,20 @@ pub fn draw_panel(
             );
         }
     } else {
-        draw_horizontal_line(
-            bounds.bottom(),
-            bounds.left(),
-            bounds.right(),
-            border_color,
-            bg_color.unwrap_or("default"),
-            buffer,
-        );
+
+		// Draw bottom border
+		if !scrollbars_drawn {
+			draw_horizontal_line(
+				bounds.bottom(),
+				bounds.left(),
+				bounds.right(),
+				border_color,
+				bg_color.unwrap_or("default"),
+				buffer,
+			);
+		}
+
+		// Draw left border
         draw_vertical_line(
             bounds.left(),
             bounds.top() + 1,
@@ -513,33 +514,19 @@ pub fn draw_panel(
             bg_color.unwrap_or("default"),
             buffer,
         );
-        draw_vertical_line(
-            bounds.right(),
-            bounds.top() + 1,
-            bounds.bottom() - 1,
-            border_color,
-            bg_color.unwrap_or("default"),
-            buffer,
-        );
 
-        print_with_color_and_background_at(
-            bounds.top() + 2 + vertical_scrollbar_position,
-            bounds.right(),
-            border_color,
-            bg_color.unwrap_or("default"),
-            V_SCROLL_CHAR,
-            buffer,
-        );
-
-        print_with_color_and_background_at(
-            bounds.bottom(),
-            bounds.left() + 2 + horizontal_scrollbar_position,
-            border_color,
-            bg_color.unwrap_or("default"),
-            H_SCROLL_CHAR,
-            buffer,
-        );
-
+		// Draw right border
+        if !scrollbars_drawn {
+			draw_vertical_line(
+				bounds.right(),
+				bounds.top() + 1,
+				bounds.bottom() - 1,
+				border_color,
+				bg_color.unwrap_or("default"),
+				buffer,
+			);
+		}
+		
         // Draw corners
         buffer.update(
             bounds.left(),

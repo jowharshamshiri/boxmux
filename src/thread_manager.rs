@@ -240,7 +240,6 @@ impl ThreadManager {
     pub fn run(&self) {
         let mut should_continue: bool = true;
         while should_continue {
-            log::info!("Running thread manager loop");
             let mut has_updates = false;
 
             // Handle state updates

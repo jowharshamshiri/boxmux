@@ -80,23 +80,27 @@ layouts:
           x2: 48%
           y2: 35%
         content: |
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
-          tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog tail -n 10 /var/log/syslog
+          lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor
+          incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et
+          dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor
+          incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et
+          dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor
+          incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et
+          dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor
+          incididunt ut labore et dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et
+          dolore magna aliqua consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua
+          consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua consectetur adipiscing elit
+          
         scroll: true
         tab_order: 2
         on_error:
