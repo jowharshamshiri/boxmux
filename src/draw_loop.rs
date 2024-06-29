@@ -1,4 +1,5 @@
 use crate::model::app::App;
+use crate::model::panel;
 use crate::thread_manager::{self, Runnable};
 use crate::{
     apply_buffer_if_changed, get_bg_color, get_fg_color, screen_height, screen_width, AppContext, Bounds, Cell, Layout, Panel, ScreenBuffer
@@ -96,7 +97,7 @@ create_runnable!(
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
                     }
-                    Message::NextPanel(layout_id) => {
+                    Message::NextPanel() => {
 						let mut active_layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
 					
 						// First, collect the IDs of currently selected panels before changing the selection.
@@ -123,7 +124,7 @@ create_runnable!(
 							inner.send_message(Message::RedrawPanel(panel_id));
 						}
 					}
-                    Message::PreviousPanel(layout_id) => {
+                    Message::PreviousPanel() => {
 						let mut active_layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
 					
 						// First, collect the IDs of currently selected panels before changing the selection.
@@ -150,36 +151,40 @@ create_runnable!(
 							inner.send_message(Message::RedrawPanel(panel_id));
 						}
                     }
-					Message::ScrollPanelDown(panel_id) => {
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+					Message::ScrollPanelDown() => {
+						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
 						if let Some(found_panel) = panel {
 							found_panel.scroll_down(Some(1.0));
 							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+							inner.send_message(Message::RedrawPanel(selected_id));
 						}
 					},
-					Message::ScrollPanelUp(panel_id) => {
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+					Message::ScrollPanelUp() => {
+						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
 						if let Some(found_panel) = panel {
 							found_panel.scroll_up(Some(1.0));
 							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+							inner.send_message(Message::RedrawPanel(selected_id));
 						}
 					},
-					Message::ScrollPanelLeft(panel_id) => {
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+					Message::ScrollPanelLeft() => {
+						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
 						if let Some(found_panel) = panel {
 							found_panel.scroll_left(Some(1.0));
 							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+							inner.send_message(Message::RedrawPanel(selected_id));
 						}
 					},
-					Message::ScrollPanelRight(panel_id) => {
-						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+					Message::ScrollPanelRight() => {
+						let selected_id=state_unwrapped.app.get_active_layout().unwrap().get_selected_panels().first().unwrap().id.clone();
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
 						if let Some(found_panel) = panel {
 							found_panel.scroll_right(Some(1.0));
 							inner.update_app_context(state_unwrapped.deep_clone());
-							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+							inner.send_message(Message::RedrawPanel(selected_id));
 						}
 					},
                     Message::RedrawPanel(panel_id) => {
@@ -265,10 +270,6 @@ pub fn draw_panel(
     let border_color = panel.calc_border_color(app_context).to_string();
     let fill_char = panel.calc_fill_char(app_context);
 
-	// if panel.selected.unwrap_or(false) {
-	// 	log::info!("Panel '{}' is selected", panel.id);
-	// 	bg_color = "red".to_owned();
-	// }
     // Draw fill
     fill_panel(&bounds, border, &bg_color, fill_char, buffer);
 
@@ -309,5 +310,4 @@ pub fn draw_panel(
             draw_panel(app_context, layout, child, buffer);
         }
     }
-    log::debug!("Finished drawing panel '{}'", panel.id);
 }

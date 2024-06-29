@@ -12,7 +12,7 @@ layouts:
     selected_title_bg_color: 'bright_red'
     border: true
     border_color: 'bright_white'
-    selected_border_color: 'bright_red'
+    selected_border_color: 'bright_white'
     title_position: 'start'
     # fill_char: 'X'
     overflow_behavior: 'scroll'

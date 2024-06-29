@@ -13,12 +13,12 @@ use uuid::Uuid;
 pub enum Message {
     Exit,
     Die,
-    NextPanel(String),
-    PreviousPanel(String),
-	ScrollPanelDown(String),
-	ScrollPanelUp(String),
-	ScrollPanelLeft(String),
-	ScrollPanelRight(String),
+    NextPanel(),
+    PreviousPanel(),
+	ScrollPanelDown(),
+	ScrollPanelUp(),
+	ScrollPanelLeft(),
+	ScrollPanelRight(),
     Resize,
     RedrawPanel(String),
     RedrawApp,
@@ -34,14 +34,8 @@ impl Hash for Message {
         match self {
             Message::Exit => "exit".hash(state),
             Message::Die => "die".hash(state),
-            Message::NextPanel(panel_id) => {
-                "next_panel".hash(state);
-                panel_id.hash(state);
-            }
-            Message::PreviousPanel(panel_id) => {
-                "previous_panel".hash(state);
-                panel_id.hash(state);
-            }
+            Message::NextPanel() => "next_panel".hash(state),
+            Message::PreviousPanel() => "previous_panel".hash(state),
             Message::Resize => "resize".hash(state),
             Message::RedrawPanel(panel_id) => {
                 "redraw_panel".hash(state);
@@ -68,22 +62,10 @@ impl Hash for Message {
                 "panel_event_error".hash(state);
                 panel_id.hash(state);
             }
-			Message::ScrollPanelDown(panel_id) => {
-				"scroll_panel_down".hash(state);
-				panel_id.hash(state);
-			}
-			Message::ScrollPanelUp(panel_id) => {
-				"scroll_panel_up".hash(state);
-				panel_id.hash(state);
-			},
-			Message::ScrollPanelLeft(panel_id) => {
-				"scroll_panel_left".hash(state);
-				panel_id.hash(state);
-			},
-			Message::ScrollPanelRight(panel_id) => {
-				"scroll_panel_right".hash(state);
-				panel_id.hash(state);
-			}
+			Message::ScrollPanelDown() => "scroll_panel_down".hash(state),
+			Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
+			Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
+			Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
         }
     }
 }

@@ -49,38 +49,22 @@ create_runnable!(
                     break;
                 }
                 Key::Char('\t') => {
-                    inner.send_message(Message::NextPanel("".to_string()));
+                    inner.send_message(Message::NextPanel());
                 }
                 Key::BackTab => {
-                    inner.send_message(Message::PreviousPanel("".to_string()));
+                    inner.send_message(Message::PreviousPanel());
                 }
                 Key::Down => {
-					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
-					if selected_panels.len() == 1 {
-						let panel = selected_panels.first().unwrap();
-						inner.send_message(Message::ScrollPanelDown(panel.id.clone()));
-					}
+					inner.send_message(Message::ScrollPanelDown());
                 }
                 Key::Up => {
-                    let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
-					if selected_panels.len() == 1 {
-						let panel = selected_panels.first().unwrap();
-						inner.send_message(Message::ScrollPanelUp(panel.id.clone()));
-					}
+					inner.send_message(Message::ScrollPanelUp());
                 }
 				Key::Left => {
-					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
-					if selected_panels.len() == 1 {
-						let panel = selected_panels.first().unwrap();
-						inner.send_message(Message::ScrollPanelLeft(panel.id.clone()));
-					}
+					inner.send_message(Message::ScrollPanelLeft());
 				}
 				Key::Right => {
-					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
-					if selected_panels.len() == 1 {
-						let panel = selected_panels.first().unwrap();
-						inner.send_message(Message::ScrollPanelRight(panel.id.clone()));
-					}
+					inner.send_message(Message::ScrollPanelRight());
 				}
                 _ => {}
             }
