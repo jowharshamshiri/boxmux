@@ -35,17 +35,9 @@ use uuid::Uuid;
 create_runnable!(
     InputLoop,
     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
-        // Initialization block
-        // info!("Initializing InputLoop with state: {:?}", state);
-
-        true // Initialization complete, continue running
+        true 
     },
     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
-        // Processing block
-        // info!(
-        //     "Processing in InputLoop with state: {:?} and messages: {:?}",
-        //     state, messages
-        // );
 
         let stdin = stdin();
         let mut should_continue = true;

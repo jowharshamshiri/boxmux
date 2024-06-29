@@ -285,38 +285,45 @@ impl Panel {
         self.output = output.to_string();
     }
 
-	pub fn get_parent<'a>(&self, app_context: &'a AppContext) -> Option<&'a Panel> {
-        if let Some(ref parent_id) = self.parent_id {
-            // if let Some(ref parent_layout_id) = self.parent_layout_id {
-                return app_context.app_graph.get_panel_by_id(parent_id);
-            // }
+	pub fn get_parent_clone(&self, app_context: &AppContext) -> Option<Panel> {
+        let layout_id = self.parent_layout_id.as_ref().expect("Parent layout ID missing");
+        let app_graph = app_context.app.generate_graph(); 
+        if let Some(parent) = app_graph.get_parent(layout_id, &self.id) {
+            log::info!("Panel '{}' has parent_id: '{}'", self.id, parent.id);
+            Some(parent.clone())  // Clone the result to break the lifetime dependency
+        } else {
+            log::info!("Panel '{}' has no parent_id", self.id);
+            None
         }
-        None
     }
 
-    pub fn get_parent_layout<'a>(&self, app_context: &'a AppContext) -> Option<&'a Layout> {
-        if let Some(ref parent_layout_id) = self.parent_layout_id {
-            return app_context.app_graph.get_layout_by_id(&app_context.app, parent_layout_id);
-        }
-        None
-    }
+	pub fn get_parent_layout_clone(&self, app_context: &AppContext) -> Option<Layout> {
+		let layout_id = self.parent_layout_id.as_ref().expect("Parent layout ID missing");
+		if let Some(parent_layout) = app_context.app.get_layout_by_id(layout_id) {
+			log::info!("Panel '{}' has parent_layout_id: '{}'", self.id, parent_layout.id);
+			Some(parent_layout.clone())  // Clone the result to break the lifetime dependency
+		} else {
+			log::info!("Panel '{}' has no parent_layout_id", self.id);
+			None
+		}
+	}
 
     pub fn calc_fg_color<'a>(&self, app_context: &AppContext) -> String {
-        let parent_color = self.get_parent(app_context).and_then(|p| {
+        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_fg_color.as_ref()
+                p.selected_fg_color.clone()
             } else {
-                p.fg_color.as_ref()
+                p.fg_color.clone()
             }
         });
 
-        let parent_layout_color = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_fg_color.as_ref()
-            } else {
-                pl.fg_color.as_ref()
-            }
-        });
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_fg_color.clone()
+			} else {
+				pl.fg_color.clone()
+			}
+		});
 
         let self_color = if self.selected.unwrap_or(false) {
             self.selected_fg_color.as_ref()
@@ -324,51 +331,53 @@ impl Panel {
             self.fg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color, parent_layout_color, "default")
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
     pub fn calc_bg_color<'a>(&self, app_context: &AppContext) -> String {
-        let parent_color = self.get_parent(app_context).and_then(|p| {
+		let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_bg_color.as_ref()
+                p.selected_bg_color.clone()
             } else {
-                p.bg_color.as_ref()
+                p.bg_color.clone()
             }
         });
 
-        let parent_layout_color = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_bg_color.as_ref()
-            } else {
-                pl.bg_color.as_ref()
-            }
-        });
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_bg_color.clone()
+			} else {
+				pl.bg_color.clone()
+			}
+		});
 
         let self_color = if self.selected.unwrap_or(false) {
+			// log::info!("Panel '{}' is selected and has selected_bg_color", self.selected_bg_color.unwrap());
             self.selected_bg_color.as_ref()
         } else {
+			// log::info!("Panel '{}' is not selected and has bg_color", self.id);
             self.bg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color, parent_layout_color, "default")
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
     pub fn calc_border_color<'a>(&self, app_context: &AppContext) -> String {
-        let parent_color = self.get_parent(app_context).and_then(|p| {
+        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_border_color.as_ref()
+                p.selected_border_color.clone()
             } else {
-                p.border_color.as_ref()
+                p.border_color.clone()
             }
         });
 
-        let parent_layout_color = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_border_color.as_ref()
-            } else {
-                pl.border_color.as_ref()
-            }
-        });
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_border_color.clone()
+			} else {
+				pl.border_color.clone()
+			}
+		});
 
         let self_color = if self.selected.unwrap_or(false) {
             self.selected_border_color.as_ref()
@@ -376,25 +385,25 @@ impl Panel {
             self.border_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color, parent_layout_color, "default")
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
     pub fn calc_title_bg_color<'a>(&self, app_context: &AppContext) -> String {
-        let parent_color = self.get_parent(app_context).and_then(|p| {
+        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_title_bg_color.as_ref()
+                p.selected_title_bg_color.clone()
             } else {
-                p.title_bg_color.as_ref()
+                p.title_bg_color.clone()
             }
         });
 
-        let parent_layout_color = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_title_bg_color.as_ref()
-            } else {
-                pl.title_bg_color.as_ref()
-            }
-        });
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_title_bg_color.clone()
+			} else {
+				pl.title_bg_color.clone()
+			}
+		});
 
         let self_color = if self.selected.unwrap_or(false) {
             self.selected_title_bg_color.as_ref()
@@ -402,25 +411,25 @@ impl Panel {
             self.title_bg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color, parent_layout_color, "default")
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
     pub fn calc_title_fg_color(&self, app_context: &AppContext) -> String {
-        let parent_color = self.get_parent(app_context).and_then(|p| {
+        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_title_fg_color.as_ref()
+                p.selected_title_fg_color.clone()
             } else {
-                p.title_fg_color.as_ref()
+                p.title_fg_color.clone()
             }
         });
 
-        let parent_layout_color = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_title_fg_color.as_ref()
-            } else {
-                pl.title_fg_color.as_ref()
-            }
-        });
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_title_fg_color.clone()
+			} else {
+				pl.title_fg_color.clone()
+			}
+		});
 
         let self_color = if self.selected.unwrap_or(false) {
             self.selected_title_fg_color.as_ref()
@@ -428,37 +437,39 @@ impl Panel {
             self.title_fg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color, parent_layout_color, "default")
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
     pub fn calc_title_position(&self, app_context: &AppContext) -> String {
-        let parent_position = self.get_parent(app_context).and_then(|p| p.title_position.as_ref());
-        let parent_layout_position = self.get_parent_layout(app_context).and_then(|pl| pl.title_position.as_ref());
+		let parent_position = self.get_parent_clone(app_context).and_then(|p| {
+			p.title_position.clone()
+        });
+        let parent_layout_position = self.get_parent_layout_clone(app_context).and_then(|pl| pl.title_position.clone());
 
         inherit_string(
             self.title_position.as_ref(),
-            parent_position,
-            parent_layout_position,
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
             "center",
         )
     }
 
     pub fn calc_fill_char(&self, app_context: &AppContext) -> char {
-        let parent_char = self.get_parent(app_context).and_then(|p| {
+        let parent_fill_char = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.selected_fill_char.as_ref()
+                p.fill_char.clone()
             } else {
-                p.fill_char.as_ref()
+                p.fill_char.clone()
             }
         });
 
-        let parent_layout_char = self.get_parent_layout(app_context).and_then(|pl| {
-            if self.selected.unwrap_or(false) {
-                pl.selected_fill_char.as_ref()
-            } else {
-                pl.fill_char.as_ref()
-            }
-        });
+        let parent_layout_fill_char = self.get_parent_layout_clone(app_context).and_then(|pl| {
+			if self.selected.unwrap_or(false) {
+				pl.selected_fill_char.clone()
+			} else {
+				pl.fill_char.clone()
+			}
+		});
 
         let self_char = if self.selected.unwrap_or(false) {
             self.selected_fill_char.as_ref()
@@ -466,28 +477,34 @@ impl Panel {
             self.fill_char.as_ref()
         };
 
-        inherit_char(self_char, parent_char, parent_layout_char, '█')
+        inherit_char(self_char, parent_fill_char.as_ref(), parent_layout_fill_char.as_ref(), '█')
     }
 
     pub fn calc_border(&self, app_context: &AppContext) -> bool {
-        let parent_border = self.get_parent(app_context).and_then(|p| p.border.as_ref());
-        let parent_layout_border = self.get_parent_layout(app_context).and_then(|pl| pl.border.as_ref());
+		let parent_border = self.get_parent_clone(app_context).and_then(|p| {
+			p.border.clone()
+        });
+        let parent_layout_border = self.get_parent_layout_clone(app_context).and_then(|pl| pl.border.clone());
 
-        inherit_bool(self.border.as_ref(), parent_border, parent_layout_border, true)
+        inherit_bool(self.border.as_ref(), parent_border.as_ref(), parent_layout_border.as_ref(), true)
     }
 
     pub fn calc_overflow_behavior(&self, app_context: &AppContext) -> String {
-        let parent_overflow = self.get_parent(app_context).and_then(|p| p.overflow_behavior.as_ref());
-        let parent_layout_overflow = self.get_parent_layout(app_context).and_then(|pl| pl.overflow_behavior.as_ref());
+        let parent_overflow_behavior = self.get_parent_clone(app_context).and_then(|p| {
+            p.overflow_behavior.clone()
+        });
+        let parent_layout_overflow = self.get_parent_layout_clone(app_context).and_then(|pl| pl.overflow_behavior.clone());
 
-        inherit_string(self.overflow_behavior.as_ref(), parent_overflow, parent_layout_overflow, "scroll")
+        inherit_string(self.overflow_behavior.as_ref(), parent_overflow_behavior.as_ref(), parent_layout_overflow.as_ref(), "scroll")
     }
 
     pub fn calc_refresh_interval(&self, app_context: &AppContext) -> u64 {
-        let parent_interval = self.get_parent(app_context).and_then(|p| p.refresh_interval.as_ref());
-        let parent_layout_interval = self.get_parent_layout(app_context).and_then(|pl| pl.refresh_interval.as_ref());
+        let parent_refresh_interval = self.get_parent_clone(app_context).and_then(|p| {
+            p.refresh_interval.clone()
+        });
+        let parent_layout_interval = self.get_parent_layout_clone(app_context).and_then(|pl| pl.refresh_interval.clone());
 
-        inherit_u64(self.refresh_interval.as_ref(), parent_interval, parent_layout_interval, 0)
+        inherit_u64(self.refresh_interval.as_ref(), parent_refresh_interval.as_ref(), parent_layout_interval.as_ref(), 0)
     }
 	
     pub fn is_selectable(&self) -> bool {

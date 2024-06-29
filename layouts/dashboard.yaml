@@ -5,7 +5,7 @@ layouts:
     fg_color: 'white'
     selected_fg_color: 'bright_yellow'
     bg_color: 'bright_black'
-    selected_bg_color: 'bright_black'
+    selected_bg_color: 'bright_red'
     title_fg_color: 'bright_white'
     selected_title_fg_color: 'bright_white'
     title_bg_color: 'red'
@@ -29,7 +29,7 @@ layouts:
         max_width: 100
         max_height: 3
         scroll: false
-        tab_order: none
+        # tab_order: none
         on_error:
           - echo "Error loading header."
         on_enter:
@@ -45,7 +45,7 @@ layouts:
               y2: 100%
             content: 'Server Dashboard'
             scroll: false
-            tab_order: none
+            # tab_order: none
             on_error:
               - echo "Error loading title."
             on_enter:
