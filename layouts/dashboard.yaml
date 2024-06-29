@@ -15,7 +15,7 @@ layouts:
     selected_border_color: 'bright_red'
     title_position: 'start'
     # fill_char: 'X'
-    # #overflow_behavior: 'removed'
+    overflow_behavior: 'scroll'
 
     children:
       - id: 'header'

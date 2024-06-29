@@ -1,7 +1,7 @@
 use crate::model::app::App;
 use crate::thread_manager::{self, Runnable};
 use crate::{
-    apply_buffer_if_changed, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer,
+    apply_buffer_if_changed, get_bg_color, get_fg_color, screen_height, screen_width, AppContext, Bounds, Cell, Layout, Panel, ScreenBuffer
 };
 use log::{error, info};
 use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
@@ -54,10 +54,10 @@ create_runnable!(
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
-            let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+			let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
             draw_app(&state, &mut new_buffer);
             apply_buffer_if_changed(buffer, &new_buffer, screen);
-            // info!("Initial draw complete");
+			*buffer = new_buffer;
         }
 
         true
@@ -70,14 +70,8 @@ create_runnable!(
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
-            let mut new_buffer = buffer.clone();
+			let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
             let mut state_unwrapped = state.deep_clone();
-
-            // for message in &messages {
-            //     info!("DrawLoop received message: {:?}", message);
-            // }
-            // info!("DrawLoop running with data: {:?}", inner.get_app_context());
-            // inner.send_message(Message::PanelEventEnter("Panel3".to_string()));
 
             for message in &messages {
                 match message {
@@ -100,19 +94,94 @@ create_runnable!(
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
+						*buffer = new_buffer;
                     }
                     Message::NextPanel(layout_id) => {
-						let active_layout:&mut Layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
+						let mut active_layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
+					
+						// First, collect the IDs of currently selected panels before changing the selection.
+						let unselected_panel_ids: Vec<String> = active_layout.get_selected_panels()
+																			.iter()
+																			.map(|panel| panel.id.clone())
+																			.collect();
+					
+						// Now perform the mutation that changes the panel selection.
 						active_layout.select_next_panel();
+					
+						// After mutation, get the newly selected panels' IDs.
+						let selected_panel_ids: Vec<String> = active_layout.get_selected_panels()
+							.iter()
+							.map(|panel| panel.id.clone())
+							.collect();
+					
+						// Update the application context and issue redraw commands based on the collected IDs.
 						inner.update_app_context(state_unwrapped.deep_clone());
-                        inner.send_message(Message::RedrawApp);
-                    }
+						for panel_id in unselected_panel_ids {
+							inner.send_message(Message::RedrawPanel(panel_id));
+						}
+						for panel_id in selected_panel_ids {
+							inner.send_message(Message::RedrawPanel(panel_id));
+						}
+					}
                     Message::PreviousPanel(layout_id) => {
-						let active_layout:&mut Layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
+						let mut active_layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
+					
+						// First, collect the IDs of currently selected panels before changing the selection.
+						let unselected_panel_ids: Vec<String> = active_layout.get_selected_panels()
+																			.iter()
+																			.map(|panel| panel.id.clone())
+																			.collect();
+					
+						// Now perform the mutation that changes the panel selection.
 						active_layout.select_previous_panel();
+					
+						// After mutation, get the newly selected panels' IDs.
+						let selected_panel_ids: Vec<String> = active_layout.get_selected_panels()
+							.iter()
+							.map(|panel| panel.id.clone())
+							.collect();
+					
+						// Update the application context and issue redraw commands based on the collected IDs.
 						inner.update_app_context(state_unwrapped.deep_clone());
-						inner.send_message(Message::RedrawApp);
+						for panel_id in unselected_panel_ids {
+							inner.send_message(Message::RedrawPanel(panel_id));
+						}
+						for panel_id in selected_panel_ids {
+							inner.send_message(Message::RedrawPanel(panel_id));
+						}
                     }
+					Message::ScrollPanelDown(panel_id) => {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+						if let Some(found_panel) = panel {
+							found_panel.scroll_down(Some(1.0));
+							inner.update_app_context(state_unwrapped.deep_clone());
+							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+						}
+					},
+					Message::ScrollPanelUp(panel_id) => {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+						if let Some(found_panel) = panel {
+							found_panel.scroll_up(Some(1.0));
+							inner.update_app_context(state_unwrapped.deep_clone());
+							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+						}
+					},
+					Message::ScrollPanelLeft(panel_id) => {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+						if let Some(found_panel) = panel {
+							found_panel.scroll_left(Some(1.0));
+							inner.update_app_context(state_unwrapped.deep_clone());
+							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+						}
+					},
+					Message::ScrollPanelRight(panel_id) => {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
+						if let Some(found_panel) = panel {
+							found_panel.scroll_right(Some(1.0));
+							inner.update_app_context(state_unwrapped.deep_clone());
+							inner.send_message(Message::RedrawPanel(panel_id.clone()));
+						}
+					},
                     Message::RedrawPanel(panel_id) => {
                         let panel = state_unwrapped.app.get_panel_by_id(&panel_id);
                         if let Some(found_panel) = panel {
@@ -124,12 +193,14 @@ create_runnable!(
                                 &mut new_buffer,
                             );
                             apply_buffer_if_changed(buffer, &new_buffer, screen);
+							*buffer = new_buffer;
                         }
                     }
                     Message::RedrawApp => {
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
+						*buffer = new_buffer;
                     }
                     Message::UpdatePanel(panel_id) => todo!(),
                 }
@@ -144,20 +215,21 @@ create_runnable!(
 
 pub fn draw_app(app_context: &AppContext, buffer: &mut ScreenBuffer) {
     let app = &app_context.app;
-    log::debug!("Drawing app_context with {} layouts", app.layouts.len());
 	let active_layout = app.get_active_layout().expect("No active layout found!");
 	
 	draw_layout(app_context, active_layout, buffer);
-    
-    log::debug!("Finished drawing app_context");
 }
 
 pub fn draw_layout(app_context: &AppContext, layout: &Layout, buffer: &mut ScreenBuffer) {
-    log::debug!("Drawing layout with {} panels", layout.children.len());
+	let bg_color = app_context.app.get_active_layout().unwrap().bg_color.clone().unwrap_or_else(|| get_bg_color("default"));
+	let fill_char = app_context.app.get_active_layout().unwrap().fill_char.unwrap_or(' ');
+	
+	//background
+	fill_panel(&screen_bounds(), false, bg_color.as_str(),fill_char, buffer);
+
     for panel in &layout.children {
         draw_panel(app_context, layout, panel, buffer);
     }
-    log::debug!("Finished drawing layout");
 }
 
 pub fn draw_panel(
@@ -166,8 +238,6 @@ pub fn draw_panel(
     panel: &Panel,
     buffer: &mut ScreenBuffer,
 ) {
-    log::debug!("Drawing panel '{}'", panel.id);
-
 	let app_graph = app_context.app.generate_graph();
 
     let panel_parent = app_graph.get_parent(&layout.id, &panel.id);

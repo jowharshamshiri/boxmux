@@ -941,23 +941,54 @@ pub fn apply_buffer_if_changed(
     alternate_screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>,
 ) {
     for y in 0..current_buffer.height {
+        let mut last_changed_index: Option<u16> = None;
+        let mut changes = Vec::new(); // Store changes for each line
+
         for x in 0..current_buffer.width {
-            if current_buffer.get(x, y) != previous_buffer.get(x, y) {
-                if let Some(cell) = current_buffer.get(x, y) {
-                    write!(
-                        alternate_screen,
-                        "{}{}{}{}",
-                        termion::cursor::Goto((x + 1) as u16, (y + 1) as u16),
-                        cell.bg_color,
-                        cell.fg_color,
-                        cell.ch
-                    )
-                    .unwrap();
+            let current_cell = current_buffer.get(x, y);
+            let previous_cell = previous_buffer.get(x, y);
+
+            if current_cell != previous_cell {
+                if last_changed_index.is_none() {
+                    last_changed_index = Some(x as u16); // Mark the start of a change sequence
+                }
+                if let Some(cell) = current_cell {
+                    changes.push(cell.clone()); // Accumulate changes
+                }
+            } else {
+                // When encountering the end of a sequence of changes, flush them
+                if let Some(start) = last_changed_index {
+                    write!(alternate_screen, "{}", termion::cursor::Goto(start + 1, y as u16 + 1)).unwrap();
+                    for cell in &changes {
+                        write!(
+                            alternate_screen,
+                            "{}{}{}",
+                            cell.bg_color,
+                            cell.fg_color,
+                            cell.ch
+                        ).unwrap();
+                    }
+                    changes.clear();
+                    last_changed_index = None;
                 }
             }
         }
+
+        // Check if there's a pending sequence at the end of the line
+        if let Some(start) = last_changed_index {
+            write!(alternate_screen, "{}", termion::cursor::Goto(start + 1, y as u16 + 1)).unwrap();
+            for cell in changes {
+                write!(
+                    alternate_screen,
+                    "{}{}{}",
+                    cell.bg_color,
+                    cell.fg_color,
+                    cell.ch
+                ).unwrap();
+            }
+        }
     }
-    alternate_screen.flush().unwrap();
+    alternate_screen.flush().unwrap(); // Make sure to flush only once after all changes
 }
 
 pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {

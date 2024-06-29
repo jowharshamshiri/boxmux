@@ -156,7 +156,7 @@ impl Layout {
 		recursive_collect(&self.children, &mut selected_panels);
 		selected_panels
 	}
-	
+
 	pub fn select_only_panel(&mut self, id: &str) {
 		fn recursive_select(panels: &mut [Panel], id: &str) {
 			for panel in panels {
