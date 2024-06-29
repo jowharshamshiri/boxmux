@@ -57,13 +57,6 @@ pub fn get_bg_color(color: &str) -> String {
 }
 
 pub fn print_with_color_at(y: usize, x: usize, color: &str, text: &str, buffer: &mut ScreenBuffer) {
-    //log::debug!(
-    //     "Printing text '{}' with color '{}' at x='{}', y='{}'",
-    //     text,
-    //     color,
-    //     x,
-    //     y
-    // );
     let color_code = get_fg_color(color);
     for (i, ch) in text.chars().enumerate() {
         let cell = Cell {
@@ -103,14 +96,6 @@ pub fn draw_horizontal_line(
     bg_color: &str,
     buffer: &mut ScreenBuffer,
 ) {
-    //log::debug!(
-    //     "Drawing horizontal line with border color '{}', background color '{}', x1='{}', x2='{}', y='{}'",
-    //     border_color,
-    //     bg_color,
-    //     x1,
-    //     x2,
-    //     y
-    // );
     let border_color_code = get_fg_color(border_color);
     let bg_color_code = get_bg_color(bg_color);
     for x in x1..=x2 {
@@ -364,7 +349,6 @@ pub fn draw_panel(
 			for (line_idx, line) in visible_lines.enumerate() {
 				let visible_part = line.chars().skip(horizontal_offset).take(viewable_width).collect::<String>();
 				print_with_color_and_background_at(bounds.top() + 1 + line_idx, bounds.left(), fg_color, bg_color.unwrap_or("default"), &visible_part, buffer);
-				// print_with_color_at(bounds.top() + 1 + line_idx, bounds.left(), &fg_color_code, &visible_part, buffer);
 			}
 
 			// Draw bottom border
@@ -539,14 +523,6 @@ pub fn fill_panel(
     let fg_color_code = get_fg_color(bg_color);
     let bg_color_code = get_bg_color(bg_color);
 
-    //log::debug!(
-    //     "Filling panel with bounds '{:?}', inside '{}', background color '{}', fill char '{}'",
-    //     bounds,
-    //     inside,
-    //     bg_color,
-    //     fill_char
-    // );
-
     let (top, bottom) = if inside {
         (bounds.top(), bounds.bottom())
     } else {
@@ -572,17 +548,14 @@ pub fn fill_panel(
 }
 
 pub fn screen_width() -> usize {
-    //log::debug!("Getting screen width");
     termion::terminal_size().unwrap().0 as usize
 }
 
 pub fn screen_height() -> usize {
-    //log::debug!("Getting screen height");
     termion::terminal_size().unwrap().1 as usize
 }
 
 pub fn screen_bounds() -> Bounds {
-    //log::debug!("Getting screen bounds");
     Bounds {
         x1: 0,
         y1: 0,
@@ -592,11 +565,6 @@ pub fn screen_bounds() -> Bounds {
 }
 
 pub fn input_bounds_to_bounds(input_bounds: &InputBounds, parent_bounds: &Bounds) -> Bounds {
-    //log::debug!(
-    //     "Converting input bounds '{:?}' to absolute bounds with parent bounds '{:?}'",
-    //     input_bounds,
-    //     parent_bounds
-    // );
     let bx1 = parse_percentage(&input_bounds.x1, parent_bounds.width());
     let by1 = parse_percentage(&input_bounds.y1, parent_bounds.height());
     let bx2 = parse_percentage(&input_bounds.x2, parent_bounds.width());
@@ -614,7 +582,6 @@ pub fn input_bounds_to_bounds(input_bounds: &InputBounds, parent_bounds: &Bounds
 }
 
 pub fn parse_percentage(value: &str, total: usize) -> usize {
-    //log::debug!("Parsing percentage value '{}'", value);
     if value.ends_with('%') {
         let percentage = value.trim_end_matches('%').parse::<f64>().unwrap() / 100.0;
         (percentage * total as f64).round() as usize
@@ -624,7 +591,6 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
 }
 
 pub fn content_size(text: &str) -> (usize, usize) {
-    //log::debug!("Getting content size for text '{}'", text);
     let mut width = 0;
     let mut height = 0;
     for line in text.lines() {

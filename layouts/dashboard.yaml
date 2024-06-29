@@ -2,20 +2,20 @@ layouts:
   - id: 'dashboard'
     root: true
     title: 'Dashboard Layout'
-    fg_color: 'white'
-    selected_fg_color: 'bright_yellow'
-    bg_color: 'bright_black'
-    selected_bg_color: 'bright_black'
-    title_fg_color: 'black'
-    selected_title_fg_color: 'bright_white'
-    title_bg_color: 'green'
-    selected_title_bg_color: 'bright_green'
-    border: true
-    border_color: 'bright_white'
-    selected_border_color: 'bright_green'
-    title_position: 'start'
-    fill_char: ' '
-    overflow_behavior: 'scroll'
+    # fg_color: 'white'
+    # selected_fg_color: 'bright_yellow'
+    # # bg_color: 'bright_black'
+    # selected_bg_color: 'bright_black'
+    # title_fg_color: 'black'
+    # selected_title_fg_color: 'bright_white'
+    # title_bg_color: 'green'
+    # selected_title_bg_color: 'bright_green'
+    # border: true
+    # border_color: 'bright_white'
+    # selected_border_color: 'bright_green'
+    # title_position: 'start'
+    # # fill_char: ' '
+    # overflow_behavior: 'scroll'
 
     children:
       - id: 'header'
@@ -36,7 +36,7 @@ layouts:
           - echo "Please select an option."
         on_keypress:
           'return':
-            - echo "Enter key pressed."
+            - echo "Enter key pressed."     
         children:
           - id: 'title'
             title: 'Title Display'
