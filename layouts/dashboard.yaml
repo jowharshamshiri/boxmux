@@ -5,16 +5,16 @@ layouts:
     fg_color: 'white'
     selected_fg_color: 'bright_yellow'
     bg_color: 'bright_black'
-    selected_bg_color: 'bright_red'
-    title_fg_color: 'bright_white'
+    selected_bg_color: 'bright_black'
+    title_fg_color: 'black'
     selected_title_fg_color: 'bright_white'
-    title_bg_color: 'red'
-    selected_title_bg_color: 'bright_red'
+    title_bg_color: 'green'
+    selected_title_bg_color: 'bright_green'
     border: true
     border_color: 'bright_white'
-    selected_border_color: 'bright_white'
+    selected_border_color: 'bright_green'
     title_position: 'start'
-    # fill_char: 'X'
+    fill_char: ' '
     overflow_behavior: 'scroll'
 
     children:
@@ -29,7 +29,6 @@ layouts:
         max_width: 100
         max_height: 3
         scroll: false
-        # tab_order: none
         on_error:
           - echo "Error loading header."
         on_enter:
@@ -45,7 +44,6 @@ layouts:
               y2: 100%
             content: 'Server Dashboard'
             scroll: false
-            # tab_order: none
             on_error:
               - echo "Error loading title."
             on_enter:
@@ -113,7 +111,7 @@ layouts:
         tab_order: 2
         on_error:
           - echo "Error loading CPU stats."
-        #overflow_behavior: 'removed'
+        # overflow_behavior: 'removed'
         title_position: 'center'
 
       - id: 'memory'
