@@ -81,14 +81,6 @@ pub fn print_with_color_and_background_at(
     text: &str,
     buffer: &mut ScreenBuffer,
 ) {
-    //log::debug!(
-    //     "Printing text '{}' with foreground color '{}' and background color '{}' at x='{}', y='{}'",
-    //     text,
-    //     fg_color,
-    //     bg_color,
-    //     x,
-    //     y
-    // );
     let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color);
     for (i, ch) in text.chars().enumerate() {
@@ -169,18 +161,6 @@ pub fn draw_horizontal_line_with_title(
     title_position: &str,
     buffer: &mut ScreenBuffer,
 ) {
-    //log::debug!(
-    //     "Drawing horizontal line with title '{:?}', foreground color '{}', background color '{}', title foreground color '{}', title background color '{}', title position '{}', x1='{}', x2='{}', y='{}'",
-    //     title,
-    //     fg_color,
-    //     bg_color,
-    //     title_fg_color,
-    //     title_bg_color,
-    //     title_position,
-    //     x1,
-    //     x2,
-    //     y
-    // );
     let width = x2.saturating_sub(x1);
     let title_padding = 2; // Adjust padding if needed
 
@@ -281,17 +261,13 @@ pub fn draw_panel(
     buffer: &mut ScreenBuffer,
 ) {
     let border_color_code = get_fg_color(border_color);
-    let title_fg_color_code = get_fg_color(title_fg_color);
-    let title_bg_color_code = get_bg_color(title_bg_color);
-    let fg_color_code = get_fg_color(fg_color);
+    // let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color.unwrap_or("default"));
     let parent_bg_color_code = get_bg_color(parent_bg_color.unwrap_or("default"));
     let mut _title_overflowing = false;
     let mut _x_offset = 0;
     let mut _y_offset = 0;
     let mut _overflowing = false;
-    let mut horizontal_scrollbar_position = 0;
-    let mut vertical_scrollbar_position = 0;
 	let mut scrollbars_drawn = false;
 
     // Ensure bounds stay within screen limits
@@ -381,27 +357,12 @@ pub fn draw_panel(
 			let horizontal_offset = horizontal_offset.min(max_horizontal_offset);
 			let vertical_offset = vertical_offset.min(max_vertical_offset);
 
-			// Calculate scroll knob positions
-			let scroll_nob_position_x = if max_horizontal_offset > 0 {
-				((horizontal_offset as f64 / max_horizontal_offset as f64) * viewable_width as f64).floor() as usize
-			} else {
-				0
-			};
-			let scroll_nob_position_y = if max_vertical_offset > 0 {
-				((vertical_offset as f64 / max_vertical_offset as f64) * viewable_height as f64).floor() as usize
-			} else {
-				0
-			};
-
-			// Debugging output
-			log::info!("horizontal_offset: {}, vertical_offset: {}", horizontal_offset, vertical_offset);
-			log::info!("scroll_nob_position_x: {}, scroll_nob_position_y: {}", scroll_nob_position_x, scroll_nob_position_y);
-
 			let visible_lines = content_lines.iter().skip(vertical_offset).take(viewable_height);
 
 			for (line_idx, line) in visible_lines.enumerate() {
 				let visible_part = line.chars().skip(horizontal_offset).take(viewable_width).collect::<String>();
-				print_with_color_at(bounds.top() + 1 + line_idx, bounds.left(), &fg_color_code, &visible_part, buffer);
+				print_with_color_and_background_at(bounds.top() + 1 + line_idx, bounds.left(), fg_color, bg_color.unwrap_or("default"), &visible_part, buffer);
+				// print_with_color_at(bounds.top() + 1 + line_idx, bounds.left(), &fg_color_code, &visible_part, buffer);
 			}
 
 			// Draw bottom border
@@ -424,7 +385,6 @@ pub fn draw_panel(
 				buffer,
 			);
 
-			
 			// Drawing the scroll nobs within the borders
 			if max_content_height > viewable_height {
 				let scrollbar_position = ((vertical_scroll as f64 / 100.0) * (viewable_height -1) as f64).floor() as usize;
