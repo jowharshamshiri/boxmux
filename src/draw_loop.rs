@@ -279,13 +279,6 @@ pub fn draw_panel(
         content = Some(&panel.output);
     }
 
-    // log::info!(
-    //     "Drawing panel '{}' with horizontal scroll '{}', vertical scroll '{}'",
-    //     panel.id,
-    //     panel.current_horizontal_scroll(),
-    //     panel.current_vertical_scroll()
-    // );
-
     // Draw border with title
     util_draw_panel(
         &bounds,
