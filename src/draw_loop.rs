@@ -223,7 +223,6 @@ create_runnable!(
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
                     }
-                    Message::UpdatePanel(panel_id) => todo!(),
 					Message::PanelOutputUpdate(panel_id, output) => {
 						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
 						if let Some(found_panel) = panel {
@@ -250,11 +249,11 @@ pub fn draw_app(app_context: &mut AppContext, buffer: &mut ScreenBuffer) {
 }
 
 pub fn draw_layout(app_context: &mut AppContext, layout: &Layout, buffer: &mut ScreenBuffer) {
-	let bg_color = app_context.app.get_active_layout().unwrap().bg_color.clone().unwrap_or_else(|| get_bg_color("default"));
-	let fill_char = app_context.app.get_active_layout().unwrap().fill_char.unwrap_or(' ');
+	let bg_color = layout.bg_color.clone().unwrap_or("black".to_string());
+	let fill_char = layout.fill_char.unwrap_or(' ');
 	
 	//background
-	fill_panel(&screen_bounds(), false, bg_color.as_str(),fill_char, buffer);
+	fill_panel(&screen_bounds(), false, bg_color.as_str(), fill_char, buffer);
 
     for panel in &layout.children {
         draw_panel(app_context, layout, panel, buffer);
@@ -282,7 +281,7 @@ pub fn draw_panel(
 
     let mut bg_color = panel.calc_bg_color(app_context).to_string();
     let parent_bg_color = if panel_parent.is_none() {
-        "default".to_string()
+        layout.bg_color.clone().unwrap_or("black".to_string())
     } else {
         panel_parent.unwrap().calc_bg_color(app_context).to_string()
     };

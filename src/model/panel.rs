@@ -326,7 +326,13 @@ impl Panel {
             self.fg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
+		let default_color = if self.selected.unwrap_or(false) {
+			"bright_white"
+		} else {
+			"white"
+		};
+
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), default_color)
     }
 
     pub fn calc_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
@@ -352,7 +358,13 @@ impl Panel {
             self.bg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
+		let default_color = if self.selected.unwrap_or(false) {
+			"bright_black"
+		} else {
+			"black"
+		};
+
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), default_color)
     }
 
     pub fn calc_border_color<'a>(&self, app_context: &mut AppContext) -> String {
@@ -378,7 +390,13 @@ impl Panel {
             self.border_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
+		let default_color = if self.selected.unwrap_or(false) {
+			"bright_white"
+		} else {
+			"white"
+		};
+
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), default_color)
     }
 
     pub fn calc_title_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
@@ -404,7 +422,13 @@ impl Panel {
             self.title_bg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
+		let default_color = if self.selected.unwrap_or(false) {
+			"black"
+		} else {
+			"bright_black"
+		};
+
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), default_color)
     }
 
     pub fn calc_title_fg_color(&self, app_context: &mut AppContext) -> String {
@@ -430,7 +454,13 @@ impl Panel {
             self.title_fg_color.as_ref()
         };
 
-        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
+		let default_color = if self.selected.unwrap_or(false) {
+			"bright_white"
+		} else {
+			"white"
+		};
+
+        inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), default_color)
     }
 
     pub fn calc_title_position(&self, app_context: &mut AppContext) -> String {
@@ -582,180 +612,3 @@ impl Panel {
         self.on_error.is_some()
     }
 }
-
-// pub struct PanelDriver {
-//     panel: Panel,
-//     tx: mpsc::Sender<Panel>,
-//     rx: mpsc::Receiver<Panel>,
-// }
-
-// impl PanelDriver {
-//     pub fn new(panel: Panel) -> Self {
-//         let (tx, rx) = mpsc::channel::<Panel>();
-//         PanelDriver { panel, tx, rx }
-//     }
-
-//     pub fn run(&mut self) {
-//         loop {
-//             if let Ok(panel) = self.rx.recv() {
-//                 self.panel = panel;
-//             }
-//         }
-//     }
-
-//     pub fn send(&self, panel: Panel) {
-//         if let Err(e) = self.tx.send(panel) {
-//             log::error!("Failed to send panel to driver: {}", e);
-//         }
-//     }
-
-//     pub fn start_event_thread(&self, thread_manager: &mut ThreadManager) {
-//         if self.panel.has_refresh() {
-//             let runnable = BoxRunnable::new(Panel::clone(self));
-//             thread_manager.spawn_thread(runnable);
-//         }
-
-//         if self.panel.has_enter() || self.panel.has_leave() {
-//             let runnable = BoxRunnable::new(Panel::clone(self));
-//             thread_manager.spawn_thread(runnable);
-//         }
-//     }
-
-//     pub fn draw(
-//         &mut self,
-//         screen: &mut AlternateScreen<RawTerminal<std::io::Stdout>>,
-//         buffer: &mut ScreenBuffer,
-//     ) {
-//         log::debug!("Drawing panel '{}'", self.panel.id);
-
-
-//         let parent_bounds = if self.panel.parent.is_none() {
-//             Some(screen_bounds())
-//         } else {
-//             Some(self.panel.parent.unwrap().bounds())
-//         };
-
-//         // Calculate properties before borrowing self mutably
-//         let bounds = self.panel.absolute_bounds(parent_bounds.as_ref());
-
-//         let bg_color = self.panel.calc_bg_color().to_string();
-//         let parent_bg_color = if self.panel.parent.is_none() {
-//             "default".to_string()
-//         } else {
-//             self.panel.parent
-//                 .unwrap()
-//                 .calc_bg_color()
-//                 .to_string()
-//         };
-//         let fg_color = self.panel.calc_fg_color().to_string();
-//         let title_bg_color = self.panel.calc_title_bg_color().to_string();
-//         let title_fg_color = self.panel.calc_title_fg_color().to_string();
-//         let border = self.panel.calc_border();
-//         let border_color = self.panel.calc_border_color().to_string();
-//         let fill_char = self.panel.calc_fill_char();
-
-//         // Draw fill
-//         fill_panel(&bounds, border, &bg_color, fill_char, screen, buffer);
-
-//         let mut content = self.panel.content.as_deref();
-//         // check output is not null or empty
-//         if !self.panel.output.is_empty() {
-//             content = Some(&self.panel.output);
-//         }
-
-//         log::info!(
-//             "Drawing panel '{}' with horizontal scroll '{}', vertical scroll '{}'",
-//             self.panel.id,
-//             self.panel.current_horizontal_scroll(),
-//             self.panel.current_vertical_scroll()
-//         );
-
-//         // Draw border with title
-//         draw_panel(
-//             &bounds,
-//             &border_color,
-//             Some(&bg_color),
-//             Some(&parent_bg_color),
-//             self.panel.title.as_deref(),
-//             &title_fg_color,
-//             &title_bg_color,
-//             &self.panel.calc_title_position(),
-//             content,
-//             &fg_color,
-//             &self.panel.calc_overflow_behavior(),
-//             self.panel.current_horizontal_scroll(),
-//             self.panel.current_vertical_scroll(),
-//             screen,
-//             buffer,
-//         );
-
-//         // Draw children
-//         if let Some(children) = &mut self.panel.children {
-//             for child in children {
-//                 child.0.lock().unwrap().draw(screen, buffer);
-//             }
-//         }
-//         log::debug!("Finished drawing panel '{}'", self.panel.id);
-//     }
-
-//     pub fn execute_refresh(&mut self) {
-//         log::info!("Executing refresh for panel '{}'", self.panel.id);
-//         if let Some(commands) = &self.panel.on_refresh {
-//             let output = commands
-//                 .iter()
-//                 .map(|cmd| {
-//                     let output = Command::new("sh").arg("-c").arg(cmd).output().unwrap();
-//                     String::from_utf8_lossy(&output.stdout).to_string()
-//                 })
-//                 .collect::<Vec<_>>()
-//                 .join("\n");
-
-//             self.panel.set_output(&output);
-//         }
-//     }
-
-//     pub fn execute_enter(&mut self) {
-//         if let Some(commands) = &self.panel.on_enter {
-//             let output = commands
-//                 .iter()
-//                 .map(|cmd| {
-//                     let output = Command::new("sh").arg("-c").arg(cmd).output().unwrap();
-//                     String::from_utf8_lossy(&output.stdout).to_string()
-//                 })
-//                 .collect::<Vec<_>>()
-//                 .join("\n");
-
-//             self.panel.set_output(&output);
-//         }
-//     }
-
-//     pub fn execute_leave(&mut self) {
-//         if let Some(commands) = &self.panel.on_leave {
-//             let output = commands
-//                 .iter()
-//                 .map(|cmd| {
-//                     let output = Command::new("sh").arg("-c").arg(cmd).output().unwrap();
-//                     String::from_utf8_lossy(&output.stdout).to_string()
-//                 })
-//                 .collect::<Vec<_>>()
-//                 .join("\n");
-
-//             self.panel.set_output(&output);
-//         }
-//     }
-
-//     pub fn execute_error(&mut self) {
-//         if let Some(commands) = &self.panel.on_error {
-//             let output = commands
-//                 .iter()
-//                 .map(|cmd| {
-//                     let output = Command::new("sh").arg("-c").arg(cmd).output().unwrap();
-//                     String::from_utf8_lossy(&output.stdout).to_string()
-//                 })
-//                 .collect::<Vec<_>>()
-//                 .join("\n");
-
-//             self.panel.set_output(&output);
-//         }
-//     }
-// }

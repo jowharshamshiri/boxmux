@@ -22,7 +22,6 @@ pub enum Message {
     Resize,
     RedrawPanel(String),
     RedrawApp,
-    UpdatePanel(String),
     PanelEventRefresh(String),
     PanelEventEnter(String),
     PanelEventLeave(String),
@@ -43,10 +42,6 @@ impl Hash for Message {
                 panel_id.hash(state);
             }
             Message::RedrawApp => "redraw_app".hash(state),
-            Message::UpdatePanel(panel_id) => {
-                "update_panel".hash(state);
-                panel_id.hash(state);
-            }
             Message::PanelEventRefresh(panel_id) => {
                 "panel_event_refresh".hash(state);
                 panel_id.hash(state);
