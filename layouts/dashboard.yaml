@@ -34,6 +34,9 @@ layouts:
         on_enter:
           - echo "Welcome to the server dashboard."
           - echo "Please select an option."
+        on_keypress:
+          'return':
+            - echo "Enter key pressed."
         children:
           - id: 'title'
             title: 'Title Display'
@@ -95,6 +98,11 @@ layouts:
           y2: 35%
         on_refresh:
           - 'vm_stat | awk ''NR==2{gsub("K$", "", $3); print "Free: " $3/256 " MB"}'''
+          - 'vm_stat | awk ''NR==3{gsub("K$", "", $3); print "Active: " $3/256 " MB"}'''
+          - 'vm_stat | awk ''NR==4{gsub("K$", "", $3); print "Inactive: " $3/256 " MB"}'''
+          - 'vm_stat | awk ''NR==5{gsub("K$", "", $3); print "Wired: " $3/256 " MB"}'''
+          - 'vm_stat | awk ''NR==6{gsub("K$", "", $3); print "Compressed: " $3/256 " MB"}'''
+          - 'vm_stat | awk ''NR==7{gsub("K$", "", $3); print "Swap: " $3/256 " MB"}'''
         scroll: false
         tab_order: 3
         on_error:
@@ -139,7 +147,7 @@ layouts:
               x2: 95%
               y2: 95%
             on_refresh:
-              - cat /Users/bahram/ws/prj/machinegenesis/crossbash/app\ copy.log | tail -n 100
+              - log show --debug --last 1m | tail -n 50
             scroll: true
             tab_order: 5
             on_error:

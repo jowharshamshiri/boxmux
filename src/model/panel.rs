@@ -284,7 +284,7 @@ impl Panel {
         self.output = output.to_string();
     }
 
-	pub fn get_parent_clone(&self, app_context: &AppContext) -> Option<Panel> {
+	pub fn get_parent_clone(&self, app_context: &mut AppContext) -> Option<Panel> {
         let layout_id = self.parent_layout_id.as_ref().expect("Parent layout ID missing");
         let app_graph = app_context.app.generate_graph(); 
         if let Some(parent) = app_graph.get_parent(layout_id, &self.id) {
@@ -303,7 +303,7 @@ impl Panel {
 		}
 	}
 
-    pub fn calc_fg_color<'a>(&self, app_context: &AppContext) -> String {
+    pub fn calc_fg_color<'a>(&self, app_context: &mut AppContext) -> String {
         let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_fg_color.clone()
@@ -329,7 +329,7 @@ impl Panel {
         inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
-    pub fn calc_bg_color<'a>(&self, app_context: &AppContext) -> String {
+    pub fn calc_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
 		let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_bg_color.clone()
@@ -355,7 +355,7 @@ impl Panel {
         inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
-    pub fn calc_border_color<'a>(&self, app_context: &AppContext) -> String {
+    pub fn calc_border_color<'a>(&self, app_context: &mut AppContext) -> String {
         let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_border_color.clone()
@@ -381,7 +381,7 @@ impl Panel {
         inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
-    pub fn calc_title_bg_color<'a>(&self, app_context: &AppContext) -> String {
+    pub fn calc_title_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
         let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_bg_color.clone()
@@ -407,7 +407,7 @@ impl Panel {
         inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
-    pub fn calc_title_fg_color(&self, app_context: &AppContext) -> String {
+    pub fn calc_title_fg_color(&self, app_context: &mut AppContext) -> String {
         let parent_color = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_fg_color.clone()
@@ -433,7 +433,7 @@ impl Panel {
         inherit_string(self_color, parent_color.as_ref(), parent_layout_color.as_ref(), "default")
     }
 
-    pub fn calc_title_position(&self, app_context: &AppContext) -> String {
+    pub fn calc_title_position(&self, app_context: &mut AppContext) -> String {
 		let parent_position = self.get_parent_clone(app_context).and_then(|p| {
 			p.title_position.clone()
         });
@@ -447,7 +447,7 @@ impl Panel {
         )
     }
 
-    pub fn calc_fill_char(&self, app_context: &AppContext) -> char {
+    pub fn calc_fill_char(&self, app_context: &mut AppContext) -> char {
         let parent_fill_char = self.get_parent_clone(app_context).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.fill_char.clone()
@@ -473,7 +473,7 @@ impl Panel {
         inherit_char(self_char, parent_fill_char.as_ref(), parent_layout_fill_char.as_ref(), '█')
     }
 
-    pub fn calc_border(&self, app_context: &AppContext) -> bool {
+    pub fn calc_border(&self, app_context: &mut AppContext) -> bool {
 		let parent_border = self.get_parent_clone(app_context).and_then(|p| {
 			p.border.clone()
         });
@@ -482,7 +482,7 @@ impl Panel {
         inherit_bool(self.border.as_ref(), parent_border.as_ref(), parent_layout_border.as_ref(), true)
     }
 
-    pub fn calc_overflow_behavior(&self, app_context: &AppContext) -> String {
+    pub fn calc_overflow_behavior(&self, app_context: &mut AppContext) -> String {
         let parent_overflow_behavior = self.get_parent_clone(app_context).and_then(|p| {
             p.overflow_behavior.clone()
         });
@@ -491,7 +491,7 @@ impl Panel {
         inherit_string(self.overflow_behavior.as_ref(), parent_overflow_behavior.as_ref(), parent_layout_overflow.as_ref(), "scroll")
     }
 
-    pub fn calc_refresh_interval(&self, app_context: &AppContext) -> u64 {
+    pub fn calc_refresh_interval(&self, app_context: &mut AppContext) -> u64 {
         let parent_refresh_interval = self.get_parent_clone(app_context).and_then(|p| {
             p.refresh_interval.clone()
         });
