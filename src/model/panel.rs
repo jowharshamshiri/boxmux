@@ -281,7 +281,6 @@ impl Panel {
     }
 
     pub fn set_output(&mut self, output: &str) {
-        log::trace!("Setting output for panel '{}' to '{}'", self.id, output);
         self.output = output.to_string();
     }
 
@@ -289,10 +288,8 @@ impl Panel {
         let layout_id = self.parent_layout_id.as_ref().expect("Parent layout ID missing");
         let app_graph = app_context.app.generate_graph(); 
         if let Some(parent) = app_graph.get_parent(layout_id, &self.id) {
-            log::info!("Panel '{}' has parent_id: '{}'", self.id, parent.id);
             Some(parent.clone())  // Clone the result to break the lifetime dependency
         } else {
-            log::info!("Panel '{}' has no parent_id", self.id);
             None
         }
     }
@@ -300,10 +297,8 @@ impl Panel {
 	pub fn get_parent_layout_clone(&self, app_context: &AppContext) -> Option<Layout> {
 		let layout_id = self.parent_layout_id.as_ref().expect("Parent layout ID missing");
 		if let Some(parent_layout) = app_context.app.get_layout_by_id(layout_id) {
-			log::info!("Panel '{}' has parent_layout_id: '{}'", self.id, parent_layout.id);
 			Some(parent_layout.clone())  // Clone the result to break the lifetime dependency
 		} else {
-			log::info!("Panel '{}' has no parent_layout_id", self.id);
 			None
 		}
 	}
@@ -352,10 +347,8 @@ impl Panel {
 		});
 
         let self_color = if self.selected.unwrap_or(false) {
-			// log::info!("Panel '{}' is selected and has selected_bg_color", self.selected_bg_color.unwrap());
             self.selected_bg_color.as_ref()
         } else {
-			// log::info!("Panel '{}' is not selected and has bg_color", self.id);
             self.bg_color.as_ref()
         };
 
