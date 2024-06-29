@@ -43,12 +43,15 @@ use std::hash::{DefaultHasher, Hasher};
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct App {
     pub layouts: Vec<Layout>,
+	#[serde(skip)]
+	app_graph: Option<AppGraph>,
 }
 
 impl App {
     pub fn new() -> Self {
         App {
             layouts: Vec::new(),
+			app_graph: None,
         }
     }
 
@@ -174,22 +177,26 @@ impl App {
 		}
 	}
 	
-	pub fn generate_graph(&self) -> AppGraph {
-		let mut app_graph = AppGraph::new();
-	
-		for layout in &self.layouts {
-			app_graph.add_layout(layout);
+	pub fn generate_graph(&mut self) -> AppGraph {
+		if let Some(app_graph) = self.app_graph.clone() {
+			return app_graph;
+		}else{
+			let mut app_graph = AppGraph::new();
+		
+			for layout in &self.layouts {
+				app_graph.add_layout(layout);
+			}
+			self.app_graph = Some(app_graph.clone());
+			app_graph
 		}
-
-		app_graph
 	}
-	
 }
 
 impl App {
     pub fn deep_clone(&self) -> Self {
         App {
             layouts: self.layouts.iter().map(|layout| layout.deep_clone()).collect(),
+			app_graph: self.app_graph.clone(),
         }
     }
 }
@@ -438,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_layout_and_panels_addition() {
-        let app_context = setup_app_context();
+        let mut app_context = setup_app_context();
 		let app_graph = app_context.app.generate_graph();
         assert!(app_graph.graphs.contains_key("dashboard"));
         let graph = &app_graph.graphs["dashboard"];
@@ -447,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_get_panel_by_id() {
-        let app_context = setup_app_context();
+        let mut app_context = setup_app_context();
 		let app_graph = app_context.app.generate_graph();
         let panels = ["header", "title", "time", "cpu", "memory", "log", "log_input", "log_output", "footer"];
         for &panel_id in panels.iter() {
@@ -458,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_get_children() {
-        let app_context = setup_app_context();
+        let mut app_context = setup_app_context();
 		let app_graph = app_context.app.generate_graph();
         let children = app_graph.get_children("dashboard", "header");
         assert_eq!(children.len(), 2, "Header should have exactly 2 children");
@@ -468,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_get_parent() {
-        let app_context = setup_app_context();
+        let mut app_context = setup_app_context();
 		let app_graph = app_context.app.generate_graph();
         let parent = app_graph.get_parent("dashboard", "title");
         assert!(parent.is_some(), "Parent should exist for 'title'");
@@ -477,7 +484,7 @@ mod tests {
 
 	#[test]
 	fn test_app_graph_clone() {
-		let app_context = setup_app_context();
+		let mut app_context = setup_app_context();
 		let app_graph = app_context.app.generate_graph();
 		let cloned_graph = app_graph.clone();
 		assert_eq!(app_graph, cloned_graph);

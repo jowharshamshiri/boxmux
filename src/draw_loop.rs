@@ -46,6 +46,7 @@ create_runnable!(
     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
+		let mut state_unwrapped = state.deep_clone();
 
         if global_screen.is_none() {
             *global_screen = Some(AlternateScreen::from(stdout().into_raw_mode().unwrap()));
@@ -56,7 +57,7 @@ create_runnable!(
             (&mut *global_screen, &mut *global_buffer)
         {
 			let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-            draw_app(&state, &mut new_buffer);
+            draw_app(&mut state_unwrapped, &mut new_buffer);
             apply_buffer_if_changed(buffer, &new_buffer, screen);
 			*buffer = new_buffer;
         }
@@ -93,7 +94,7 @@ create_runnable!(
                     Message::Resize => {
                         write!(screen, "{}", termion::clear::All).unwrap();
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        draw_app(&state_unwrapped, &mut new_buffer);
+                        draw_app(&mut state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
                     }
@@ -188,22 +189,25 @@ create_runnable!(
 						}
 					},
                     Message::RedrawPanel(panel_id) => {
-                        let panel = state_unwrapped.app.get_panel_by_id(&panel_id);
-                        if let Some(found_panel) = panel {
-                            new_buffer = buffer.clone();
-                            draw_panel(
-                                &state_unwrapped,
-                                &found_panel.get_parent_layout_clone(&state_unwrapped).unwrap(),
-                                &found_panel,
-                                &mut new_buffer,
-                            );
-                            apply_buffer_if_changed(buffer, &new_buffer, screen);
-							*buffer = new_buffer;
-                        }
-                    }
+						if let Some(found_panel) = state_unwrapped.app.get_panel_by_id(&panel_id).cloned() {
+							new_buffer = buffer.clone();
+							
+							// Clone the parent layout to avoid mutable borrow conflicts
+							if let Some(parent_layout) = found_panel.get_parent_layout_clone(&mut state_unwrapped) {
+								draw_panel(
+									&mut state_unwrapped,
+									&parent_layout,
+									&found_panel,
+									&mut new_buffer,
+								);
+								apply_buffer_if_changed(buffer, &new_buffer, screen);
+								*buffer = new_buffer;
+							}
+						}
+					}
                     Message::RedrawApp => {
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        draw_app(&state_unwrapped, &mut new_buffer);
+                        draw_app(&mut state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
                     }
@@ -227,14 +231,13 @@ create_runnable!(
     }
 );
 
-pub fn draw_app(app_context: &AppContext, buffer: &mut ScreenBuffer) {
-    let app = &app_context.app;
-	let active_layout = app.get_active_layout().expect("No active layout found!");
-	
-	draw_layout(app_context, active_layout, buffer);
+pub fn draw_app(app_context: &mut AppContext, buffer: &mut ScreenBuffer) {
+    let active_layout = app_context.app.get_active_layout().expect("No active layout found!").clone();
+    
+    draw_layout(app_context, &active_layout, buffer);
 }
 
-pub fn draw_layout(app_context: &AppContext, layout: &Layout, buffer: &mut ScreenBuffer) {
+pub fn draw_layout(app_context: &mut AppContext, layout: &Layout, buffer: &mut ScreenBuffer) {
 	let bg_color = app_context.app.get_active_layout().unwrap().bg_color.clone().unwrap_or_else(|| get_bg_color("default"));
 	let fill_char = app_context.app.get_active_layout().unwrap().fill_char.unwrap_or(' ');
 	
@@ -247,7 +250,7 @@ pub fn draw_layout(app_context: &AppContext, layout: &Layout, buffer: &mut Scree
 }
 
 pub fn draw_panel(
-    app_context: &AppContext,
+    app_context: &mut AppContext,
     layout: &Layout,
     panel: &Panel,
     buffer: &mut ScreenBuffer,

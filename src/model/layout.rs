@@ -230,8 +230,6 @@ impl Layout {
 			return; // Early return if there are no panels
 		}
 
-		log::debug!("Found {} panels with a tab_order", panels.len());
-
 		let selected_panel_index = panels.iter()
 			.position(|p| p.selected.unwrap_or(false));
 
