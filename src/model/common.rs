@@ -44,6 +44,15 @@ impl ScreenBuffer {
         }
     }
 
+	pub fn new_filled(width: usize, height: usize, default_cell: Cell) -> Self {
+		let buffer = vec![vec![default_cell; width]; height];
+		ScreenBuffer {
+			width,
+			height,
+			buffer,
+		}
+	}
+
     pub fn clear(&mut self) {
         let default_cell = Cell {
             fg_color: get_fg_color("default"),
@@ -91,6 +100,15 @@ impl InputBounds {
 }
 
 impl Bounds {
+	pub fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
+		Bounds {
+			x1,
+			y1,
+			x2,
+			y2,
+		}
+	}
+
     pub fn width(&self) -> usize {
         self.x2.saturating_sub(self.x1)
     }

@@ -15,6 +15,10 @@ pub enum Message {
     Die,
     NextPanel(String),
     PreviousPanel(String),
+	ScrollPanelDown(String),
+	ScrollPanelUp(String),
+	ScrollPanelLeft(String),
+	ScrollPanelRight(String),
     Resize,
     RedrawPanel(String),
     RedrawApp,
@@ -64,6 +68,22 @@ impl Hash for Message {
                 "panel_event_error".hash(state);
                 panel_id.hash(state);
             }
+			Message::ScrollPanelDown(panel_id) => {
+				"scroll_panel_down".hash(state);
+				panel_id.hash(state);
+			}
+			Message::ScrollPanelUp(panel_id) => {
+				"scroll_panel_up".hash(state);
+				panel_id.hash(state);
+			},
+			Message::ScrollPanelLeft(panel_id) => {
+				"scroll_panel_left".hash(state);
+				panel_id.hash(state);
+			},
+			Message::ScrollPanelRight(panel_id) => {
+				"scroll_panel_right".hash(state);
+				panel_id.hash(state);
+			}
         }
     }
 }

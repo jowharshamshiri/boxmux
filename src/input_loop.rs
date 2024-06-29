@@ -44,7 +44,6 @@ create_runnable!(
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') => {
-                    log::info!("Q Exiting...");
                     inner.send_message(Message::Exit);
                     should_continue = false; // Stop running
                     break;
@@ -56,29 +55,33 @@ create_runnable!(
                     inner.send_message(Message::PreviousPanel("".to_string()));
                 }
                 Key::Down => {
-                    // let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-                    // if let Some(ref selected_box) = *selected_box_guard {
-                    //     let mut box_guard = selected_box.0.lock().unwrap();
-                    //     box_guard.scroll_down(None);
-                    //     input_tx
-                    //         .send(Message::RedrawPanel(BoxEntityWrapper::clone(
-                    //             selected_box,
-                    //         )))
-                    //         .unwrap();
-                    // }
+					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
+					if selected_panels.len() == 1 {
+						let panel = selected_panels.first().unwrap();
+						inner.send_message(Message::ScrollPanelDown(panel.id.clone()));
+					}
                 }
                 Key::Up => {
-                    // let mut selected_box_guard = SELECTED_BOX.lock().unwrap();
-                    // if let Some(ref selected_box) = *selected_box_guard {
-                    //     let mut box_guard = selected_box.0.lock().unwrap();
-                    //     box_guard.scroll_up(None);
-                    //     input_tx
-                    //         .send(Message::RedrawPanel(BoxEntityWrapper::clone(
-                    //             selected_box,
-                    //         )))
-                    //         .unwrap();
-                    // }
+                    let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
+					if selected_panels.len() == 1 {
+						let panel = selected_panels.first().unwrap();
+						inner.send_message(Message::ScrollPanelUp(panel.id.clone()));
+					}
                 }
+				Key::Left => {
+					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
+					if selected_panels.len() == 1 {
+						let panel = selected_panels.first().unwrap();
+						inner.send_message(Message::ScrollPanelLeft(panel.id.clone()));
+					}
+				}
+				Key::Right => {
+					let selected_panels=state.app.get_active_layout().unwrap().get_selected_panels();
+					if selected_panels.len() == 1 {
+						let panel = selected_panels.first().unwrap();
+						inner.send_message(Message::ScrollPanelRight(panel.id.clone()));
+					}
+				}
                 _ => {}
             }
         }
