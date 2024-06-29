@@ -266,7 +266,7 @@ impl ThreadManager {
             // Handle messages
             for reciever in self.message_receivers.values() {
                 if let Ok((uuid, received_msg)) = reciever.try_recv() {
-                    log::info!("Received message from thread {}: {:?}", uuid, received_msg);
+                    // log::info!("Received message from thread {}: {:?}", uuid, received_msg);
                     if received_msg == Message::Exit {
                         self.send_message_to_all_threads((Uuid::new_v4(), Message::Die));
                         should_continue = false;
