@@ -97,6 +97,93 @@ impl App {
 			_ => panic!("Multiple active layouts found, which is not allowed."),
 		}
 	}
+
+	pub fn get_panel_by_id(&self, id: &str) -> Option<&Panel> {
+		for layout in &self.layouts {
+			if let Some(panel) = layout.get_panel_by_id(id) {
+				return Some(panel);
+			}
+		}
+		None
+	}
+
+	pub fn get_panel_by_id_mut(&mut self, id: &str) -> Option<&mut Panel> {
+		for layout in &mut self.layouts {
+			if let Some(panel) = layout.get_panel_by_id_mut(id) {
+				return Some(panel);
+			}
+		}
+		None
+	}
+	pub fn validate(&mut self) {
+		fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
+			panel.parent_layout_id = Some(parent_layout_id.to_string());
+			panel.parent_id = parent_id;
+		
+			if let Some(ref mut children) = panel.children {
+				for child in children {
+					set_parent_ids(child, parent_layout_id, Some(panel.id.clone()));
+				}
+			}
+		}
+		let mut id_set = HashSet::new();
+		let mut root_layout_id: Option<String> = None;
+	
+		for layout in &mut self.layouts {
+			let result = check_unique_ids(layout, &mut id_set);
+			if let Err(e) = result {
+				panic!("Error: {}", e);
+			}
+			if layout.root.unwrap_or(false) {
+				if root_layout_id.is_some() {
+					panic!("Multiple root layouts detected, which is not allowed.");
+				}
+				root_layout_id = Some(layout.id.clone());
+			}
+			for panel in &mut layout.children {
+				set_parent_ids(panel, &layout.id, None);
+			}
+		}
+	
+		if root_layout_id.is_none() {
+			log::debug!("No root layout defined in the application, defaulting to first layout.");
+			if let Some(first_layout) = self.layouts.first() {
+				root_layout_id = Some(first_layout.id.clone());
+			} else {
+				panic!("No layouts defined in the application.");
+			}
+		}
+	
+		// Set the root layout as active
+		if let Some(root_layout_id) = root_layout_id {
+			if let Some(root_layout) = self.get_layout_by_id_mut(&root_layout_id) {
+				if root_layout.active.is_none() || !root_layout.active.unwrap() {
+					log::debug!("Setting root layout '{}' as active", root_layout_id);
+					root_layout.active = Some(true);
+					root_layout.root = Some(true);
+	
+					// Set all other layouts as inactive
+					for layout in &mut self.layouts {
+						if layout.id != root_layout_id {
+							layout.active = Some(false);
+							layout.root = Some(false);
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	pub fn generate_graph(&self) -> AppGraph {
+		let mut app_graph = AppGraph::new();
+	
+		for layout in &self.layouts {
+			app_graph.add_layout(layout);
+		}
+
+		app_graph
+	}
+	
 }
 
 impl App {
@@ -112,6 +199,37 @@ pub struct AppGraph {
     graphs: HashMap<String, DiGraph<Panel, ()>>,
     node_maps: HashMap<String, HashMap<String, NodeIndex>>,
 }
+
+impl Hash for AppGraph {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		for (key, graph) in &self.graphs {
+			key.hash(state);
+			for node in graph.node_indices() {
+				graph.node_weight(node).unwrap().hash(state);
+			}
+		}
+		for (key, node_map) in &self.node_maps {
+			key.hash(state);
+			for (node_key, node_index) in node_map {
+				node_key.hash(state);
+				node_index.hash(state);
+			}
+		}
+	}
+}
+
+impl PartialEq for AppGraph {
+	fn eq(&self, other: &Self) -> bool {
+		//compare hashes
+		let mut hasher1 = DefaultHasher::new();
+		let mut hasher2 = DefaultHasher::new();
+		self.hash(&mut hasher1);
+		other.hash(&mut hasher2);
+		hasher1.finish() == hasher2.finish()
+	}
+}
+
+impl Eq for AppGraph {}
 
 impl AppGraph {
     pub fn new() -> Self {
@@ -208,28 +326,11 @@ impl AppGraph {
         }
         None
     }
-
-    pub fn get_layout_by_id<'a>(&self, app: &'a App, layout_id: &str) -> Option<&'a Layout> {
-        app.layouts.iter().find(|layout| layout.id == layout_id)
-    }
-}
-
-impl Hash for AppGraph {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for (key, graph) in &self.graphs {
-            key.hash(state);
-            for node in graph.node_indices() {
-                graph.node_weight(node).unwrap().hash(state);
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct AppContext {
     pub app: App,
-    pub app_graph: AppGraph,
-	pub screen_buffer: ScreenBuffer,
 }
 
 impl PartialEq for AppContext {
@@ -240,65 +341,16 @@ impl PartialEq for AppContext {
 
 impl AppContext {
 	pub fn new(mut app: App) -> Self {
-		let mut app_graph = AppGraph::new();
-		let mut id_set = HashSet::new();
-		let screen_buffer = ScreenBuffer::new(screen_width(), screen_height());
-	
-		let mut root_layout_id: Option<String> = None;
-		for layout in &app.layouts {
-			let result = check_unique_ids(layout, &mut id_set);
-			if let Err(e) = result {
-				panic!("Error: {}", e);
-			}
-			if layout.root.unwrap_or(false) {
-				if root_layout_id.is_some() {
-					panic!("Multiple root layouts detected, which is not allowed.");
-				}
-				root_layout_id = Some(layout.id.clone());
-			}
-			app_graph.add_layout(layout);
-		}
-	
-		if root_layout_id.is_none() {
-			log::debug!("No root layout defined in the application, defaulting to first layout.");
-			if let Some(first_layout) = app.layouts.first() {
-				root_layout_id = Some(first_layout.id.clone());
-			}else {
-				panic!("No layouts defined in the application.");
-			}
-		}
+		app.validate();
 
-		// Set the root layout as active
-		if let Some(root_layout_id) = root_layout_id {
-			if let Some(root_layout) = app.get_layout_by_id_mut(&root_layout_id){
-				if root_layout.active.is_none() || !root_layout.active.unwrap() {
-					log::debug!("Setting root layout '{}' as active", root_layout_id);
-					root_layout.active = Some(true);
-					root_layout.root = Some(true);
-
-					// Set all other layouts as inactive
-					for layout in &mut app.layouts {
-						if layout.id != root_layout_id {
-							layout.active = Some(false);
-							layout.root = Some(false);
-						}
-					}
-				}
-			}
-		}
-	
 		AppContext {
 			app,
-			app_graph,
-			screen_buffer,
 		}
 	}
 
     pub fn deep_clone(&self) -> Self {
         AppContext {
             app: self.app.deep_clone(),
-            app_graph: self.app_graph.clone(),
-			screen_buffer: self.screen_buffer.clone(),
         }
     }
 }
@@ -306,7 +358,6 @@ impl AppContext {
 impl Hash for AppContext {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.app.hash(state);
-        self.app_graph.hash(state);
     }
 }
 
@@ -325,6 +376,8 @@ impl Clone for AppGraph {
 
         for (key, graph) in &self.graphs {
             let new_graph = graph.clone();
+            // Using unwrap here assumes there must always be a corresponding node_map for each graph.
+            // This will panic if that invariant is broken, which is considered a critical and unexpected error.
             let new_node_map = self.node_maps.get(key).unwrap().clone();
             new_graphs.insert(key.clone(), new_graph);
             new_node_maps.insert(key.clone(), new_node_map);
@@ -342,7 +395,9 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<AppContext, Box<dyn std::er
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let app: App = serde_yaml::from_str(&contents)?;
+    let mut app: App = serde_yaml::from_str(&contents)?;
+
+	app.validate();
     
 	let app_context = AppContext::new(app);
 
@@ -368,28 +423,65 @@ fn check_panel_ids(panel: &Panel, id_set: &mut HashSet<String>) -> Result<(), Bo
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
-	use super::*;
+    use super::*;
+	fn load_test_app_context() -> AppContext {
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+        let dashboard_path = current_dir.join("layouts/tests.yaml");
+        load_app_from_yaml(dashboard_path.to_str().unwrap()).expect("Failed to load app")
+    }
+
+    fn setup_app_context() -> AppContext {
+        // Assumes the existence of the helper function load_test_app_context from the previous example
+        load_test_app_context()
+    }
+
+    #[test]
+    fn test_layout_and_panels_addition() {
+        let app_context = setup_app_context();
+		let app_graph = app_context.app.generate_graph();
+        assert!(app_graph.graphs.contains_key("dashboard"));
+        let graph = &app_graph.graphs["dashboard"];
+        assert_eq!(graph.node_count(), 9, "Should include all panels and sub-panels");
+    }
+
+    #[test]
+    fn test_get_panel_by_id() {
+        let app_context = setup_app_context();
+		let app_graph = app_context.app.generate_graph();
+        let panels = ["header", "title", "time", "cpu", "memory", "log", "log_input", "log_output", "footer"];
+        for &panel_id in panels.iter() {
+            let panel = app_graph.get_panel_by_id(panel_id);
+            assert!(panel.is_some(), "Panel with ID {} should exist", panel_id);
+        }
+    }
+
+    #[test]
+    fn test_get_children() {
+        let app_context = setup_app_context();
+		let app_graph = app_context.app.generate_graph();
+        let children = app_graph.get_children("dashboard", "header");
+        assert_eq!(children.len(), 2, "Header should have exactly 2 children");
+        assert!(children.iter().any(|&p| p.id == "title"), "Title should be a child of header");
+        assert!(children.iter().any(|&p| p.id == "time"), "Time should be a child of header");
+    }
+
+    #[test]
+    fn test_get_parent() {
+        let app_context = setup_app_context();
+		let app_graph = app_context.app.generate_graph();
+        let parent = app_graph.get_parent("dashboard", "title");
+        assert!(parent.is_some(), "Parent should exist for 'title'");
+        assert_eq!(parent.unwrap().id, "header", "Parent of 'title' should be 'header'");
+    }
 
 	#[test]
-	fn test_new_app() {
-		let app = App::new();
-		assert_eq!(app.layouts.len(), 0);
+	fn test_app_graph_clone() {
+		let app_context = setup_app_context();
+		let app_graph = app_context.app.generate_graph();
+		let cloned_graph = app_graph.clone();
+		assert_eq!(app_graph, cloned_graph);
 	}
 
-    // #[test]
-    // fn test_load_app_from_yaml() {
-    //     // let mut file = NamedTempFile::new().unwrap();
-    //     // write!(file, "---\nlayouts: []").unwrap();
-    //     // let path = file.path().to_str().unwrap();
-
-	// 	let path="layouts/dashboard.yaml";
-
-    //     let app = load_app_from_yaml(path);
-    //     assert!(app.is_ok());
-    //     assert!(app.unwrap().layouts.is_empty());
-    
-	// }
 }

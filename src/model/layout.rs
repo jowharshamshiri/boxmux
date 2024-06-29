@@ -42,6 +42,8 @@ pub struct Layout {
 
     #[serde(skip)]
     pub active: Option<bool>,
+	#[serde(skip)]
+	pub panel_ids_in_tab_order: Option<Vec<String>>,
 }
 
 impl Hash for Layout {
@@ -98,56 +100,113 @@ impl Layout {
             overflow_behavior: None,
             root: Some(false),
             active: Some(false),
+			panel_ids_in_tab_order: None,
         }
     }
-
-    pub fn get_panel_by_id(&self, id: &str) -> Option<&Panel> {
-        for panel in &self.children {
-            if panel.id == id {
-                return Some(panel);
-            }
-        }
-        None
-    }
-
-    pub fn get_panel_by_id_mut(&mut self, id: &str) -> Option<&mut Panel> {
-        for panel in &mut self.children {
-            if panel.id == id {
-                return Some(panel);
-            }
-        }
-        None
-    }
-
-    pub fn get_selected_panels(&self) -> Vec<&Panel> {
-        let mut selected_panels = Vec::new();
-        for panel in &self.children {
-            if panel.selected.unwrap_or(false) {
-                selected_panels.push(panel);
-            }
-        }
-        selected_panels
-    }
-
-    pub fn select_only_panel(&mut self, id: &str) {
-        for panel in &mut self.children {
-            if panel.id == id {
-                panel.selected = Some(true);
-            } else {
-                panel.selected = Some(false);
-            }
-        }
-    }
-
-	pub fn get_panels_in_tab_order(&self) -> Vec<&Panel> {
-		let mut panels: Vec<&Panel> = self.children.iter()
-			.filter(|panel| panel.tab_order.is_some()) // Filter out panels without a tab_order
-			.collect();
 	
-		// Sort only the panels with a valid tab_order
-		panels.sort_by(|a, b| a.tab_order.as_ref().unwrap().cmp(&b.tab_order.as_ref().unwrap()));
+	pub fn get_panel_by_id(&self, id: &str) -> Option<&Panel> {
+		fn recursive_search<'a>(panels: &'a [Panel], id: &str) -> Option<&'a Panel> {
+			for panel in panels {
+				if panel.id == id {
+					return Some(panel);
+				}
+				if let Some(ref children) = panel.children {
+					if let Some(found) = recursive_search(children, id) {
+						return Some(found);
+					}
+				}
+			}
+			None
+		}
 	
-		panels
+		recursive_search(&self.children, id)
+	}
+	
+	pub fn get_panel_by_id_mut(&mut self, id: &str) -> Option<&mut Panel> {
+		fn recursive_search<'a>(panels: &'a mut [Panel], id: &str) -> Option<&'a mut Panel> {
+			for panel in panels {
+				if panel.id == id {
+					return Some(panel);
+				}
+				if let Some(ref mut children) = panel.children {
+					if let Some(found) = recursive_search(children, id) {
+						return Some(found);
+					}
+				}
+			}
+			None
+		}
+	
+		recursive_search(&mut self.children, id)
+	}
+
+	pub fn get_selected_panels(&self) -> Vec<&Panel> {
+		fn recursive_collect<'a>(panels: &'a [Panel], selected_panels: &mut Vec<&'a Panel>) {
+			for panel in panels {
+				if panel.selected.unwrap_or(false) {
+					selected_panels.push(panel);
+				}
+				if let Some(ref children) = panel.children {
+					recursive_collect(children, selected_panels);
+				}
+			}
+		}
+	
+		let mut selected_panels = Vec::new();
+		recursive_collect(&self.children, &mut selected_panels);
+		selected_panels
+	}
+	
+	pub fn select_only_panel(&mut self, id: &str) {
+		fn recursive_select(panels: &mut [Panel], id: &str) {
+			for panel in panels {
+				panel.selected = Some(panel.id == id);
+				if let Some(ref mut children) = panel.children {
+					recursive_select(children, id);
+				}
+			}
+		}
+
+		recursive_select(&mut self.children, id);
+	}
+
+	pub fn get_panels_in_tab_order(&mut self) -> Vec<&Panel> {
+		fn collect_panels_recursive<'a>(panel: &'a Panel, panels: &mut Vec<&'a Panel>) {
+			// Check if panel has a tab order and add it to the list
+			if panel.tab_order.is_some() {
+				panels.push(panel);
+			}
+	
+			// If children exist, iterate over them recursively
+			if let Some(children) = &panel.children {
+				for child in children {
+					collect_panels_recursive(child, panels);
+				}
+			}
+		}
+
+		if self.panel_ids_in_tab_order.is_some() {
+			let mut panels = Vec::new();
+			for panel_id in self.panel_ids_in_tab_order.as_ref().unwrap() {
+				if let Some(panel) = self.get_panel_by_id(panel_id) {
+					panels.push(panel);
+				}
+			}
+			panels
+		}else{
+			let mut panels = Vec::new();
+			// Start recursion for each top-level child
+			for panel in &self.children {
+				collect_panels_recursive(panel, &mut panels);
+			}
+		
+			// Sort panels by their tab order
+			panels.sort_by(|a, b| a.tab_order.as_ref().unwrap().cmp(&b.tab_order.as_ref().unwrap()));
+
+			self.panel_ids_in_tab_order = Some(panels.iter().map(|p| p.id.clone()).collect());
+
+			panels
+		}
 	}
 
 	pub fn select_next_panel(&mut self) {
@@ -155,6 +214,8 @@ impl Layout {
 		if panels.is_empty() {
 			return; // Early return if there are no panels
 		}
+
+		log::debug!("Found {} panels with a tab_order", panels.len());
 
 		let selected_panel_index = panels.iter()
 			.position(|p| p.selected.unwrap_or(false));
@@ -228,6 +289,7 @@ impl Layout {
             overflow_behavior: self.overflow_behavior.clone(),
             root: self.root,
             active: self.active,
+			panel_ids_in_tab_order: self.panel_ids_in_tab_order.clone(),
         }
     }
 }

@@ -114,12 +114,12 @@ create_runnable!(
 						inner.send_message(Message::RedrawApp);
                     }
                     Message::RedrawPanel(panel_id) => {
-                        let panel = state_unwrapped.app_graph.get_panel_by_id(&panel_id);
+                        let panel = state_unwrapped.app.get_panel_by_id(&panel_id);
                         if let Some(found_panel) = panel {
                             new_buffer = buffer.clone();
                             draw_panel(
                                 &state_unwrapped,
-                                &found_panel.get_parent_layout(&state_unwrapped).unwrap(),
+                                &found_panel.get_parent_layout_clone(&state_unwrapped).unwrap(),
                                 &found_panel,
                                 &mut new_buffer,
                             );
@@ -168,7 +168,9 @@ pub fn draw_panel(
 ) {
     log::debug!("Drawing panel '{}'", panel.id);
 
-    let panel_parent = app_context.app_graph.get_parent(&layout.id, &panel.id);
+	let app_graph = app_context.app.generate_graph();
+
+    let panel_parent = app_graph.get_parent(&layout.id, &panel.id);
 
     let parent_bounds = if panel_parent.is_none() {
         Some(screen_bounds())
@@ -193,10 +195,10 @@ pub fn draw_panel(
     let border_color = panel.calc_border_color(app_context).to_string();
     let fill_char = panel.calc_fill_char(app_context);
 
-	if panel.selected.unwrap_or(false) {
-		log::info!("Panel '{}' is selected", panel.id);
-		bg_color = "red".to_owned();
-	}
+	// if panel.selected.unwrap_or(false) {
+	// 	log::info!("Panel '{}' is selected", panel.id);
+	// 	bg_color = "red".to_owned();
+	// }
     // Draw fill
     fill_panel(&bounds, border, &bg_color, fill_char, buffer);
 
