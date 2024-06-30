@@ -3,53 +3,19 @@ extern crate lazy_static;
 extern crate clap;
 
 use clap::{App, Arg};
-use draw_loop::DrawLoop;
-use input_loop::InputLoop;
-use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
+use crossbash_lib::create_runnable_with_dynamic_input;
+use crossbash_lib::thread_manager;
+use crossbash_lib::DrawLoop;
+use crossbash_lib::InputLoop;
 use simplelog::*;
 use uuid::Uuid;
 use std::fs::File;
-use std::io::Write as IoWrite;
-use std::io::{stdin, stdout, Read};
 use std::path::Path;
-use std::process::Command;
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::color;
-use termion::cursor;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::{IntoRawMode, RawTerminal};
-use termion::screen::AlternateScreen;
 use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 
-use serde::{
-    de::MapAccess, de::SeqAccess, de::Visitor, Deserialize, Deserializer, Serialize, Serializer,
-};
-use std::fmt;
-
-use std::sync::atomic::{AtomicBool, Ordering};
-
-mod model {
-    pub mod app;
-    pub mod common;
-    pub mod layout;
-    pub mod panel;
-}
-
-#[macro_use]
-pub mod thread_manager;
-mod draw_loop;
-mod input_loop;
-mod utils;
-
-use crate::model::app::*;
-use crate::model::common::*;
-use crate::model::layout::*;
-use crate::model::panel::*;
-use crate::utils::*;
+use crossbash_lib::model::app::*;
+use crossbash_lib::utils::*;
 
 fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 	let active_layout = app_context.app.get_active_layout();

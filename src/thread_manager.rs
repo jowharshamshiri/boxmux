@@ -1,10 +1,8 @@
 use crate::model::app::AppContext;
-use crate::App;
 use log::{error, info};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use uuid::Uuid;

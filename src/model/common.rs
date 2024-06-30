@@ -1,19 +1,7 @@
 use crate::utils::{
-    draw_panel, fill_panel, get_bg_color, get_fg_color, input_bounds_to_bounds, screen_bounds,
+    get_bg_color, get_fg_color, input_bounds_to_bounds,
 };
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::raw::RawTerminal;
-use termion::screen::AlternateScreen;
-
-use serde::{de, ser};
-
-use crate::model::panel::*;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
