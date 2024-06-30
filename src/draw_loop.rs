@@ -1,6 +1,6 @@
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer_if_changed, execute_commands, handle_keypress, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer
+    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer
 };
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
@@ -71,9 +71,9 @@ create_runnable!(
                     Message::Die => should_continue = false,
                     Message::Resize => {
                         write!(screen, "{}", termion::clear::All).unwrap();
-                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+						new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&mut state_unwrapped, &mut new_buffer);
-                        apply_buffer_if_changed(buffer, &new_buffer, screen);
+                        apply_buffer(&mut new_buffer, screen);
 						*buffer = new_buffer;
                     },
                     Message::NextPanel() => {
@@ -196,9 +196,14 @@ create_runnable!(
 						}
 					},
                     Message::RedrawApp => {
-                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+                        // new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+                        // draw_app(&mut state_unwrapped, &mut new_buffer);
+                        // apply_buffer_if_changed(buffer, &new_buffer, screen);
+						// *buffer = new_buffer;
+						write!(screen, "{}", termion::clear::All).unwrap();
+						new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&mut state_unwrapped, &mut new_buffer);
-                        apply_buffer_if_changed(buffer, &new_buffer, screen);
+                        apply_buffer(&mut new_buffer, screen);
 						*buffer = new_buffer;
                     },
 					Message::PanelOutputUpdate(panel_id, output) => {

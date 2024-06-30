@@ -3,7 +3,8 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
 use crate::{
-    model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, Layout, 
+    model::common::{Bounds, Cell, InputBounds, ScreenBuffer},
+    Layout,
 };
 use termion::event::{Event, Key};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
@@ -125,24 +126,24 @@ pub fn draw_vertical_line(
 }
 
 pub fn erase_to_background_color(
-	x: usize,
-	y: usize,
-	width: usize,
-	height: usize,
-	bg_color: &str,
-	buffer: &mut ScreenBuffer,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    bg_color: &str,
+    buffer: &mut ScreenBuffer,
 ) {
-	let bg_color_code = get_bg_color(bg_color);
-	for y in y..y + height {
-		for x in x..x + width {
-			let cell = Cell {
-				fg_color: "default".to_string(),
-				bg_color: bg_color_code.clone(),
-				ch: ' ',
-			};
-			buffer.update(x, y, cell);
-		}
-	}
+    let bg_color_code = get_bg_color(bg_color);
+    for y in y..y + height {
+        for x in x..x + width {
+            let cell = Cell {
+                fg_color: "default".to_string(),
+                bg_color: bg_color_code.clone(),
+                ch: ' ',
+            };
+            buffer.update(x, y, cell);
+        }
+    }
 }
 
 pub fn draw_horizontal_line_with_title(
@@ -331,6 +332,7 @@ pub fn draw_panel(
             .map(|line| line.len())
             .max()
             .unwrap_or(0);
+
         let max_content_height = content_lines.len();
 
         if content_width > viewable_width {
@@ -348,7 +350,7 @@ pub fn draw_panel(
             let viewable_height = bounds.height() - 1; // minus one to avoid overwriting the bottom border
 
             // Calculate the maximum allowable offsets based on content size
-            let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
+            let max_horizontal_offset = max_content_width.saturating_sub(viewable_width) + 3;
             let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
 
             // Calculate the current offsets based on scroll percentages
@@ -370,11 +372,12 @@ pub fn draw_panel(
                 let visible_part = line
                     .chars()
                     .skip(horizontal_offset)
-                    .take(viewable_width-1)
+                    .take(viewable_width - 3)
                     .collect::<String>();
+
                 print_with_color_and_background_at(
                     bounds.top() + 1 + line_idx,
-                    bounds.left()+2,
+                    bounds.left() + 2,
                     fg_color,
                     bg_color,
                     &visible_part,
@@ -404,11 +407,12 @@ pub fn draw_panel(
 
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
-				let scrollbar_position = if viewable_height > 1 {
-					((vertical_scroll as f64 / 100.0) * (viewable_height - 1) as f64).floor() as usize
-				} else {
-					0
-				};
+                let scrollbar_position = if viewable_height > 1 {
+                    ((vertical_scroll as f64 / 100.0) * (viewable_height - 1) as f64).floor()
+                        as usize
+                } else {
+                    0
+                };
                 print_with_color_and_background_at(
                     bounds.top() + 1 + scrollbar_position,
                     bounds.right(),
@@ -420,11 +424,12 @@ pub fn draw_panel(
             }
 
             if max_content_width > viewable_width {
-				let scrollbar_position = if viewable_width > 2 {
-					((vertical_scroll as f64 / 100.0) * (viewable_width - 2) as f64).floor() as usize
-				} else {
-					0
-				};
+                let scrollbar_position = if viewable_width > 2 {
+                    ((horizontal_scroll as f64 / 100.0) * (viewable_width - 2) as f64).floor()
+                        as usize
+                } else {
+                    0
+                };
                 print_with_color_and_background_at(
                     bounds.bottom(),
                     bounds.left() + 1 + scrollbar_position,
@@ -443,7 +448,7 @@ pub fn draw_panel(
                     .skip(_x_offset)
                     .take(viewable_width)
                     .collect::<String>();
-				
+
                 print_with_color_and_background_at(
                     bounds.top() + 2 + i,
                     bounds.left() + 2,
@@ -469,13 +474,7 @@ pub fn draw_panel(
                 buffer.update(bounds.left() + i, bounds.top() + i, cell);
             }
         } else if overflow_behavior == "removed" {
-            fill_panel(
-                &bounds,
-                false,
-                parent_bg_color,
-                ' ',
-                buffer,
-            );
+            fill_panel(&bounds, false, parent_bg_color, ' ', buffer);
         }
     } else {
         // Draw bottom border
@@ -1074,10 +1073,7 @@ pub fn execute_commands(commands: &Vec<String>) -> String {
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {
-    key_str
-        .to_lowercase()
-        .replace(" ", "")
-        .replace("+", "")
+    key_str.to_lowercase().replace(" ", "").replace("+", "")
 }
 
 pub fn extract_key_str(event: Event) -> Option<String> {
@@ -1144,8 +1140,10 @@ pub fn key_str_to_translate_whitespace(original_str: &str) -> String {
     result
 }
 
-pub fn handle_keypress(key_str: &str, key_mappings: &HashMap<String, Vec<String>>) -> Option<Vec<String>> {
-	
+pub fn handle_keypress(
+    key_str: &str,
+    key_mappings: &HashMap<String, Vec<String>>,
+) -> Option<Vec<String>> {
     let normalized_key_str = normalize_key_str(&key_str_to_translate_whitespace(key_str));
 
     for (key, actions) in key_mappings.iter() {

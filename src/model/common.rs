@@ -22,8 +22,8 @@ pub struct ScreenBuffer {
 impl ScreenBuffer {
     pub fn new(width: usize, height: usize) -> Self {
         let default_cell = Cell {
-            fg_color: get_fg_color("default"),
-            bg_color: get_bg_color("default"),
+            fg_color: get_fg_color("white"),
+            bg_color: get_bg_color("black"),
             ch: ' ',
         };
         let buffer = vec![vec![default_cell; width]; height];
