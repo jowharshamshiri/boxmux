@@ -1,36 +1,14 @@
-use crate::model::app::App;
-use crate::model::panel;
-use crate::thread_manager::{self, Runnable};
+use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer_if_changed, get_bg_color, get_fg_color, screen_height, screen_width, AppContext, Bounds, Cell, Layout, Panel, ScreenBuffer
+    apply_buffer_if_changed, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer
 };
-use log::{error, info};
-use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
-use simplelog::*;
-use std::collections::hash_map::DefaultHasher;
-use std::fs::File;
-use std::hash::{Hash, Hasher};
-use std::io::{stdin, stdout, Read};
+use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
-use std::process::Command;
-use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::color;
-use termion::cursor;
-use termion::event::Key;
-use termion::input::TermRead;
+use std::sync::{mpsc, Mutex};
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
 
-use serde::{
-    de::MapAccess, de::SeqAccess, de::Visitor, Deserialize, Deserializer, Serialize, Serializer,
-};
-use std::fmt;
-
 use crate::thread_manager::*;
-
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::utils::{draw_panel as util_draw_panel, fill_panel, screen_bounds};
 use uuid::Uuid;
@@ -306,8 +284,8 @@ pub fn draw_panel(
     util_draw_panel(
         &bounds,
         &border_color,
-        Some(&bg_color),
-        Some(&parent_bg_color),
+        &bg_color,
+        &parent_bg_color,
         panel.title.as_deref(),
         &title_fg_color,
         &title_bg_color,

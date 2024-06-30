@@ -1,13 +1,13 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use std::{collections::HashMap};
 
-use crate::{model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, AppContext, Layout, Panel};
+use crate::{
+    model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, Layout, 
+};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
-use uuid::Uuid;
 
 pub fn get_fg_color(color: &str) -> String {
-    //log::debug!("Getting foreground color '{}'", color);
     match color {
         "red" => format!("{}", color::Fg(color::Red)),
         "green" => format!("{}", color::Fg(color::Green)),
@@ -26,13 +26,12 @@ pub fn get_fg_color(color: &str) -> String {
         "bright_magenta" => format!("{}", color::Fg(color::AnsiValue(13))),
         "bright_cyan" => format!("{}", color::Fg(color::AnsiValue(14))),
         "bright_white" => format!("{}", color::Fg(color::AnsiValue(15))),
-        "default" => format!("{}", color::Fg(color::White)),
+        // "default" => format!("{}", color::Fg(color::White)),
         _ => format!("{}", color::Fg(color::Reset)),
     }
 }
 
 pub fn get_bg_color(color: &str) -> String {
-    //log::debug!("Getting background color '{}'", color);
     match color {
         "red" => format!("{}", color::Bg(color::Red)),
         "green" => format!("{}", color::Bg(color::Green)),
@@ -51,20 +50,8 @@ pub fn get_bg_color(color: &str) -> String {
         "bright_magenta" => format!("{}", color::Bg(color::AnsiValue(13))),
         "bright_cyan" => format!("{}", color::Bg(color::AnsiValue(14))),
         "bright_white" => format!("{}", color::Bg(color::AnsiValue(15))),
-        "default" => format!("{}", color::Bg(color::AnsiValue(8))),
+        // "default" => format!("{}", color::Bg(color::AnsiValue(8))),
         _ => format!("{}", color::Bg(color::Reset)),
-    }
-}
-
-pub fn print_with_color_at(y: usize, x: usize, color: &str, text: &str, buffer: &mut ScreenBuffer) {
-    let color_code = get_fg_color(color);
-    for (i, ch) in text.chars().enumerate() {
-        let cell = Cell {
-            fg_color: color_code.clone(),
-            bg_color: get_bg_color("default"),
-            ch,
-        };
-        buffer.update(x + i, y, cell);
     }
 }
 
@@ -78,7 +65,7 @@ pub fn print_with_color_and_background_at(
 ) {
     let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color);
-    for (i, ch) in text.chars().enumerate() {
+    for (i, mut ch) in text.chars().enumerate() {
         let cell = Cell {
             fg_color: fg_color_code.clone(),
             bg_color: bg_color_code.clone(),
@@ -134,6 +121,27 @@ pub fn draw_vertical_line(
         };
         buffer.update(x, y, cell);
     }
+}
+
+pub fn erase_to_background_color(
+	x: usize,
+	y: usize,
+	width: usize,
+	height: usize,
+	bg_color: &str,
+	buffer: &mut ScreenBuffer,
+) {
+	let bg_color_code = get_bg_color(bg_color);
+	for y in y..y + height {
+		for x in x..x + width {
+			let cell = Cell {
+				fg_color: "default".to_string(),
+				bg_color: bg_color_code.clone(),
+				ch: ' ',
+			};
+			buffer.update(x, y, cell);
+		}
+	}
 }
 
 pub fn draw_horizontal_line_with_title(
@@ -202,6 +210,7 @@ pub fn draw_horizontal_line_with_title(
                 bg_color,
                 buffer,
             );
+
             print_with_color_and_background_at(
                 y,
                 title_start_position,
@@ -210,6 +219,7 @@ pub fn draw_horizontal_line_with_title(
                 &formatted_title,
                 buffer,
             );
+
             draw_horizontal_line(
                 y,
                 x1 + line_before_title_length + title_length,
@@ -234,8 +244,8 @@ static V_SCROLL_CHAR: &str = "-";
 pub fn draw_panel(
     bounds: &Bounds,
     border_color: &str,
-    bg_color: Option<&str>,
-    parent_bg_color: Option<&str>,
+    bg_color: &str,
+    parent_bg_color: &str,
     title: Option<&str>,
     title_fg_color: &str,
     title_bg_color: &str,
@@ -249,13 +259,13 @@ pub fn draw_panel(
 ) {
     let border_color_code = get_fg_color(border_color);
     // let fg_color_code = get_fg_color(fg_color);
-    let bg_color_code = get_bg_color(bg_color.unwrap_or("default"));
-    let parent_bg_color_code = get_bg_color(parent_bg_color.unwrap_or("default"));
+    let bg_color_code = get_bg_color(bg_color);
+    let parent_bg_color_code = get_bg_color(parent_bg_color);
     let mut _title_overflowing = false;
     let mut _x_offset = 0;
     let mut _y_offset = 0;
     let mut _overflowing = false;
-	let mut scrollbars_drawn = false;
+    let mut scrollbars_drawn = false;
 
     // Ensure bounds stay within screen limits
     let screen_bounds = screen_bounds();
@@ -290,7 +300,7 @@ pub fn draw_panel(
                 bounds.left(),
                 bounds.right(),
                 border_color,
-                bg_color.unwrap_or("default"),
+                bg_color,
                 Some(&formatted_title),
                 title_fg_color,
                 title_bg_color,
@@ -304,100 +314,123 @@ pub fn draw_panel(
             bounds.left(),
             bounds.right(),
             border_color,
-            bg_color.unwrap_or("default"),
+            bg_color,
             buffer,
         );
     }
 
     if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
-		let viewable_width = bounds.width().saturating_sub(4);
-		let viewable_height = bounds.height().saturating_sub(4);
+        let viewable_width = bounds.width().saturating_sub(4);
+        let viewable_height = bounds.height().saturating_sub(4);
 
-		let content_lines: Vec<&str> = content.lines().collect();
-		let max_content_width = content_lines.iter().map(|line| line.len()).max().unwrap_or(0);
-		let max_content_height = content_lines.len();
+        let content_lines: Vec<&str> = content.lines().collect();
+        let max_content_width = content_lines
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0);
+        let max_content_height = content_lines.len();
 
-		if content_width > viewable_width {
-			_x_offset = (max_content_width as f64 * horizontal_scroll / 100.0).round() as usize;
-		}
+        if content_width > viewable_width {
+            _x_offset = (max_content_width as f64 * horizontal_scroll / 100.0).round() as usize;
+        }
 
-		if content_height > viewable_height {
-			_y_offset = (max_content_height as f64 * vertical_scroll / 100.0).round() as usize;
-		}
+        if content_height > viewable_height {
+            _y_offset = (max_content_height as f64 * vertical_scroll / 100.0).round() as usize;
+        }
 
-		_overflowing = content_width > viewable_width || content_height > viewable_height;
+        _overflowing = content_width > viewable_width || content_height > viewable_height;
 
-		if _overflowing && overflow_behavior == "scroll" {
-			let viewable_width = bounds.width();
-			let viewable_height = bounds.height() - 1; // minus one to avoid overwriting the bottom border
+        if _overflowing && overflow_behavior == "scroll" {
+            let viewable_width = bounds.width();
+            let viewable_height = bounds.height() - 1; // minus one to avoid overwriting the bottom border
 
-			// Calculate the maximum allowable offsets based on content size
-			let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
-			let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
+            // Calculate the maximum allowable offsets based on content size
+            let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
+            let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
 
-			// Calculate the current offsets based on scroll percentages
-			let horizontal_offset = ((horizontal_scroll / 100.0) * max_horizontal_offset as f64).floor() as usize;
-			let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
+            // Calculate the current offsets based on scroll percentages
+            let horizontal_offset =
+                ((horizontal_scroll / 100.0) * max_horizontal_offset as f64).floor() as usize;
+            let vertical_offset =
+                ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
 
-			// Ensure the offsets are within the allowable range
-			let horizontal_offset = horizontal_offset.min(max_horizontal_offset);
-			let vertical_offset = vertical_offset.min(max_vertical_offset);
+            // Ensure the offsets are within the allowable range
+            let horizontal_offset = horizontal_offset.min(max_horizontal_offset);
+            let vertical_offset = vertical_offset.min(max_vertical_offset);
 
-			let visible_lines = content_lines.iter().skip(vertical_offset).take(viewable_height);
+            let visible_lines = content_lines
+                .iter()
+                .skip(vertical_offset)
+                .take(viewable_height);
 
-			for (line_idx, line) in visible_lines.enumerate() {
-				let visible_part = line.chars().skip(horizontal_offset).take(viewable_width).collect::<String>();
-				print_with_color_and_background_at(bounds.top() + 1 + line_idx, bounds.left(), fg_color, bg_color.unwrap_or("default"), &visible_part, buffer);
-			}
+            for (line_idx, line) in visible_lines.enumerate() {
+                let visible_part = line
+                    .chars()
+                    .skip(horizontal_offset)
+                    .take(viewable_width)
+                    .collect::<String>();
+                print_with_color_and_background_at(
+                    bounds.top() + 1 + line_idx,
+                    bounds.left(),
+                    fg_color,
+                    bg_color,
+                    &visible_part,
+                    buffer,
+                );
+            }
 
-			// Draw bottom border
-			draw_horizontal_line(
-				bounds.bottom(),
-				bounds.left(),
-				bounds.right(),
-				border_color,
-				bg_color.unwrap_or("default"),
-				buffer,
-			);
+            // Draw bottom border
+            draw_horizontal_line(
+                bounds.bottom(),
+                bounds.left(),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
 
-			// Draw right border
-			draw_vertical_line(
-				bounds.right(),
-				bounds.top() + 1,
-				bounds.bottom() - 1,
-				border_color,
-				bg_color.unwrap_or("default"),
-				buffer,
-			);
+            // Draw right border
+            draw_vertical_line(
+                bounds.right(),
+                bounds.top() + 1,
+                bounds.bottom() - 1,
+                border_color,
+                bg_color,
+                buffer,
+            );
 
-			// Drawing the scroll nobs within the borders
-			if max_content_height > viewable_height {
-				let scrollbar_position = ((vertical_scroll as f64 / 100.0) * (viewable_height -1) as f64).floor() as usize;
-				print_with_color_and_background_at(
-					bounds.top() + 1 + scrollbar_position,
-					bounds.right(),
-					border_color,
-					bg_color.unwrap_or("default"),
-					V_SCROLL_CHAR,
-					buffer,
-				);
-			}
+            // Drawing the scroll nobs within the borders
+            if max_content_height > viewable_height {
+                let scrollbar_position = ((vertical_scroll as f64 / 100.0)
+                    * (viewable_height - 1) as f64)
+                    .floor() as usize;
+                print_with_color_and_background_at(
+                    bounds.top() + 1 + scrollbar_position,
+                    bounds.right(),
+                    border_color,
+                    bg_color,
+                    V_SCROLL_CHAR,
+                    buffer,
+                );
+            }
 
-			if max_content_width > viewable_width {
-				let scrollbar_position = ((horizontal_scroll as f64 / 100.0) * (viewable_width -2) as f64).floor() as usize;
-				print_with_color_and_background_at(
-					bounds.bottom(),
-					bounds.left() + 1 + scrollbar_position,
-					border_color,
-					bg_color.unwrap_or("default"),
-					H_SCROLL_CHAR,
-					buffer,
-				);
-			}
+            if max_content_width > viewable_width {
+                let scrollbar_position = ((horizontal_scroll as f64 / 100.0)
+                    * (viewable_width - 2) as f64)
+                    .floor() as usize;
+                print_with_color_and_background_at(
+                    bounds.bottom(),
+                    bounds.left() + 1 + scrollbar_position,
+                    border_color,
+                    bg_color,
+                    H_SCROLL_CHAR,
+                    buffer,
+                );
+            }
 
-			scrollbars_drawn = true;
-
+            scrollbars_drawn = true;
         } else if !_overflowing {
             for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
                 let visible_line = &line
@@ -405,10 +438,11 @@ pub fn draw_panel(
                     .skip(_x_offset)
                     .take(viewable_width)
                     .collect::<String>();
-                print_with_color_at(
+                print_with_color_and_background_at(
                     bounds.top() + 2 + i,
                     bounds.left() + 2,
                     fg_color,
+                    bg_color,
                     visible_line,
                     buffer,
                 );
@@ -418,7 +452,7 @@ pub fn draw_panel(
 
     if _overflowing && overflow_behavior != "scroll" {
         if overflow_behavior == "fill" {
-            fill_panel(&bounds, true, bg_color.unwrap_or("default"), '█', buffer);
+            fill_panel(&bounds, true, bg_color, '█', buffer);
         } else if overflow_behavior == "cross_out" {
             for i in 0..bounds.width() {
                 let cell = Cell {
@@ -432,47 +466,46 @@ pub fn draw_panel(
             fill_panel(
                 &bounds,
                 false,
-                parent_bg_color.unwrap_or("default"),
+                parent_bg_color,
                 ' ',
                 buffer,
             );
         }
     } else {
+        // Draw bottom border
+        if !scrollbars_drawn {
+            draw_horizontal_line(
+                bounds.bottom(),
+                bounds.left(),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
 
-		// Draw bottom border
-		if !scrollbars_drawn {
-			draw_horizontal_line(
-				bounds.bottom(),
-				bounds.left(),
-				bounds.right(),
-				border_color,
-				bg_color.unwrap_or("default"),
-				buffer,
-			);
-		}
-
-		// Draw left border
+        // Draw left border
         draw_vertical_line(
             bounds.left(),
             bounds.top() + 1,
             bounds.bottom() - 1,
             border_color,
-            bg_color.unwrap_or("default"),
+            bg_color,
             buffer,
         );
 
-		// Draw right border
+        // Draw right border
         if !scrollbars_drawn {
-			draw_vertical_line(
-				bounds.right(),
-				bounds.top() + 1,
-				bounds.bottom() - 1,
-				border_color,
-				bg_color.unwrap_or("default"),
-				buffer,
-			);
-		}
-		
+            draw_vertical_line(
+                bounds.right(),
+                bounds.top() + 1,
+                bounds.bottom() - 1,
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
+
         // Draw corners
         buffer.update(
             bounds.left(),
@@ -873,15 +906,19 @@ pub fn apply_buffer_if_changed(
             } else {
                 // When encountering the end of a sequence of changes, flush them
                 if let Some(start) = last_changed_index {
-                    write!(alternate_screen, "{}", termion::cursor::Goto(start + 1, y as u16 + 1)).unwrap();
+                    write!(
+                        alternate_screen,
+                        "{}",
+                        termion::cursor::Goto(start + 1, y as u16 + 1)
+                    )
+                    .unwrap();
                     for cell in &changes {
                         write!(
                             alternate_screen,
                             "{}{}{}",
-                            cell.bg_color,
-                            cell.fg_color,
-                            cell.ch
-                        ).unwrap();
+                            cell.bg_color, cell.fg_color, cell.ch
+                        )
+                        .unwrap();
                     }
                     changes.clear();
                     last_changed_index = None;
@@ -891,15 +928,19 @@ pub fn apply_buffer_if_changed(
 
         // Check if there's a pending sequence at the end of the line
         if let Some(start) = last_changed_index {
-            write!(alternate_screen, "{}", termion::cursor::Goto(start + 1, y as u16 + 1)).unwrap();
+            write!(
+                alternate_screen,
+                "{}",
+                termion::cursor::Goto(start + 1, y as u16 + 1)
+            )
+            .unwrap();
             for cell in changes {
                 write!(
                     alternate_screen,
                     "{}{}{}",
-                    cell.bg_color,
-                    cell.fg_color,
-                    cell.ch
-                ).unwrap();
+                    cell.bg_color, cell.fg_color, cell.ch
+                )
+                .unwrap();
             }
         }
     }
@@ -907,69 +948,74 @@ pub fn apply_buffer_if_changed(
 }
 
 pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
-	for panel in &layout.children {
-		if Some(true) == panel.selected {
-			return Some(panel.id.clone());
-		}
-	}
+    for panel in &layout.children {
+        if Some(true) == panel.selected {
+            return Some(panel.id.clone());
+        }
+    }
 
     None
 }
 
 pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
-	let mut result:HashMap<String, i32>= HashMap::new();
+    let mut result: HashMap<String, i32> = HashMap::new();
 
-	for panel in &layout.children {
-		let tab_order=panel.tab_order.clone();
-		if tab_order.is_some() {
-            result.insert(panel.id.clone(), tab_order.unwrap().parse::<i32>().expect("Invalid tab order"));
-		}
-	}
+    for panel in &layout.children {
+        let tab_order = panel.tab_order.clone();
+        if tab_order.is_some() {
+            result.insert(
+                panel.id.clone(),
+                tab_order
+                    .unwrap()
+                    .parse::<i32>()
+                    .expect("Invalid tab order"),
+            );
+        }
+    }
 
-	// Sort the hashmap by value
-	let mut sorted_result: Vec<(String, i32)> = result.into_iter().collect();
-	sorted_result.sort_by(|a, b| a.1.cmp(&b.1));
+    // Sort the hashmap by value
+    let mut sorted_result: Vec<(String, i32)> = result.into_iter().collect();
+    sorted_result.sort_by(|a, b| a.1.cmp(&b.1));
 
-	let mut tab_order: Vec<String> = Vec::new();
-	for (key, _) in sorted_result {
-		tab_order.push(key);
-	}
+    let mut tab_order: Vec<String> = Vec::new();
+    for (key, _) in sorted_result {
+        tab_order.push(key);
+    }
 
-	tab_order
+    tab_order
 }
 
 pub fn find_next_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
-	let tab_order = calculate_tab_order(layout);
-	let mut found_current_panel = false;
+    let tab_order = calculate_tab_order(layout);
+    let mut found_current_panel = false;
 
-	for panel_uuid in tab_order {
-		if found_current_panel {
-			return Some(panel_uuid);
-		}
+    for panel_uuid in tab_order {
+        if found_current_panel {
+            return Some(panel_uuid);
+        }
 
-		if panel_uuid == current_panel_uuid {
-			found_current_panel = true;
-		}
-	}
+        if panel_uuid == current_panel_uuid {
+            found_current_panel = true;
+        }
+    }
 
-	None
+    None
 }
 
 pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
-	let tab_order = calculate_tab_order(layout);
-	let mut previous_panel_uuid: Option<String> = None;
+    let tab_order = calculate_tab_order(layout);
+    let mut previous_panel_uuid: Option<String> = None;
 
-	for panel_uuid in tab_order {
-		if panel_uuid == current_panel_uuid {
-			return previous_panel_uuid;
-		}
+    for panel_uuid in tab_order {
+        if panel_uuid == current_panel_uuid {
+            return previous_panel_uuid;
+        }
 
-		previous_panel_uuid = Some(panel_uuid);
-	}
+        previous_panel_uuid = Some(panel_uuid);
+    }
 
-	None
+    None
 }
-
 
 pub fn run_script(script: &str) -> io::Result<String> {
     // Create a new Command for the bash shell
@@ -995,27 +1041,28 @@ pub fn run_script(script: &str) -> io::Result<String> {
 }
 
 pub fn execute_commands(commands: &Vec<String>) -> String {
-	let output = commands
-		.iter()
-		.map(|cmd| {
-			let output = Command::new("sh")
-				.arg("-c")
-				.arg(cmd)
-				.output();
+    let output = commands
+        .iter()
+        .map(|cmd| {
+            let output = Command::new("sh").arg("-c").arg(cmd).output();
 
-			match output {
-				Ok(output) => {
-					if output.status.success() {
-						String::from_utf8_lossy(&output.stdout).to_string()
-					} else {
-						format!("Error executing '{}': {}", cmd, String::from_utf8_lossy(&output.stderr))
-					}
-				}
-				Err(e) => format!("Failed to execute command '{}': {:?}", cmd, e),
-			}
-		})
-		.collect::<Vec<_>>()
-		.join("\n");
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        String::from_utf8_lossy(&output.stdout).to_string()
+                    } else {
+                        format!(
+                            "Error executing '{}': {}",
+                            cmd,
+                            String::from_utf8_lossy(&output.stderr)
+                        )
+                    }
+                }
+                Err(e) => format!("Failed to execute command '{}': {:?}", cmd, e),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-	output
+    output
 }

@@ -1,39 +1,13 @@
-// app.rs
-use lazy_static::lazy_static;
-use uuid::Uuid;
-use std::process::Command;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::screen::AlternateScreen;
-
-use serde::{de, ser};
-
-use crate::model::common::{ScreenBuffer};
 use crate::model::layout::Layout;
 use crate::model::panel::*;
 
-use crate::{screen_height, screen_width};
-use crate::thread_manager::{Runnable, ThreadManager};
-use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};
-use simplelog::*;
 use std::fs::File;
-use std::io::Write as IoWrite;
-use std::io::{stdin, stdout, Read};
-use termion::color;
-use termion::cursor;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::{IntoRawMode, RawTerminal};
+use std::io::Read;
 
-use serde::{
-    de::MapAccess, de::SeqAccess, de::Visitor, Deserialize, Deserializer, Serialize, Serializer,
-};
-use std::fmt;
+use serde::{ Deserialize, Serialize};
 use std::collections::HashSet;
 use serde_yaml;
-use petgraph::graph::{DiGraph, NodeIndex, Graph};
+use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
 use petgraph::visit::EdgeRef;
 

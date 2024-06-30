@@ -1,19 +1,6 @@
-use crate::utils::*;
 use core::hash::Hash;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::hash::{DefaultHasher, Hasher};
-use std::process::Command;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::raw::RawTerminal;
-use termion::screen::AlternateScreen;
-
-use serde::{de, ser};
-
-use crate::model::common::ScreenBuffer;
+use std::hash::Hasher;
 use crate::model::panel::Panel;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]

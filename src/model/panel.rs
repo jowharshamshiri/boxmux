@@ -1,27 +1,14 @@
 use crate::utils::{
-    draw_panel, fill_panel, get_bg_color, get_fg_color, input_bounds_to_bounds, screen_bounds,
+    input_bounds_to_bounds, screen_bounds,
 };
 use core::hash::Hash;
-use std::hash::{DefaultHasher, Hasher};
-use lazy_static::lazy_static;
-use serde::{de, ser};
+use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
-
-use std::process::Command;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use termion::raw::RawTerminal;
-use termion::screen::AlternateScreen;
 
 use crate::model::common::*;
 use crate::model::layout::Layout;
 
-use crate::thread_manager::{Runnable, ThreadManager};
-
-use crate::{utils::*, App, AppContext};
-use crate::model::app::AppGraph;
+use crate::{utils::*, AppContext};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Panel {
