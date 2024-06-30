@@ -2,20 +2,20 @@ layouts:
   - id: 'dashboard'
     root: true
     title: 'Dashboard Layout'
-    # fg_color: 'white'
-    # selected_fg_color: 'bright_yellow'
-    # # bg_color: 'bright_black'
-    # selected_bg_color: 'bright_black'
-    # title_fg_color: 'black'
-    # selected_title_fg_color: 'bright_white'
-    # title_bg_color: 'green'
-    # selected_title_bg_color: 'bright_green'
-    # border: true
-    # border_color: 'bright_white'
-    # selected_border_color: 'bright_green'
-    # title_position: 'start'
-    # # fill_char: ' '
-    # overflow_behavior: 'scroll'
+    fg_color: 'white'
+    selected_fg_color: 'bright_yellow'
+    # bg_color: 'bright_black'
+    selected_bg_color: 'bright_black'
+    title_fg_color: 'black'
+    selected_title_fg_color: 'bright_white'
+    title_bg_color: 'green'
+    selected_title_bg_color: 'bright_green'
+    border: true
+    border_color: 'bright_white'
+    selected_border_color: 'bright_green'
+    title_position: 'start'
+    fill_char: '.'
+    overflow_behavior: 'scroll'
 
     children:
       - id: 'header'
@@ -33,10 +33,7 @@ layouts:
           - echo "Error loading header."
         on_enter:
           - echo "Welcome to the server dashboard."
-          - echo "Please select an option."
-        on_keypress:
-          'return':
-            - echo "Enter key pressed."     
+          - echo "Please select an option."   
         children:
           - id: 'title'
             title: 'Title Display'
@@ -157,6 +154,26 @@ layouts:
             on_leave:
               - echo "Leaving log output."
             title_position: 'end'
+
+      - id: 'button_at_bottom_right'
+        # title: 'Button at Bottom Right Above Footer'
+        position:
+          x1: 80%
+          y1: 80%
+          x2: 90%
+          y2: 85%
+        bg_color: 'bright_blue'
+        fg_color: 'bright_white'
+        selected_bg_color: 'bright_yellow'
+        selected_fg_color: 'bright_black'
+        on_keypress:
+          'return':
+            - echo "Enter key pressed."
+        content: 'Press Enter to trigger an action.'
+        scroll: false
+        tab_order: 6
+        on_error:
+          - echo "Error loading button."
       - id: 'footer'
         title: 'Footer'
         position:
@@ -164,8 +181,11 @@ layouts:
           y1: 90%
           x2: 100%
           y2: 100%
+        on_keypress:
+          'return':
+            - echo "Enter key pressed."
         content: 'Updated every 5 seconds.'
         scroll: false
-        tab_order: 6
+        tab_order: 7
         on_error:
           - echo "Error loading footer."

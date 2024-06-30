@@ -2,6 +2,7 @@ use crate::utils::{
     input_bounds_to_bounds, screen_bounds,
 };
 use core::hash::Hash;
+use std::collections::HashMap;
 use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +47,8 @@ pub struct Panel {
     pub title_position: Option<String>,
     pub on_refresh: Option<Vec<String>>,
     pub thread: Option<bool>,
+	#[serde(default)]
+    pub on_keypress: Option<HashMap<String, Vec<String>>>,
 	pub horizontal_scroll: Option<f64>,
 	pub vertical_scroll: Option<f64>,
 	pub selected: Option<bool>,
@@ -56,6 +59,7 @@ pub struct Panel {
     #[serde(skip)]
 	pub parent_layout_id: Option<String> 
 }
+
 impl Hash for Panel {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
@@ -151,6 +155,7 @@ impl Default for Panel {
             title_position: None,
             on_refresh: None,
             thread: Some(false),
+			on_keypress: None,
             output: "".to_string(),
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
@@ -245,6 +250,7 @@ impl Panel {
             title_position: self.title_position.clone(),
             on_refresh: self.on_refresh.clone(),
             thread: self.thread,
+			on_keypress: self.on_keypress.clone(),
             output: self.output.clone(),
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,

@@ -25,6 +25,7 @@ pub enum Message {
     PanelEventLeave(String),
     PanelEventError(String),
 	PanelOutputUpdate(String, String),
+	KeyPress(String),
 }
 
 impl Hash for Message {
@@ -64,6 +65,10 @@ impl Hash for Message {
 				"panel_output_update".hash(state);
 				panel_id.hash(state);
 				output.hash(state);
+			}
+			Message::KeyPress(pressed_key) => {
+				"key_press".hash(state);
+				pressed_key.hash(state);
 			}
         }
     }

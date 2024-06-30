@@ -17,6 +17,8 @@ use std::hash::{DefaultHasher, Hasher};
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct App {
     pub layouts: Vec<Layout>,
+	#[serde(default)]
+    pub on_keypress: Option<HashMap<String, Vec<String>>>,
 	#[serde(skip)]
 	app_graph: Option<AppGraph>,
 }
@@ -25,6 +27,7 @@ impl App {
     pub fn new() -> Self {
         App {
             layouts: Vec::new(),
+			on_keypress: None,
 			app_graph: None,
         }
     }
@@ -170,6 +173,7 @@ impl App {
     pub fn deep_clone(&self) -> Self {
         App {
             layouts: self.layouts.iter().map(|layout| layout.deep_clone()).collect(),
+			on_keypress: self.on_keypress.clone(),
 			app_graph: self.app_graph.clone(),
         }
     }
