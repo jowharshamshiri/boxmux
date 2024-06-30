@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use crate::{
     model::common::{Bounds, Cell, InputBounds, ScreenBuffer}, Layout, 
 };
+use termion::event::{Event, Key};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
 
 pub fn get_fg_color(color: &str) -> String {
@@ -373,7 +374,7 @@ pub fn draw_panel(
                     .collect::<String>();
                 print_with_color_and_background_at(
                     bounds.top() + 1 + line_idx,
-                    bounds.left(),
+                    bounds.left()+2,
                     fg_color,
                     bg_color,
                     &visible_part,
@@ -403,9 +404,11 @@ pub fn draw_panel(
 
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
-                let scrollbar_position = ((vertical_scroll as f64 / 100.0)
-                    * (viewable_height - 1) as f64)
-                    .floor() as usize;
+				let scrollbar_position = if viewable_height > 1 {
+					((vertical_scroll as f64 / 100.0) * (viewable_height - 1) as f64).floor() as usize
+				} else {
+					0
+				};
                 print_with_color_and_background_at(
                     bounds.top() + 1 + scrollbar_position,
                     bounds.right(),
@@ -417,9 +420,11 @@ pub fn draw_panel(
             }
 
             if max_content_width > viewable_width {
-                let scrollbar_position = ((horizontal_scroll as f64 / 100.0)
-                    * (viewable_width - 2) as f64)
-                    .floor() as usize;
+				let scrollbar_position = if viewable_width > 2 {
+					((vertical_scroll as f64 / 100.0) * (viewable_width - 2) as f64).floor() as usize
+				} else {
+					0
+				};
                 print_with_color_and_background_at(
                     bounds.bottom(),
                     bounds.left() + 1 + scrollbar_position,
@@ -438,6 +443,7 @@ pub fn draw_panel(
                     .skip(_x_offset)
                     .take(viewable_width)
                     .collect::<String>();
+				
                 print_with_color_and_background_at(
                     bounds.top() + 2 + i,
                     bounds.left() + 2,
@@ -1065,4 +1071,87 @@ pub fn execute_commands(commands: &Vec<String>) -> String {
         .join("\n");
 
     output
+}
+
+pub fn normalize_key_str(key_str: &str) -> String {
+    key_str
+        .to_lowercase()
+        .replace(" ", "")
+        .replace("+", "")
+}
+
+pub fn extract_key_str(event: Event) -> Option<String> {
+    match event {
+        Event::Key(Key::Char(' ')) => Some("Space".to_string()),
+        Event::Key(Key::Char('\n')) => Some("Return".to_string()),
+        Event::Key(Key::Char('\t')) => Some("Tab".to_string()),
+        Event::Key(Key::Char(c)) => Some(c.to_string()),
+        Event::Key(Key::Ctrl(c)) => Some(format!("Ctrl+{}", c)),
+        Event::Key(Key::Alt(c)) => Some(format!("Alt+{}", c)),
+        Event::Key(Key::Left) => Some("Left".to_string()),
+        Event::Key(Key::Right) => Some("Right".to_string()),
+        Event::Key(Key::Up) => Some("Up".to_string()),
+        Event::Key(Key::Down) => Some("Down".to_string()),
+        Event::Key(Key::Backspace) => Some("Backspace".to_string()),
+        Event::Key(Key::Delete) => Some("Delete".to_string()),
+        Event::Key(Key::Esc) => Some("Esc".to_string()),
+        Event::Key(Key::BackTab) => Some("BackTab".to_string()),
+        Event::Key(Key::Home) => Some("Home".to_string()),
+        Event::Key(Key::End) => Some("End".to_string()),
+        Event::Key(Key::PageUp) => Some("PageUp".to_string()),
+        Event::Key(Key::PageDown) => Some("PageDown".to_string()),
+        Event::Key(Key::F(n)) => Some(format!("F{}", n)),
+        Event::Key(Key::Insert) => Some("Insert".to_string()),
+        _ => None,
+    }
+}
+
+pub fn key_str_to_translate_whitespace(original_str: &str) -> String {
+    let mut replacements = HashMap::new();
+    replacements.insert(" ", "Space");
+    replacements.insert("\n", "Return");
+    replacements.insert("\t", "Tab");
+    replacements.insert("\x08", "Backspace");
+    replacements.insert("\x7f", "Delete");
+    replacements.insert("\x1b", "Esc");
+    replacements.insert("\x09", "BackTab");
+    replacements.insert("\x1b[H", "Home");
+    replacements.insert("\x1b[F", "End");
+    replacements.insert("\x1b[5~", "PageUp");
+    replacements.insert("\x1b[6~", "PageDown");
+    replacements.insert("\x1b[2~", "Insert");
+    replacements.insert("\x1bOP", "F1");
+    replacements.insert("\x1bOQ", "F2");
+    replacements.insert("\x1bOR", "F3");
+    replacements.insert("\x1bOS", "F4");
+    replacements.insert("\x1b[15~", "F5");
+    replacements.insert("\x1b[17~", "F6");
+    replacements.insert("\x1b[18~", "F7");
+    replacements.insert("\x1b[19~", "F8");
+    replacements.insert("\x1b[20~", "F9");
+    replacements.insert("\x1b[21~", "F10");
+    replacements.insert("\x1b[23~", "F11");
+    replacements.insert("\x1b[24~", "F12");
+    replacements.insert("\x1b[A", "Up");
+    replacements.insert("\x1b[B", "Down");
+    replacements.insert("\x1b[C", "Right");
+    replacements.insert("\x1b[D", "Left");
+
+    let mut result = original_str.to_string();
+    for (key, value) in &replacements {
+        result = result.replace(key, value);
+    }
+    result
+}
+
+pub fn handle_keypress(key_str: &str, key_mappings: &HashMap<String, Vec<String>>) -> Option<Vec<String>> {
+	
+    let normalized_key_str = normalize_key_str(&key_str_to_translate_whitespace(key_str));
+
+    for (key, actions) in key_mappings.iter() {
+        if normalize_key_str(key) == normalized_key_str {
+            return Some(actions.clone());
+        }
+    }
+    None
 }

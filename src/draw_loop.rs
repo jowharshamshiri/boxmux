@@ -1,6 +1,6 @@
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer_if_changed, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer
+    apply_buffer_if_changed, execute_commands, handle_keypress, screen_height, screen_width, AppContext, Layout, Panel, ScreenBuffer
 };
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
@@ -75,7 +75,7 @@ create_runnable!(
                         draw_app(&mut state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
-                    }
+                    },
                     Message::NextPanel() => {
 						let mut active_layout = state_unwrapped.app.get_active_layout_mut().expect("No active layout found!");
 					
@@ -194,13 +194,13 @@ create_runnable!(
 								*buffer = new_buffer;
 							}
 						}
-					}
+					},
                     Message::RedrawApp => {
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&mut state_unwrapped, &mut new_buffer);
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
 						*buffer = new_buffer;
-                    }
+                    },
 					Message::PanelOutputUpdate(panel_id, output) => {
 						let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
 						if let Some(found_panel) = panel {
@@ -208,7 +208,33 @@ create_runnable!(
 							inner.update_app_context(state_unwrapped.deep_clone());
 							inner.send_message(Message::RedrawPanel(panel_id.clone()));
 						}
-					}
+					},
+					Message::KeyPress(pressed_key) => {
+						log::info!("Key pressed message received: {:?}", pressed_key);
+						let active_layout = state_unwrapped.app.get_active_layout().unwrap();
+						
+						let selected_panel_ids: Vec<String> = active_layout
+							.get_selected_panels()
+							.into_iter()
+							.filter(|p| p.on_keypress.is_some())
+							.map(|p| p.id.clone())
+							.collect();
+					
+						for panel_id in selected_panel_ids {
+							let panel = state_unwrapped.app.get_panel_by_id(&panel_id).unwrap();
+							
+							if let Some(actions) = handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap()) {
+								
+								// Perform mutable operations outside the loop that borrows immutably
+								let panel_mut = state_unwrapped.app.get_panel_by_id_mut(&panel_id).unwrap();
+								let new_output = execute_commands(&actions);
+					
+								panel_mut.content = Some(new_output.clone());
+								inner.update_app_context(state_unwrapped.deep_clone());
+								inner.send_message(Message::RedrawPanel(panel_id.clone()));
+							}
+						}
+					},
 					_ => {}
                 }
             }

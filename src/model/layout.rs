@@ -1,6 +1,6 @@
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
-use std::hash::Hasher;
+use std::{collections::HashMap, hash::Hasher};
 use crate::model::panel::Panel;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
@@ -26,6 +26,8 @@ pub struct Layout {
     pub selected_title_fg_color: Option<String>,
     pub overflow_behavior: Option<String>,
     pub root: Option<bool>,
+	#[serde(default)]
+    pub on_keypress: Option<HashMap<String, Vec<String>>>,
 
     #[serde(skip)]
     pub active: Option<bool>,
@@ -86,6 +88,7 @@ impl Layout {
             selected_title_fg_color: None,
             overflow_behavior: None,
             root: Some(false),
+			on_keypress: None,
             active: Some(false),
 			panel_ids_in_tab_order: None,
         }
@@ -288,6 +291,7 @@ impl Layout {
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             overflow_behavior: self.overflow_behavior.clone(),
             root: self.root,
+			on_keypress: self.on_keypress.clone(),
             active: self.active,
 			panel_ids_in_tab_order: self.panel_ids_in_tab_order.clone(),
         }

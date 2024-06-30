@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::utils::{
     get_bg_color, get_fg_color, input_bounds_to_bounds,
 };
