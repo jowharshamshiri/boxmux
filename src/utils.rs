@@ -370,7 +370,7 @@ pub fn draw_panel(
                 let visible_part = line
                     .chars()
                     .skip(horizontal_offset)
-                    .take(viewable_width)
+                    .take(viewable_width-1)
                     .collect::<String>();
                 print_with_color_and_background_at(
                     bounds.top() + 1 + line_idx,
