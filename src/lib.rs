@@ -10,6 +10,7 @@ pub mod model {
 pub mod thread_manager;
 pub mod draw_loop;
 pub mod input_loop;
+pub mod resize_loop;
 pub mod utils;
 
 pub use model::app::*;
