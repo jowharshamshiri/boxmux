@@ -564,26 +564,19 @@ pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<S
         if let Some(children) = &panel.children {
             for child in children {
                 if let Some(child_bounds) = bounds_map.get_mut(&child.id) {
-					let mut dx: isize=0;
-					let mut dy: isize=0;
                     // Ensure child bounds are within parent bounds
                     if child_bounds.x2 > parent_bounds.x2 {
-                        dx = parent_bounds.x2 as isize - child_bounds.x2 as isize;
+                        child_bounds.x2 = parent_bounds.x2;
                     }
                     if child_bounds.y2 > parent_bounds.y2 {
-                        dy = parent_bounds.y2 as isize - child_bounds.y2 as isize;
+                        child_bounds.y2 = parent_bounds.y2;
                     }
-
-                    child_bounds.move_by(dx, dy);
-
                     if child_bounds.x1 < parent_bounds.x1 {
-                        dx = parent_bounds.x1 as isize - child_bounds.x1 as isize;
+                        child_bounds.x1 = parent_bounds.x1;
                     }
                     if child_bounds.y1 < parent_bounds.y1 {
-                        dy = parent_bounds.y1 as isize - child_bounds.y1 as isize;
+                        child_bounds.y1 = parent_bounds.y1;
                     }
-
-                    child_bounds.move_by(dx, dy);
                 }
                 revalidate_children(child, bounds_map, parent_bounds);
             }
