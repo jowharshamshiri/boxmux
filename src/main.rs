@@ -9,15 +9,24 @@ use crossbash_lib::thread_manager;
 use crossbash_lib::DrawLoop;
 use crossbash_lib::InputLoop;
 use simplelog::*;
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::mpsc;
+use std::sync::Mutex;
+use std::time::Duration;
+use std::time::Instant;
 use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 use uuid::Uuid;
 use std::io::Write;
 
 use crossbash_lib::model::app::*;
 use crossbash_lib::utils::*;
+
+lazy_static! {
+    static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
+}
+
 
 fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     let active_layout = app_context.app.get_active_layout();
@@ -40,11 +49,6 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> bool {
-                            let mut state_unwrapped = state.deep_clone();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
-                            let output =
-                                execute_commands(panel.script.clone().unwrap().as_ref());
-                            inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
                             true
                         },
                         |inner: &mut RunnableImpl,
@@ -52,7 +56,13 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> bool {
-                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            let mut state_unwrapped = state.deep_clone();
+							let app_graph = state_unwrapped.app.generate_graph();
+                            let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
+                            let output =
+                                execute_commands(panel.script.clone().unwrap().as_ref());
+                            inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
+                            std::thread::sleep(std::time::Duration::from_millis(panel.calc_refresh_interval(&state, &app_graph)));
                             true
                         }
                     );
@@ -76,14 +86,6 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  messages: Vec<Message>,
                  vec: Vec<String>|
                  -> bool {
-                    let mut state_unwrapped = state.deep_clone();
-
-                    for panel_id in vec.iter() {
-                        let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id).unwrap();
-                        let output = execute_commands(panel.script.clone().unwrap().as_ref());
-                        inner.send_message(Message::PanelOutputUpdate(panel_id.clone(), output));
-                    }
-
                     true
                 },
                 |inner: &mut RunnableImpl,
@@ -91,7 +93,26 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                 messages: Vec<Message>,
                 vec: Vec<String>|
                 -> bool {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+					let mut state_unwrapped = state.deep_clone();
+
+					let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
+
+					for panel_id in vec.iter() {
+						let panel = state_unwrapped.app.get_panel_by_id_mut(panel_id).unwrap();
+						let refresh_interval = panel.refresh_interval.unwrap_or(1000);
+				
+						let last_execution_time = last_execution_times.entry(panel_id.clone()).or_insert(Instant::now());
+				
+						if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval) {
+							let output = execute_commands(panel.script.clone().unwrap().as_ref());
+							inner.send_message(Message::PanelOutputUpdate(panel_id.clone(), output));
+				
+							*last_execution_time = Instant::now();
+						}
+					}
+				
+					std::thread::sleep(Duration::from_millis(100));
+
                     true
                 }
             );

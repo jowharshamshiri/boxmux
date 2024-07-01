@@ -85,7 +85,7 @@ create_runnable!(
 				inner.send_message(Message::KeyPress(key_str.clone()));
             }
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         should_continue
     }

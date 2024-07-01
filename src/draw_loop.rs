@@ -253,7 +253,7 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            // std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
         should_continue

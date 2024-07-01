@@ -35,7 +35,6 @@ pub fn get_fg_color(color: &str) -> String {
         "bright_magenta" => format!("{}", color::Fg(color::AnsiValue(13))),
         "bright_cyan" => format!("{}", color::Fg(color::AnsiValue(14))),
         "bright_white" => format!("{}", color::Fg(color::AnsiValue(15))),
-        // "default" => format!("{}", color::Fg(color::White)),
         _ => format!("{}", color::Fg(color::Reset)),
     }
 }
@@ -59,7 +58,6 @@ pub fn get_bg_color(color: &str) -> String {
         "bright_magenta" => format!("{}", color::Bg(color::AnsiValue(13))),
         "bright_cyan" => format!("{}", color::Bg(color::AnsiValue(14))),
         "bright_white" => format!("{}", color::Bg(color::AnsiValue(15))),
-        // "default" => format!("{}", color::Bg(color::AnsiValue(8))),
         _ => format!("{}", color::Bg(color::Reset)),
     }
 }
@@ -214,14 +212,6 @@ pub fn draw_vertical_line(
     bg_color: &str,
     buffer: &mut ScreenBuffer,
 ) {
-    //log::debug!(
-    //     "Drawing vertical line with border color '{}', background color '{}', x='{}', y1='{}', y2='{}'",
-    //     border_color,
-    //     bg_color,
-    //     x,
-    //     y1,
-    //     y2
-    // );
     let border_color_code = get_fg_color(border_color);
     let bg_color_code = get_bg_color(bg_color);
     for y in y1..=y2 {
