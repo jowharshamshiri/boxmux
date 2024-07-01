@@ -8,6 +8,7 @@ use crate::thread_manager::*;
 
 use uuid::Uuid;
 use std::sync::mpsc;
+use std::time::Duration;
 
 create_runnable!(
     ResizeLoop,
@@ -27,6 +28,9 @@ create_runnable!(
 				_ => {},
 			}
         }
+
+		std::thread::sleep(Duration::from_millis(100));
+
 		true
     }
 );
