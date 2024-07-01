@@ -1,9 +1,8 @@
-use crate::model::app;
+use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext, AppGraph, Bounds, Layout, Panel, ScreenBuffer
+    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext, ScreenBuffer
 };
-use std::collections::HashMap;
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
 use std::sync::{mpsc, Mutex};
@@ -12,7 +11,6 @@ use termion::screen::AlternateScreen;
 
 use crate::thread_manager::*;
 
-use crate::utils::{render_panel, fill_panel, screen_bounds};
 use uuid::Uuid;
 
 lazy_static! {
@@ -261,104 +259,3 @@ create_runnable!(
         should_continue
     }
 );
-
-pub fn draw_app(app_context: &AppContext,
-	app_graph: &AppGraph,adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, buffer: &mut ScreenBuffer) {
-    let active_layout = app_context
-        .app
-        .get_active_layout()
-        .expect("No active layout found!")
-        .clone();
-    draw_layout(app_context, app_graph, adjusted_bounds, &active_layout, buffer);
-}
-
-pub fn draw_layout(app_context: &AppContext,
-	app_graph: &AppGraph,
-	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, layout: &Layout, buffer: &mut ScreenBuffer) {
-	let cloned_layout = layout.clone();
-    let bg_color = cloned_layout.bg_color.unwrap_or("black".to_string());
-    let fill_char = cloned_layout.fill_char.unwrap_or(' ');
-	
-    // Set the background for the layout
-    fill_panel(
-        &screen_bounds(),
-        false,
-        &bg_color,
-        fill_char,
-        buffer,
-    );
-
-    for panel in &layout.children {
-        draw_panel(app_context, app_graph, adjusted_bounds, layout, &panel, buffer);
-    }
-}
-
-pub fn draw_panel(
-    app_context: &AppContext,
-	app_graph: &AppGraph,
-	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
-    layout: &Layout,
-    panel: &Panel,
-    buffer: &mut ScreenBuffer,
-) {
-    let panel_parent = app_graph.get_parent(&layout.id, &panel.id);
-
-	let layout_adjusted_bounds= adjusted_bounds.get(&layout.id);
-
-	let mut panel_adjusted_bounds = None;
-	match layout_adjusted_bounds {
-        Some(value) => panel_adjusted_bounds= value.get(&panel.id),
-        None => println!("Calculated bounds for layout {} not found", &layout.id),
-    }
-
-	match panel_adjusted_bounds {
-		Some(value) => {let bg_color = panel.calc_bg_color(app_context, app_graph).to_string();
-			let parent_bg_color = if panel_parent.is_none() {
-				layout.bg_color.clone().unwrap_or("black".to_string())
-			} else {
-				panel_parent.unwrap().calc_bg_color(app_context, app_graph).to_string()
-			};
-			let fg_color = panel.calc_fg_color(app_context, app_graph).to_string();
-		
-			let title_bg_color = panel.calc_title_bg_color(app_context, app_graph).to_string();
-			let title_fg_color = panel.calc_title_fg_color(app_context, app_graph).to_string();
-			let border = panel.calc_border(app_context, app_graph);
-			let border_color = panel.calc_border_color(app_context, app_graph).to_string();
-			let fill_char = panel.calc_fill_char(app_context, app_graph);
-		
-			// Draw fill
-			fill_panel(&value, border, &bg_color, fill_char, buffer);
-		
-			let mut content = panel.content.as_deref();
-			// check output is not null or empty
-			if !panel.output.is_empty() {
-				content = Some(&panel.output);
-			}
-
-			render_panel(
-				&value,
-				&border_color,
-				&bg_color,
-				&parent_bg_color,
-				panel.title.as_deref(),
-				&title_fg_color,
-				&title_bg_color,
-				&panel.calc_title_position(app_context, app_graph),
-				content,
-				&fg_color,
-				&panel.calc_overflow_behavior(app_context, app_graph),
-				Some(&panel.calc_border(app_context, app_graph)),
-				panel.current_horizontal_scroll(),
-				panel.current_vertical_scroll(),
-				buffer,
-			);
-		
-			// Draw children
-			if let Some(children) = &panel.children {
-				for child in children.iter() {
-					draw_panel(app_context, app_graph, adjusted_bounds, layout, child, buffer);
-				}
-			}},
-		None => println!("Calculated bounds for panel {} not found", &panel.id),
-	}
-}
