@@ -62,107 +62,137 @@ pub fn get_bg_color(color: &str) -> String {
     }
 }
 
-pub fn draw_app(app_context: &AppContext,
-	app_graph: &AppGraph,adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, buffer: &mut ScreenBuffer) {
+pub fn draw_app(
+    app_context: &AppContext,
+    app_graph: &AppGraph,
+    adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
+    buffer: &mut ScreenBuffer,
+) {
     let active_layout = app_context
         .app
         .get_active_layout()
         .expect("No active layout found!")
         .clone();
-    draw_layout(app_context, app_graph, adjusted_bounds, &active_layout, buffer);
-}
-
-pub fn draw_layout(app_context: &AppContext,
-	app_graph: &AppGraph,
-	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, layout: &Layout, buffer: &mut ScreenBuffer) {
-	let cloned_layout = layout.clone();
-    let bg_color = cloned_layout.bg_color.unwrap_or("black".to_string());
-    let fill_char = cloned_layout.fill_char.unwrap_or(' ');
-	
-    // Set the background for the layout
-    fill_panel(
-        &screen_bounds(),
-        false,
-        &bg_color,
-        fill_char,
+    draw_layout(
+        app_context,
+        app_graph,
+        adjusted_bounds,
+        &active_layout,
         buffer,
     );
+}
+
+pub fn draw_layout(
+    app_context: &AppContext,
+    app_graph: &AppGraph,
+    adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
+    layout: &Layout,
+    buffer: &mut ScreenBuffer,
+) {
+    let cloned_layout = layout.clone();
+    let bg_color = cloned_layout.bg_color.unwrap_or("black".to_string());
+    let fill_char = cloned_layout.fill_char.unwrap_or(' ');
+
+    // Set the background for the layout
+    fill_panel(&screen_bounds(), false, &bg_color, fill_char, buffer);
 
     for panel in &layout.children {
-        draw_panel(app_context, app_graph, adjusted_bounds, layout, &panel, buffer);
+        draw_panel(
+            app_context,
+            app_graph,
+            adjusted_bounds,
+            layout,
+            &panel,
+            buffer,
+        );
     }
 }
 
 pub fn draw_panel(
     app_context: &AppContext,
-	app_graph: &AppGraph,
-	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
+    app_graph: &AppGraph,
+    adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
     layout: &Layout,
     panel: &Panel,
     buffer: &mut ScreenBuffer,
 ) {
     let panel_parent = app_graph.get_parent(&layout.id, &panel.id);
 
-	let layout_adjusted_bounds= adjusted_bounds.get(&layout.id);
+    let layout_adjusted_bounds = adjusted_bounds.get(&layout.id);
 
-	let mut panel_adjusted_bounds = None;
-	match layout_adjusted_bounds {
-        Some(value) => panel_adjusted_bounds= value.get(&panel.id),
+    let mut panel_adjusted_bounds = None;
+    match layout_adjusted_bounds {
+        Some(value) => panel_adjusted_bounds = value.get(&panel.id),
         None => println!("Calculated bounds for layout {} not found", &layout.id),
     }
 
-	match panel_adjusted_bounds {
-		Some(value) => {let bg_color = panel.calc_bg_color(app_context, app_graph).to_string();
-			let parent_bg_color = if panel_parent.is_none() {
-				layout.bg_color.clone().unwrap_or("black".to_string())
-			} else {
-				panel_parent.unwrap().calc_bg_color(app_context, app_graph).to_string()
-			};
-			let fg_color = panel.calc_fg_color(app_context, app_graph).to_string();
-		
-			let title_bg_color = panel.calc_title_bg_color(app_context, app_graph).to_string();
-			let title_fg_color = panel.calc_title_fg_color(app_context, app_graph).to_string();
-			let border = panel.calc_border(app_context, app_graph);
-			let border_color = panel.calc_border_color(app_context, app_graph).to_string();
-			let fill_char = panel.calc_fill_char(app_context, app_graph);
-		
-			// Draw fill
-			fill_panel(&value, border, &bg_color, fill_char, buffer);
-		
-			let mut content = panel.content.as_deref();
-			// check output is not null or empty
-			if !panel.output.is_empty() {
-				content = Some(&panel.output);
-			}
+    match panel_adjusted_bounds {
+        Some(value) => {
+            let bg_color = panel.calc_bg_color(app_context, app_graph).to_string();
+            let parent_bg_color = if panel_parent.is_none() {
+                layout.bg_color.clone().unwrap_or("black".to_string())
+            } else {
+                panel_parent
+                    .unwrap()
+                    .calc_bg_color(app_context, app_graph)
+                    .to_string()
+            };
+            let fg_color = panel.calc_fg_color(app_context, app_graph).to_string();
 
-			render_panel(
-				&value,
-				&border_color,
-				&bg_color,
-				&parent_bg_color,
-				panel.title.as_deref(),
-				&title_fg_color,
-				&title_bg_color,
-				&panel.calc_title_position(app_context, app_graph),
-				content,
-				&fg_color,
-				&panel.calc_overflow_behavior(app_context, app_graph),
-				Some(&panel.calc_border(app_context, app_graph)),
-				panel.current_horizontal_scroll(),
-				panel.current_vertical_scroll(),
-				buffer,
-			);
-		
-			// Draw children
-			if let Some(children) = &panel.children {
-				for child in children.iter() {
-					draw_panel(app_context, app_graph, adjusted_bounds, layout, child, buffer);
-				}
-			}},
-		None => println!("Calculated bounds for panel {} not found", &panel.id),
-	}
+            let title_bg_color = panel
+                .calc_title_bg_color(app_context, app_graph)
+                .to_string();
+            let title_fg_color = panel
+                .calc_title_fg_color(app_context, app_graph)
+                .to_string();
+            let border = panel.calc_border(app_context, app_graph);
+            let border_color = panel.calc_border_color(app_context, app_graph).to_string();
+            let fill_char = panel.calc_fill_char(app_context, app_graph);
+
+            // Draw fill
+            fill_panel(&value, border, &bg_color, fill_char, buffer);
+
+            let mut content = panel.content.as_deref();
+            // check output is not null or empty
+            if !panel.output.is_empty() {
+                content = Some(&panel.output);
+            }
+
+            render_panel(
+                &value,
+                &border_color,
+                &bg_color,
+                &parent_bg_color,
+                panel.title.as_deref(),
+                &title_fg_color,
+                &title_bg_color,
+                &panel.calc_title_position(app_context, app_graph),
+                content,
+                &fg_color,
+                &panel.calc_overflow_behavior(app_context, app_graph),
+                Some(&panel.calc_border(app_context, app_graph)),
+                panel.current_horizontal_scroll(),
+                panel.current_vertical_scroll(),
+                buffer,
+            );
+
+            // Draw children
+            if let Some(children) = &panel.children {
+                for child in children.iter() {
+                    draw_panel(
+                        app_context,
+                        app_graph,
+                        adjusted_bounds,
+                        layout,
+                        child,
+                        buffer,
+                    );
+                }
+            }
+        }
+        None => println!("Calculated bounds for panel {} not found", &panel.id),
+    }
 }
-
 
 pub fn print_with_color_and_background_at(
     y: usize,
@@ -481,6 +511,11 @@ pub fn render_panel(
                 .skip(vertical_offset)
                 .take(viewable_height);
 
+			let total_lines = content_lines.len();
+			let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
+			let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
+	
+
             for (line_idx, line) in visible_lines.enumerate() {
                 let visible_part = line
                     .chars()
@@ -489,8 +524,8 @@ pub fn render_panel(
                     .collect::<String>();
 
                 print_with_color_and_background_at(
-                    bounds.top() + 1 + line_idx,
-                    bounds.left() + 2,
+                    bounds.top() + 1 + line_idx + vertical_padding,
+                    bounds.left() + 2 + horizontal_padding,
                     fg_color,
                     bg_color,
                     &visible_part,
@@ -498,33 +533,33 @@ pub fn render_panel(
                 );
             }
 
-			if *draw_border {
-				// Draw bottom border
-				draw_horizontal_line(
-					bounds.bottom(),
-					bounds.left(),
-					bounds.right(),
-					border_color,
-					bg_color,
-					buffer,
-				);
+            if *draw_border {
+                // Draw bottom border
+                draw_horizontal_line(
+                    bounds.bottom(),
+                    bounds.left(),
+                    bounds.right(),
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
 
-				// Draw right border
-				draw_vertical_line(
-					bounds.right(),
-					bounds.top() + 1,
-					bounds.bottom().saturating_sub(1),
-					border_color,
-					bg_color,
-					buffer,
-				);
-			}
+                // Draw right border
+                draw_vertical_line(
+                    bounds.right(),
+                    bounds.top() + 1,
+                    bounds.bottom().saturating_sub(1),
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+            }
 
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
                 let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll as f64 / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
-                        as usize
+                    ((vertical_scroll as f64 / 100.0) * (viewable_height.saturating_sub(1)) as f64)
+                        .floor() as usize
                 } else {
                     0
                 };
@@ -540,8 +575,8 @@ pub fn render_panel(
 
             if max_content_width > viewable_width {
                 let scrollbar_position = if viewable_width > 2 {
-                    ((horizontal_scroll as f64 / 100.0) * (viewable_width.saturating_sub(2)) as f64).floor()
-                        as usize
+                    ((horizontal_scroll as f64 / 100.0) * (viewable_width.saturating_sub(2)) as f64)
+                        .floor() as usize
                 } else {
                     0
                 };
@@ -557,6 +592,12 @@ pub fn render_panel(
 
             scrollbars_drawn = true;
         } else if !_overflowing {
+            // Calculate total height of the content block
+            let total_lines = content_lines.len();
+            let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
+			let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
+
+            // Iterate through the content lines and print them
             for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
                 let visible_line = &line
                     .chars()
@@ -564,9 +605,10 @@ pub fn render_panel(
                     .take(viewable_width)
                     .collect::<String>();
 
+                
                 print_with_color_and_background_at(
-                    bounds.top() + 2 + i,
-                    bounds.left() + 2,
+                    bounds.top() + 2 + vertical_padding + i,
+                    bounds.left() + 2 + horizontal_padding,
                     fg_color,
                     bg_color,
                     visible_line,
