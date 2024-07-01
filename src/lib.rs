@@ -9,6 +9,7 @@ pub mod model {
 #[macro_use]
 pub mod thread_manager;
 pub mod draw_loop;
+pub mod draw_utils;
 pub mod input_loop;
 pub mod resize_loop;
 pub mod utils;

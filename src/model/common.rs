@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{screen_bounds, screen_height, screen_width, utils::{
-    get_bg_color, get_fg_color, input_bounds_to_bounds,
-}, AppGraph, Layout, Panel};
+use crate::{draw_utils::{get_bg_color, get_fg_color}, screen_bounds, screen_height, screen_width, utils::input_bounds_to_bounds, AppGraph, Layout, Panel};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq, Debug)]
