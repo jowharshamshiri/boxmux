@@ -10,7 +10,9 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
     Exit,
-    Die,
+    Terminate,
+    Pause,
+    Continue,
     NextPanel(),
     PreviousPanel(),
 	ScrollPanelDown(),
@@ -29,7 +31,7 @@ impl Hash for Message {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Message::Exit => "exit".hash(state),
-            Message::Die => "die".hash(state),
+            Message::Terminate => "terminate".hash(state),
             Message::NextPanel() => "next_panel".hash(state),
             Message::PreviousPanel() => "previous_panel".hash(state),
             Message::Resize => "resize".hash(state),
@@ -55,6 +57,8 @@ impl Hash for Message {
 				"key_press".hash(state);
 				pressed_key.hash(state);
 			}
+			Message::Pause => todo!(),
+			Message::Continue => todo!(),
         }
     }
 }
@@ -251,7 +255,7 @@ impl ThreadManager {
                 if let Ok((uuid, received_msg)) = reciever.try_recv() {
                     // log::info!("Received message from thread {}: {:?}", uuid, received_msg);
                     if received_msg == Message::Exit {
-                        self.send_message_to_all_threads((Uuid::new_v4(), Message::Die));
+                        self.send_message_to_all_threads((Uuid::new_v4(), Message::Terminate));
                         should_continue = false;
                     } else {
                         self.send_message_to_all_threads((uuid, received_msg));

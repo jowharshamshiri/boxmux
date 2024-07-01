@@ -4,7 +4,6 @@ extern crate clap;
 
 use clap::{App, Arg};
 use crossbash_lib::create_runnable_with_dynamic_input;
-use crossbash_lib::model::app;
 use crossbash_lib::resize_loop::ResizeLoop;
 use crossbash_lib::thread_manager;
 use crossbash_lib::DrawLoop;
@@ -154,6 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.deep_clone()));
     let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.deep_clone()));
     let resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.deep_clone()));
+	// let periodical_resize_loop_uuid = manager.spawn_thread(PeriodicalResizeLoop::new(app_context.deep_clone()));
 
     run_panel_threads(&mut manager, &app_context);
 

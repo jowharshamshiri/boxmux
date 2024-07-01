@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{screen_bounds, utils::{
+use crate::{screen_bounds, screen_height, screen_width, utils::{
     get_bg_color, get_fg_color, input_bounds_to_bounds,
 }, AppGraph, Layout, Panel};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,23 @@ pub struct ScreenBuffer {
 }
 
 impl ScreenBuffer {
-    pub fn new(width: usize, height: usize) -> Self {
+	pub fn new() -> Self {
+        let default_cell = Cell {
+            fg_color: get_fg_color("white"),
+            bg_color: get_bg_color("black"),
+            ch: ' ',
+        };
+		let width = screen_width();
+		let height = screen_height();
+        let buffer = vec![vec![default_cell; width]; height];
+        ScreenBuffer {
+            width,
+            height,
+            buffer,
+        }
+    }
+
+    pub fn new_custom(width: usize, height: usize) -> Self {
         let default_cell = Cell {
             fg_color: get_fg_color("white"),
             bg_color: get_bg_color("black"),
@@ -34,19 +50,10 @@ impl ScreenBuffer {
         }
     }
 
-	pub fn new_filled(width: usize, height: usize, default_cell: Cell) -> Self {
-		let buffer = vec![vec![default_cell; width]; height];
-		ScreenBuffer {
-			width,
-			height,
-			buffer,
-		}
-	}
-
     pub fn clear(&mut self) {
         let default_cell = Cell {
-            fg_color: get_fg_color("default"),
-            bg_color: get_bg_color("default"),
+            fg_color: get_fg_color("white"),
+            bg_color: get_bg_color("black"),
             ch: ' ',
         };
         self.buffer = vec![vec![default_cell; self.width]; self.height];
@@ -64,6 +71,42 @@ impl ScreenBuffer {
         } else {
             None
         }
+    }
+
+	pub fn resize(&mut self, width: usize, height: usize) {
+        // First handle shrinking the buffer if necessary
+        if height < self.height {
+            self.buffer.truncate(height);
+        }
+        if width < self.width {
+            for row in &mut self.buffer {
+                row.truncate(width);
+            }
+        }
+
+        // Now handle expanding the buffer if necessary
+        if height > self.height {
+            let default_row = vec![Cell {
+                fg_color: get_fg_color("white"),
+                bg_color: get_bg_color("black"),
+                ch: ' ',
+            }; width];
+
+            self.buffer.resize_with(height, || default_row.clone());
+        }
+        if width > self.width {
+            for row in &mut self.buffer {
+                row.resize_with(width, || Cell {
+                    fg_color: get_fg_color("white"),
+                    bg_color: get_bg_color("black"),
+                    ch: ' ',
+                });
+            }
+        }
+
+        // Update the dimensions
+        self.width = width;
+        self.height = height;
     }
 }
 
@@ -476,26 +519,27 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
 
     bounds_map
 }
+
 pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<String, Bounds>) -> HashMap<String, Bounds> {
     fn apply_constraints(panel: &Panel, bounds: &mut Bounds) {
         if let Some(min_width) = panel.min_width {
             if bounds.width() < min_width {
-                bounds.extend(min_width - bounds.width(), 0, Anchor::TopLeft);
+                bounds.extend(min_width - bounds.width(), 0, panel.anchor.clone());
             }
         }
         if let Some(min_height) = panel.min_height {
             if bounds.height() < min_height {
-                bounds.extend(0, min_height - bounds.height(), Anchor::TopLeft);
+                bounds.extend(0, min_height - bounds.height(), panel.anchor.clone());
             }
         }
         if let Some(max_width) = panel.max_width {
             if bounds.width() > max_width {
-                bounds.contract(bounds.width() - max_width, 0, Anchor::TopLeft);
+                bounds.contract(bounds.width() - max_width, 0, panel.anchor.clone());
             }
         }
         if let Some(max_height) = panel.max_height {
             if bounds.height() > max_height {
-                bounds.contract(0, bounds.height() - max_height, Anchor::TopLeft);
+                bounds.contract(0, bounds.height() - max_height, panel.anchor.clone());
             }
         }
     }
@@ -565,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_screenbuffer_new() {
-        let screen_buffer = ScreenBuffer::new(5, 5);
+        let screen_buffer = ScreenBuffer::new_custom(5, 5);
         assert_eq!(screen_buffer.width, 5);
         assert_eq!(screen_buffer.height, 5);
         assert_eq!(screen_buffer.buffer.len(), 5);
@@ -574,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_screenbuffer_clear() {
-        let mut screen_buffer = ScreenBuffer::new(5, 5);
+        let mut screen_buffer = ScreenBuffer::new_custom(5, 5);
         let test_cell = Cell {
             fg_color: String::from("red"),
             bg_color: String::from("blue"),
@@ -593,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_screenbuffer_update() {
-        let mut screen_buffer = ScreenBuffer::new(5, 5);
+        let mut screen_buffer = ScreenBuffer::new_custom(5, 5);
         let test_cell = Cell {
             fg_color: String::from("red"),
             bg_color: String::from("blue"),
@@ -605,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_screenbuffer_get() {
-        let screen_buffer = ScreenBuffer::new(5, 5);
+        let screen_buffer = ScreenBuffer::new_custom(5, 5);
         assert!(screen_buffer.get(6, 6).is_none());
         assert!(screen_buffer.get(3, 3).is_some());
     }

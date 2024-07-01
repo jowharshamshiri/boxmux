@@ -1,7 +1,7 @@
 use crate::model::app;
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, calculate_bounds_map, execute_commands, handle_keypress, screen_height, screen_width, Anchor, AppContext, AppGraph, Bounds, Layout, Panel, ScreenBuffer
+    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext, AppGraph, Bounds, Layout, Panel, ScreenBuffer
 };
 use std::collections::HashMap;
 use std::io::stdout;
@@ -27,17 +27,18 @@ create_runnable!(
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut state_unwrapped = state.deep_clone();
+		let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
 
         if global_screen.is_none() {
             *global_screen = Some(AlternateScreen::from(stdout().into_raw_mode().unwrap()));
-            *global_buffer = Some(ScreenBuffer::new(screen_width(), screen_height()));
+            *global_buffer = Some(ScreenBuffer::new());
         }
 
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
-            let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-            draw_app(&mut state_unwrapped, &mut new_buffer);
+            let mut new_buffer = ScreenBuffer::new();
+            draw_app(&state_unwrapped, &app_graph, &adjusted_bounds, &mut new_buffer);
             apply_buffer_if_changed(buffer, &new_buffer, screen);
             *buffer = new_buffer;
         }
@@ -52,8 +53,9 @@ create_runnable!(
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
-            let mut new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+            let mut new_buffer = ScreenBuffer::new();
             let mut state_unwrapped = state.deep_clone();
+			let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
 
             for message in &messages {
                 match message {
@@ -61,9 +63,9 @@ create_runnable!(
                         log::info!("PanelEventRefresh");
                     }
                     Message::Exit => should_continue = false,
-                    Message::Die => should_continue = false,
+                    Message::Terminate => should_continue = false,
                     Message::NextPanel() => {
-                        let mut active_layout = state_unwrapped
+                        let active_layout = state_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
@@ -95,7 +97,7 @@ create_runnable!(
                         }
                     }
                     Message::PreviousPanel() => {
-                        let mut active_layout = state_unwrapped
+                        let active_layout = state_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
@@ -200,33 +202,20 @@ create_runnable!(
                             if let Some(parent_layout) =
                                 found_panel.get_parent_layout_clone(&mut state_unwrapped)
                             {
-                                draw_panel(
-                                    &mut state_unwrapped,
-                                    &parent_layout,
-                                    &mut found_panel,
-                                    &mut new_buffer,
-                                );
+								draw_panel(&state_unwrapped, &app_graph, &adjusted_bounds,&parent_layout,
+                                    &mut found_panel, &mut new_buffer);
                                 apply_buffer_if_changed(buffer, &new_buffer, screen);
                                 *buffer = new_buffer;
                             }
                         }
                     }
-                    Message::RedrawApp => {
-						state_unwrapped.recalculate_bounds();
-                        write!(screen, "{}", termion::clear::All).unwrap();
-                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        draw_app(&mut state_unwrapped, &mut new_buffer);
-                        apply_buffer(&mut new_buffer, screen);
-                        *buffer = new_buffer;
-                    }
-					Message::Resize => {
-						state_unwrapped.recalculate_bounds();
-                        write!(screen, "{}", termion::clear::All).unwrap();
-                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        draw_app(&mut state_unwrapped, &mut new_buffer);
-                        apply_buffer(&mut new_buffer, screen);
-                        *buffer = new_buffer;
-                    }
+					Message::RedrawApp | Message::Resize => {
+						write!(screen, "{}", termion::clear::All).unwrap();
+						let mut new_buffer = ScreenBuffer::new();
+						draw_app(&state_unwrapped, &app_graph, &adjusted_bounds, &mut new_buffer);
+						apply_buffer(&mut new_buffer, screen);
+						*buffer = new_buffer;
+					}
                     Message::PanelOutputUpdate(panel_id, output) => {
                         let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
                         if let Some(found_panel) = panel {
@@ -266,24 +255,26 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            // std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
         should_continue
     }
 );
 
-pub fn draw_app(app_context: &mut AppContext, buffer: &mut ScreenBuffer) {
-    let mut active_layout = app_context
+pub fn draw_app(app_context: &AppContext,
+	app_graph: &AppGraph,adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, buffer: &mut ScreenBuffer) {
+    let active_layout = app_context
         .app
         .get_active_layout()
         .expect("No active layout found!")
         .clone();
-
-    draw_layout(app_context, &mut active_layout, buffer);
+    draw_layout(app_context, app_graph, adjusted_bounds, &active_layout, buffer);
 }
 
-pub fn draw_layout(app_context: &mut AppContext, layout: &mut Layout, buffer: &mut ScreenBuffer) {
+pub fn draw_layout(app_context: &AppContext,
+	app_graph: &AppGraph,
+	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>, layout: &Layout, buffer: &mut ScreenBuffer) {
 	let cloned_layout = layout.clone();
     let bg_color = cloned_layout.bg_color.unwrap_or("black".to_string());
     let fill_char = cloned_layout.fill_char.unwrap_or(' ');
@@ -297,47 +288,43 @@ pub fn draw_layout(app_context: &mut AppContext, layout: &mut Layout, buffer: &m
         buffer,
     );
 
-	let layout_children = layout.children.clone();
-
-    for mut panel in layout_children {
-        draw_panel(app_context, &layout, &mut panel, buffer);
+    for panel in &layout.children {
+        draw_panel(app_context, app_graph, adjusted_bounds, layout, &panel, buffer);
     }
 }
 
 pub fn draw_panel(
-    app_context: &mut AppContext,
+    app_context: &AppContext,
+	app_graph: &AppGraph,
+	adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
     layout: &Layout,
-    panel: &mut Panel,
+    panel: &Panel,
     buffer: &mut ScreenBuffer,
 ) {
-    let app_graph = app_context.app.generate_graph();
-
     let panel_parent = app_graph.get_parent(&layout.id, &panel.id);
 
-	let calculated_bounds=app_context.calculated_bounds.clone().expect("Calculated bounds should not be none.");
+	let layout_adjusted_bounds= adjusted_bounds.get(&layout.id);
 
-	let layout_calculated_bounds= calculated_bounds.get(&layout.id);
-
-	let mut panel_calculated_bounds = None;
-	match layout_calculated_bounds {
-        Some(value) => panel_calculated_bounds= value.get(&panel.id),
+	let mut panel_adjusted_bounds = None;
+	match layout_adjusted_bounds {
+        Some(value) => panel_adjusted_bounds= value.get(&panel.id),
         None => println!("Calculated bounds for layout {} not found", &layout.id),
     }
 
-	match panel_calculated_bounds {
-		Some(value) => {let bg_color = panel.calc_bg_color(app_context).to_string();
+	match panel_adjusted_bounds {
+		Some(value) => {let bg_color = panel.calc_bg_color(app_context, app_graph).to_string();
 			let parent_bg_color = if panel_parent.is_none() {
 				layout.bg_color.clone().unwrap_or("black".to_string())
 			} else {
-				panel_parent.unwrap().calc_bg_color(app_context).to_string()
+				panel_parent.unwrap().calc_bg_color(app_context, app_graph).to_string()
 			};
-			let fg_color = panel.calc_fg_color(app_context).to_string();
+			let fg_color = panel.calc_fg_color(app_context, app_graph).to_string();
 		
-			let title_bg_color = panel.calc_title_bg_color(app_context).to_string();
-			let title_fg_color = panel.calc_title_fg_color(app_context).to_string();
-			let border = panel.calc_border(app_context);
-			let border_color = panel.calc_border_color(app_context).to_string();
-			let fill_char = panel.calc_fill_char(app_context);
+			let title_bg_color = panel.calc_title_bg_color(app_context, app_graph).to_string();
+			let title_fg_color = panel.calc_title_fg_color(app_context, app_graph).to_string();
+			let border = panel.calc_border(app_context, app_graph);
+			let border_color = panel.calc_border_color(app_context, app_graph).to_string();
+			let fill_char = panel.calc_fill_char(app_context, app_graph);
 		
 			// Draw fill
 			fill_panel(&value, border, &bg_color, fill_char, buffer);
@@ -356,20 +343,20 @@ pub fn draw_panel(
 				panel.title.as_deref(),
 				&title_fg_color,
 				&title_bg_color,
-				&panel.calc_title_position(app_context),
+				&panel.calc_title_position(app_context, app_graph),
 				content,
 				&fg_color,
-				&panel.calc_overflow_behavior(app_context),
-				Some(&panel.calc_border(app_context)),
+				&panel.calc_overflow_behavior(app_context, app_graph),
+				Some(&panel.calc_border(app_context, app_graph)),
 				panel.current_horizontal_scroll(),
 				panel.current_vertical_scroll(),
 				buffer,
 			);
 		
 			// Draw children
-			if let Some(children) = &mut panel.children {
-				for child in children.iter_mut() {
-					draw_panel(app_context, layout, child, buffer);
+			if let Some(children) = &panel.children {
+				for child in children.iter() {
+					draw_panel(app_context, app_graph, adjusted_bounds, layout, child, buffer);
 				}
 			}},
 		None => println!("Calculated bounds for panel {} not found", &panel.id),
