@@ -1,4 +1,4 @@
-use crate::model::layout::Layout;
+use crate::{model::layout::Layout, Bounds};
 use crate::model::panel::*;
 
 use std::fs::File;
@@ -13,6 +13,8 @@ use petgraph::visit::EdgeRef;
 
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
+
+use crate::{calculate_bounds_map};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct App {
@@ -95,6 +97,7 @@ impl App {
 		}
 		None
 	}
+
 	pub fn validate(&mut self) {
 		fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
 			panel.parent_layout_id = Some(parent_layout_id.to_string());
@@ -152,6 +155,19 @@ impl App {
 				}
 			}
 		}
+	}
+
+	pub fn calculate_bounds(&mut self) -> HashMap<String,HashMap<String, Bounds>> {
+		let mut calculated_bounds:HashMap<String,HashMap<String,Bounds>> = HashMap::new();
+
+		let app_graph = self.generate_graph();
+	
+		for layout in &mut self.layouts {
+			let calculated_layout_bounds = calculate_bounds_map(&app_graph, layout);
+			calculated_bounds.insert(layout.id.clone(), calculated_layout_bounds);
+		}
+
+		calculated_bounds
 	}
 	
 	pub fn generate_graph(&mut self) -> AppGraph {
@@ -300,6 +316,17 @@ impl AppGraph {
         Vec::new()
     }
 
+	pub fn get_layout_children(&self, layout_id: &str) -> Vec<&Panel> {
+		if let Some(node_map) = self.node_maps.get(layout_id) {
+			let root_node = node_map.get(layout_id).unwrap();
+			return self.graphs[layout_id]
+				.edges_directed(*root_node, petgraph::Direction::Outgoing)
+				.map(|edge| self.graphs[layout_id].node_weight(edge.target()).unwrap())
+				.collect();
+		}
+		Vec::new()
+    }
+
     pub fn get_parent(&self, layout_id: &str, panel_id: &str) -> Option<&Panel> {
         if let Some(node_map) = self.node_maps.get(layout_id) {
             if let Some(&index) = node_map.get(panel_id) {
@@ -316,6 +343,7 @@ impl AppGraph {
 #[derive(Debug, Clone)]
 pub struct AppContext {
     pub app: App,
+	pub calculated_bounds: Option<HashMap<String,HashMap<String, Bounds>>>,
 }
 
 impl PartialEq for AppContext {
@@ -328,16 +356,25 @@ impl AppContext {
 	pub fn new(mut app: App) -> Self {
 		app.validate();
 
+		let calculated_bounds= app.calculate_bounds();
+
 		AppContext {
 			app,
+			calculated_bounds: Some(calculated_bounds),
 		}
 	}
 
     pub fn deep_clone(&self) -> Self {
         AppContext {
             app: self.app.deep_clone(),
+			calculated_bounds: self.calculated_bounds.clone(),
         }
     }
+
+	pub fn recalculate_bounds(&mut self) {
+		let calculated_bounds = self.app.calculate_bounds();
+		self.calculated_bounds = Some(calculated_bounds);
+	}
 }
 
 impl Hash for AppContext {

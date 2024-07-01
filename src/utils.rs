@@ -6,6 +6,7 @@ use crate::{
     model::common::{Bounds, Cell, InputBounds, ScreenBuffer},
     Layout,
 };
+use diesel::sql_types::Float;
 use termion::event::{Event, Key};
 use termion::{color, raw::RawTerminal, screen::AlternateScreen};
 
@@ -156,6 +157,7 @@ pub fn draw_horizontal_line_with_title(
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
+    draw_border: bool,
     buffer: &mut ScreenBuffer,
 ) {
     let width = x2.saturating_sub(x1);
@@ -204,14 +206,16 @@ pub fn draw_horizontal_line_with_title(
                     _ => (x1, width, 0), // Default to no title
                 };
 
-            draw_horizontal_line(
-                y,
-                x1,
-                x1 + line_before_title_length,
-                fg_color,
-                bg_color,
-                buffer,
-            );
+            if draw_border {
+                draw_horizontal_line(
+                    y,
+                    x1,
+                    x1 + line_before_title_length,
+                    fg_color,
+                    bg_color,
+                    buffer,
+                );
+            }
 
             print_with_color_and_background_at(
                 y,
@@ -222,28 +226,34 @@ pub fn draw_horizontal_line_with_title(
                 buffer,
             );
 
-            draw_horizontal_line(
-                y,
-                x1 + line_before_title_length + title_length,
-                x2,
-                fg_color,
-                bg_color,
-                buffer,
-            );
+            if draw_border {
+                draw_horizontal_line(
+                    y,
+                    x1 + line_before_title_length + title_length,
+                    x2,
+                    fg_color,
+                    bg_color,
+                    buffer,
+                );
+            }
         } else {
-            // If the title is too long, just draw a line without the title
-            draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
+            if draw_border {
+                // If the title is too long, just draw a line without the title
+                draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
+            }
         }
     } else {
-        // If there is no title, just draw a full horizontal line
-        draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
+        if draw_border {
+            // If there is no title, just draw a full horizontal line
+            draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
+        }
     }
 }
 
 static H_SCROLL_CHAR: &str = "|";
 static V_SCROLL_CHAR: &str = "-";
 
-pub fn draw_panel(
+pub fn render_panel(
     bounds: &Bounds,
     border_color: &str,
     bg_color: &str,
@@ -255,10 +265,12 @@ pub fn draw_panel(
     content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,
+    border: Option<&bool>,
     horizontal_scroll: f64,
     vertical_scroll: f64,
     buffer: &mut ScreenBuffer,
 ) {
+    let draw_border = border.unwrap_or(&true);
     let border_color_code = get_fg_color(border_color);
     // let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color);
@@ -307,18 +319,21 @@ pub fn draw_panel(
                 title_fg_color,
                 title_bg_color,
                 title_position,
+                *draw_border,
                 buffer,
             );
         }
     } else {
-        draw_horizontal_line(
-            bounds.top(),
-            bounds.left(),
-            bounds.right(),
-            border_color,
-            bg_color,
-            buffer,
-        );
+        if *draw_border {
+            draw_horizontal_line(
+                bounds.top(),
+                bounds.left(),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
     }
 
     if let Some(content) = content {
@@ -347,7 +362,7 @@ pub fn draw_panel(
 
         if _overflowing && overflow_behavior == "scroll" {
             let viewable_width = bounds.width();
-            let viewable_height = bounds.height() - 1; // minus one to avoid overwriting the bottom border
+            let viewable_height = bounds.height().saturating_sub(1); // minus one to avoid overwriting the bottom border
 
             // Calculate the maximum allowable offsets based on content size
             let max_horizontal_offset = max_content_width.saturating_sub(viewable_width) + 3;
@@ -372,7 +387,7 @@ pub fn draw_panel(
                 let visible_part = line
                     .chars()
                     .skip(horizontal_offset)
-                    .take(viewable_width - 3)
+                    .take(viewable_width.saturating_sub(3))
                     .collect::<String>();
 
                 print_with_color_and_background_at(
@@ -385,30 +400,32 @@ pub fn draw_panel(
                 );
             }
 
-            // Draw bottom border
-            draw_horizontal_line(
-                bounds.bottom(),
-                bounds.left(),
-                bounds.right(),
-                border_color,
-                bg_color,
-                buffer,
-            );
+			if *draw_border {
+				// Draw bottom border
+				draw_horizontal_line(
+					bounds.bottom(),
+					bounds.left(),
+					bounds.right(),
+					border_color,
+					bg_color,
+					buffer,
+				);
 
-            // Draw right border
-            draw_vertical_line(
-                bounds.right(),
-                bounds.top() + 1,
-                bounds.bottom() - 1,
-                border_color,
-                bg_color,
-                buffer,
-            );
+				// Draw right border
+				draw_vertical_line(
+					bounds.right(),
+					bounds.top() + 1,
+					bounds.bottom().saturating_sub(1),
+					border_color,
+					bg_color,
+					buffer,
+				);
+			}
 
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
                 let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll as f64 / 100.0) * (viewable_height - 1) as f64).floor()
+                    ((vertical_scroll as f64 / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
                         as usize
                 } else {
                     0
@@ -425,7 +442,7 @@ pub fn draw_panel(
 
             if max_content_width > viewable_width {
                 let scrollbar_position = if viewable_width > 2 {
-                    ((horizontal_scroll as f64 / 100.0) * (viewable_width - 2) as f64).floor()
+                    ((horizontal_scroll as f64 / 100.0) * (viewable_width.saturating_sub(2)) as f64).floor()
                         as usize
                 } else {
                     0
@@ -477,77 +494,79 @@ pub fn draw_panel(
             fill_panel(&bounds, false, parent_bg_color, ' ', buffer);
         }
     } else {
-        // Draw bottom border
-        if !scrollbars_drawn {
-            draw_horizontal_line(
-                bounds.bottom(),
-                bounds.left(),
-                bounds.right(),
-                border_color,
-                bg_color,
-                buffer,
-            );
-        }
+        if *draw_border {
+            // Draw bottom border
+            if !scrollbars_drawn {
+                draw_horizontal_line(
+                    bounds.bottom(),
+                    bounds.left(),
+                    bounds.right(),
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+            }
 
-        // Draw left border
-        draw_vertical_line(
-            bounds.left(),
-            bounds.top() + 1,
-            bounds.bottom() - 1,
-            border_color,
-            bg_color,
-            buffer,
-        );
-
-        // Draw right border
-        if !scrollbars_drawn {
+            // Draw left border
             draw_vertical_line(
-                bounds.right(),
+                bounds.left(),
                 bounds.top() + 1,
-                bounds.bottom() - 1,
+                bounds.bottom().saturating_sub(1),
                 border_color,
                 bg_color,
                 buffer,
             );
-        }
 
-        // Draw corners
-        buffer.update(
-            bounds.left(),
-            bounds.top(),
-            Cell {
-                fg_color: border_color_code.clone(),
-                bg_color: bg_color_code.clone(),
-                ch: '┌',
-            },
-        );
-        buffer.update(
-            bounds.right(),
-            bounds.top(),
-            Cell {
-                fg_color: border_color_code.clone(),
-                bg_color: bg_color_code.clone(),
-                ch: '┐',
-            },
-        );
-        buffer.update(
-            bounds.left(),
-            bounds.bottom(),
-            Cell {
-                fg_color: border_color_code.clone(),
-                bg_color: bg_color_code.clone(),
-                ch: '└',
-            },
-        );
-        buffer.update(
-            bounds.right(),
-            bounds.bottom(),
-            Cell {
-                fg_color: border_color_code.clone(),
-                bg_color: bg_color_code.clone(),
-                ch: '┘',
-            },
-        );
+            // Draw right border
+            if !scrollbars_drawn {
+                draw_vertical_line(
+                    bounds.right(),
+                    bounds.top() + 1,
+                    bounds.bottom().saturating_sub(1),
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+            }
+
+            // Draw corners
+            buffer.update(
+                bounds.left(),
+                bounds.top(),
+                Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: bg_color_code.clone(),
+                    ch: '┌',
+                },
+            );
+            buffer.update(
+                bounds.right(),
+                bounds.top(),
+                Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: bg_color_code.clone(),
+                    ch: '┐',
+                },
+            );
+            buffer.update(
+                bounds.left(),
+                bounds.bottom(),
+                Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: bg_color_code.clone(),
+                    ch: '└',
+                },
+            );
+            buffer.update(
+                bounds.right(),
+                bounds.bottom(),
+                Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: bg_color_code.clone(),
+                    ch: '┘',
+                },
+            );
+        }
     }
 }
 
@@ -616,6 +635,23 @@ pub fn input_bounds_to_bounds(input_bounds: &InputBounds, parent_bounds: &Bounds
         y1: abs_y1,
         x2: abs_x2,
         y2: abs_y2,
+    }
+}
+
+pub fn bounds_to_input_bounds(abs_bounds: &Bounds, parent_bounds: &Bounds) -> InputBounds {
+    let width = parent_bounds.width();
+    let height = parent_bounds.height();
+
+    let ix1 = (abs_bounds.x1 - parent_bounds.x1) / width;
+    let iy1 = (abs_bounds.y1 - parent_bounds.y1) / height;
+    let ix2 = (abs_bounds.x2 - parent_bounds.x1) / width;
+    let iy2 = (abs_bounds.y2 - parent_bounds.y1) / height;
+
+    InputBounds {
+        x1: format!("{}%", ix1 as f64 * 100.0),
+        y1: format!("{}%", iy1 as f64 * 100.0),
+        x2: format!("{}%", ix2 as f64 * 100.0),
+        y2: format!("{}%", iy2 as f64 * 100.0),
     }
 }
 
