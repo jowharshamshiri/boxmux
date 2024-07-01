@@ -20,7 +20,7 @@ layouts:
           x2: 99%
           y2: 3%
         min_width: 20
-        min_height: 4
+        min_height: 3
         # max_width: 100
         max_height: 10
         children:

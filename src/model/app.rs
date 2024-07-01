@@ -14,7 +14,7 @@ use petgraph::visit::EdgeRef;
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
-use crate::{calculate_bounds_map};
+use crate::calculate_bounds_map;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct App {
@@ -23,6 +23,8 @@ pub struct App {
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
 	#[serde(skip)]
 	app_graph: Option<AppGraph>,
+	#[serde(skip)]
+	pub adjusted_bounds: Option<HashMap<String,HashMap<String, Bounds>>>,
 }
 
 impl App {
@@ -31,9 +33,27 @@ impl App {
             layouts: Vec::new(),
 			on_keypress: None,
 			app_graph: None,
+			adjusted_bounds: None,
         }
     }
 
+	pub fn get_adjusted_bounds(&mut self, force_readjust: Option<bool>) -> &HashMap<String, HashMap<String, Bounds>> {
+		if self.adjusted_bounds.is_none() || force_readjust.unwrap_or(false) {
+			self.adjusted_bounds = Some(self.calculate_bounds());
+		}
+		self.adjusted_bounds.as_ref().expect("Failed to calculate adjusted bounds!")
+	}
+
+	pub fn get_adjusted_bounds_and_app_graph(&mut self, force_readjust: Option<bool>) -> (HashMap<String, HashMap<String, Bounds>>, AppGraph) {
+		// First, get the adjusted bounds by cloning the content
+		let adjusted_bounds = self.get_adjusted_bounds(force_readjust).clone();
+	
+		// Then, generate the app graph
+		let app_graph = self.generate_graph();
+	
+		(adjusted_bounds, app_graph)
+	}
+	
     pub fn get_layout_by_id(&self, id: &str) -> Option<&Layout> {
         self.layouts.iter().find(|l| l.id == id)
     }
@@ -191,6 +211,7 @@ impl App {
             layouts: self.layouts.iter().map(|layout| layout.deep_clone()).collect(),
 			on_keypress: self.on_keypress.clone(),
 			app_graph: self.app_graph.clone(),
+			adjusted_bounds: self.adjusted_bounds.clone(),
         }
     }
 }
@@ -343,7 +364,6 @@ impl AppGraph {
 #[derive(Debug, Clone)]
 pub struct AppContext {
     pub app: App,
-	pub calculated_bounds: Option<HashMap<String,HashMap<String, Bounds>>>,
 }
 
 impl PartialEq for AppContext {
@@ -356,25 +376,16 @@ impl AppContext {
 	pub fn new(mut app: App) -> Self {
 		app.validate();
 
-		let calculated_bounds= app.calculate_bounds();
-
 		AppContext {
 			app,
-			calculated_bounds: Some(calculated_bounds),
 		}
 	}
 
     pub fn deep_clone(&self) -> Self {
         AppContext {
-            app: self.app.deep_clone(),
-			calculated_bounds: self.calculated_bounds.clone(),
+            app: self.app.deep_clone()
         }
     }
-
-	pub fn recalculate_bounds(&mut self) {
-		let calculated_bounds = self.app.calculate_bounds();
-		self.calculated_bounds = Some(calculated_bounds);
-	}
 }
 
 impl Hash for AppContext {

@@ -7,7 +7,7 @@ use std::hash::Hasher;
 use crate::model::common::*;
 use crate::model::layout::Layout;
 
-use crate::{utils::*, AppContext};
+use crate::{utils::*, AppContext, AppGraph};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Panel {
@@ -277,12 +277,11 @@ impl Panel {
         self.output = output.to_string();
     }
 
-    pub fn get_parent_clone(&self, app_context: &mut AppContext) -> Option<Panel> {
+    pub fn get_parent_clone(&self, app_graph: &AppGraph) -> Option<Panel> {
         let layout_id = self
             .parent_layout_id
             .as_ref()
             .expect("Parent layout ID missing");
-        let app_graph = app_context.app.generate_graph();
         if let Some(parent) = app_graph.get_parent(layout_id, &self.id) {
             Some(parent.clone()) // Clone the result to break the lifetime dependency
         } else {
@@ -302,8 +301,8 @@ impl Panel {
         }
     }
 
-    pub fn calc_fg_color<'a>(&self, app_context: &mut AppContext) -> String {
-        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_fg_color.clone()
             } else {
@@ -339,8 +338,8 @@ impl Panel {
         )
     }
 
-    pub fn calc_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
-        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_bg_color.clone()
             } else {
@@ -376,8 +375,8 @@ impl Panel {
         )
     }
 
-    pub fn calc_border_color<'a>(&self, app_context: &mut AppContext) -> String {
-        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_border_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_border_color.clone()
             } else {
@@ -413,8 +412,8 @@ impl Panel {
         )
     }
 
-    pub fn calc_title_bg_color<'a>(&self, app_context: &mut AppContext) -> String {
-        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_title_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_bg_color.clone()
             } else {
@@ -450,8 +449,8 @@ impl Panel {
         )
     }
 
-    pub fn calc_title_fg_color(&self, app_context: &mut AppContext) -> String {
-        let parent_color = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_title_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_fg_color.clone()
             } else {
@@ -487,9 +486,9 @@ impl Panel {
         )
     }
 
-    pub fn calc_title_position(&self, app_context: &mut AppContext) -> String {
+    pub fn calc_title_position(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
         let parent_position = self
-            .get_parent_clone(app_context)
+            .get_parent_clone(app_graph)
             .and_then(|p| p.title_position.clone());
         let parent_layout_position = self
             .get_parent_layout_clone(app_context)
@@ -503,8 +502,8 @@ impl Panel {
         )
     }
 
-    pub fn calc_fill_char(&self, app_context: &mut AppContext) -> char {
-        let parent_fill_char = self.get_parent_clone(app_context).and_then(|p| {
+    pub fn calc_fill_char(&self, app_context: &AppContext, app_graph: &AppGraph) -> char {
+        let parent_fill_char = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.fill_char.clone()
             } else {
@@ -534,9 +533,9 @@ impl Panel {
         )
     }
 
-    pub fn calc_border(&self, app_context: &mut AppContext) -> bool {
+    pub fn calc_border(&self, app_context: &AppContext, app_graph: &AppGraph) -> bool {
         let parent_border = self
-            .get_parent_clone(app_context)
+            .get_parent_clone(app_graph)
             .and_then(|p| p.border.clone());
         let parent_layout_border = self
             .get_parent_layout_clone(app_context)
@@ -550,9 +549,9 @@ impl Panel {
         )
     }
 
-    pub fn calc_overflow_behavior(&self, app_context: &mut AppContext) -> String {
+    pub fn calc_overflow_behavior(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
         let parent_overflow_behavior = self
-            .get_parent_clone(app_context)
+            .get_parent_clone(app_graph)
             .and_then(|p| p.overflow_behavior.clone());
         let parent_layout_overflow = self
             .get_parent_layout_clone(app_context)
@@ -566,9 +565,9 @@ impl Panel {
         )
     }
 
-    pub fn calc_refresh_interval(&self, app_context: &mut AppContext) -> u64 {
+    pub fn calc_refresh_interval(&self, app_context: &AppContext, app_graph: &AppGraph) -> u64 {
         let parent_refresh_interval = self
-            .get_parent_clone(app_context)
+            .get_parent_clone(app_graph)
             .and_then(|p| p.refresh_interval.clone());
         let parent_layout_interval = self
             .get_parent_layout_clone(app_context)
