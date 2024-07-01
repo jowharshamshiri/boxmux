@@ -27,7 +27,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
     if let Some(layout) = active_layout {
         for panel in layout.get_all_panels() {
-            if panel.has_refresh() {
+            if panel.script.is_some() {
                 let panel_id = panel.id.clone();
 
                 if panel.thread.unwrap_or(false) {
@@ -44,7 +44,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             let mut state_unwrapped = state.deep_clone();
                             let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
                             let output =
-                                execute_commands(panel.on_refresh.clone().unwrap().as_ref());
+                                execute_commands(panel.script.clone().unwrap().as_ref());
                             inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
                             true
                         },
@@ -81,7 +81,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                     for panel_id in vec.iter() {
                         let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id).unwrap();
-                        let output = execute_commands(panel.on_refresh.clone().unwrap().as_ref());
+                        let output = execute_commands(panel.script.clone().unwrap().as_ref());
                         inner.send_message(Message::PanelOutputUpdate(panel_id.clone(), output));
                     }
 

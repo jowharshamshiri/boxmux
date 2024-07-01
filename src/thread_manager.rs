@@ -21,9 +21,6 @@ pub enum Message {
     RedrawPanel(String),
     RedrawApp,
     PanelEventRefresh(String),
-    PanelEventEnter(String),
-    PanelEventLeave(String),
-    PanelEventError(String),
 	PanelOutputUpdate(String, String),
 	KeyPress(String),
 }
@@ -43,18 +40,6 @@ impl Hash for Message {
             Message::RedrawApp => "redraw_app".hash(state),
             Message::PanelEventRefresh(panel_id) => {
                 "panel_event_refresh".hash(state);
-                panel_id.hash(state);
-            }
-            Message::PanelEventEnter(panel_id) => {
-                "panel_event_enter".hash(state);
-                panel_id.hash(state);
-            }
-            Message::PanelEventLeave(panel_id) => {
-                "panel_event_leave".hash(state);
-                panel_id.hash(state);
-            }
-            Message::PanelEventError(panel_id) => {
-                "panel_event_error".hash(state);
                 panel_id.hash(state);
             }
 			Message::ScrollPanelDown() => "scroll_panel_down".hash(state),

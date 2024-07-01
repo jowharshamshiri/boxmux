@@ -20,8 +20,8 @@ layouts:
           x2: 99%
           y2: 3%
         min_width: 20
-        min_height: 3
-        max_width: 100
+        min_height: 4
+        # max_width: 100
         max_height: 10
         children:
           - id: 'title'
@@ -30,7 +30,8 @@ layouts:
               y1: 00%
               x2: 20%
               y2: 100%
-            content: 'My Awsome Dash'
+            script:
+              - echo 'My Awsome Dash'
           - id: 'active_job'
             title: 'Active Job'
             position:
@@ -38,7 +39,8 @@ layouts:
               y1: 0%
               x2: 100%
               y2: 100%
-            content: 'b-34387' 
+            script: 
+              - echo 'b-34387' 
       - id: 'data1'
         title: 'Some Data'
         position:
@@ -46,7 +48,7 @@ layouts:
           y1: 5%
           x2: 48%
           y2: 35%
-        on_refresh:
+        script:
           - >
             echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
             gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
@@ -59,7 +61,7 @@ layouts:
           y1: 5%
           x2: 98%
           y2: 35%
-        on_refresh:
+        script:
           - >
             echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line2.csv;
             gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line2.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
@@ -73,8 +75,6 @@ layouts:
           y1: 38%
           x2: 98%
           y2: 80%
-        on_error:
-          - echo "Error loading logs."
         children:
           - id: 'log_input'
             title: 'Load'
@@ -83,7 +83,7 @@ layouts:
               y1: 10%
               x2: 45%
               y2: 90%
-            on_refresh:
+            script:
               - >
                 echo -e "Category,Value\nA,$((RANDOM % 100 + 100))\nB,$((RANDOM % 100 + 100))\nC,$((RANDOM % 100 + 100))\nD,$((RANDOM % 100 + 100))" > /tmp/data.csv;
                 gnuplot -e "set terminal dumb size 80, 20; set style data histograms; set style fill solid 1.00 border -1; set datafile separator ','; set boxwidth 0.75 relative; set style histogram clustered; set xtics rotate by -45; plot '/tmp/data.csv' using 2:xtic(1) notitle; pause -1";
@@ -96,7 +96,7 @@ layouts:
               y1: 10%
               x2: 99%
               y2: 90%
-            on_refresh:
+            script:
               - log show --debug --last 1m | tail -n 50
             tab_order: 1
             title_position: 'end'
@@ -117,11 +117,10 @@ layouts:
               y1: 10%
               x2: 20%
               y2: 90%
-            content: 'Deploy'
+            script:
+              - echo 'Deploy'
             tab_order: 2
             bg_color: 'bright_blue'
-            on_error:
-              - echo "Error loading button."
           - id: 'button2'
             position:
               x1: 25%
@@ -131,7 +130,8 @@ layouts:
             on_keypress:
               'return':
                 - echo "Done!"
-            content: 'Restart'
+            script: 
+              - echo 'Restart'
             tab_order: 3
             bg_color: 'bright_blue'
           - id: 'button3'
@@ -140,7 +140,8 @@ layouts:
               y1: 10%
               x2: 60%
               y2: 90%
-            content: 'Stop'
+            script:
+              - echo 'Stop'
             tab_order: 4
             bg_color: 'bright_blue'
           - id: 'button4'
@@ -149,7 +150,8 @@ layouts:
               y1: 10%
               x2: 80%
               y2: 90%
-            content: 'End'
+            script:
+              - echo 'End'
             tab_order: 5
             on_keypress:
               'return':
@@ -165,5 +167,5 @@ layouts:
         min_height: 3
         max_width: 100
         max_height: 10
-        on_refresh:
-              - date
+        script:
+          - date
