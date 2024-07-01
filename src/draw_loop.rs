@@ -60,25 +60,8 @@ create_runnable!(
                     Message::PanelEventRefresh(_) => {
                         log::info!("PanelEventRefresh");
                     }
-                    Message::PanelEventEnter(_) => {
-                        log::info!("PanelEventEnter");
-                    }
-                    Message::PanelEventLeave(_) => {
-                        log::info!("PanelEventLeave");
-                    }
-                    Message::PanelEventError(_) => {
-                        log::info!("PanelEventError");
-                    }
                     Message::Exit => should_continue = false,
                     Message::Die => should_continue = false,
-                    Message::Resize => {
-						state_unwrapped.recalculate_bounds();
-                        write!(screen, "{}", termion::clear::All).unwrap();
-                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        draw_app(&mut state_unwrapped, &mut new_buffer);
-                        apply_buffer(&mut new_buffer, screen);
-                        *buffer = new_buffer;
-                    }
                     Message::NextPanel() => {
                         let mut active_layout = state_unwrapped
                             .app
@@ -229,10 +212,15 @@ create_runnable!(
                         }
                     }
                     Message::RedrawApp => {
-                        // new_buffer = ScreenBuffer::new(screen_width(), screen_height());
-                        // draw_app(&mut state_unwrapped, &mut new_buffer);
-                        // apply_buffer_if_changed(buffer, &new_buffer, screen);
-                        // *buffer = new_buffer;
+						state_unwrapped.recalculate_bounds();
+                        write!(screen, "{}", termion::clear::All).unwrap();
+                        new_buffer = ScreenBuffer::new(screen_width(), screen_height());
+                        draw_app(&mut state_unwrapped, &mut new_buffer);
+                        apply_buffer(&mut new_buffer, screen);
+                        *buffer = new_buffer;
+                    }
+					Message::Resize => {
+						state_unwrapped.recalculate_bounds();
                         write!(screen, "{}", termion::clear::All).unwrap();
                         new_buffer = ScreenBuffer::new(screen_width(), screen_height());
                         draw_app(&mut state_unwrapped, &mut new_buffer);
@@ -248,7 +236,6 @@ create_runnable!(
                         }
                     }
                     Message::KeyPress(pressed_key) => {
-                        log::info!("Key pressed message received: {:?}", pressed_key);
                         let active_layout = state_unwrapped.app.get_active_layout().unwrap();
 
                         let selected_panel_ids: Vec<String> = active_layout
@@ -310,8 +297,6 @@ pub fn draw_layout(app_context: &mut AppContext, layout: &mut Layout, buffer: &m
         buffer,
     );
 
-    // Temporarily take ownership of `layout.children` using `std::mem::take` to clear it during iteration
-    // let mut children = std::mem::take(&mut layout.children);
 	let layout_children = layout.children.clone();
 
     for mut panel in layout_children {
@@ -362,7 +347,7 @@ pub fn draw_panel(
 			if !panel.output.is_empty() {
 				content = Some(&panel.output);
 			}
-		
+
 			render_panel(
 				&value,
 				&border_color,

@@ -21,14 +21,10 @@ pub struct Panel {
     pub max_width: Option<usize>,
     pub max_height: Option<usize>,
     pub overflow_behavior: Option<String>,
-    pub content: Option<String>,
     #[serde(default)]
     pub scroll: bool,
     pub refresh_interval: Option<u64>,
     pub tab_order: Option<String>,
-    pub on_error: Option<Vec<String>>,
-    pub on_enter: Option<Vec<String>>,
-    pub on_leave: Option<Vec<String>>,
     pub next_focus_id: Option<String>,
     pub children: Option<Vec<Panel>>,
     pub fill: Option<bool>,
@@ -46,13 +42,15 @@ pub struct Panel {
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
     pub title_position: Option<String>,
-    pub on_refresh: Option<Vec<String>>,
+    pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
     pub horizontal_scroll: Option<f64>,
     pub vertical_scroll: Option<f64>,
     pub selected: Option<bool>,
+	#[serde(skip)]
+    pub content: Option<String>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -76,9 +74,6 @@ impl Hash for Panel {
         self.scroll.hash(state);
         self.refresh_interval.hash(state);
         self.tab_order.hash(state);
-        self.on_error.hash(state);
-        self.on_enter.hash(state);
-        self.on_leave.hash(state);
         self.next_focus_id.hash(state);
         if let Some(children) = &self.children {
             for child in children {
@@ -100,7 +95,7 @@ impl Hash for Panel {
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
         self.title_position.hash(state);
-        self.on_refresh.hash(state);
+        self.script.hash(state);
         self.thread.hash(state);
         self.output.hash(state);
         if let Some(hs) = self.horizontal_scroll {
@@ -136,9 +131,6 @@ impl Default for Panel {
             scroll: false,
             refresh_interval: None,
             tab_order: None,
-            on_error: None,
-            on_enter: None,
-            on_leave: None,
             next_focus_id: None,
             children: None,
             fill: None,
@@ -156,7 +148,7 @@ impl Default for Panel {
             selected_title_bg_color: None,
             selected_title_fg_color: None,
             title_position: None,
-            on_refresh: None,
+            script: None,
             thread: Some(false),
             on_keypress: None,
             output: "".to_string(),
@@ -183,9 +175,6 @@ impl PartialEq for Panel {
             && self.scroll == other.scroll
             && self.refresh_interval == other.refresh_interval
             && self.tab_order == other.tab_order
-            && self.on_error == other.on_error
-            && self.on_enter == other.on_enter
-            && self.on_leave == other.on_leave
             && self.next_focus_id == other.next_focus_id
             && self.children == other.children
             && self.fill == other.fill
@@ -203,7 +192,7 @@ impl PartialEq for Panel {
             && self.selected_title_bg_color == other.selected_title_bg_color
             && self.selected_title_fg_color == other.selected_title_fg_color
             && self.title_position == other.title_position
-            && self.on_refresh == other.on_refresh
+            && self.script == other.script
             && self.thread == other.thread
             && self.horizontal_scroll.map(|hs| hs.to_bits())
                 == other.horizontal_scroll.map(|hs| hs.to_bits())
@@ -234,9 +223,6 @@ impl Panel {
             scroll: self.scroll,
             refresh_interval: self.refresh_interval,
             tab_order: self.tab_order.clone(),
-            on_error: self.on_error.clone(),
-            on_enter: self.on_enter.clone(),
-            on_leave: self.on_leave.clone(),
             next_focus_id: self.next_focus_id.clone(),
             children: self
                 .children
@@ -257,7 +243,7 @@ impl Panel {
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             title_position: self.title_position.clone(),
-            on_refresh: self.on_refresh.clone(),
+            script: self.script.clone(),
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),
             output: self.output.clone(),
@@ -646,35 +632,5 @@ impl Panel {
 
     pub fn current_horizontal_scroll(&self) -> f64 {
         self.horizontal_scroll.unwrap_or(0.0)
-    }
-
-    pub fn has_events(&self) -> bool {
-        for event in &[
-            &self.on_enter,
-            &self.on_leave,
-            &self.on_error,
-            &self.on_refresh,
-        ] {
-            if event.is_some() {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn has_refresh(&self) -> bool {
-        self.on_refresh.is_some()
-    }
-
-    pub fn has_enter(&self) -> bool {
-        self.on_enter.is_some()
-    }
-
-    pub fn has_leave(&self) -> bool {
-        self.on_leave.is_some()
-    }
-
-    pub fn has_error(&self) -> bool {
-        self.on_error.is_some()
     }
 }

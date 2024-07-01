@@ -127,6 +127,15 @@ impl Bounds {
 		}
 	}
 
+	pub fn validate(&self) {
+        if self.x1 > self.x2 {
+            panic!("Validation error: x1 ({}) is greater than x2 ({})", self.x1, self.x2);
+        }
+        if self.y1 > self.y2 {
+            panic!("Validation error: y1 ({}) is greater than y2 ({})", self.y1, self.y2);
+        }
+    }
+
     pub fn width(&self) -> usize {
         self.x2.saturating_sub(self.x1)
     }
@@ -134,6 +143,10 @@ impl Bounds {
     pub fn height(&self) -> usize {
         self.y2.saturating_sub(self.y1)
     }
+
+	pub fn to_string(&self) -> String {
+		format!("({}, {}), ({}, {})", self.x1, self.y1, self.x2, self.y2)
+	}
 
 	pub fn extend(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
 		match anchor {
@@ -186,6 +199,7 @@ impl Bounds {
 				self.y2 += half_vertical;
 			},
 		}
+		self.validate();
 	}
 
 	pub fn contract(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
@@ -239,6 +253,7 @@ impl Bounds {
 				self.y2 = self.y2.saturating_sub(half_vertical);
 			},
 		}
+		self.validate();
 	}
 
 	pub fn move_to(&mut self, x: usize, y: usize, anchor:Anchor){
@@ -322,6 +337,7 @@ impl Bounds {
 				self.y2 = y + half_height;
 			},
 		}
+		self.validate();
 	}
 
 	pub fn move_by(&mut self, dx: isize, dy: isize){
@@ -329,6 +345,7 @@ impl Bounds {
 		self.y1 = (self.y1 as isize + dy) as usize;
 		self.x2 = (self.x2 as isize + dx) as usize;
 		self.y2 = (self.y2 as isize + dy) as usize;
+		self.validate();
 	}
 
     pub fn contains(&self, x: usize, y: usize) -> bool {
@@ -503,36 +520,24 @@ pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<S
         if let Some(children) = &panel.children {
             for child in children {
                 if let Some(child_bounds) = bounds_map.get_mut(&child.id) {
+					let mut dx: isize=0;
+					let mut dy: isize=0;
                     // Ensure child bounds are within parent bounds
                     if child_bounds.x2 > parent_bounds.x2 {
-                        child_bounds.x2 = parent_bounds.x2;
+                        dx = parent_bounds.x2 as isize - child_bounds.x2 as isize;
                     }
                     if child_bounds.y2 > parent_bounds.y2 {
-                        child_bounds.y2 = parent_bounds.y2;
+                        dy = parent_bounds.y2 as isize - child_bounds.y2 as isize;
                     }
+
+                    child_bounds.move_by(dx, dy);
+
                     if child_bounds.x1 < parent_bounds.x1 {
-                        child_bounds.x1 = parent_bounds.x1;
+                        dx = parent_bounds.x1 as isize - child_bounds.x1 as isize;
                     }
                     if child_bounds.y1 < parent_bounds.y1 {
-                        child_bounds.y1 = parent_bounds.y1;
+                        dy = parent_bounds.y1 as isize - child_bounds.y1 as isize;
                     }
-
-                    // Adjust the child's position to ensure it fits within the parent
-                    let dx = if child_bounds.x1 < parent_bounds.x1 {
-                        parent_bounds.x1 as isize - child_bounds.x1 as isize
-                    } else if child_bounds.x2 > parent_bounds.x2 {
-                        parent_bounds.x2 as isize - child_bounds.x2 as isize
-                    } else {
-                        0
-                    };
-
-                    let dy = if child_bounds.y1 < parent_bounds.y1 {
-                        parent_bounds.y1 as isize - child_bounds.y1 as isize
-                    } else if child_bounds.y2 > parent_bounds.y2 {
-                        parent_bounds.y2 as isize - child_bounds.y2 as isize
-                    } else {
-                        0
-                    };
 
                     child_bounds.move_by(dx, dy);
                 }
