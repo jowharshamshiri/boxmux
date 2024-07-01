@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::utils::{
+use crate::{screen_bounds, utils::{
     get_bg_color, get_fg_color, input_bounds_to_bounds,
-};
+}, AppGraph, Layout, Panel};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -75,6 +75,13 @@ pub struct InputBounds {
     pub y2: String,
 }
 
+
+impl InputBounds {
+    pub fn to_bounds(&self, parent_bounds: &Bounds) -> Bounds {
+        input_bounds_to_bounds(self, parent_bounds)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Bounds {
     pub x1: usize,
@@ -83,10 +90,31 @@ pub struct Bounds {
     pub y2: usize,
 }
 
-impl InputBounds {
-    pub fn to_bounds(&self, parent_bounds: &Bounds) -> Bounds {
-        input_bounds_to_bounds(self, parent_bounds)
-    }
+impl PartialEq for Bounds {
+	fn eq(&self, other: &Self) -> bool {
+		self.x1 == other.x1 && self.y1 == other.y1 && self.x2 == other.x2 && self.y2 == other.y2
+	}
+}
+
+impl Eq for Bounds {}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash,Eq)]
+pub enum Anchor {
+	TopLeft,
+	TopRight,
+	BottomLeft,
+	BottomRight,
+	Center,
+	CenterTop,
+	CenterBottom,
+	CenterLeft,
+	CenterRight,
+}
+
+impl Default for Anchor {
+	fn default() -> Self {
+		Anchor::Center
+	}
 }
 
 impl Bounds {
@@ -106,6 +134,202 @@ impl Bounds {
     pub fn height(&self) -> usize {
         self.y2.saturating_sub(self.y1)
     }
+
+	pub fn extend(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
+		match anchor {
+			Anchor::TopLeft => {
+				self.x1 = self.x1.saturating_sub(horizontal_amount);
+				self.y1 = self.y1.saturating_sub(vertical_amount);
+			},
+			Anchor::TopRight => {
+				self.x2 += horizontal_amount;
+				self.y1 = self.y1.saturating_sub(vertical_amount);
+			},
+			Anchor::BottomLeft => {
+				self.x1 = self.x1.saturating_sub(horizontal_amount);
+				self.y2 += vertical_amount;
+			},
+			Anchor::BottomRight => {
+				self.x2 += horizontal_amount;
+				self.y2 += vertical_amount;
+			},
+			Anchor::Center => {
+				let half_horizontal = horizontal_amount / 2;
+				let half_vertical = vertical_amount / 2;
+				self.x1 = self.x1.saturating_sub(half_horizontal);
+				self.y1 = self.y1.saturating_sub(half_vertical);
+				self.x2 += half_horizontal;
+				self.y2 += half_vertical;
+			},
+			Anchor::CenterTop => {
+				let half_horizontal = horizontal_amount / 2;
+				self.x1 = self.x1.saturating_sub(half_horizontal);
+				self.x2 += half_horizontal;
+				self.y1 = self.y1.saturating_sub(vertical_amount);
+			},
+			Anchor::CenterBottom => {
+				let half_horizontal = horizontal_amount / 2;
+				self.x1 = self.x1.saturating_sub(half_horizontal);
+				self.x2 += half_horizontal;
+				self.y2 += vertical_amount;
+			},
+			Anchor::CenterLeft => {
+				let half_vertical = vertical_amount / 2;
+				self.x1 = self.x1.saturating_sub(horizontal_amount);
+				self.y1 = self.y1.saturating_sub(half_vertical);
+				self.y2 += half_vertical;
+			},
+			Anchor::CenterRight => {
+				let half_vertical = vertical_amount / 2;
+				self.x2 += horizontal_amount;
+				self.y1 = self.y1.saturating_sub(half_vertical);
+				self.y2 += half_vertical;
+			},
+		}
+	}
+
+	pub fn contract(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
+		match anchor {
+			Anchor::TopLeft => {
+				self.x1 += horizontal_amount;
+				self.y1 += vertical_amount;
+			},
+			Anchor::TopRight => {
+				self.x2 = self.x2.saturating_sub(horizontal_amount);
+				self.y1 += vertical_amount;
+			},
+			Anchor::BottomLeft => {
+				self.x1 += horizontal_amount;
+				self.y2 = self.y2.saturating_sub(vertical_amount);
+			},
+			Anchor::BottomRight => {
+				self.x2 = self.x2.saturating_sub(horizontal_amount);
+				self.y2 = self.y2.saturating_sub(vertical_amount);
+			},
+			Anchor::Center => {
+				let half_horizontal = horizontal_amount / 2;
+				let half_vertical = vertical_amount / 2;
+				self.x1 += half_horizontal;
+				self.y1 += half_vertical;
+				self.x2 = self.x2.saturating_sub(half_horizontal);
+				self.y2 = self.y2.saturating_sub(half_vertical);
+			},
+			Anchor::CenterTop => {
+				let half_horizontal = horizontal_amount / 2;
+				self.x1 += half_horizontal;
+				self.x2 = self.x2.saturating_sub(half_horizontal);
+				self.y1 += vertical_amount;
+			},
+			Anchor::CenterBottom => {
+				let half_horizontal = horizontal_amount / 2;
+				self.x1 += half_horizontal;
+				self.x2 = self.x2.saturating_sub(half_horizontal);
+				self.y2 = self.y2.saturating_sub(vertical_amount);
+			},
+			Anchor::CenterLeft => {
+				let half_vertical = vertical_amount / 2;
+				self.x1 += horizontal_amount;
+				self.y1 += half_vertical;
+				self.y2 = self.y2.saturating_sub(half_vertical);
+			},
+			Anchor::CenterRight => {
+				let half_vertical = vertical_amount / 2;
+				self.x2 = self.x2.saturating_sub(horizontal_amount);
+				self.y1 += half_vertical;
+				self.y2 = self.y2.saturating_sub(half_vertical);
+			},
+		}
+	}
+
+	pub fn move_to(&mut self, x: usize, y: usize, anchor:Anchor){
+		match anchor {
+			Anchor::TopLeft => {
+				let width = self.width();
+				let height = self.height();
+				self.x1 = x;
+				self.y1 = y;
+				self.x2 = x + width;
+				self.y2 = y + height;
+			},
+			Anchor::TopRight => {
+				let width = self.width();
+				let height = self.height();
+				self.x2 = x;
+				self.y1 = y;
+				self.x1 = x - width;
+				self.y2 = y + height;
+			},
+			Anchor::BottomLeft => {
+				let width = self.width();
+				let height = self.height();
+				self.x1 = x;
+				self.y2 = y;
+				self.x2 = x + width;
+				self.y1 = y - height;
+			},
+			Anchor::BottomRight => {
+				let width = self.width();
+				let height = self.height();
+				self.x2 = x;
+				self.y2 = y;
+				self.x1 = x - width;
+				self.y1 = y - height;
+			},
+			Anchor::Center => {
+				let width = self.width();
+				let height = self.height();
+				let half_width = width / 2;
+				let half_height = height / 2;
+				self.x1 = x - half_width;
+				self.y1 = y - half_height;
+				self.x2 = x + half_width;
+				self.y2 = y + half_height;
+			},
+			Anchor::CenterTop => {
+				let width = self.width();
+				let height = self.height();
+				let half_width = width / 2;
+				self.x1 = x - half_width;
+				self.x2 = x + half_width;
+				self.y1 = y;
+				self.y2 = y + height;
+			},
+			Anchor::CenterBottom => {
+				let width = self.width();
+				let height = self.height();
+				let half_width = width / 2;
+				self.x1 = x - half_width;
+				self.x2 = x + half_width;
+				self.y2 = y;
+				self.y1 = y - height;
+			},
+			Anchor::CenterLeft => {
+				let width = self.width();
+				let height = self.height();
+				let half_height = height / 2;
+				self.x1 = x;
+				self.x2 = x + width;
+				self.y1 = y - half_height;
+				self.y2 = y + half_height;
+			},
+			Anchor::CenterRight => {
+				let width = self.width();
+				let height = self.height();
+				let half_height = height / 2;
+				self.x2 = x;
+				self.x1 = x - width;
+				self.y1 = y - half_height;
+				self.y2 = y + half_height;
+			},
+		}
+	}
+
+	pub fn move_by(&mut self, dx: isize, dy: isize){
+		self.x1 = (self.x1 as isize + dx) as usize;
+		self.y1 = (self.y1 as isize + dy) as usize;
+		self.x2 = (self.x2 as isize + dx) as usize;
+		self.y2 = (self.y2 as isize + dy) as usize;
+	}
 
     pub fn contains(&self, x: usize, y: usize) -> bool {
         x >= self.x1 && x < self.x2 && y >= self.y1 && y < self.y2
@@ -212,6 +436,122 @@ impl Bounds {
     pub fn center_right(&self) -> (usize, usize) {
         (self.x2, (self.y1 + self.y2) / 2)
     }
+}
+
+pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
+    let mut bounds_map = HashMap::new();
+
+    fn dfs(app_graph: &AppGraph, layout_id: &str, panel: &Panel, parent_bounds: Bounds, bounds_map: &mut HashMap<String, Bounds>) {
+        let bounds = panel.absolute_bounds(Some(&parent_bounds));
+        bounds_map.insert(panel.id.clone(), bounds.clone());
+
+        if let Some(children) = &panel.children {
+            for child in children {
+                dfs(app_graph, layout_id, child, bounds.clone(), bounds_map);
+            }
+        }
+    }
+
+    let root_bounds = screen_bounds();
+    for panel in &layout.children {
+        dfs(app_graph, &layout.id, panel, root_bounds.clone(), &mut bounds_map);
+    }
+
+    bounds_map
+}
+pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<String, Bounds>) -> HashMap<String, Bounds> {
+    fn apply_constraints(panel: &Panel, bounds: &mut Bounds) {
+        if let Some(min_width) = panel.min_width {
+            if bounds.width() < min_width {
+                bounds.extend(min_width - bounds.width(), 0, Anchor::TopLeft);
+            }
+        }
+        if let Some(min_height) = panel.min_height {
+            if bounds.height() < min_height {
+                bounds.extend(0, min_height - bounds.height(), Anchor::TopLeft);
+            }
+        }
+        if let Some(max_width) = panel.max_width {
+            if bounds.width() > max_width {
+                bounds.contract(bounds.width() - max_width, 0, Anchor::TopLeft);
+            }
+        }
+        if let Some(max_height) = panel.max_height {
+            if bounds.height() > max_height {
+                bounds.contract(0, bounds.height() - max_height, Anchor::TopLeft);
+            }
+        }
+    }
+
+    fn dfs(panel: &Panel, bounds_map: &mut HashMap<String, Bounds>) -> Bounds {
+        let mut bounds = bounds_map.remove(&panel.id).unwrap();
+        apply_constraints(panel, &mut bounds);
+        bounds_map.insert(panel.id.clone(), bounds.clone());
+
+        if let Some(children) = &panel.children {
+            for child in children {
+                let child_bounds = dfs(child, bounds_map);
+                bounds.x2 = bounds.x2.max(child_bounds.x2);
+                bounds.y2 = bounds.y2.max(child_bounds.y2);
+            }
+        }
+
+        bounds
+    }
+
+    fn revalidate_children(panel: &Panel, bounds_map: &mut HashMap<String, Bounds>, parent_bounds: &Bounds) {
+        if let Some(children) = &panel.children {
+            for child in children {
+                if let Some(child_bounds) = bounds_map.get_mut(&child.id) {
+                    // Ensure child bounds are within parent bounds
+                    if child_bounds.x2 > parent_bounds.x2 {
+                        child_bounds.x2 = parent_bounds.x2;
+                    }
+                    if child_bounds.y2 > parent_bounds.y2 {
+                        child_bounds.y2 = parent_bounds.y2;
+                    }
+                    if child_bounds.x1 < parent_bounds.x1 {
+                        child_bounds.x1 = parent_bounds.x1;
+                    }
+                    if child_bounds.y1 < parent_bounds.y1 {
+                        child_bounds.y1 = parent_bounds.y1;
+                    }
+
+                    // Adjust the child's position to ensure it fits within the parent
+                    let dx = if child_bounds.x1 < parent_bounds.x1 {
+                        parent_bounds.x1 as isize - child_bounds.x1 as isize
+                    } else if child_bounds.x2 > parent_bounds.x2 {
+                        parent_bounds.x2 as isize - child_bounds.x2 as isize
+                    } else {
+                        0
+                    };
+
+                    let dy = if child_bounds.y1 < parent_bounds.y1 {
+                        parent_bounds.y1 as isize - child_bounds.y1 as isize
+                    } else if child_bounds.y2 > parent_bounds.y2 {
+                        parent_bounds.y2 as isize - child_bounds.y2 as isize
+                    } else {
+                        0
+                    };
+
+                    child_bounds.move_by(dx, dy);
+                }
+                revalidate_children(child, bounds_map, parent_bounds);
+            }
+        }
+    }
+
+    for panel in &layout.children {
+        let parent_bounds = dfs(panel, &mut bounds_map);
+        revalidate_children(panel, &mut bounds_map, &parent_bounds);
+    }
+
+    bounds_map
+}
+
+pub fn calculate_bounds_map(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
+    let bounds_map = calculate_initial_bounds(app_graph, layout);
+    adjust_bounds_with_constraints(layout, bounds_map)
 }
 
 #[cfg(test)]
