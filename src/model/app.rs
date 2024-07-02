@@ -14,7 +14,7 @@ use petgraph::visit::EdgeRef;
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
-use crate::calculate_bounds_map;
+use crate::{calculate_bounds_map, Config};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct App {
@@ -364,6 +364,7 @@ impl AppGraph {
 #[derive(Debug, Clone)]
 pub struct AppContext {
     pub app: App,
+	pub config: Config
 }
 
 impl PartialEq for AppContext {
@@ -373,17 +374,19 @@ impl PartialEq for AppContext {
 }
 
 impl AppContext {
-	pub fn new(mut app: App) -> Self {
+	pub fn new(mut app: App, config:Config) -> Self {
 		app.validate();
 
 		AppContext {
 			app,
+			config
 		}
 	}
 
     pub fn deep_clone(&self) -> Self {
         AppContext {
-            app: self.app.deep_clone()
+            app: self.app.deep_clone(),
+			config: self.config.clone()
         }
     }
 }
@@ -423,7 +426,7 @@ impl Clone for AppGraph {
     }
 }
 
-pub fn load_app_from_yaml(file_path: &str) -> Result<AppContext, Box<dyn std::error::Error>> {
+pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Error>> {
     let mut file = File::open(file_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -432,9 +435,7 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<AppContext, Box<dyn std::er
 
 	app.validate();
     
-	let app_context = AppContext::new(app);
-
-    Ok(app_context)
+	Ok(app)
 }
 
 fn check_unique_ids(layout: &Layout, id_set: &mut HashSet<String>) -> Result<(), Box<dyn std::error::Error>> {
@@ -462,7 +463,8 @@ mod tests {
 	fn load_test_app_context() -> AppContext {
         let current_dir = std::env::current_dir().expect("Failed to get current directory");
         let dashboard_path = current_dir.join("layouts/tests.yaml");
-        load_app_from_yaml(dashboard_path.to_str().unwrap()).expect("Failed to load app")
+        let app=load_app_from_yaml(dashboard_path.to_str().unwrap()).expect("Failed to load app");
+		AppContext::new(app, Config::default())
     }
 
     fn setup_app_context() -> AppContext {

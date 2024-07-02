@@ -21,10 +21,10 @@ lazy_static! {
 
 create_runnable!(
     DrawLoop,
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
-        let mut state_unwrapped = state.deep_clone();
+        let mut state_unwrapped = app_context.deep_clone();
 		let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
 
         if global_screen.is_none() {
@@ -43,7 +43,7 @@ create_runnable!(
 
         true
     },
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut should_continue = true;
@@ -52,7 +52,7 @@ create_runnable!(
             (&mut *global_screen, &mut *global_buffer)
         {
             let mut new_buffer = ScreenBuffer::new();
-            let mut state_unwrapped = state.deep_clone();
+            let mut state_unwrapped = app_context.deep_clone();
 			let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
 
             for message in &messages {
@@ -253,7 +253,7 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
         }
 
         should_continue

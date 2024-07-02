@@ -11,8 +11,135 @@ layouts:
     selected_title_bg_color: 'bright_yellow'
     border_color: 'bright_white'
     selected_border_color: 'bright_yellow'
-
     children:
+      - id: 'data1'
+        title: 'Some Data'
+        position:
+          x1: 2%
+          y1: 5%
+          x2: 48%
+          y2: 35%
+        script:
+          - >
+            echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
+            gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
+            rm /tmp/data_line.csv
+        title_position: 'center'
+      - id: 'data2'
+        title: 'Some Other Data'
+        position:
+          x1: 50%
+          y1: 5%
+          x2: 98%
+          y2: 35%
+        refresh_interval: 3000
+        script:
+            - >
+              echo -e "Category,Value\nA,$((RANDOM % 100 + 100))\nB,$((RANDOM % 100 + 100))\nC,$((RANDOM % 100 + 100))\nD,$((RANDOM % 100 + 100))" > /tmp/data.csv;
+              gnuplot -e "set terminal dumb size 80, 20; set style data histograms; set style fill solid 1.00 border -1; set datafile separator ','; set boxwidth 0.75 relative; set style histogram clustered; set xtics rotate by -45; plot '/tmp/data.csv' using 2:xtic(1) notitle; pause -1";
+              rm /tmp/data.csv
+      - id: 'log'
+        title: 'LOGS'
+        position:
+          x1: 2%
+          y1: 38%
+          x2: 98%
+          y2: 80%
+        children:
+          - id: 'log_input'
+            title: 'Load'
+            position:
+              x1: 1%
+              y1: 10%
+              x2: 45%
+              y2: 90%
+            title_position: 'start'
+          - id: 'log_output'
+            title: 'Log Output'
+            position:
+              x1: 46%
+              y1: 10%
+              x2: 99%
+              y2: 90%
+            script:
+              - log show --debug --last 1m | tail -n 50
+            tab_order: 1
+            title_position: 'end'
+      - id: 'row_of_buttons'
+        position:
+          x1: 2%
+          y1: 84%
+          x2: 98%
+          y2: 90%
+        fg_color: 'bright_white'
+        selected_bg_color: 'bright_yellow'
+        selected_fg_color: 'bright_black'
+        border: false
+        children:
+          - id: 'button1'
+            position:
+              x1: 10%
+              y1: 10%
+              x2: 20%
+              y2: 90%
+            script:
+              - echo 'Deploy'
+            tab_order: 2
+            bg_color: 'bright_blue'
+            border: true
+          - id: 'button2'
+            position:
+              x1: 25%
+              y1: 10%
+              x2: 40%
+              y2: 90%
+            border: true
+            on_keypress:
+              'return':
+                - echo "Done!"
+            script: 
+              - echo 'Restart'
+            tab_order: 3
+            bg_color: 'bright_blue'
+          - id: 'button3'
+            position:
+              x1: 45%
+              y1: 10%
+              x2: 60%
+              y2: 90%
+            border: true
+            script:
+              - echo 'Stop'
+            tab_order: 4
+            bg_color: 'bright_blue'
+          - id: 'button4'
+            position:
+              x1: 65%
+              y1: 10%
+              x2: 80%
+              y2: 90%
+            border: true
+            script:
+              - echo 'End'
+            tab_order: 5
+            on_keypress:
+              'return':
+                - echo "Done!" 
+            bg_color: 'bright_blue'
+      - id: 'footer'
+        position:
+          x1: 0%
+          y1: 92%
+          x2: 99%
+          y2: 95%
+        # thread: true
+        refresh_interval: 5000
+        min_width: 20
+        min_height: 3
+        max_width: 100
+        max_height: 10
+        script:
+          - date
       - id: 'header'
         position:
           x1: 0%
@@ -41,134 +168,3 @@ layouts:
               y2: 100%
             script: 
               - echo 'b-34387' 
-      - id: 'data1'
-        title: 'Some Data'
-        position:
-          x1: 2%
-          y1: 5%
-          x2: 48%
-          y2: 35%
-        script:
-          - >
-            echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
-            gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
-            rm /tmp/data_line.csv
-        title_position: 'center'
-      - id: 'data2'
-        title: 'Some Other Data'
-        position:
-          x1: 50%
-          y1: 5%
-          x2: 98%
-          y2: 35%
-        refresh_interval: 3000
-        script:
-          - >
-            echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line2.csv;
-            gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line2.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
-            echo "*lorem ipsum if you are reading this, you shouldn't be.";
-            echo "**also don't forget to omg stop reading this look at the pretty charts.";
-            rm /tmp/data_line2.csv
-      - id: 'log'
-        title: 'LOGS'
-        position:
-          x1: 2%
-          y1: 38%
-          x2: 98%
-          y2: 80%
-        children:
-          - id: 'log_input'
-            title: 'Load'
-            position:
-              x1: 1%
-              y1: 10%
-              x2: 45%
-              y2: 90%
-            script:
-              - >
-                echo -e "Category,Value\nA,$((RANDOM % 100 + 100))\nB,$((RANDOM % 100 + 100))\nC,$((RANDOM % 100 + 100))\nD,$((RANDOM % 100 + 100))" > /tmp/data.csv;
-                gnuplot -e "set terminal dumb size 80, 20; set style data histograms; set style fill solid 1.00 border -1; set datafile separator ','; set boxwidth 0.75 relative; set style histogram clustered; set xtics rotate by -45; plot '/tmp/data.csv' using 2:xtic(1) notitle; pause -1";
-                rm /tmp/data.csv
-            title_position: 'start'
-          - id: 'log_output'
-            title: 'Log Output'
-            position:
-              x1: 46%
-              y1: 10%
-              x2: 99%
-              y2: 90%
-            script:
-              - log show --debug --last 1m | tail -n 50
-            tab_order: 1
-            title_position: 'end'
-      - id: 'row_of_buttons'
-        position:
-          x1: 2%
-          y1: 84%
-          x2: 98%
-          y2: 90%
-        fg_color: 'bright_white'
-        selected_bg_color: 'bright_yellow'
-        selected_fg_color: 'bright_black'
-        border: true
-        children:
-          - id: 'button1'
-            position:
-              x1: 10%
-              y1: 10%
-              x2: 20%
-              y2: 90%
-            script:
-              - echo 'Deploy'
-            tab_order: 2
-            bg_color: 'bright_blue'
-          - id: 'button2'
-            position:
-              x1: 25%
-              y1: 10%
-              x2: 40%
-              y2: 90%
-            on_keypress:
-              'return':
-                - echo "Done!"
-            script: 
-              - echo 'Restart'
-            tab_order: 3
-            bg_color: 'bright_blue'
-          - id: 'button3'
-            position:
-              x1: 45%
-              y1: 10%
-              x2: 60%
-              y2: 90%
-            script:
-              - echo 'Stop'
-            tab_order: 4
-            bg_color: 'bright_blue'
-          - id: 'button4'
-            position:
-              x1: 65%
-              y1: 10%
-              x2: 80%
-              y2: 90%
-            script:
-              - echo 'End'
-            tab_order: 5
-            on_keypress:
-              'return':
-                - echo "Done!" 
-            bg_color: 'bright_blue'
-      - id: 'footer'
-        position:
-          x1: 0%
-          y1: 92%
-          x2: 99%
-          y2: 95%
-        # thread: true
-        refresh_interval: 5000
-        min_width: 20
-        min_height: 3
-        max_width: 100
-        max_height: 10
-        script:
-          - date

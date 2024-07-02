@@ -12,12 +12,12 @@ use uuid::Uuid;
 use termion::event::Event;
 create_runnable!(
     InputLoop,
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool { true },
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
         let stdin = stdin();
         let mut should_continue = true;
 
-        let active_layout = state.app.get_active_layout().unwrap();
+        let active_layout = app_context.app.get_active_layout().unwrap();
 
         for c in stdin.events() {
             if let Ok(event) = c {
@@ -71,7 +71,7 @@ create_runnable!(
                     _ => return true,
                 };
 
-                if let Some(app_key_mappings) = &state.app.on_keypress {
+                if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         execute_commands(&actions);
                     }
@@ -85,7 +85,7 @@ create_runnable!(
 				inner.send_message(Message::KeyPress(key_str.clone()));
             }
         }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+		std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
 
         should_continue
     }

@@ -44,22 +44,22 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                         PanelRefreshLoop,
                         Box::new(vec_fn),
                         |inner: &mut RunnableImpl,
-                         state: AppContext,
+                         app_context: AppContext,
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> bool { true },
                         |inner: &mut RunnableImpl,
-                         state: AppContext,
+                         app_context: AppContext,
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> bool {
-                            let mut state_unwrapped = state.deep_clone();
+                            let mut state_unwrapped = app_context.deep_clone();
                             let app_graph = state_unwrapped.app.generate_graph();
                             let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
                             let output = execute_commands(panel.script.clone().unwrap().as_ref());
                             inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
                             std::thread::sleep(std::time::Duration::from_millis(
-                                panel.calc_refresh_interval(&state, &app_graph),
+                                panel.calc_refresh_interval(&app_context, &app_graph),
                             ));
                             true
                         }
@@ -80,16 +80,16 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                 PanelRefreshLoop,
                 Box::new(vec_fn),
                 |inner: &mut RunnableImpl,
-                 state: AppContext,
+                 app_context: AppContext,
                  messages: Vec<Message>,
                  vec: Vec<String>|
                  -> bool { true },
                 |inner: &mut RunnableImpl,
-                 state: AppContext,
+                 app_context: AppContext,
                  messages: Vec<Message>,
                  vec: Vec<String>|
                  -> bool {
-                    let mut state_unwrapped = state.deep_clone();
+                    let mut state_unwrapped = app_context.deep_clone();
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
@@ -111,7 +111,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                         }
                     }
 
-                    std::thread::sleep(Duration::from_millis(100));
+					std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
 
                     true
                 }
@@ -135,9 +135,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .index(1)
                 .help("Sets the yaml_file file to use"),
         )
+        .arg(
+            Arg::new("frame_delay")
+                .short('d')
+                .long("frame_delay")
+                .takes_value(true)
+                .default_value("100")
+                .help("Sets the frame delay in milliseconds"),
+        )
         .get_matches();
 
     let yaml_path = matches.value_of("yaml_file").unwrap();
+    let frame_delay = matches
+        .value_of("frame_delay")
+        .unwrap()
+        .parse::<u64>()
+        .unwrap_or(100);
+
     let yaml_path = Path::new(yaml_path);
 
     if !yaml_path.exists() {
@@ -150,9 +164,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Config::default(),
         File::create("app.log")?,
     )])?;
+    let config = crossbash_lib::model::common::Config::new(frame_delay);
+    let app = load_app_from_yaml(yaml_path.to_str().unwrap()).expect("Failed to load app");
 
-    let mut app_context =
-        load_app_from_yaml(yaml_path.to_str().unwrap()).expect("Failed to load app");
+    let app_context = AppContext::new(app, config);
 
     //create alternate screen in terminal and clear it
     let mut _stdout = std::io::stdout();
