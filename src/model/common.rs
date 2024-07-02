@@ -1,8 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{draw_utils::{get_bg_color, get_fg_color}, screen_bounds, screen_height, screen_width, utils::input_bounds_to_bounds, AppGraph, Layout, Panel};
+use crate::{
+    draw_utils::{get_bg_color, get_fg_color},
+    screen_bounds, screen_height, screen_width,
+    utils::input_bounds_to_bounds,
+    AppGraph, Layout, Panel,
+};
 use serde::{Deserialize, Serialize};
-
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
@@ -10,24 +14,23 @@ pub struct Config {
 }
 
 impl Default for Config {
-	fn default() -> Self {
-		Config { frame_delay: 100 }
-	}
+    fn default() -> Self {
+        Config { frame_delay: 100 }
+    }
 }
 
 impl Config {
-	pub fn new(frame_delay: u64) -> Self {
-		let result=Config { frame_delay };
-		result.validate();
-		result
-	}
-	pub fn validate(&self) {
-		if self.frame_delay == 0 {
-			panic!("Validation error: frame_delay cannot be 0");
-		}
-	}
+    pub fn new(frame_delay: u64) -> Self {
+        let result = Config { frame_delay };
+        result.validate();
+        result
+    }
+    pub fn validate(&self) {
+        if self.frame_delay == 0 {
+            panic!("Validation error: frame_delay cannot be 0");
+        }
+    }
 }
-
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
@@ -36,7 +39,7 @@ pub struct Cell {
     pub ch: char,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct ScreenBuffer {
     pub width: usize,
     pub height: usize,
@@ -44,14 +47,14 @@ pub struct ScreenBuffer {
 }
 
 impl ScreenBuffer {
-	pub fn new() -> Self {
+    pub fn new() -> Self {
         let default_cell = Cell {
             fg_color: get_fg_color("white"),
             bg_color: get_bg_color("black"),
             ch: ' ',
         };
-		let width = screen_width();
-		let height = screen_height();
+        let width = screen_width();
+        let height = screen_height();
         let buffer = vec![vec![default_cell; width]; height];
         ScreenBuffer {
             width,
@@ -97,7 +100,7 @@ impl ScreenBuffer {
         }
     }
 
-	pub fn resize(&mut self, width: usize, height: usize) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         // First handle shrinking the buffer if necessary
         if height < self.height {
             self.buffer.truncate(height);
@@ -110,11 +113,14 @@ impl ScreenBuffer {
 
         // Now handle expanding the buffer if necessary
         if height > self.height {
-            let default_row = vec![Cell {
-                fg_color: get_fg_color("white"),
-                bg_color: get_bg_color("black"),
-                ch: ' ',
-            }; width];
+            let default_row = vec![
+                Cell {
+                    fg_color: get_fg_color("white"),
+                    bg_color: get_bg_color("black"),
+                    ch: ' ',
+                };
+                width
+            ];
 
             self.buffer.resize_with(height, || default_row.clone());
         }
@@ -134,14 +140,13 @@ impl ScreenBuffer {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash,Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct InputBounds {
     pub x1: String,
     pub y1: String,
     pub x2: String,
     pub y2: String,
 }
-
 
 impl InputBounds {
     pub fn to_bounds(&self, parent_bounds: &Bounds) -> Bounds {
@@ -158,48 +163,49 @@ pub struct Bounds {
 }
 
 impl PartialEq for Bounds {
-	fn eq(&self, other: &Self) -> bool {
-		self.x1 == other.x1 && self.y1 == other.y1 && self.x2 == other.x2 && self.y2 == other.y2
-	}
+    fn eq(&self, other: &Self) -> bool {
+        self.x1 == other.x1 && self.y1 == other.y1 && self.x2 == other.x2 && self.y2 == other.y2
+    }
 }
 
 impl Eq for Bounds {}
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash,Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum Anchor {
-	TopLeft,
-	TopRight,
-	BottomLeft,
-	BottomRight,
-	Center,
-	CenterTop,
-	CenterBottom,
-	CenterLeft,
-	CenterRight,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+    CenterTop,
+    CenterBottom,
+    CenterLeft,
+    CenterRight,
 }
 
 impl Default for Anchor {
-	fn default() -> Self {
-		Anchor::Center
-	}
+    fn default() -> Self {
+        Anchor::Center
+    }
 }
 
 impl Bounds {
-	pub fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
-		Bounds {
-			x1,
-			y1,
-			x2,
-			y2,
-		}
-	}
+    pub fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
+        Bounds { x1, y1, x2, y2 }
+    }
 
-	pub fn validate(&self) {
+    pub fn validate(&self) {
         if self.x1 > self.x2 {
-            panic!("Validation error: x1 ({}) is greater than x2 ({})", self.x1, self.x2);
+            panic!(
+                "Validation error: x1 ({}) is greater than x2 ({})",
+                self.x1, self.x2
+            );
         }
         if self.y1 > self.y2 {
-            panic!("Validation error: y1 ({}) is greater than y2 ({})", self.y1, self.y2);
+            panic!(
+                "Validation error: y1 ({}) is greater than y2 ({})",
+                self.y1, self.y2
+            );
         }
     }
 
@@ -211,209 +217,209 @@ impl Bounds {
         self.y2.saturating_sub(self.y1)
     }
 
-	pub fn to_string(&self) -> String {
-		format!("({}, {}), ({}, {})", self.x1, self.y1, self.x2, self.y2)
-	}
+    pub fn to_string(&self) -> String {
+        format!("({}, {}), ({}, {})", self.x1, self.y1, self.x2, self.y2)
+    }
 
-	pub fn extend(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
-		match anchor {
-			Anchor::TopLeft => {
-				self.x1 = self.x1.saturating_sub(horizontal_amount);
-				self.y1 = self.y1.saturating_sub(vertical_amount);
-			},
-			Anchor::TopRight => {
-				self.x2 += horizontal_amount;
-				self.y1 = self.y1.saturating_sub(vertical_amount);
-			},
-			Anchor::BottomLeft => {
-				self.x1 = self.x1.saturating_sub(horizontal_amount);
-				self.y2 += vertical_amount;
-			},
-			Anchor::BottomRight => {
-				self.x2 += horizontal_amount;
-				self.y2 += vertical_amount;
-			},
-			Anchor::Center => {
-				let half_horizontal = horizontal_amount / 2;
-				let half_vertical = vertical_amount / 2;
-				self.x1 = self.x1.saturating_sub(half_horizontal);
-				self.y1 = self.y1.saturating_sub(half_vertical);
-				self.x2 += half_horizontal;
-				self.y2 += half_vertical;
-			},
-			Anchor::CenterTop => {
-				let half_horizontal = horizontal_amount / 2;
-				self.x1 = self.x1.saturating_sub(half_horizontal);
-				self.x2 += half_horizontal;
-				self.y1 = self.y1.saturating_sub(vertical_amount);
-			},
-			Anchor::CenterBottom => {
-				let half_horizontal = horizontal_amount / 2;
-				self.x1 = self.x1.saturating_sub(half_horizontal);
-				self.x2 += half_horizontal;
-				self.y2 += vertical_amount;
-			},
-			Anchor::CenterLeft => {
-				let half_vertical = vertical_amount / 2;
-				self.x1 = self.x1.saturating_sub(horizontal_amount);
-				self.y1 = self.y1.saturating_sub(half_vertical);
-				self.y2 += half_vertical;
-			},
-			Anchor::CenterRight => {
-				let half_vertical = vertical_amount / 2;
-				self.x2 += horizontal_amount;
-				self.y1 = self.y1.saturating_sub(half_vertical);
-				self.y2 += half_vertical;
-			},
-		}
-		self.validate();
-	}
+    pub fn extend(&mut self, horizontal_amount: usize, vertical_amount: usize, anchor: Anchor) {
+        match anchor {
+            Anchor::TopLeft => {
+                self.x1 = self.x1.saturating_sub(horizontal_amount);
+                self.y1 = self.y1.saturating_sub(vertical_amount);
+            }
+            Anchor::TopRight => {
+                self.x2 += horizontal_amount;
+                self.y1 = self.y1.saturating_sub(vertical_amount);
+            }
+            Anchor::BottomLeft => {
+                self.x1 = self.x1.saturating_sub(horizontal_amount);
+                self.y2 += vertical_amount;
+            }
+            Anchor::BottomRight => {
+                self.x2 += horizontal_amount;
+                self.y2 += vertical_amount;
+            }
+            Anchor::Center => {
+                let half_horizontal = horizontal_amount / 2;
+                let half_vertical = vertical_amount / 2;
+                self.x1 = self.x1.saturating_sub(half_horizontal);
+                self.y1 = self.y1.saturating_sub(half_vertical);
+                self.x2 += half_horizontal;
+                self.y2 += half_vertical;
+            }
+            Anchor::CenterTop => {
+                let half_horizontal = horizontal_amount / 2;
+                self.x1 = self.x1.saturating_sub(half_horizontal);
+                self.x2 += half_horizontal;
+                self.y1 = self.y1.saturating_sub(vertical_amount);
+            }
+            Anchor::CenterBottom => {
+                let half_horizontal = horizontal_amount / 2;
+                self.x1 = self.x1.saturating_sub(half_horizontal);
+                self.x2 += half_horizontal;
+                self.y2 += vertical_amount;
+            }
+            Anchor::CenterLeft => {
+                let half_vertical = vertical_amount / 2;
+                self.x1 = self.x1.saturating_sub(horizontal_amount);
+                self.y1 = self.y1.saturating_sub(half_vertical);
+                self.y2 += half_vertical;
+            }
+            Anchor::CenterRight => {
+                let half_vertical = vertical_amount / 2;
+                self.x2 += horizontal_amount;
+                self.y1 = self.y1.saturating_sub(half_vertical);
+                self.y2 += half_vertical;
+            }
+        }
+        self.validate();
+    }
 
-	pub fn contract(&mut self, horizontal_amount: usize, vertical_amount:usize, anchor:Anchor){
-		match anchor {
-			Anchor::TopLeft => {
-				self.x1 += horizontal_amount;
-				self.y1 += vertical_amount;
-			},
-			Anchor::TopRight => {
-				self.x2 = self.x2.saturating_sub(horizontal_amount);
-				self.y1 += vertical_amount;
-			},
-			Anchor::BottomLeft => {
-				self.x1 += horizontal_amount;
-				self.y2 = self.y2.saturating_sub(vertical_amount);
-			},
-			Anchor::BottomRight => {
-				self.x2 = self.x2.saturating_sub(horizontal_amount);
-				self.y2 = self.y2.saturating_sub(vertical_amount);
-			},
-			Anchor::Center => {
-				let half_horizontal = horizontal_amount / 2;
-				let half_vertical = vertical_amount / 2;
-				self.x1 += half_horizontal;
-				self.y1 += half_vertical;
-				self.x2 = self.x2.saturating_sub(half_horizontal);
-				self.y2 = self.y2.saturating_sub(half_vertical);
-			},
-			Anchor::CenterTop => {
-				let half_horizontal = horizontal_amount / 2;
-				self.x1 += half_horizontal;
-				self.x2 = self.x2.saturating_sub(half_horizontal);
-				self.y1 += vertical_amount;
-			},
-			Anchor::CenterBottom => {
-				let half_horizontal = horizontal_amount / 2;
-				self.x1 += half_horizontal;
-				self.x2 = self.x2.saturating_sub(half_horizontal);
-				self.y2 = self.y2.saturating_sub(vertical_amount);
-			},
-			Anchor::CenterLeft => {
-				let half_vertical = vertical_amount / 2;
-				self.x1 += horizontal_amount;
-				self.y1 += half_vertical;
-				self.y2 = self.y2.saturating_sub(half_vertical);
-			},
-			Anchor::CenterRight => {
-				let half_vertical = vertical_amount / 2;
-				self.x2 = self.x2.saturating_sub(horizontal_amount);
-				self.y1 += half_vertical;
-				self.y2 = self.y2.saturating_sub(half_vertical);
-			},
-		}
-		self.validate();
-	}
+    pub fn contract(&mut self, horizontal_amount: usize, vertical_amount: usize, anchor: Anchor) {
+        match anchor {
+            Anchor::TopLeft => {
+                self.x1 += horizontal_amount;
+                self.y1 += vertical_amount;
+            }
+            Anchor::TopRight => {
+                self.x2 = self.x2.saturating_sub(horizontal_amount);
+                self.y1 += vertical_amount;
+            }
+            Anchor::BottomLeft => {
+                self.x1 += horizontal_amount;
+                self.y2 = self.y2.saturating_sub(vertical_amount);
+            }
+            Anchor::BottomRight => {
+                self.x2 = self.x2.saturating_sub(horizontal_amount);
+                self.y2 = self.y2.saturating_sub(vertical_amount);
+            }
+            Anchor::Center => {
+                let half_horizontal = horizontal_amount / 2;
+                let half_vertical = vertical_amount / 2;
+                self.x1 += half_horizontal;
+                self.y1 += half_vertical;
+                self.x2 = self.x2.saturating_sub(half_horizontal);
+                self.y2 = self.y2.saturating_sub(half_vertical);
+            }
+            Anchor::CenterTop => {
+                let half_horizontal = horizontal_amount / 2;
+                self.x1 += half_horizontal;
+                self.x2 = self.x2.saturating_sub(half_horizontal);
+                self.y1 += vertical_amount;
+            }
+            Anchor::CenterBottom => {
+                let half_horizontal = horizontal_amount / 2;
+                self.x1 += half_horizontal;
+                self.x2 = self.x2.saturating_sub(half_horizontal);
+                self.y2 = self.y2.saturating_sub(vertical_amount);
+            }
+            Anchor::CenterLeft => {
+                let half_vertical = vertical_amount / 2;
+                self.x1 += horizontal_amount;
+                self.y1 += half_vertical;
+                self.y2 = self.y2.saturating_sub(half_vertical);
+            }
+            Anchor::CenterRight => {
+                let half_vertical = vertical_amount / 2;
+                self.x2 = self.x2.saturating_sub(horizontal_amount);
+                self.y1 += half_vertical;
+                self.y2 = self.y2.saturating_sub(half_vertical);
+            }
+        }
+        self.validate();
+    }
 
-	pub fn move_to(&mut self, x: usize, y: usize, anchor:Anchor){
-		match anchor {
-			Anchor::TopLeft => {
-				let width = self.width();
-				let height = self.height();
-				self.x1 = x;
-				self.y1 = y;
-				self.x2 = x + width;
-				self.y2 = y + height;
-			},
-			Anchor::TopRight => {
-				let width = self.width();
-				let height = self.height();
-				self.x2 = x;
-				self.y1 = y;
-				self.x1 = x - width;
-				self.y2 = y + height;
-			},
-			Anchor::BottomLeft => {
-				let width = self.width();
-				let height = self.height();
-				self.x1 = x;
-				self.y2 = y;
-				self.x2 = x + width;
-				self.y1 = y - height;
-			},
-			Anchor::BottomRight => {
-				let width = self.width();
-				let height = self.height();
-				self.x2 = x;
-				self.y2 = y;
-				self.x1 = x - width;
-				self.y1 = y - height;
-			},
-			Anchor::Center => {
-				let width = self.width();
-				let height = self.height();
-				let half_width = width / 2;
-				let half_height = height / 2;
-				self.x1 = x - half_width;
-				self.y1 = y - half_height;
-				self.x2 = x + half_width;
-				self.y2 = y + half_height;
-			},
-			Anchor::CenterTop => {
-				let width = self.width();
-				let height = self.height();
-				let half_width = width / 2;
-				self.x1 = x - half_width;
-				self.x2 = x + half_width;
-				self.y1 = y;
-				self.y2 = y + height;
-			},
-			Anchor::CenterBottom => {
-				let width = self.width();
-				let height = self.height();
-				let half_width = width / 2;
-				self.x1 = x - half_width;
-				self.x2 = x + half_width;
-				self.y2 = y;
-				self.y1 = y - height;
-			},
-			Anchor::CenterLeft => {
-				let width = self.width();
-				let height = self.height();
-				let half_height = height / 2;
-				self.x1 = x;
-				self.x2 = x + width;
-				self.y1 = y - half_height;
-				self.y2 = y + half_height;
-			},
-			Anchor::CenterRight => {
-				let width = self.width();
-				let height = self.height();
-				let half_height = height / 2;
-				self.x2 = x;
-				self.x1 = x - width;
-				self.y1 = y - half_height;
-				self.y2 = y + half_height;
-			},
-		}
-		self.validate();
-	}
+    pub fn move_to(&mut self, x: usize, y: usize, anchor: Anchor) {
+        match anchor {
+            Anchor::TopLeft => {
+                let width = self.width();
+                let height = self.height();
+                self.x1 = x;
+                self.y1 = y;
+                self.x2 = x + width;
+                self.y2 = y + height;
+            }
+            Anchor::TopRight => {
+                let width = self.width();
+                let height = self.height();
+                self.x2 = x;
+                self.y1 = y;
+                self.x1 = x - width;
+                self.y2 = y + height;
+            }
+            Anchor::BottomLeft => {
+                let width = self.width();
+                let height = self.height();
+                self.x1 = x;
+                self.y2 = y;
+                self.x2 = x + width;
+                self.y1 = y - height;
+            }
+            Anchor::BottomRight => {
+                let width = self.width();
+                let height = self.height();
+                self.x2 = x;
+                self.y2 = y;
+                self.x1 = x - width;
+                self.y1 = y - height;
+            }
+            Anchor::Center => {
+                let width = self.width();
+                let height = self.height();
+                let half_width = width / 2;
+                let half_height = height / 2;
+                self.x1 = x - half_width;
+                self.y1 = y - half_height;
+                self.x2 = x + half_width;
+                self.y2 = y + half_height;
+            }
+            Anchor::CenterTop => {
+                let width = self.width();
+                let height = self.height();
+                let half_width = width / 2;
+                self.x1 = x - half_width;
+                self.x2 = x + half_width;
+                self.y1 = y;
+                self.y2 = y + height;
+            }
+            Anchor::CenterBottom => {
+                let width = self.width();
+                let height = self.height();
+                let half_width = width / 2;
+                self.x1 = x - half_width;
+                self.x2 = x + half_width;
+                self.y2 = y;
+                self.y1 = y - height;
+            }
+            Anchor::CenterLeft => {
+                let width = self.width();
+                let height = self.height();
+                let half_height = height / 2;
+                self.x1 = x;
+                self.x2 = x + width;
+                self.y1 = y - half_height;
+                self.y2 = y + half_height;
+            }
+            Anchor::CenterRight => {
+                let width = self.width();
+                let height = self.height();
+                let half_height = height / 2;
+                self.x2 = x;
+                self.x1 = x - width;
+                self.y1 = y - half_height;
+                self.y2 = y + half_height;
+            }
+        }
+        self.validate();
+    }
 
-	pub fn move_by(&mut self, dx: isize, dy: isize){
-		self.x1 = (self.x1 as isize + dx) as usize;
-		self.y1 = (self.y1 as isize + dy) as usize;
-		self.x2 = (self.x2 as isize + dx) as usize;
-		self.y2 = (self.y2 as isize + dy) as usize;
-		self.validate();
-	}
+    pub fn move_by(&mut self, dx: isize, dy: isize) {
+        self.x1 = (self.x1 as isize + dx) as usize;
+        self.y1 = (self.y1 as isize + dy) as usize;
+        self.x2 = (self.x2 as isize + dx) as usize;
+        self.y2 = (self.y2 as isize + dy) as usize;
+        self.validate();
+    }
 
     pub fn contains(&self, x: usize, y: usize) -> bool {
         x >= self.x1 && x < self.x2 && y >= self.y1 && y < self.y2
@@ -525,7 +531,13 @@ impl Bounds {
 pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
     let mut bounds_map = HashMap::new();
 
-    fn dfs(app_graph: &AppGraph, layout_id: &str, panel: &Panel, parent_bounds: Bounds, bounds_map: &mut HashMap<String, Bounds>) {
+    fn dfs(
+        app_graph: &AppGraph,
+        layout_id: &str,
+        panel: &Panel,
+        parent_bounds: Bounds,
+        bounds_map: &mut HashMap<String, Bounds>,
+    ) {
         let bounds = panel.absolute_bounds(Some(&parent_bounds));
         bounds_map.insert(panel.id.clone(), bounds.clone());
 
@@ -538,13 +550,22 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
 
     let root_bounds = screen_bounds();
     for panel in &layout.children {
-        dfs(app_graph, &layout.id, panel, root_bounds.clone(), &mut bounds_map);
+        dfs(
+            app_graph,
+            &layout.id,
+            panel,
+            root_bounds.clone(),
+            &mut bounds_map,
+        );
     }
 
     bounds_map
 }
 
-pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<String, Bounds>) -> HashMap<String, Bounds> {
+pub fn adjust_bounds_with_constraints(
+    layout: &Layout,
+    mut bounds_map: HashMap<String, Bounds>,
+) -> HashMap<String, Bounds> {
     fn apply_constraints(panel: &Panel, bounds: &mut Bounds) {
         if let Some(min_width) = panel.min_width {
             if bounds.width() < min_width {
@@ -584,7 +605,11 @@ pub fn adjust_bounds_with_constraints(layout: &Layout, mut bounds_map: HashMap<S
         bounds
     }
 
-    fn revalidate_children(panel: &Panel, bounds_map: &mut HashMap<String, Bounds>, parent_bounds: &Bounds) {
+    fn revalidate_children(
+        panel: &Panel,
+        bounds_map: &mut HashMap<String, Bounds>,
+        parent_bounds: &Bounds,
+    ) {
         if let Some(children) = &panel.children {
             for child in children {
                 if let Some(child_bounds) = bounds_map.get_mut(&child.id) {
