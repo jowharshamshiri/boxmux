@@ -1,0 +1,13 @@
+{
+	"themeswitcher.utcOffset": 2, 
+	"themeswitcher.mappings": [
+		{
+			"time": "7:00",
+			"theme": "Light+",
+		},
+		{
+			"time": "19:00",
+			"theme": "Pitch Black",
+		},
+	],
+}

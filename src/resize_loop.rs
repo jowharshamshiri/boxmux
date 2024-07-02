@@ -12,8 +12,8 @@ use std::time::Duration;
 
 create_runnable!(
     ResizeLoop,
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool { true },
-    |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
+    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
 		let mut signals = Signals::new(&[SIGWINCH, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGCONT]).unwrap();
 
         for signal in signals.forever() {

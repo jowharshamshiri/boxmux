@@ -3,6 +3,32 @@ use std::collections::HashMap;
 use crate::{draw_utils::{get_bg_color, get_fg_color}, screen_bounds, screen_height, screen_width, utils::input_bounds_to_bounds, AppGraph, Layout, Panel};
 use serde::{Deserialize, Serialize};
 
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct Config {
+    pub frame_delay: u64,
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Config { frame_delay: 100 }
+	}
+}
+
+impl Config {
+	pub fn new(frame_delay: u64) -> Self {
+		let result=Config { frame_delay };
+		result.validate();
+		result
+	}
+	pub fn validate(&self) {
+		if self.frame_delay == 0 {
+			panic!("Validation error: frame_delay cannot be 0");
+		}
+	}
+}
+
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
     pub fg_color: String,

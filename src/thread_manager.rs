@@ -66,7 +66,7 @@ impl Hash for Message {
 pub trait Runnable: Send + 'static {
     fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>>;
     fn receive_updates(&mut self) -> (AppContext, Vec<Message>);
-    fn process(&mut self, state: AppContext, messages: Vec<Message>);
+    fn process(&mut self, app_context: AppContext, messages: Vec<Message>);
 
     fn update_app_context(&mut self, app_context: AppContext);
     fn set_uuid(&mut self, uuid: Uuid);
@@ -129,8 +129,8 @@ impl Runnable for RunnableImpl {
         let mut new_messages = Vec::new();
 
         if let Some(ref state_receiver) = self.state_receiver {
-            while let Ok((_, state)) = state_receiver.try_recv() {
-                latest_state = state;
+            while let Ok((_, app_context)) = state_receiver.try_recv() {
+                latest_state = app_context;
             }
         }
 
@@ -235,7 +235,7 @@ impl ThreadManager {
         while should_continue {
             let mut has_updates = false;
 
-            // Handle state updates
+            // Handle app_context updates
             for reciever in self.state_receivers.values() {
                 if let Ok((uuid, new_state)) = reciever.try_recv() {
                     let mut app_context = self.app_context.clone();
@@ -266,7 +266,7 @@ impl ThreadManager {
 
             // Sleep only if there were no updates to process
             if !has_updates {
-                thread::sleep(std::time::Duration::from_millis(100));
+				std::thread::sleep(std::time::Duration::from_millis(self.app_context.config.frame_delay));
             }
 			// std::thread::sleep(std::time::Duration::from_millis(10));
         }
@@ -409,23 +409,23 @@ macro_rules! create_runnable {
                 // Call the init block before the loop
                 {
                     let inner = &mut self.inner;
-                    let state = inner.app_context.clone();
+                    let app_context = inner.app_context.clone();
                     let messages = Vec::new();
-                    let init_result = $init_body(inner, state, messages);
+                    let init_result = $init_body(inner, app_context, messages);
                     if !init_result {
                         return Ok(false);
                     }
                 }
                 self.inner
-                    ._run(&mut |inner, state, messages| $process_body(inner, state, messages))
+                    ._run(&mut |inner, app_context, messages| $process_body(inner, app_context, messages))
             }
 
             fn receive_updates(&mut self) -> (AppContext, Vec<Message>) {
                 self.inner.receive_updates()
             }
 
-            fn process(&mut self, state: AppContext, messages: Vec<Message>) {
-                self.inner.process(state.clone(), messages.clone());
+            fn process(&mut self, app_context: AppContext, messages: Vec<Message>) {
+                self.inner.process(app_context.clone(), messages.clone());
             }
 
             fn update_app_context(&mut self, app_context: AppContext) {
@@ -501,17 +501,17 @@ macro_rules! create_runnable_with_dynamic_input {
                 // Call the init block before the loop
                 {
                     let inner = &mut self.inner;
-                    let state = inner.app_context.clone();
+                    let app_context = inner.app_context.clone();
                     let messages = Vec::new();
                     let vec = (self.vec_fn)();
-                    let init_result = $init_body(inner, state, messages, vec);
+                    let init_result = $init_body(inner, app_context, messages, vec);
                     if !init_result {
                         return Ok(false);
                     }
                 }
-                self.inner._run(&mut |inner, state, messages| {
+                self.inner._run(&mut |inner, app_context, messages| {
                     let vec = (self.vec_fn)();
-                    $process_body(inner, state, messages, vec)
+                    $process_body(inner, app_context, messages, vec)
                 })
             }
 
@@ -519,8 +519,8 @@ macro_rules! create_runnable_with_dynamic_input {
                 self.inner.receive_updates()
             }
 
-            fn process(&mut self, state: AppContext, messages: Vec<Message>) {
-                self.inner.process(state.clone(), messages.clone());
+            fn process(&mut self, app_context: AppContext, messages: Vec<Message>) {
+                self.inner.process(app_context.clone(), messages.clone());
             }
 
             fn update_app_context(&mut self, app_context: AppContext) {
@@ -576,15 +576,15 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     ExampleRunnable,z
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
 //         // Initialization block
-//         info!("Initializing ExampleRunnable with state: {:?}", state);
-//         inner.update_app_context(state);
+//         info!("Initializing ExampleRunnable with app_context: {:?}", app_context);
+//         inner.update_app_context(app_context);
 //         true // Initialization complete, continue running
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| -> bool {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
 //         // Processing block
-//         info!("Processing in ExampleRunnable with state: {:?} and messages: {:?}", state, messages);
+//         info!("Processing in ExampleRunnable with app_context: {:?} and messages: {:?}", app_context, messages);
 
 //         for message in messages {
 //             match message {
@@ -610,12 +610,12 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     TestRunnableOne,
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
 //         info!("TestRunnableOne initialization");
 //         true  // Assuming initialization is always successful
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
-//         info!("TestRunnableOne received state: {:?}", state);
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
+//         info!("TestRunnableOne received app_context: {:?}", app_context);
 //         for message in messages.iter() {
 //             info!("TestRunnableOne received message: {:?}", message);
 //         }
@@ -627,12 +627,12 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     TestRunnableTwo,
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
 //         info!("TestRunnableOne initialization");
 //         true  // Assuming initialization is always successful
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
-//         info!("TestRunnableOne received state: {:?}", state);
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
+//         info!("TestRunnableOne received app_context: {:?}", app_context);
 //         for message in messages.iter() {
 //             info!("TestRunnableOne received message: {:?}", message);
 //         }
@@ -644,12 +644,12 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     TestRunnableThree,
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
 //         info!("TestRunnableOne initialization");
 //         true  // Assuming initialization is always successful
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
-//         info!("TestRunnableOne received state: {:?}", state);
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
+//         info!("TestRunnableOne received app_context: {:?}", app_context);
 //         for message in messages.iter() {
 //             info!("TestRunnableOne received message: {:?}", message);
 //         }
@@ -661,12 +661,12 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     TestRunnableTwo,
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message>| {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| {
 //         info!("TestRunnableTwo initialization");
 //         true  // Initialization success
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message)| {
-//         info!("TestRunnableTwo received state: {:?}", state);
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message)| {
+//         info!("TestRunnableTwo received app_context: {:?}", app_context);
 //         for message in messages.iter() {
 //             info!("TestRunnableTwo received message: {:?}", message);
 //         }
@@ -678,12 +678,12 @@ macro_rules! create_runnable_with_dynamic_input {
 
 // create_runnable!(
 //     TestRunnableThree,
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message)| {
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message)| {
 //         info!("TestRunnableThree initialization");
 //         true  // Initialization success
 //     },
-//     |inner: &mut RunnableImpl, state: AppContext, messages: Vec<Message)| {
-//         info!("TestRunnableThree received state: {:?}", state);
+//     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message)| {
+//         info!("TestRunnableThree received app_context: {:?}", app_context);
 //         for message in messages.iter() {
 //             info!("TestRunnableThree received message: {:?}", message);
 //         }
@@ -748,7 +748,7 @@ macro_rules! create_runnable_with_dynamic_input {
 //         let data = AppContext::new(App::new());
 //         manager.send_data_to_thread(data.clone(), uuid1);
 
-//         // Run the manager's loop in a separate thread to allow state handling
+//         // Run the manager's loop in a separate thread to allow app_context handling
 //         let manager = Arc::new(manager);
 //         let manager_clone = Arc::clone(&manager);
 
@@ -756,15 +756,15 @@ macro_rules! create_runnable_with_dynamic_input {
 //             manager_clone.run();
 //         });
 
-//         // Give the threads some time to process the state update
+//         // Give the threads some time to process the app_context update
 //         thread::sleep(std::time::Duration::from_secs(1));
 
-//         // Ensure that the state was propagated to all runnables
+//         // Ensure that the app_context was propagated to all runnables
 //         let runnables = manager.runnables.clone();
 //         for (_, runnable) in runnables.iter() {
 //             let mut runnable = runnable.lock().unwrap();
-//             let (state, _) = runnable.receive_updates();
-//             assert_eq!(state, data);
+//             let (app_context, _) = runnable.receive_updates();
+//             assert_eq!(app_context, data);
 //         }
 //         manager.stop();
 //         handle.join().unwrap();
