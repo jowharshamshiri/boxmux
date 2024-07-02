@@ -2,13 +2,14 @@
 extern crate lazy_static;
 extern crate clap;
 
-use clap::{App, Arg};
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
+use boxmux_lib::socket_loop::SocketLoop;
 use boxmux_lib::thread_manager;
 use boxmux_lib::Config;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::InputLoop;
+use clap::{App, Arg};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -29,8 +30,6 @@ use boxmux_lib::utils::*;
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
 }
-
-
 
 fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     let active_layout = app_context.app.get_active_layout();
@@ -116,7 +115,9 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                         }
                     }
 
-					std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
+                    std::thread::sleep(std::time::Duration::from_millis(
+                        app_context.config.frame_delay,
+                    ));
 
                     true
                 }
@@ -194,7 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.deep_clone()));
     let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.deep_clone()));
     let resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.deep_clone()));
-    // let periodical_resize_loop_uuid = manager.spawn_thread(PeriodicalResizeLoop::new(app_context.deep_clone()));
+    let socket_loop_uuid = manager.spawn_thread(SocketLoop::new(app_context.deep_clone()));
 
     run_panel_threads(&mut manager, &app_context);
 
