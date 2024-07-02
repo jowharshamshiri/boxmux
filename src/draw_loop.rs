@@ -1,7 +1,8 @@
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext, ScreenBuffer
+    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext,
+    ScreenBuffer,
 };
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
@@ -25,7 +26,9 @@ create_runnable!(
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut state_unwrapped = app_context.deep_clone();
-		let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
+        let (adjusted_bounds, app_graph) = state_unwrapped
+            .app
+            .get_adjusted_bounds_and_app_graph(Some(true));
 
         if global_screen.is_none() {
             *global_screen = Some(AlternateScreen::from(stdout().into_raw_mode().unwrap()));
@@ -36,7 +39,12 @@ create_runnable!(
             (&mut *global_screen, &mut *global_buffer)
         {
             let mut new_buffer = ScreenBuffer::new();
-            draw_app(&state_unwrapped, &app_graph, &adjusted_bounds, &mut new_buffer);
+            draw_app(
+                &state_unwrapped,
+                &app_graph,
+                &adjusted_bounds,
+                &mut new_buffer,
+            );
             apply_buffer_if_changed(buffer, &new_buffer, screen);
             *buffer = new_buffer;
         }
@@ -53,7 +61,9 @@ create_runnable!(
         {
             let mut new_buffer = ScreenBuffer::new();
             let mut state_unwrapped = app_context.deep_clone();
-			let (adjusted_bounds,app_graph)=state_unwrapped.app.get_adjusted_bounds_and_app_graph(Some(true));
+            let (adjusted_bounds, app_graph) = state_unwrapped
+                .app
+                .get_adjusted_bounds_and_app_graph(Some(true));
 
             for message in &messages {
                 match message {
@@ -200,20 +210,31 @@ create_runnable!(
                             if let Some(parent_layout) =
                                 found_panel.get_parent_layout_clone(&mut state_unwrapped)
                             {
-								draw_panel(&state_unwrapped, &app_graph, &adjusted_bounds,&parent_layout,
-                                    &mut found_panel, &mut new_buffer);
+                                draw_panel(
+                                    &state_unwrapped,
+                                    &app_graph,
+                                    &adjusted_bounds,
+                                    &parent_layout,
+                                    &mut found_panel,
+                                    &mut new_buffer,
+                                );
                                 apply_buffer_if_changed(buffer, &new_buffer, screen);
                                 *buffer = new_buffer;
                             }
                         }
                     }
-					Message::RedrawApp | Message::Resize => {
-						write!(screen, "{}", termion::clear::All).unwrap();
-						let mut new_buffer = ScreenBuffer::new();
-						draw_app(&state_unwrapped, &app_graph, &adjusted_bounds, &mut new_buffer);
-						apply_buffer(&mut new_buffer, screen);
-						*buffer = new_buffer;
-					}
+                    Message::RedrawApp | Message::Resize => {
+                        write!(screen, "{}", termion::clear::All).unwrap();
+                        let mut new_buffer = ScreenBuffer::new();
+                        draw_app(
+                            &state_unwrapped,
+                            &app_graph,
+                            &adjusted_bounds,
+                            &mut new_buffer,
+                        );
+                        apply_buffer(&mut new_buffer, screen);
+                        *buffer = new_buffer;
+                    }
                     Message::PanelOutputUpdate(panel_id, output) => {
                         let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
                         if let Some(found_panel) = panel {
@@ -253,7 +274,9 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
+            std::thread::sleep(std::time::Duration::from_millis(
+                app_context.config.frame_delay,
+            ));
         }
 
         should_continue

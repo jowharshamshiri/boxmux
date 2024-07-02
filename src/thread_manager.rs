@@ -15,16 +15,17 @@ pub enum Message {
     Continue,
     NextPanel(),
     PreviousPanel(),
-	ScrollPanelDown(),
-	ScrollPanelUp(),
-	ScrollPanelLeft(),
-	ScrollPanelRight(),
+    ScrollPanelDown(),
+    ScrollPanelUp(),
+    ScrollPanelLeft(),
+    ScrollPanelRight(),
     Resize,
     RedrawPanel(String),
     RedrawApp,
     PanelEventRefresh(String),
-	PanelOutputUpdate(String, String),
-	KeyPress(String),
+    PanelOutputUpdate(String, String),
+    KeyPress(String),
+    ExternalMessage(String),
 }
 
 impl Hash for Message {
@@ -44,21 +45,25 @@ impl Hash for Message {
                 "panel_event_refresh".hash(state);
                 panel_id.hash(state);
             }
-			Message::ScrollPanelDown() => "scroll_panel_down".hash(state),
-			Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
-			Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
-			Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
-			Message::PanelOutputUpdate(panel_id, output) => {
-				"panel_output_update".hash(state);
-				panel_id.hash(state);
-				output.hash(state);
-			}
-			Message::KeyPress(pressed_key) => {
-				"key_press".hash(state);
-				pressed_key.hash(state);
-			}
-			Message::Pause => todo!(),
-			Message::Continue => todo!(),
+            Message::ScrollPanelDown() => "scroll_panel_down".hash(state),
+            Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
+            Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
+            Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
+            Message::PanelOutputUpdate(panel_id, output) => {
+                "panel_output_update".hash(state);
+                panel_id.hash(state);
+                output.hash(state);
+            }
+            Message::KeyPress(pressed_key) => {
+                "key_press".hash(state);
+                pressed_key.hash(state);
+            }
+            Message::Pause => "pause".hash(state),
+            Message::Continue => "continue".hash(state),
+            Message::ExternalMessage(msg) => {
+                "external_message".hash(state);
+                msg.hash(state);
+            }
         }
     }
 }
@@ -149,7 +154,7 @@ impl Runnable for RunnableImpl {
 
     fn update_app_context(&mut self, app_context: AppContext) {
         self.app_context = app_context;
-		self.send_state_update();
+        self.send_state_update();
     }
 
     fn set_uuid(&mut self, uuid: Uuid) {
@@ -266,9 +271,11 @@ impl ThreadManager {
 
             // Sleep only if there were no updates to process
             if !has_updates {
-				std::thread::sleep(std::time::Duration::from_millis(self.app_context.config.frame_delay));
+                std::thread::sleep(std::time::Duration::from_millis(
+                    self.app_context.config.frame_delay,
+                ));
             }
-			// std::thread::sleep(std::time::Duration::from_millis(10));
+            // std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
@@ -315,15 +322,7 @@ impl ThreadManager {
 
         log::info!("Thread spawned: {}", uuid);
 
-        self.log_thread_handlers_info();
-
         uuid
-    }
-
-    pub fn log_thread_handlers_info(&self) {
-        for (uuid, handle) in &self.threads {
-            log::info!("Thread: {} - is finished: {:?}", uuid, handle.is_finished());
-        }
     }
 
     pub fn send_data_to_thread(&self, data: AppContext, uuid: Uuid) {
@@ -416,8 +415,9 @@ macro_rules! create_runnable {
                         return Ok(false);
                     }
                 }
-                self.inner
-                    ._run(&mut |inner, app_context, messages| $process_body(inner, app_context, messages))
+                self.inner._run(&mut |inner, app_context, messages| {
+                    $process_body(inner, app_context, messages)
+                })
             }
 
             fn receive_updates(&mut self) -> (AppContext, Vec<Message>) {
@@ -488,7 +488,10 @@ macro_rules! create_runnable_with_dynamic_input {
         }
 
         impl $name {
-            pub fn new(app_context: AppContext, vec_fn: Box<dyn Fn() -> Vec<String> + Send>) -> Self {
+            pub fn new(
+                app_context: AppContext,
+                vec_fn: Box<dyn Fn() -> Vec<String> + Send>,
+            ) -> Self {
                 $name {
                     inner: RunnableImpl::new(app_context),
                     vec_fn,

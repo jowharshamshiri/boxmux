@@ -12,7 +12,7 @@ pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;
 pub mod resize_loop;
-pub mod config_loop;
+pub mod socket_loop;
 pub mod utils;
 
 pub use model::app::*;
