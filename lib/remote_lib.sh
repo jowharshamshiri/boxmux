@@ -36,7 +36,7 @@ determine_remote_distro() {
     esac
 }
 
-# determine_if_crossbash_installed() {
+# determine_if_boxmux_installed() {
 
 # }
 

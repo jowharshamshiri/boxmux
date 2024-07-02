@@ -12,8 +12,8 @@ end
 
 class CrossBash < Formula
     desc "Crossbash is a cross-platform bash script framework"
-    homepage "https://github.com/machinegenesis/crossbash"
-    url "https://github.com/machinegenesis/crossbash/archive/v1.0.0.tar.gz"
+    homepage "https://github.com/jowharshamshiri/boxmux"
+    url "https://github.com/jowharshamshiri/boxmux/archive/v1.0.0.tar.gz"
     sha256 "11a22ae4e826dac5c5258dccee8f4bac270a2dedfbd5cbb0eb6e1af9ba4d6c4f"
     version "1.0.0"
 

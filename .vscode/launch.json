@@ -7,15 +7,15 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug executable 'crossbash'",
+			"name": "Debug executable 'boxmux'",
 			"cargo": {
 				"args": [
 					"build",
-					"--bin=crossbash",
-					"--package=crossbash"
+					"--bin=boxmux",
+					"--package=boxmux"
 				],
 				"filter": {
-					"name": "crossbash",
+					"name": "boxmux",
 					"kind": "bin"
 				}
 			},
@@ -25,16 +25,16 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug unit tests in executable 'crossbash'",
+			"name": "Debug unit tests in executable 'boxmux'",
 			"cargo": {
 				"args": [
 					"test",
 					"--no-run",
-					"--bin=crossbash",
-					"--package=crossbash"
+					"--bin=boxmux",
+					"--package=boxmux"
 				],
 				"filter": {
-					"name": "crossbash",
+					"name": "boxmux",
 					"kind": "bin"
 				}
 			},

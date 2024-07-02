@@ -1,5 +1,5 @@
 [package]
-name = "crossbash"
+name = "boxmux"
 version = "0.1.0"
 edition = "2021"
 
@@ -39,9 +39,9 @@ version = "0.11"
 features = ["rustls-tls"]
 
 [lib]
-name = "crossbash_lib"
+name = "boxmux_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "crossbash"
+name = "boxmux"
 path = "src/main.rs"

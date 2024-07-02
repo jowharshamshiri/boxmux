@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DUCKDB_FILE_NAME="crossbash.duckdb"
+DUCKDB_FILE_NAME="boxmux.duckdb"
 source ../lib/map_lib.sh # Source the script with your functions
 
 # Function to reset the database

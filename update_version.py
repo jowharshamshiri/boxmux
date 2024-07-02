@@ -53,8 +53,8 @@ def update_version(new_version):
 def update_folder_label(new_version):
     try:
         workspace_file_path = "../.vscode/machinegenesis.code-workspace"
-        target_path = "../crossbash"
-        label = f"crossbash v{new_version}"
+        target_path = "../boxmux"
+        label = f"boxmux v{new_version}"
 
         # Load the current workspace configuration
         with open(workspace_file_path, "r") as file:
