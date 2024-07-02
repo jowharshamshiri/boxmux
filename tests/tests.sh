@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-source "/Users/bahram/ws/prj/machinegenesis/crossbash/map.sh"
-source "./Users/bahram/ws/prj/machinegenesis/crossbash/class.sh"
+source "/Users/bahram/ws/prj/machinegenesis/boxmux/map.sh"
+source "./Users/bahram/ws/prj/machinegenesis/boxmux/class.sh"
 
 test_class_functions() {
     echo "Running tests..."

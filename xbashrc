@@ -416,7 +416,7 @@ print_xb_header() {
     MAGENTA='\033[0;35m'
 
     echo -e "${YELLOW}"
-    print_title "$(to_uppercase "$PROJECT_NAME") | crossbash"
+    print_title "$(to_uppercase "$PROJECT_NAME") | boxmux"
     echo -e "${MAGENTA}xbash v$(xb_version)${NC}"
 
     echo -e "${YELLOW}State file: ${MAGENTA}$RUN_STATE_FILE${NC}"
@@ -434,7 +434,7 @@ initialize_xb() {
     }
 
     if [ -z "$XB_HOME" ]; then
-        XB_HOME="/Users/bahram/ws/prj/machinegenesis/crossbash" #"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        XB_HOME="/Users/bahram/ws/prj/machinegenesis/boxmux" #"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
         echo "CROSSBASH home is at:"
         read -p "[$XB_HOME]: " input
@@ -509,7 +509,7 @@ initialize_xb() {
         mkdir -p "$PROJECT_WORKDIR"
         set_env_var "PROJECT_WORKDIR" "$PROJECT_WORKDIR"
 
-        set_env_var "CACHE_DIR" "$XB_USER_HOME/.crossbash/cache"
+        set_env_var "CACHE_DIR" "$XB_USER_HOME/.boxmux/cache"
 
     fi
 
@@ -604,7 +604,7 @@ if [ -z "$ROOT_BASH_SOURCED" ]; then
     XB_USER=$(whoami)
     XB_USER_HOME=$(eval echo ~"$XB_USER")
     XB_USERGROUP=$(id -gn "$XB_USER")
-    USER_XB_DIR="$XB_USER_HOME/.crossbash"
+    USER_XB_DIR="$XB_USER_HOME/.boxmux"
     MASTER_ENV_FILE="$USER_XB_DIR/master.env"
     mkdir -p "$USER_XB_DIR"
     touch "$MASTER_ENV_FILE"

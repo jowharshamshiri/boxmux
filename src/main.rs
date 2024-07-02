@@ -3,29 +3,34 @@ extern crate lazy_static;
 extern crate clap;
 
 use clap::{App, Arg};
-use crossbash_lib::create_runnable_with_dynamic_input;
-use crossbash_lib::resize_loop::ResizeLoop;
-use crossbash_lib::thread_manager;
-use crossbash_lib::DrawLoop;
-use crossbash_lib::InputLoop;
-use simplelog::*;
+use boxmux_lib::create_runnable_with_dynamic_input;
+use boxmux_lib::resize_loop::ResizeLoop;
+use boxmux_lib::thread_manager;
+use boxmux_lib::Config;
+use boxmux_lib::DrawLoop;
+use boxmux_lib::InputLoop;
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::Read;
 use std::io::Write;
+use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
 use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 use uuid::Uuid;
 
-use crossbash_lib::model::app::*;
-use crossbash_lib::utils::*;
+use boxmux_lib::model::app::*;
+use boxmux_lib::utils::*;
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
 }
+
+
 
 fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     let active_layout = app_context.app.get_active_layout();
@@ -159,12 +164,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    CombinedLogger::init(vec![WriteLogger::new(
-        LevelFilter::Debug,
-        Config::default(),
+    simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
+        simplelog::LevelFilter::Debug,
+        simplelog::Config::default(),
         File::create("app.log")?,
     )])?;
-    let config = crossbash_lib::model::common::Config::new(frame_delay);
+    let config = boxmux_lib::model::common::Config::new(frame_delay);
     let app = load_app_from_yaml(yaml_path.to_str().unwrap()).expect("Failed to load app");
 
     let app_context = AppContext::new(app, config);

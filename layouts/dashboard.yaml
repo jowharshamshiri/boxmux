@@ -1,7 +1,7 @@
 layouts:
   - id: 'dashboard'
     root: true
-    title: 'Dashboard Layout'
+    title: 'Advanced Dashboard Layout'
     selected_fg_color: 'bright_yellow'
     bg_color: 'bright_black'
     selected_bg_color: 'bright_black'
@@ -12,159 +12,297 @@ layouts:
     border_color: 'bright_white'
     selected_border_color: 'bright_yellow'
     children:
-      - id: 'data1'
-        title: 'Some Data'
-        position:
-          x1: 2%
-          y1: 5%
-          x2: 48%
-          y2: 35%
-        script:
-          - >
-            echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
-            gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Random Data' with linespoints; pause -1";
-            rm /tmp/data_line.csv
-        title_position: 'center'
-      - id: 'data2'
-        title: 'Some Other Data'
-        position:
-          x1: 50%
-          y1: 5%
-          x2: 98%
-          y2: 35%
-        refresh_interval: 3000
-        script:
-            - >
-              echo -e "Category,Value\nA,$((RANDOM % 100 + 100))\nB,$((RANDOM % 100 + 100))\nC,$((RANDOM % 100 + 100))\nD,$((RANDOM % 100 + 100))" > /tmp/data.csv;
-              gnuplot -e "set terminal dumb size 80, 20; set style data histograms; set style fill solid 1.00 border -1; set datafile separator ','; set boxwidth 0.75 relative; set style histogram clustered; set xtics rotate by -45; plot '/tmp/data.csv' using 2:xtic(1) notitle; pause -1";
-              rm /tmp/data.csv
-      - id: 'log'
-        title: 'LOGS'
-        position:
-          x1: 2%
-          y1: 38%
-          x2: 98%
-          y2: 80%
-        children:
-          - id: 'log_input'
-            title: 'Load'
-            position:
-              x1: 1%
-              y1: 10%
-              x2: 45%
-              y2: 90%
-            title_position: 'start'
-          - id: 'log_output'
-            title: 'Log Output'
-            position:
-              x1: 46%
-              y1: 10%
-              x2: 99%
-              y2: 90%
-            script:
-              - log show --debug --last 1m | tail -n 50
-            tab_order: 1
-            title_position: 'end'
-      - id: 'row_of_buttons'
-        position:
-          x1: 2%
-          y1: 84%
-          x2: 98%
-          y2: 90%
-        fg_color: 'bright_white'
-        selected_bg_color: 'bright_yellow'
-        selected_fg_color: 'bright_black'
-        border: false
-        children:
-          - id: 'button1'
-            position:
-              x1: 10%
-              y1: 10%
-              x2: 20%
-              y2: 90%
-            script:
-              - echo 'Deploy'
-            tab_order: 2
-            bg_color: 'bright_blue'
-            border: true
-          - id: 'button2'
-            position:
-              x1: 25%
-              y1: 10%
-              x2: 40%
-              y2: 90%
-            border: true
-            on_keypress:
-              'return':
-                - echo "Done!"
-            script: 
-              - echo 'Restart'
-            tab_order: 3
-            bg_color: 'bright_blue'
-          - id: 'button3'
-            position:
-              x1: 45%
-              y1: 10%
-              x2: 60%
-              y2: 90%
-            border: true
-            script:
-              - echo 'Stop'
-            tab_order: 4
-            bg_color: 'bright_blue'
-          - id: 'button4'
-            position:
-              x1: 65%
-              y1: 10%
-              x2: 80%
-              y2: 90%
-            border: true
-            script:
-              - echo 'End'
-            tab_order: 5
-            on_keypress:
-              'return':
-                - echo "Done!" 
-            bg_color: 'bright_blue'
-      - id: 'footer'
-        position:
-          x1: 0%
-          y1: 92%
-          x2: 99%
-          y2: 95%
-        # thread: true
-        refresh_interval: 5000
-        min_width: 20
-        min_height: 3
-        max_width: 100
-        max_height: 10
-        script:
-          - date
       - id: 'header'
+        title: 'Header'
         position:
           x1: 0%
           y1: 0%
-          x2: 99%
-          y2: 3%
-        min_width: 20
-        min_height: 3
-        # max_width: 100
-        max_height: 10
+          x2: 100%
+          y2: 5%
         children:
           - id: 'title'
+            title: 'Dashboard Title'
             position:
-              x1: 00%
-              y1: 00%
-              x2: 20%
+              x1: 2%
+              y1: 0%
+              x2: 30%
               y2: 100%
             script:
-              - echo 'My Awsome Dash'
-          - id: 'active_job'
-            title: 'Active Job'
+              - echo 'My Awesome Dash'
+          - id: 'status'
+            title: 'Status'
             position:
-              x1: 80%
+              x1: 70%
+              y1: 0%
+              x2: 98%
+              y2: 100%
+            script:
+              - echo 'Status Running'
+      - id: 'sidebar'
+        title: 'Sidebar'
+        position:
+          x1: 0%
+          y1: 5%
+          x2: 20%
+          y2: 95%
+        children:
+          - id: 'menu1'
+            position:
+              x1: 10%
+              y1: 0%
+              x2: 90%
+              y2: 5%
+            tab_order: 1
+            script:
+              - echo 'Option 1'
+          - id: 'menu2'
+            position:
+              x1: 10%
+              y1: 6%
+              x2: 90%
+              y2: 11%
+            tab_order: 2
+            script:
+              - echo 'Option 2'
+          - id: 'menu3'
+            position:
+              x1: 10%
+              y1: 12%
+              x2: 90%
+              y2: 17%
+            tab_order: 3
+            script:
+              - echo 'Option 3'
+          - id: 'menu4'
+            position:
+              x1: 10%
+              y1: 18%
+              x2: 90%
+              y2: 23%
+            tab_order: 4
+            script:
+              - echo 'Option 4'
+          - id: 'menu5'
+            position:
+              x1: 10%
+              y1: 24%
+              x2: 90%
+              y2: 29%
+            tab_order: 5
+            script:
+              - echo 'Option 5'
+          - id: 'menu6'
+            position:
+              x1: 10%
+              y1: 30%
+              x2: 90%
+              y2: 35%
+            tab_order: 6
+            script:
+              - echo 'Option 6'
+          - id: 'menu7'
+            position:
+              x1: 10%
+              y1: 36%
+              x2: 90%
+              y2: 41%
+            tab_order: 7
+            script:
+              - echo 'Option 7'
+          - id: 'menu8'
+            position:
+              x1: 10%
+              y1: 42%
+              x2: 90%
+              y2: 47%
+            tab_order: 8
+            script:
+              - echo 'Option 8'
+          - id: 'menu9'
+            position:
+              x1: 10%
+              y1: 48%
+              x2: 90%
+              y2: 53%
+            tab_order: 9
+            script:
+              - echo 'Option 9'
+          - id: 'menu10'
+            position:
+              x1: 10%
+              y1: 54%
+              x2: 90%
+              y2: 59%
+            tab_order: 10
+            script:
+              - echo 'Option 10'
+          - id: 'menu11'
+            position:
+              x1: 10%
+              y1: 60%
+              x2: 90%
+              y2: 65%
+            tab_order: 11
+            script:
+              - echo 'Option 11'
+          - id: 'menu12'
+            position:
+              x1: 10%
+              y1: 66%
+              x2: 90%
+              y2: 71%
+            tab_order: 12
+            script:
+              - echo 'Option 12'
+          - id: 'menu13'
+            position:
+              x1: 10%
+              y1: 72%
+              x2: 90%
+              y2: 77%
+            tab_order: 13
+            script:
+              - echo 'Option 13'
+          - id: 'menu14'
+            position:
+              x1: 10%
+              y1: 78%
+              x2: 90%
+              y2: 83%
+            tab_order: 14
+            script:
+              - echo 'Option 14'
+          - id: 'menu15'
+            position:
+              x1: 10%
+              y1: 84%
+              x2: 90%
+              y2: 89%
+            tab_order: 15
+            script:
+              - echo 'Option 15'
+      - id: 'content'
+        title: 'Content Area'
+        position:
+          x1: 20%
+          y1: 5%
+          x2: 100%
+          y2: 95%
+        children:
+          - id: 'top_charts'
+            title: 'Top Charts'
+            position:
+              x1: 0%
               y1: 0%
               x2: 100%
+              y2: 50%
+            children:
+              - id: 'chart1'
+                title: 'CPU Usage'
+                position:
+                  x1: 2%
+                  y1: 5%
+                  x2: 48%
+                  y2: 45%
+                tab_order: 16
+                refresh_interval: 1000
+                script:
+                  - >
+                    echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
+                    gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'CPU Usage' with linespoints; pause -1";
+                    rm /tmp/data_line.csv
+              - id: 'chart2'
+                title: 'Memory Usage'
+                position:
+                  x1: 52%
+                  y1: 5%
+                  x2: 98%
+                  y2: 45%
+                tab_order: 17
+                refresh_interval: 1500
+                script:
+                  - >
+                    echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
+                    gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Memory Usage' with linespoints; pause -1";
+                    rm /tmp/data_line.csv
+              - id: 'chart3'
+                title: 'Network Traffic'
+                position:
+                  x1: 2%
+                  y1: 50%
+                  x2: 48%
+                  y2: 90%
+                tab_order: 18
+                refresh_interval: 2000
+                script:
+                  - >
+                    echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
+                    gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Network Traffic' with linespoints; pause -1";
+                    rm /tmp/data_line.csv
+              - id: 'chart4'
+                title: 'Disk I/O'
+                position:
+                  x1: 52%
+                  y1: 50%
+                  x2: 98%
+                  y2: 90%
+                tab_order: 19
+                refresh_interval: 2500
+                script:
+                  - >
+                    echo -e "Time,Value\n1,$((RANDOM % 100 + 100))\n2,$((RANDOM % 100 + 100))\n3,$((RANDOM % 100 + 100))\n4,$((RANDOM % 100 + 100))\n5,$((RANDOM % 100 + 100))" > /tmp/data_line.csv;
+                    gnuplot -e "set terminal dumb size 80, 15; set style data lines; set datafile separator ','; plot '/tmp/data_line.csv' using 1:2 title 'Disk I/O' with linespoints; pause -1";
+                    rm /tmp/data_line.csv
+          - id: 'logs'
+            title: 'Logs'
+            position:
+              x1: 0%
+              y1: 50%
+              x2: 100%
               y2: 100%
-            script: 
-              - echo 'b-34387' 
+            children:
+              - id: 'system_logs'
+                title: 'System Logs'
+                position:
+                  x1: 2%
+                  y1: 5%
+                  x2: 48%
+                  y2: 45%
+                script:
+                  - log show --predicate 'eventMessage contains "Error"' --info --last 1h
+              - id: 'application_logs'
+                title: 'Application Logs'
+                position:
+                  x1: 52%
+                  y1: 5%
+                  x2: 98%
+                  y2: 45%
+                script:
+                  - tail -n 20 /usr/local/var/log/my_app.log
+              - id: 'security_logs'
+                title: 'Security Logs'
+                position:
+                  x1: 2%
+                  y1: 50%
+                  x2: 48%
+                  y2: 90%
+                script:
+                  - tail -n 20 /var/log/authd.log
+              - id: 'custom_logs'
+                title: 'Custom Logs'
+                position:
+                  x1: 52%
+                  y1: 50%
+                  x2: 98%
+                  y2: 90%
+                script:
+                  - tail -n 20 /path/to/custom.log
+      - id: 'footer'
+        title: 'Footer'
+        position:
+          x1: 0%
+          y1: 95%
+          x2: 100%
+          y2: 100%
+        script:
+          - date

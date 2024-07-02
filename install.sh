@@ -24,4 +24,4 @@ source_xbashrc() {
 
 source_xbashrc
 chmod ug+rwx ./xbashrc
-(machinegenesis) ~/ws/prj/machinegenesis/crossbash(main*)$ ln -s $PWD/xbashrc ~/.xbashrc
+(machinegenesis) ~/ws/prj/machinegenesis/boxmux(main*)$ ln -s $PWD/xbashrc ~/.xbashrc
