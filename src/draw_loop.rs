@@ -252,7 +252,12 @@ create_runnable!(
                                         &panel_id,
                                         &content,
                                     );
-                                } // Handle other function types as needed
+                                }
+                                SocketFunction::ChangeActiveLayout { layout_id } => {
+                                    app_context_unwrapped.app.set_active_layout(&layout_id);
+                                    inner.update_app_context(app_context_unwrapped.deep_clone());
+                                    inner.send_message(Message::RedrawApp);
+                                }
                             },
                             Err(e) => {
                                 log::error!("Error reading socket message: {}", e);
