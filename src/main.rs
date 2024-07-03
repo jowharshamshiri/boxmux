@@ -57,9 +57,12 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> bool {
-                            let mut state_unwrapped = app_context.deep_clone();
-                            let app_graph = state_unwrapped.app.generate_graph();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&vec[0]).unwrap();
+                            let mut app_context_unwrapped = app_context.deep_clone();
+                            let app_graph = app_context_unwrapped.app.generate_graph();
+                            let panel = app_context_unwrapped
+                                .app
+                                .get_panel_by_id_mut(&vec[0])
+                                .unwrap();
                             let output = execute_commands(panel.script.clone().unwrap().as_ref());
                             inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
                             std::thread::sleep(std::time::Duration::from_millis(
@@ -93,12 +96,15 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  messages: Vec<Message>,
                  vec: Vec<String>|
                  -> bool {
-                    let mut state_unwrapped = app_context.deep_clone();
+                    let mut app_context_unwrapped = app_context.deep_clone();
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
                     for panel_id in vec.iter() {
-                        let panel = state_unwrapped.app.get_panel_by_id_mut(panel_id).unwrap();
+                        let panel = app_context_unwrapped
+                            .app
+                            .get_panel_by_id_mut(panel_id)
+                            .unwrap();
                         let refresh_interval = panel.refresh_interval.unwrap_or(1000);
 
                         let last_execution_time = last_execution_times

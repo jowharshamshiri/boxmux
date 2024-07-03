@@ -24,15 +24,12 @@ create_runnable!(
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    let mut buffer = [0; 1024];
-                    match stream.read(&mut buffer) {
+                    let mut buffer = String::new();
+                    match stream.read_to_string(&mut buffer) {
                         Ok(size) => {
                             let data = &buffer[..size];
-                            log::info!("Received message: {}", String::from_utf8_lossy(&data));
-                            inner.send_message(Message::ExternalMessage(format!(
-                                "Received message: {}",
-                                String::from_utf8_lossy(&data)
-                            )));
+                            log::info!("Received message: {}", buffer);
+                            inner.send_message(Message::ExternalMessage(buffer.trim().to_string()));
                             stream.write_all(b"Message Received.").unwrap();
                         }
                         Err(err) => {
