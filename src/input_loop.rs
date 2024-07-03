@@ -13,7 +13,10 @@ use termion::event::Event;
 create_runnable!(
     InputLoop,
     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl,
+     app_context: AppContext,
+     messages: Vec<Message>|
+     -> (bool, AppContext) {
         let stdin = stdin();
         let mut should_continue = true;
 
@@ -65,10 +68,10 @@ create_runnable!(
                             Key::PageDown => "PageDown".to_string(),
                             Key::F(n) => format!("F{}", n),
                             Key::Insert => "Insert".to_string(),
-                            _ => return true,
+                            _ => return (true, app_context),
                         }
                     }
-                    _ => return true,
+                    _ => return (true, app_context),
                 };
 
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
@@ -81,12 +84,14 @@ create_runnable!(
                         execute_commands(&actions);
                     }
                 }
-				
-				inner.send_message(Message::KeyPress(key_str.clone()));
+
+                inner.send_message(Message::KeyPress(key_str.clone()));
             }
         }
-		std::thread::sleep(std::time::Duration::from_millis(app_context.config.frame_delay));
+        std::thread::sleep(std::time::Duration::from_millis(
+            app_context.config.frame_delay,
+        ));
 
-        should_continue
+        (should_continue, app_context)
     }
 );

@@ -9,7 +9,7 @@ use boxmux_lib::thread_manager;
 use boxmux_lib::Config;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::InputLoop;
-use clap::{App, Arg};
+use clap::{App, Arg, SubCommand};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -56,7 +56,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          app_context: AppContext,
                          messages: Vec<Message>,
                          vec: Vec<String>|
-                         -> bool {
+                         -> (bool, AppContext) {
                             let mut app_context_unwrapped = app_context.deep_clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
                             let panel = app_context_unwrapped
@@ -68,7 +68,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             std::thread::sleep(std::time::Duration::from_millis(
                                 panel.calc_refresh_interval(&app_context, &app_graph),
                             ));
-                            true
+                            (true, app_context_unwrapped)
                         }
                     );
 
@@ -95,7 +95,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  app_context: AppContext,
                  messages: Vec<Message>,
                  vec: Vec<String>|
-                 -> bool {
+                 -> (bool, AppContext) {
                     let mut app_context_unwrapped = app_context.deep_clone();
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
@@ -125,7 +125,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                         app_context.config.frame_delay,
                     ));
 
-                    true
+                    (true, app_context_unwrapped)
                 }
             );
 
@@ -155,7 +155,92 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .default_value("100")
                 .help("Sets the frame delay in milliseconds"),
         )
+        .subcommand(
+            SubCommand::with_name("stop_panel_refresh")
+                .about("Stops the refresh of the panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to stop the refresh of"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("start_panel_refresh")
+                .about("Starts the refresh of the panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to start the refresh of"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("update_panel")
+                .about("Updates the panel with the provided Panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to update"),
+                )
+                .arg(
+                    Arg::new("new_panel_json")
+                        .required(true)
+                        .index(2)
+                        .help("The new panel to update with"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("switch_active_layout")
+                .about("Switches the active layout")
+                .arg(
+                    Arg::new("layout_id_to_switch_to")
+                        .required(true)
+                        .index(1)
+                        .help("The layout id to switch to"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("update_panel_script")
+                .about("Updates the panel script")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to update the script of"),
+                )
+                .arg(
+                    Arg::new("new_panel_script")
+                        .required(true)
+                        .index(2)
+                        .help("The new script to update the panel with"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("update_panel_content")
+                .about("Updates the panel content")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to update the content of"),
+                )
+                .arg(
+                    Arg::new("new_panel_content")
+                        .required(true)
+                        .index(2)
+                        .help("The new content to update the panel with"),
+                ),
+        )
         .get_matches();
+
+    // Handle the send_json subcommand
+    if let Some(matches) = matches.subcommand_matches("update_panel") {
+        let json_input = matches.value_of("json_input").unwrap();
+        // send_json_to_socket(json_input)?;
+        return Ok(());
+    }
 
     let yaml_path = matches.value_of("yaml_file").unwrap();
     let frame_delay = matches

@@ -12,7 +12,10 @@ use uuid::Uuid;
 create_runnable!(
     SocketLoop,
     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl,
+     app_context: AppContext,
+     messages: Vec<Message>|
+     -> (bool, AppContext) {
         let socket_path = "/tmp/boxmux.sock";
         // Remove the stale socket file if it exists
         if std::path::Path::new(socket_path).exists() {
@@ -43,6 +46,6 @@ create_runnable!(
             }
         }
 
-        true
+        (true, app_context)
     }
 );

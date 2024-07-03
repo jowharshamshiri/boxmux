@@ -5,6 +5,7 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext,
     ScreenBuffer, SocketFunction,
 };
+use clap::App;
 use serde_json;
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
@@ -51,7 +52,10 @@ create_runnable!(
 
         true
     },
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl,
+     app_context: AppContext,
+     messages: Vec<Message>|
+     -> (bool, AppContext) {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut should_continue = true;
@@ -245,7 +249,7 @@ create_runnable!(
                             serde_json::from_str(json_message.trim());
                         match message_result {
                             Ok(socket_function) => match socket_function {
-                                SocketFunction::UpdatePanel { panel_id, content } => {
+                                SocketFunction::UpdatePanelContent { panel_id, content } => {
                                     update_panel_content(
                                         inner,
                                         &mut app_context_unwrapped,
@@ -258,6 +262,13 @@ create_runnable!(
                                     inner.update_app_context(app_context_unwrapped.deep_clone());
                                     inner.send_message(Message::RedrawApp);
                                 }
+                                SocketFunction::UpdatePanelScript { panel_id, script } => todo!(),
+                                SocketFunction::StopPanelRefresh { panel_id } => todo!(),
+                                SocketFunction::StartPanelRefresh { panel_id } => todo!(),
+                                SocketFunction::UpdatePanel {
+                                    panel_id,
+                                    new_panel,
+                                } => todo!(),
                             },
                             Err(e) => {
                                 log::error!("Error reading socket message: {}", e);
@@ -303,9 +314,10 @@ create_runnable!(
             // std::thread::sleep(std::time::Duration::from_millis(
             //     app_context.config.frame_delay,
             // ));
+            return (should_continue, app_context_unwrapped);
         }
 
-        should_continue
+        (should_continue, app_context)
     }
 );
 
