@@ -2,7 +2,7 @@
 
 **BoxMux** is an advanced terminal-based dashboard application for managing and visualizing real-time system metrics, logs, and custom data. It supports dynamic configurations through socket messaging, enabling real-time updates and complex data visualizations.
 
-![BoxMux Dashboard Screenshot](./assets/boxmux_screenshot.png)
+![BoxMux Dashboard Screenshot](./assets/screenshot.png)
 
 ## Features
 
