@@ -36,6 +36,7 @@ impl Config {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum SocketFunction {
     UpdatePanel { panel_id: String, content: String },
+    ChangeActiveLayout { layout_id: String },
 }
 
 #[derive(Clone, PartialEq, Debug)]
