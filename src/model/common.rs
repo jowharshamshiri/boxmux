@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use regex::Regex;
+use std::{collections::HashMap, error::Error};
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
@@ -30,6 +31,11 @@ impl Config {
             panic!("Validation error: frame_delay cannot be 0");
         }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum SocketFunction {
+    UpdatePanel { panel_id: String, content: String },
 }
 
 #[derive(Clone, PartialEq, Debug)]

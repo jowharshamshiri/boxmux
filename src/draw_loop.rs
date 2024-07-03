@@ -1,16 +1,16 @@
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
+use crate::thread_manager::*;
 use crate::{
     apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext,
-    ScreenBuffer,
+    ScreenBuffer, SocketFunction,
 };
+use serde_json;
 use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
 use std::sync::{mpsc, Mutex};
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
-
-use crate::thread_manager::*;
 
 use uuid::Uuid;
 
@@ -25,8 +25,8 @@ create_runnable!(
     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
-        let mut state_unwrapped = app_context.deep_clone();
-        let (adjusted_bounds, app_graph) = state_unwrapped
+        let mut app_context_unwrapped = app_context.deep_clone();
+        let (adjusted_bounds, app_graph) = app_context_unwrapped
             .app
             .get_adjusted_bounds_and_app_graph(Some(true));
 
@@ -40,7 +40,7 @@ create_runnable!(
         {
             let mut new_buffer = ScreenBuffer::new();
             draw_app(
-                &state_unwrapped,
+                &app_context_unwrapped,
                 &app_graph,
                 &adjusted_bounds,
                 &mut new_buffer,
@@ -60,8 +60,8 @@ create_runnable!(
             (&mut *global_screen, &mut *global_buffer)
         {
             let mut new_buffer = ScreenBuffer::new();
-            let mut state_unwrapped = app_context.deep_clone();
-            let (adjusted_bounds, app_graph) = state_unwrapped
+            let mut app_context_unwrapped = app_context.deep_clone();
+            let (adjusted_bounds, app_graph) = app_context_unwrapped
                 .app
                 .get_adjusted_bounds_and_app_graph(Some(true));
 
@@ -73,7 +73,7 @@ create_runnable!(
                     Message::Exit => should_continue = false,
                     Message::Terminate => should_continue = false,
                     Message::NextPanel() => {
-                        let active_layout = state_unwrapped
+                        let active_layout = app_context_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
@@ -96,7 +96,7 @@ create_runnable!(
                             .collect();
 
                         // Update the application context and issue redraw commands based on the collected IDs.
-                        inner.update_app_context(state_unwrapped.deep_clone());
+                        inner.update_app_context(app_context_unwrapped.deep_clone());
                         for panel_id in unselected_panel_ids {
                             inner.send_message(Message::RedrawPanel(panel_id));
                         }
@@ -105,7 +105,7 @@ create_runnable!(
                         }
                     }
                     Message::PreviousPanel() => {
-                        let active_layout = state_unwrapped
+                        let active_layout = app_context_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
@@ -128,7 +128,7 @@ create_runnable!(
                             .collect();
 
                         // Update the application context and issue redraw commands based on the collected IDs.
-                        inner.update_app_context(state_unwrapped.deep_clone());
+                        inner.update_app_context(app_context_unwrapped.deep_clone());
                         for panel_id in unselected_panel_ids {
                             inner.send_message(Message::RedrawPanel(panel_id));
                         }
@@ -137,81 +137,83 @@ create_runnable!(
                         }
                     }
                     Message::ScrollPanelDown() => {
-                        let selected_panels = state_unwrapped
+                        let selected_panels = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
                             .get_selected_panels();
                         if !selected_panels.is_empty() {
                             let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
                                 found_panel.scroll_down(Some(1.0));
-                                inner.update_app_context(state_unwrapped.deep_clone());
+                                inner.update_app_context(app_context_unwrapped.deep_clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }
                         }
                     }
                     Message::ScrollPanelUp() => {
-                        let selected_panels = state_unwrapped
+                        let selected_panels = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
                             .get_selected_panels();
                         if !selected_panels.is_empty() {
                             let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
                                 found_panel.scroll_up(Some(1.0));
-                                inner.update_app_context(state_unwrapped.deep_clone());
+                                inner.update_app_context(app_context_unwrapped.deep_clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }
                         }
                     }
                     Message::ScrollPanelLeft() => {
-                        let selected_panels = state_unwrapped
+                        let selected_panels = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
                             .get_selected_panels();
                         if !selected_panels.is_empty() {
                             let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
                                 found_panel.scroll_left(Some(1.0));
-                                inner.update_app_context(state_unwrapped.deep_clone());
+                                inner.update_app_context(app_context_unwrapped.deep_clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }
                         }
                     }
                     Message::ScrollPanelRight() => {
-                        let selected_panels = state_unwrapped
+                        let selected_panels = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
                             .get_selected_panels();
                         if !selected_panels.is_empty() {
                             let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = state_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
                                 found_panel.scroll_right(Some(1.0));
-                                inner.update_app_context(state_unwrapped.deep_clone());
+                                inner.update_app_context(app_context_unwrapped.deep_clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }
                         }
                     }
                     Message::RedrawPanel(panel_id) => {
-                        if let Some(mut found_panel) =
-                            state_unwrapped.app.get_panel_by_id_mut(&panel_id).cloned()
+                        if let Some(mut found_panel) = app_context_unwrapped
+                            .app
+                            .get_panel_by_id_mut(&panel_id)
+                            .cloned()
                         {
                             new_buffer = buffer.clone();
 
                             // Clone the parent layout to avoid mutable borrow conflicts
                             if let Some(parent_layout) =
-                                found_panel.get_parent_layout_clone(&mut state_unwrapped)
+                                found_panel.get_parent_layout_clone(&mut app_context_unwrapped)
                             {
                                 draw_panel(
-                                    &state_unwrapped,
+                                    &app_context_unwrapped,
                                     &app_graph,
                                     &adjusted_bounds,
                                     &parent_layout,
@@ -227,7 +229,7 @@ create_runnable!(
                         write!(screen, "{}", termion::clear::All).unwrap();
                         let mut new_buffer = ScreenBuffer::new();
                         draw_app(
-                            &state_unwrapped,
+                            &app_context_unwrapped,
                             &app_graph,
                             &adjusted_bounds,
                             &mut new_buffer,
@@ -236,15 +238,29 @@ create_runnable!(
                         *buffer = new_buffer;
                     }
                     Message::PanelOutputUpdate(panel_id, output) => {
-                        let panel = state_unwrapped.app.get_panel_by_id_mut(&panel_id);
-                        if let Some(found_panel) = panel {
-                            found_panel.content = Some(output.clone());
-                            inner.update_app_context(state_unwrapped.deep_clone());
-                            inner.send_message(Message::RedrawPanel(panel_id.clone()));
+                        update_panel_content(inner, &mut app_context_unwrapped, panel_id, output);
+                    }
+                    Message::ExternalMessage(json_message) => {
+                        let message_result: Result<SocketFunction, _> =
+                            serde_json::from_str(json_message.trim());
+                        match message_result {
+                            Ok(socket_function) => match socket_function {
+                                SocketFunction::UpdatePanel { panel_id, content } => {
+                                    update_panel_content(
+                                        inner,
+                                        &mut app_context_unwrapped,
+                                        &panel_id,
+                                        &content,
+                                    );
+                                } // Handle other function types as needed
+                            },
+                            Err(e) => {
+                                log::error!("Error reading socket message: {}", e);
+                            }
                         }
                     }
                     Message::KeyPress(pressed_key) => {
-                        let active_layout = state_unwrapped.app.get_active_layout().unwrap();
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
                         let selected_panel_ids: Vec<String> = active_layout
                             .get_selected_panels()
@@ -254,18 +270,23 @@ create_runnable!(
                             .collect();
 
                         for panel_id in selected_panel_ids {
-                            let panel = state_unwrapped.app.get_panel_by_id(&panel_id).unwrap();
+                            let panel = app_context_unwrapped
+                                .app
+                                .get_panel_by_id(&panel_id)
+                                .unwrap();
 
                             if let Some(actions) =
                                 handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap())
                             {
                                 // Perform mutable operations outside the loop that borrows immutably
-                                let panel_mut =
-                                    state_unwrapped.app.get_panel_by_id_mut(&panel_id).unwrap();
+                                let panel_mut = app_context_unwrapped
+                                    .app
+                                    .get_panel_by_id_mut(&panel_id)
+                                    .unwrap();
                                 let new_output = execute_commands(&actions);
 
                                 panel_mut.content = Some(new_output.clone());
-                                inner.update_app_context(state_unwrapped.deep_clone());
+                                inner.update_app_context(app_context_unwrapped.deep_clone());
                                 inner.send_message(Message::RedrawPanel(panel_id.clone()));
                             }
                         }
@@ -274,11 +295,25 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            std::thread::sleep(std::time::Duration::from_millis(
-                app_context.config.frame_delay,
-            ));
+            // std::thread::sleep(std::time::Duration::from_millis(
+            //     app_context.config.frame_delay,
+            // ));
         }
 
         should_continue
     }
 );
+
+pub fn update_panel_content(
+    inner: &mut RunnableImpl,
+    app_context_unwrapped: &mut AppContext,
+    panel_id: &str,
+    output: &str,
+) {
+    let panel = app_context_unwrapped.app.get_panel_by_id_mut(panel_id);
+    if let Some(found_panel) = panel {
+        found_panel.content = Some(output.to_string());
+        inner.update_app_context(app_context_unwrapped.deep_clone());
+        inner.send_message(Message::RedrawPanel(panel_id.to_string()));
+    }
+}
