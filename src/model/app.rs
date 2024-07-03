@@ -16,7 +16,7 @@ use std::hash::{DefaultHasher, Hasher};
 
 use crate::{calculate_bounds_map, Config};
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct App {
     pub layouts: Vec<Layout>,
     #[serde(default)]
@@ -26,6 +26,17 @@ pub struct App {
     #[serde(skip)]
     pub adjusted_bounds: Option<HashMap<String, HashMap<String, Bounds>>>,
 }
+
+impl PartialEq for App {
+    fn eq(&self, other: &Self) -> bool {
+        self.layouts == other.layouts
+            && self.on_keypress == other.on_keypress
+            && self.app_graph == other.app_graph
+            && self.adjusted_bounds == other.adjusted_bounds
+    }
+}
+
+impl Eq for App {}
 
 impl App {
     pub fn new() -> Self {
@@ -418,7 +429,7 @@ pub struct AppContext {
 
 impl PartialEq for AppContext {
     fn eq(&self, other: &Self) -> bool {
-        self.app == other.app
+        self.app == other.app && self.config == other.config
     }
 }
 
@@ -440,6 +451,7 @@ impl AppContext {
 impl Hash for AppContext {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.app.hash(state);
+        self.config.hash(state);
     }
 }
 

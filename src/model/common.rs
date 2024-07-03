@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, hash::Hash};
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
@@ -12,6 +12,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
     pub frame_delay: u64,
+}
+
+impl Hash for Config {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.frame_delay.hash(state);
+    }
 }
 
 impl Default for Config {
@@ -35,9 +41,43 @@ impl Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum SocketFunction {
-    UpdatePanel { panel_id: String, content: String },
+    UpdatePanelContent { panel_id: String, content: String },
+    UpdatePanelScript { panel_id: String, script: String },
+    StopPanelRefresh { panel_id: String },
+    StartPanelRefresh { panel_id: String },
+    UpdatePanel { panel_id: String, new_panel: Panel },
     ChangeActiveLayout { layout_id: String },
 }
+
+// pub fn run_socket_function(
+//     app_graph: &mut AppGraph,
+//     socket_function: SocketFunction,
+// ) -> Result<(), Box<dyn Error>> {
+//     match socket_function {
+//         SocketFunction::UpdatePanelContent { panel_id, content } => {
+//             app_graph.update_panel_content(&panel_id, &content)?;
+//         }
+//         SocketFunction::UpdatePanelScript { panel_id, script } => {
+//             app_graph.update_panel_script(&panel_id, &script)?;
+//         }
+//         SocketFunction::StopPanelRefresh { panel_id } => {
+//             app_graph.stop_panel_refresh(&panel_id)?;
+//         }
+//         SocketFunction::StartPanelRefresh { panel_id } => {
+//             app_graph.start_panel_refresh(&panel_id)?;
+//         }
+//         SocketFunction::UpdatePanel {
+//             panel_id,
+//             new_panel,
+//         } => {
+//             app_graph.update_panel(&panel_id, new_panel)?;
+//         }
+//         SocketFunction::ChangeActiveLayout { layout_id } => {
+//             app_graph.change_active_layout(&layout_id)?;
+//         }
+//     }
+//     Ok(())
+// }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
