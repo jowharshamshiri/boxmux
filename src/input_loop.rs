@@ -1,5 +1,5 @@
 use crate::{execute_commands, thread_manager::Runnable};
-use crate::{handle_keypress, AppContext};
+use crate::{handle_keypress, AppContext, FieldUpdate};
 use std::io::stdin;
 use std::sync::mpsc;
 use termion::event::Key;

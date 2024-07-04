@@ -1,5 +1,6 @@
 use crate::thread_manager::Runnable;
 use crate::AppContext;
+use crate::FieldUpdate;
 use crate::Message;
 use signal_hook::consts::{SIGCONT, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGTSTP};
 use signal_hook::{consts::signal::SIGWINCH, iterator::Signals};

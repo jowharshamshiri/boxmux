@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
-use crate::{calculate_bounds_map, Config};
+use crate::{calculate_bounds_map, Config, DeepClone, FieldUpdate, Updatable};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct App {
@@ -254,8 +254,8 @@ impl App {
     }
 }
 
-impl App {
-    pub fn deep_clone(&self) -> Self {
+impl DeepClone for App {
+    fn deep_clone(&self) -> Self {
         App {
             layouts: self
                 .layouts
@@ -265,6 +265,72 @@ impl App {
             on_keypress: self.on_keypress.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
+        }
+    }
+}
+
+impl Updatable for App {
+    fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
+        let mut updates = Vec::new();
+
+        // Compare layouts
+        if self.layouts != other.layouts {
+            updates.push(FieldUpdate {
+                entity_id: None,
+                field_name: "layouts".to_string(),
+                new_value: serde_json::to_value(&other.layouts).unwrap(),
+            });
+        }
+
+        // Compare on_keypress
+        if self.on_keypress != other.on_keypress {
+            updates.push(FieldUpdate {
+                entity_id: None,
+                field_name: "on_keypress".to_string(),
+                new_value: serde_json::to_value(&other.on_keypress).unwrap(),
+            });
+        }
+
+        // Compare adjusted_bounds
+        if self.adjusted_bounds != other.adjusted_bounds {
+            updates.push(FieldUpdate {
+                entity_id: None,
+                field_name: "adjusted_bounds".to_string(),
+                new_value: serde_json::to_value(&other.adjusted_bounds).unwrap(),
+            });
+        }
+
+        updates
+    }
+
+    fn apply_updates(&mut self, updates: &[FieldUpdate]) {
+        for update in updates {
+            match update.field_name.as_str() {
+                "layouts" => {
+                    if let Ok(new_layouts) =
+                        serde_json::from_value::<Vec<Layout>>(update.new_value.clone())
+                    {
+                        self.layouts = new_layouts;
+                    }
+                }
+                "on_keypress" => {
+                    if let Ok(new_on_keypress) = serde_json::from_value::<
+                        Option<HashMap<String, Vec<String>>>,
+                    >(update.new_value.clone())
+                    {
+                        self.on_keypress = new_on_keypress;
+                    }
+                }
+                "adjusted_bounds" => {
+                    if let Ok(new_adjusted_bounds) = serde_json::from_value::<
+                        Option<HashMap<String, HashMap<String, Bounds>>>,
+                    >(update.new_value.clone())
+                    {
+                        self.adjusted_bounds = new_adjusted_bounds;
+                    }
+                }
+                _ => log::warn!("Unknown field name for App: {}", update.field_name),
+            }
         }
     }
 }
@@ -427,6 +493,52 @@ pub struct AppContext {
     pub config: Config,
 }
 
+impl Updatable for AppContext {
+    fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
+        let mut updates = Vec::new();
+
+        // Compare app
+        if self.app != other.app {
+            updates.push(FieldUpdate {
+                entity_id: None,
+                field_name: "app".to_string(),
+                new_value: serde_json::to_value(&other.app).unwrap(),
+            });
+        }
+
+        // Compare config
+        if self.config != other.config {
+            updates.push(FieldUpdate {
+                entity_id: None,
+                field_name: "config".to_string(),
+                new_value: serde_json::to_value(&other.config).unwrap(),
+            });
+        }
+
+        updates
+    }
+
+    fn apply_updates(&mut self, updates: &[FieldUpdate]) {
+        for update in updates {
+            match update.field_name.as_str() {
+                "app" => {
+                    if let Ok(new_app) = serde_json::from_value::<App>(update.new_value.clone()) {
+                        self.app = new_app;
+                    }
+                }
+                "config" => {
+                    if let Ok(new_config) =
+                        serde_json::from_value::<Config>(update.new_value.clone())
+                    {
+                        self.config = new_config;
+                    }
+                }
+                _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
+            }
+        }
+    }
+}
+
 impl PartialEq for AppContext {
     fn eq(&self, other: &Self) -> bool {
         self.app == other.app && self.config == other.config
@@ -439,8 +551,10 @@ impl AppContext {
 
         AppContext { app, config }
     }
+}
 
-    pub fn deep_clone(&self) -> Self {
+impl DeepClone for AppContext {
+    fn deep_clone(&self) -> Self {
         AppContext {
             app: self.app.deep_clone(),
             config: self.config.clone(),

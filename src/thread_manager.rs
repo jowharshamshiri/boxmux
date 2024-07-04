@@ -1,9 +1,10 @@
 use crate::model::app::AppContext;
+use crate::{DeepClone, FieldUpdate, Updatable};
 use log::{error, info};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
 use std::thread;
 use uuid::Uuid;
 
@@ -76,18 +77,21 @@ pub trait Runnable: Send + 'static {
     fn update_app_context(&mut self, app_context: AppContext);
     fn set_uuid(&mut self, uuid: Uuid);
     fn get_uuid(&self) -> Uuid;
-    fn set_app_context_sender(&mut self, app_context_sender: mpsc::Sender<(Uuid, AppContext)>);
+    fn set_app_context_sender(
+        &mut self,
+        app_context_sender: mpsc::Sender<(Uuid, Vec<FieldUpdate>)>,
+    );
     fn set_message_sender(&mut self, message_sender: mpsc::Sender<(Uuid, Message)>);
     fn set_app_context_receiver(
         &mut self,
-        app_context_receiver: mpsc::Receiver<(Uuid, AppContext)>,
+        app_context_receiver: mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>,
     );
     fn set_message_receiver(&mut self, message_receiver: mpsc::Receiver<(Uuid, Message)>);
     fn get_app_context(&self) -> &AppContext;
-    fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, AppContext)>>;
+    fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, Vec<FieldUpdate>)>>;
     fn get_message_sender(&self) -> &Option<mpsc::Sender<(Uuid, Message)>>;
 
-    fn send_app_context_update(&self);
+    fn send_app_context_update(&self, old_app_context: AppContext);
     fn send_message(&self, msg: Message);
 }
 
@@ -103,9 +107,9 @@ pub struct RunnableImpl {
     pub app_context: AppContext,
     uuid: Uuid,
     running_state: RunnableState,
-    app_context_sender: Option<mpsc::Sender<(Uuid, AppContext)>>,
+    app_context_sender: Option<mpsc::Sender<(Uuid, Vec<FieldUpdate>)>>,
     message_sender: Option<mpsc::Sender<(Uuid, Message)>>,
-    app_context_receiver: Option<mpsc::Receiver<(Uuid, AppContext)>>,
+    app_context_receiver: Option<mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>>,
     message_receiver: Option<mpsc::Receiver<(Uuid, Message)>>,
 }
 
@@ -126,8 +130,9 @@ impl RunnableImpl {
         &mut self,
         process_fn: &mut dyn FnMut(&mut Self, AppContext, Vec<Message>) -> (bool, AppContext),
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        let (latest_app_context, new_messages) = self.receive_updates();
-        self.app_context = latest_app_context.deep_clone();
+        let (mut updated_app_context, new_messages) = self.receive_updates();
+        // self.app_context.apply_updates(&app_context_updates);
+        let original_app_context = updated_app_context.deep_clone();
         let mut should_continue = true;
         // let mut result_app_context = None;
         for message in new_messages.iter() {
@@ -150,12 +155,17 @@ impl RunnableImpl {
             }
         }
 
+        //keep app_context in sync even if not running
+        if updated_app_context != self.app_context {
+            self.app_context = updated_app_context;
+        }
+
         if self.running_state == RunnableState::Running {
             let (process_should_continue, result_app_context) =
-                process_fn(self, latest_app_context.deep_clone(), new_messages);
-            if result_app_context != latest_app_context {
+                process_fn(self, self.app_context.deep_clone(), new_messages);
+            if result_app_context != original_app_context {
                 self.app_context = result_app_context;
-                self.send_app_context_update();
+                self.send_app_context_update(original_app_context);
             }
             should_continue = process_should_continue;
         }
@@ -168,22 +178,20 @@ impl RunnableImpl {
 }
 
 impl Runnable for RunnableImpl {
-    // fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-    //     // Always return true in this trivial implementation; replace with actual logic as needed.
-    //     self._run(&mut |_, _, _| true)
-    // }
-
     fn receive_updates(&mut self) -> (AppContext, Vec<Message>) {
-        let mut latest_app_context = self.app_context.clone();
+        let mut app_context_updates = Vec::new();
         let mut new_messages = Vec::new();
 
         if let Some(ref app_context_receiver) = self.app_context_receiver {
             log::info!("Checking for updates in app_context_receiver");
             while let Ok((_, app_context)) = app_context_receiver.try_recv() {
                 log::info!("Received app_context update: {:?}", app_context);
-                latest_app_context = app_context;
+                app_context_updates = app_context;
             }
         }
+
+        let mut updated_app_context = self.app_context.deep_clone();
+        updated_app_context.apply_updates(&app_context_updates);
 
         if let Some(ref message_receiver) = self.message_receiver {
             while let Ok((_, message)) = message_receiver.try_recv() {
@@ -191,16 +199,17 @@ impl Runnable for RunnableImpl {
             }
         }
 
-        (latest_app_context, new_messages)
+        (updated_app_context, new_messages)
     }
 
     fn process(&mut self, _app_context: AppContext, _messages: Vec<Message>) {
-        // Placeholder for actual processing logic
+        todo!()
     }
 
     fn update_app_context(&mut self, app_context: AppContext) {
+        let old_app_context = self.app_context.deep_clone();
         self.app_context = app_context;
-        self.send_app_context_update();
+        self.send_app_context_update(old_app_context);
     }
 
     fn set_uuid(&mut self, uuid: Uuid) {
@@ -211,7 +220,7 @@ impl Runnable for RunnableImpl {
         self.uuid
     }
 
-    fn set_app_context_sender(&mut self, app_context_sender: mpsc::Sender<(Uuid, AppContext)>) {
+    fn set_app_context_sender(&mut self, app_context_sender: Sender<(Uuid, Vec<FieldUpdate>)>) {
         self.app_context_sender = Some(app_context_sender);
     }
 
@@ -221,7 +230,7 @@ impl Runnable for RunnableImpl {
 
     fn set_app_context_receiver(
         &mut self,
-        app_context_receiver: mpsc::Receiver<(Uuid, AppContext)>,
+        app_context_receiver: mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>,
     ) {
         self.app_context_receiver = Some(app_context_receiver);
     }
@@ -234,7 +243,7 @@ impl Runnable for RunnableImpl {
         &self.app_context
     }
 
-    fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, AppContext)>> {
+    fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, Vec<FieldUpdate>)>> {
         &self.app_context_sender
     }
 
@@ -242,11 +251,12 @@ impl Runnable for RunnableImpl {
         &self.message_sender
     }
 
-    fn send_app_context_update(&self) {
+    fn send_app_context_update(&self, old_app_context: AppContext) {
         if let Some(ref app_context_sender) = self.get_app_context_sender() {
-            if let Err(e) =
-                app_context_sender.send((self.get_uuid(), self.get_app_context().clone()))
-            {
+            if let Err(e) = app_context_sender.send((
+                self.get_uuid(),
+                self.get_app_context().generate_diff(&old_app_context),
+            )) {
                 error!("Failed to send update to main thread: {}", e);
             }
         }
@@ -267,8 +277,8 @@ impl Runnable for RunnableImpl {
 
 pub struct ThreadManager {
     threads: HashMap<Uuid, thread::JoinHandle<()>>,
-    app_context_senders: HashMap<Uuid, mpsc::Sender<(Uuid, AppContext)>>,
-    app_context_receivers: HashMap<Uuid, mpsc::Receiver<(Uuid, AppContext)>>,
+    app_context_senders: HashMap<Uuid, mpsc::Sender<(Uuid, Vec<FieldUpdate>)>>,
+    app_context_receivers: HashMap<Uuid, mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>>,
     message_senders: HashMap<Uuid, mpsc::Sender<(Uuid, Message)>>,
     message_receivers: HashMap<Uuid, mpsc::Receiver<(Uuid, Message)>>,
     app_context: AppContext,
@@ -306,23 +316,26 @@ impl ThreadManager {
 
             // Handle app_context updates
             for reciever in self.app_context_receivers.values() {
-                if let Ok((uuid, new_app_context)) = reciever.try_recv() {
+                if let Ok((uuid, app_context_updates)) = reciever.try_recv() {
                     log::info!(
                         "Received app_context update from thread {}: {:?}",
                         uuid,
-                        new_app_context
+                        app_context_updates
                     );
-                    let app_context = self.app_context.clone();
-                    let initial_hash = self.get_hash(&app_context);
-                    let received_hash = self.get_hash(&new_app_context);
+                    let original_app_context = self.app_context.clone();
+                    let initial_hash = self.get_hash(&original_app_context);
+                    let received_hash = self.get_hash(&app_context_updates);
 
                     if initial_hash != received_hash {
                         log::info!(
                             "Sending app_context update to all threads: {:?}",
-                            new_app_context
+                            app_context_updates
                         );
-                        self.app_context = new_app_context.clone();
-                        self.send_update_to_all_threads((uuid, self.app_context.clone()));
+                        self.app_context.apply_updates(&app_context_updates);
+                        self.send_app_context_update_to_all_threads((
+                            uuid,
+                            self.app_context.generate_diff(&original_app_context),
+                        ));
                         has_updates = true;
                     } else {
                         log::info!(
@@ -358,8 +371,8 @@ impl ThreadManager {
 
     pub fn spawn_thread<R: Runnable + 'static>(&mut self, mut runnable: R) -> Uuid {
         let uuid = Uuid::new_v4();
-        let (s_tm_t_s, s_tm_t_r) = mpsc::channel::<(Uuid, AppContext)>();
-        let (s_t_tm_s, s_t_tm_r) = mpsc::channel::<(Uuid, AppContext)>();
+        let (s_tm_t_s, s_tm_t_r) = mpsc::channel::<(Uuid, Vec<FieldUpdate>)>();
+        let (s_t_tm_s, s_t_tm_r) = mpsc::channel::<(Uuid, Vec<FieldUpdate>)>();
         let (m_tm_t_s, m_tm_t_r) = mpsc::channel::<(Uuid, Message)>();
         let (m_t_tm_s, m_t_tm_r) = mpsc::channel::<(Uuid, Message)>();
 
@@ -402,18 +415,18 @@ impl ThreadManager {
         uuid
     }
 
-    pub fn send_data_to_thread(&self, data: AppContext, uuid: Uuid) {
+    pub fn send_app_context_update_to_thread(&self, field_updates: Vec<FieldUpdate>, uuid: Uuid) {
         if let Some(sender) = self.app_context_senders.get(&uuid) {
-            if let Err(e) = sender.send((uuid, data)) {
+            if let Err(e) = sender.send((uuid, field_updates)) {
                 error!("Failed to send data to thread: {}", e);
             }
         }
     }
 
-    pub fn send_update_to_all_threads(&self, data: (Uuid, AppContext)) {
+    pub fn send_app_context_update_to_all_threads(&self, field_updates: (Uuid, Vec<FieldUpdate>)) {
         for (&uuid, sender) in &self.app_context_senders {
-            if uuid != data.0 {
-                if let Err(e) = sender.send(data.clone()) {
+            if uuid != field_updates.0 {
+                if let Err(e) = sender.send(field_updates.clone()) {
                     error!("Failed to send update to thread: {}", e);
                 }
             } else {
@@ -521,7 +534,7 @@ macro_rules! create_runnable {
 
             fn set_app_context_sender(
                 &mut self,
-                app_context_sender: mpsc::Sender<(Uuid, AppContext)>,
+                app_context_sender: mpsc::Sender<(Uuid, Vec<FieldUpdate>)>,
             ) {
                 self.inner.set_app_context_sender(app_context_sender)
             }
@@ -532,7 +545,7 @@ macro_rules! create_runnable {
 
             fn set_app_context_receiver(
                 &mut self,
-                app_context_receiver: mpsc::Receiver<(Uuid, AppContext)>,
+                app_context_receiver: mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>,
             ) {
                 self.inner.set_app_context_receiver(app_context_receiver)
             }
@@ -545,7 +558,7 @@ macro_rules! create_runnable {
                 self.inner.get_app_context()
             }
 
-            fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, AppContext)>> {
+            fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, Vec<FieldUpdate>)>> {
                 self.inner.get_app_context_sender()
             }
 
@@ -553,8 +566,8 @@ macro_rules! create_runnable {
                 self.inner.get_message_sender()
             }
 
-            fn send_app_context_update(&self) {
-                self.inner.send_app_context_update()
+            fn send_app_context_update(&self, old_app_context: AppContext) {
+                self.inner.send_app_context_update(old_app_context)
             }
 
             fn send_message(&self, msg: Message) {
@@ -625,7 +638,7 @@ macro_rules! create_runnable_with_dynamic_input {
 
             fn set_app_context_sender(
                 &mut self,
-                app_context_sender: mpsc::Sender<(Uuid, AppContext)>,
+                app_context_sender: mpsc::Sender<(Uuid, Vec<FieldUpdate>)>,
             ) {
                 self.inner.set_app_context_sender(app_context_sender)
             }
@@ -636,7 +649,7 @@ macro_rules! create_runnable_with_dynamic_input {
 
             fn set_app_context_receiver(
                 &mut self,
-                app_context_receiver: mpsc::Receiver<(Uuid, AppContext)>,
+                app_context_receiver: mpsc::Receiver<(Uuid, Vec<FieldUpdate>)>,
             ) {
                 self.inner.set_app_context_receiver(app_context_receiver)
             }
@@ -649,7 +662,7 @@ macro_rules! create_runnable_with_dynamic_input {
                 self.inner.get_app_context()
             }
 
-            fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, AppContext)>> {
+            fn get_app_context_sender(&self) -> &Option<mpsc::Sender<(Uuid, Vec<FieldUpdate>)>> {
                 self.inner.get_app_context_sender()
             }
 
@@ -657,8 +670,8 @@ macro_rules! create_runnable_with_dynamic_input {
                 self.inner.get_message_sender()
             }
 
-            fn send_app_context_update(&self) {
-                self.inner.send_app_context_update()
+            fn send_app_context_update(&self, old_app_context: AppContext) {
+                self.inner.send_app_context_update(old_app_context)
             }
 
             fn send_message(&self, msg: Message) {
@@ -803,9 +816,9 @@ macro_rules! create_runnable_with_dynamic_input {
 //         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
 
 //         let data = AppContext::new(App::new());
-//         manager.send_data_to_thread(data.clone(), uuid1);
-//         manager.send_data_to_thread(data.clone(), uuid2);
-//         manager.send_data_to_thread(data.clone(), uuid3);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid2);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
 //         manager.send_message_to_all_threads((uuid1, Message::NextPanel("Panel1".to_string())));
 
@@ -840,7 +853,7 @@ macro_rules! create_runnable_with_dynamic_input {
 //         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
 
 //         let data = AppContext::new(App::new());
-//         manager.send_data_to_thread(data.clone(), uuid1);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
 
 //         // Run the manager's loop in a separate thread to allow app_context handling
 //         let manager = Arc::new(manager);
@@ -873,9 +886,9 @@ macro_rules! create_runnable_with_dynamic_input {
 //         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
 
 //         let data = AppContext::new(App::new());
-//         manager.send_data_to_thread(data.clone(), uuid1);
-//         manager.send_data_to_thread(data.clone(), uuid2);
-//         manager.send_data_to_thread(data.clone(), uuid3);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid2);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
 //         manager.send_message_to_all_threads((uuid1, Message::RedrawApp));
 //         manager.send_message_to_all_threads((uuid2, Message::UpdatePanel("Panel2".to_string())));
@@ -914,9 +927,9 @@ macro_rules! create_runnable_with_dynamic_input {
 //         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
 
 //         let data = AppContext::new(App::new());
-//         manager.send_data_to_thread(data.clone(), uuid1);
-//         manager.send_data_to_thread(data.clone(), uuid2);
-//         manager.send_data_to_thread(data.clone(), uuid3);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid2);
+//         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
 //         manager.send_message_to_all_threads((uuid1, Message::RedrawApp));
 

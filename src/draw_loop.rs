@@ -1,10 +1,10 @@
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
-use crate::thread_manager::*;
 use crate::{
     apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext,
     ScreenBuffer, SocketFunction,
 };
+use crate::{thread_manager::*, DeepClone, FieldUpdate};
 use clap::App;
 use serde_json;
 use std::io::stdout;
