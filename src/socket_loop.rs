@@ -1,5 +1,5 @@
 use crate::thread_manager::Runnable;
-use crate::{AppContext, Config};
+use crate::{AppContext, Config, FieldUpdate};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};

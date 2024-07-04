@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
 
 use crate::{
@@ -8,6 +9,27 @@ use crate::{
     AppGraph, Layout, Panel,
 };
 use serde::{Deserialize, Serialize};
+
+// Represents a granular field update
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct FieldUpdate {
+    pub entity_id: Option<String>, // The ID of the entity (App, Layout, or Panel)
+    pub field_name: String,        // The field name to be updated
+    pub new_value: Value,          // The new value for the field
+}
+
+// The Updatable trait
+pub trait Updatable {
+    // Generate a diff of changes from another instance
+    fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate>;
+
+    // Apply a list of updates to the current instance
+    fn apply_updates(&mut self, updates: &[FieldUpdate]);
+}
+
+pub trait DeepClone {
+    fn deep_clone(&self) -> Self;
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
