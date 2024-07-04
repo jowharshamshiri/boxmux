@@ -268,18 +268,19 @@ impl DeepClone for App {
         }
     }
 }
-
+// Implement Updatable for App
 impl Updatable for App {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 
-        // Compare layouts
-        if self.layouts != other.layouts {
-            updates.push(FieldUpdate {
-                entity_id: None,
-                field_name: "layouts".to_string(),
-                new_value: serde_json::to_value(&other.layouts).unwrap(),
-            });
+        // Compare each layout
+        for (self_layout, other_layout) in self.layouts.iter().zip(&other.layouts) {
+            updates.extend(self_layout.generate_diff(other_layout).into_iter().map(
+                |mut update| {
+                    update.entity_id = Some(format!("app.layout.{}", self_layout.id));
+                    update
+                },
+            ));
         }
 
         // Compare on_keypress
@@ -306,13 +307,6 @@ impl Updatable for App {
     fn apply_updates(&mut self, updates: &[FieldUpdate]) {
         for update in updates {
             match update.field_name.as_str() {
-                "layouts" => {
-                    if let Ok(new_layouts) =
-                        serde_json::from_value::<Vec<Layout>>(update.new_value.clone())
-                    {
-                        self.layouts = new_layouts;
-                    }
-                }
                 "on_keypress" => {
                     if let Ok(new_on_keypress) = serde_json::from_value::<
                         Option<HashMap<String, Vec<String>>>,
@@ -329,7 +323,19 @@ impl Updatable for App {
                         self.adjusted_bounds = new_adjusted_bounds;
                     }
                 }
-                _ => log::warn!("Unknown field name for App: {}", update.field_name),
+                _ => {
+                    // Delegate to the correct layout
+                    for layout in &mut self.layouts {
+                        if update.entity_id.as_deref() == Some(&format!("app.layout.{}", layout.id))
+                        {
+                            layout.apply_updates(&[FieldUpdate {
+                                entity_id: None,
+                                field_name: update.field_name.clone(),
+                                new_value: update.new_value.clone(),
+                            }]);
+                        }
+                    }
+                }
             }
         }
     }
@@ -498,13 +504,16 @@ impl Updatable for AppContext {
         let mut updates = Vec::new();
 
         // Compare app
-        if self.app != other.app {
-            updates.push(FieldUpdate {
-                entity_id: None,
-                field_name: "app".to_string(),
-                new_value: serde_json::to_value(&other.app).unwrap(),
-            });
-        }
+        updates.extend(
+            self.app
+                .generate_diff(&other.app)
+                .into_iter()
+                .map(|mut update| {
+                    update.entity_id = None; // Top-level field
+                    update.field_name = format!("app.{}", update.field_name);
+                    update
+                }),
+        );
 
         // Compare config
         if self.config != other.config {
@@ -520,20 +529,24 @@ impl Updatable for AppContext {
 
     fn apply_updates(&mut self, updates: &[FieldUpdate]) {
         for update in updates {
-            match update.field_name.as_str() {
-                "app" => {
-                    if let Ok(new_app) = serde_json::from_value::<App>(update.new_value.clone()) {
-                        self.app = new_app;
+            if update.field_name.starts_with("app.") {
+                let app_update = FieldUpdate {
+                    entity_id: None,
+                    field_name: update.field_name.strip_prefix("app.").unwrap().to_string(),
+                    new_value: update.new_value.clone(),
+                };
+                self.app.apply_updates(&[app_update]);
+            } else {
+                match update.field_name.as_str() {
+                    "config" => {
+                        if let Ok(new_config) =
+                            serde_json::from_value::<Config>(update.new_value.clone())
+                        {
+                            self.config = new_config;
+                        }
                     }
+                    _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
                 }
-                "config" => {
-                    if let Ok(new_config) =
-                        serde_json::from_value::<Config>(update.new_value.clone())
-                    {
-                        self.config = new_config;
-                    }
-                }
-                _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
             }
         }
     }

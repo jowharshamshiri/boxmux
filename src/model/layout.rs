@@ -301,10 +301,12 @@ impl DeepClone for Layout {
     }
 }
 
+// Implement Updatable for Layout
 impl Updatable for Layout {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 
+        // Compare each field
         if self.title != other.title {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -312,7 +314,6 @@ impl Updatable for Layout {
                 new_value: Value::String(other.title.clone()),
             });
         }
-
         if self.refresh_interval != other.refresh_interval {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -320,15 +321,21 @@ impl Updatable for Layout {
                 new_value: serde_json::to_value(&other.refresh_interval).unwrap(),
             });
         }
-
-        if self.children != other.children {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "children".to_string(),
-                new_value: serde_json::to_value(&other.children).unwrap(),
-            });
+        // Compare children
+        for (self_child, other_child) in self.children.iter().zip(&other.children) {
+            updates.extend(
+                self_child
+                    .generate_diff(other_child)
+                    .into_iter()
+                    .map(|mut update| {
+                        update.entity_id =
+                            Some(format!("layout.{}.panel.{}", self.id, self_child.id));
+                        update
+                    }),
+            );
         }
 
+        // Compare other fields similarly...
         if self.fill != other.fill {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -440,6 +447,7 @@ impl Updatable for Layout {
                 new_value: serde_json::to_value(&other.selected_title_bg_color).unwrap(),
             });
         }
+
         if self.selected_title_fg_color != other.selected_title_fg_color {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -493,11 +501,6 @@ impl Updatable for Layout {
 
     fn apply_updates(&mut self, updates: &[FieldUpdate]) {
         for update in updates {
-            if let Some(ref entity_id) = update.entity_id {
-                if entity_id != &self.id {
-                    continue;
-                }
-            }
             match update.field_name.as_str() {
                 "title" => {
                     if let Some(new_title) = update.new_value.as_str() {
@@ -509,13 +512,6 @@ impl Updatable for Layout {
                         self.refresh_interval = Some(new_refresh_interval);
                     }
                 }
-                "children" => {
-                    if let Ok(new_children) =
-                        serde_json::from_value::<Vec<Panel>>(update.new_value.clone())
-                    {
-                        self.children = new_children;
-                    }
-                }
                 "fill" => {
                     if let Some(new_fill) = update.new_value.as_bool() {
                         self.fill = Some(new_fill);
@@ -523,13 +519,12 @@ impl Updatable for Layout {
                 }
                 "fill_char" => {
                     if let Some(new_fill_char) = update.new_value.as_str() {
-                        self.fill_char = Some(new_fill_char.chars().next().unwrap());
+                        self.fill_char = new_fill_char.chars().next();
                     }
                 }
                 "selected_fill_char" => {
                     if let Some(new_selected_fill_char) = update.new_value.as_str() {
-                        self.selected_fill_char =
-                            Some(new_selected_fill_char.chars().next().unwrap());
+                        self.selected_fill_char = new_selected_fill_char.chars().next();
                     }
                 }
                 "border" => {
@@ -605,11 +600,22 @@ impl Updatable for Layout {
                     }
                 }
                 "on_keypress" => {
-                    if let Ok(new_on_keypress) = serde_json::from_value::<
-                        Option<HashMap<String, Vec<String>>>,
-                    >(update.new_value.clone())
-                    {
-                        self.on_keypress = new_on_keypress;
+                    if let Some(new_on_keypress) = update.new_value.as_object() {
+                        self.on_keypress = Some(
+                            new_on_keypress
+                                .iter()
+                                .map(|(k, v)| {
+                                    (
+                                        k.clone(),
+                                        v.as_array()
+                                            .unwrap()
+                                            .iter()
+                                            .map(|v| v.as_str().unwrap().to_string())
+                                            .collect(),
+                                    )
+                                })
+                                .collect(),
+                        );
                     }
                 }
                 "active" => {
@@ -618,13 +624,30 @@ impl Updatable for Layout {
                     }
                 }
                 "panel_ids_in_tab_order" => {
-                    if let Ok(new_panel_ids_in_tab_order) =
-                        serde_json::from_value::<Option<Vec<String>>>(update.new_value.clone())
-                    {
-                        self.panel_ids_in_tab_order = new_panel_ids_in_tab_order;
+                    if let Some(new_panel_ids_in_tab_order) = update.new_value.as_array() {
+                        self.panel_ids_in_tab_order = Some(
+                            new_panel_ids_in_tab_order
+                                .iter()
+                                .map(|v| v.as_str().unwrap().to_string())
+                                .collect(),
+                        );
                     }
                 }
-                _ => log::warn!("Unknown field name for Layout: {}", update.field_name),
+
+                _ => {
+                    // Delegate to the correct panel
+                    for child in &mut self.children {
+                        if update.entity_id.as_deref()
+                            == Some(&format!("layout.{}.panel.{}", self.id, child.id))
+                        {
+                            child.apply_updates(&[FieldUpdate {
+                                entity_id: None,
+                                field_name: update.field_name.clone(),
+                                new_value: update.new_value.clone(),
+                            }]);
+                        }
+                    }
+                }
             }
         }
     }
