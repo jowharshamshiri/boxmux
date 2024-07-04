@@ -639,10 +639,11 @@ impl Panel {
     }
 }
 
+// Implement Updatable for Panel
 impl Updatable for Panel {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
-
+        // Compare each field
         if self.title != other.title {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -650,7 +651,6 @@ impl Updatable for Panel {
                 new_value: serde_json::to_value(&other.title).unwrap(),
             });
         }
-
         if self.position != other.position {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -659,6 +659,7 @@ impl Updatable for Panel {
             });
         }
 
+        // Compare other fields similarly...
         if self.anchor != other.anchor {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -702,6 +703,7 @@ impl Updatable for Panel {
         if self.overflow_behavior != other.overflow_behavior {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
+
                 field_name: "overflow_behavior".to_string(),
                 new_value: serde_json::to_value(&other.overflow_behavior).unwrap(),
             });
@@ -843,6 +845,22 @@ impl Updatable for Panel {
             });
         }
 
+        if self.selected_title_bg_color != other.selected_title_bg_color {
+            updates.push(FieldUpdate {
+                entity_id: Some(self.id.clone()),
+                field_name: "selected_title_bg_color".to_string(),
+                new_value: serde_json::to_value(&other.selected_title_bg_color).unwrap(),
+            });
+        }
+
+        if self.selected_title_fg_color != other.selected_title_fg_color {
+            updates.push(FieldUpdate {
+                entity_id: Some(self.id.clone()),
+                field_name: "selected_title_fg_color".to_string(),
+                new_value: serde_json::to_value(&other.selected_title_fg_color).unwrap(),
+            });
+        }
+
         if self.title_position != other.title_position {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -879,6 +897,7 @@ impl Updatable for Panel {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
                 field_name: "horizontal_scroll".to_string(),
+
                 new_value: serde_json::to_value(&other.horizontal_scroll).unwrap(),
             });
         }
@@ -936,7 +955,7 @@ impl Updatable for Panel {
 
     fn apply_updates(&mut self, updates: &[FieldUpdate]) {
         for update in updates {
-            if let Some(entity_id) = &update.entity_id {
+            if let Some(ref entity_id) = update.entity_id {
                 if entity_id != &self.id {
                     continue;
                 }
@@ -956,6 +975,7 @@ impl Updatable for Panel {
                         self.position = new_position;
                     }
                 }
+                // Handle other fields similarly...
                 "anchor" => {
                     if let Ok(new_anchor) =
                         serde_json::from_value::<Anchor>(update.new_value.clone())
@@ -1116,6 +1136,20 @@ impl Updatable for Panel {
                         self.title_bg_color = new_title_bg_color;
                     }
                 }
+                "selected_title_bg_color" => {
+                    if let Ok(new_selected_title_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.selected_title_bg_color = new_selected_title_bg_color;
+                    }
+                }
+                "selected_title_fg_color" => {
+                    if let Ok(new_selected_title_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.selected_title_fg_color = new_selected_title_fg_color;
+                    }
+                }
                 "title_position" => {
                     if let Ok(new_title_position) =
                         serde_json::from_value::<Option<String>>(update.new_value.clone())
@@ -1145,6 +1179,13 @@ impl Updatable for Panel {
                         self.on_keypress = new_on_keypress;
                     }
                 }
+                "output" => {
+                    if let Ok(new_output) =
+                        serde_json::from_value::<String>(update.new_value.clone())
+                    {
+                        self.output = new_output;
+                    }
+                }
                 "horizontal_scroll" => {
                     if let Ok(new_horizontal_scroll) =
                         serde_json::from_value::<Option<f64>>(update.new_value.clone())
@@ -1164,20 +1205,6 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<bool>>(update.new_value.clone())
                     {
                         self.selected = new_selected;
-                    }
-                }
-                "content" => {
-                    if let Ok(new_content) =
-                        serde_json::from_value::<Option<String>>(update.new_value.clone())
-                    {
-                        self.content = new_content;
-                    }
-                }
-                "output" => {
-                    if let Ok(new_output) =
-                        serde_json::from_value::<String>(update.new_value.clone())
-                    {
-                        self.output = new_output;
                     }
                 }
                 "parent_id" => {
