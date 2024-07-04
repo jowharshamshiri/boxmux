@@ -645,14 +645,12 @@ impl Panel {
         // Get references to children, defaulting to an empty slice if None
         let self_children = self.children.as_deref().unwrap_or(&[]);
         let other_children = other.children.as_deref().unwrap_or(&[]);
-
         // Compare each pair of children
-        for (self_child, other_child) in self_children.iter().zip(other_children) {
-            let child_diffs = self_child.generate_diff(other_child);
-            for mut update in child_diffs {
-                // Set entity_id to reflect the nested structure
-                update.entity_id = Some(self_child.id.clone());
-                updates.push(update);
+        for self_child in self_children {
+            for other_child in other_children {
+                if self_child.id == other_child.id {
+                    updates.extend(self_child.generate_diff(other_child));
+                }
             }
         }
 
@@ -660,6 +658,7 @@ impl Panel {
         if self_children.len() < other_children.len() {
             for other_child in &other_children[self_children.len()..] {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(other_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: serde_json::to_value(other_child).unwrap(),
@@ -671,6 +670,7 @@ impl Panel {
         if self_children.len() > other_children.len() {
             for self_child in &self_children[other_children.len()..] {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: Value::Null, // Representing removal
@@ -683,6 +683,9 @@ impl Panel {
 
     fn apply_children_updates(&mut self, updates: Vec<FieldUpdate>) {
         for update in updates {
+            if update.entity_type != EntityType::Panel {
+                continue;
+            }
             if let Some(entity_id) = &update.entity_id {
                 // Check if the update is for a child panel
                 if self.children.as_ref().map_or(false, |children| {
@@ -697,6 +700,7 @@ impl Panel {
                         .find(|p| p.id == *entity_id)
                     {
                         child_panel.apply_updates(vec![FieldUpdate {
+                            entity_type: EntityType::Panel,
                             entity_id: Some(child_panel.id.clone()),
                             field_name: update.field_name.clone(),
                             new_value: update.new_value.clone(),
@@ -748,6 +752,7 @@ impl Updatable for Panel {
         if self.title != other.title {
             if let Some(new_value) = &other.title {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()),
                     field_name: "title".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -757,6 +762,7 @@ impl Updatable for Panel {
 
         if self.position != other.position {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()),
                 field_name: "position".to_string(),
                 new_value: serde_json::to_value(&other.position).unwrap(),
@@ -765,6 +771,7 @@ impl Updatable for Panel {
 
         if self.anchor != other.anchor {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()),
                 field_name: "anchor".to_string(),
                 new_value: serde_json::to_value(&other.anchor).unwrap(),
@@ -774,6 +781,7 @@ impl Updatable for Panel {
         if self.min_height != other.min_height {
             if let Some(new_value) = other.min_height {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "min_height".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -784,6 +792,7 @@ impl Updatable for Panel {
         if self.min_width != other.min_width {
             if let Some(new_value) = other.min_width {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "min_width".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -794,6 +803,7 @@ impl Updatable for Panel {
         if self.max_height != other.max_height {
             if let Some(new_value) = other.max_height {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "max_height".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -804,6 +814,7 @@ impl Updatable for Panel {
         if self.max_width != other.max_width {
             if let Some(new_value) = other.max_width {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "max_width".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -814,6 +825,7 @@ impl Updatable for Panel {
         if self.overflow_behavior != other.overflow_behavior {
             if let Some(new_value) = &other.overflow_behavior {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "overflow_behavior".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -823,6 +835,7 @@ impl Updatable for Panel {
 
         if self.scroll != other.scroll {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "scroll".to_string(),
                 new_value: serde_json::to_value(&other.scroll).unwrap(),
@@ -832,6 +845,7 @@ impl Updatable for Panel {
         if self.refresh_interval != other.refresh_interval {
             if let Some(new_value) = other.refresh_interval {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "refresh_interval".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -842,6 +856,7 @@ impl Updatable for Panel {
         if self.tab_order != other.tab_order {
             if let Some(new_value) = &other.tab_order {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "tab_order".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -852,6 +867,7 @@ impl Updatable for Panel {
         if self.next_focus_id != other.next_focus_id {
             if let Some(new_value) = &other.next_focus_id {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "next_focus_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -863,6 +879,7 @@ impl Updatable for Panel {
 
         if self.fill != other.fill {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "fill".to_string(),
                 new_value: serde_json::to_value(&other.fill).unwrap(),
@@ -872,6 +889,7 @@ impl Updatable for Panel {
         if self.fill_char != other.fill_char {
             if let Some(new_value) = other.fill_char {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "fill_char".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -882,6 +900,7 @@ impl Updatable for Panel {
         if self.selected_fill_char != other.selected_fill_char {
             if let Some(new_value) = other.selected_fill_char {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_fill_char".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -891,6 +910,7 @@ impl Updatable for Panel {
 
         if self.border != other.border {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "border".to_string(),
                 new_value: serde_json::to_value(&other.border).unwrap(),
@@ -900,6 +920,7 @@ impl Updatable for Panel {
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -910,6 +931,7 @@ impl Updatable for Panel {
         if self.selected_border_color != other.selected_border_color {
             if let Some(new_value) = &other.selected_border_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -920,6 +942,7 @@ impl Updatable for Panel {
         if self.bg_color != other.bg_color {
             if let Some(new_value) = &other.bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -930,6 +953,7 @@ impl Updatable for Panel {
         if self.selected_bg_color != other.selected_bg_color {
             if let Some(new_value) = &other.selected_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -940,6 +964,7 @@ impl Updatable for Panel {
         if self.fg_color != other.fg_color {
             if let Some(new_value) = &other.fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -950,6 +975,7 @@ impl Updatable for Panel {
         if self.selected_fg_color != other.selected_fg_color {
             if let Some(new_value) = &other.selected_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -960,6 +986,7 @@ impl Updatable for Panel {
         if self.title_fg_color != other.title_fg_color {
             if let Some(new_value) = &other.title_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -970,6 +997,7 @@ impl Updatable for Panel {
         if self.title_bg_color != other.title_bg_color {
             if let Some(new_value) = &other.title_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -980,6 +1008,7 @@ impl Updatable for Panel {
         if self.selected_title_bg_color != other.selected_title_bg_color {
             if let Some(new_value) = &other.selected_title_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -990,6 +1019,7 @@ impl Updatable for Panel {
         if self.selected_title_fg_color != other.selected_title_fg_color {
             if let Some(new_value) = &other.selected_title_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1000,6 +1030,7 @@ impl Updatable for Panel {
         if self.title_position != other.title_position {
             if let Some(new_value) = &other.title_position {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_position".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1010,6 +1041,7 @@ impl Updatable for Panel {
         if self.script != other.script {
             if let Some(new_value) = &other.script {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "script".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1019,6 +1051,7 @@ impl Updatable for Panel {
 
         if self.thread != other.thread {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "thread".to_string(),
                 new_value: serde_json::to_value(&other.thread).unwrap(),
@@ -1028,6 +1061,7 @@ impl Updatable for Panel {
         if self.on_keypress != other.on_keypress {
             if let Some(new_value) = &other.on_keypress {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "on_keypress".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1038,8 +1072,8 @@ impl Updatable for Panel {
         if self.horizontal_scroll != other.horizontal_scroll {
             if let Some(new_value) = other.horizontal_scroll {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-
                     field_name: "horizontal_scroll".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
                 });
@@ -1049,8 +1083,8 @@ impl Updatable for Panel {
         if self.vertical_scroll != other.vertical_scroll {
             if let Some(new_value) = other.vertical_scroll {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-
                     field_name: "vertical_scroll".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
                 });
@@ -1059,6 +1093,7 @@ impl Updatable for Panel {
 
         if self.selected != other.selected {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "selected".to_string(),
                 new_value: serde_json::to_value(&other.selected).unwrap(),
@@ -1068,8 +1103,8 @@ impl Updatable for Panel {
         if self.content != other.content {
             if let Some(new_value) = &other.content {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-
                     field_name: "content".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
                 });
@@ -1078,6 +1113,7 @@ impl Updatable for Panel {
 
         if self.output != other.output {
             updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "output".to_string(),
                 new_value: serde_json::to_value(&other.output).unwrap(),
@@ -1087,8 +1123,8 @@ impl Updatable for Panel {
         if self.parent_id != other.parent_id {
             if let Some(new_value) = &other.parent_id {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-
                     field_name: "parent_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
                 });
@@ -1098,8 +1134,8 @@ impl Updatable for Panel {
         if self.parent_layout_id != other.parent_layout_id {
             if let Some(new_value) = &other.parent_layout_id {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-
                     field_name: "parent_layout_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
                 });
@@ -1112,6 +1148,9 @@ impl Updatable for Panel {
     fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
         let updates_for_children = updates.clone();
         for update in updates {
+            if update.entity_type != EntityType::Panel {
+                continue;
+            }
             match update.field_name.as_str() {
                 "title" => {
                     if let Ok(new_title) =

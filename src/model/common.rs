@@ -10,9 +10,18 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum EntityType {
+    AppContext,
+    App,
+    Layout,
+    Panel,
+}
+
 // Represents a granular field update
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct FieldUpdate {
+    pub entity_type: EntityType,   // The type of entity being updated
     pub entity_id: Option<String>, // The ID of the entity (App, Layout, or Panel)
     pub field_name: String,        // The field name to be updated
     pub new_value: Value,          // The new value for the field

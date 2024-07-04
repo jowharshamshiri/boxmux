@@ -275,17 +275,13 @@ impl Updatable for App {
 
         // Compare each layout
         for (self_layout, other_layout) in self.layouts.iter().zip(&other.layouts) {
-            updates.extend(self_layout.generate_diff(other_layout).into_iter().map(
-                |mut update| {
-                    update.entity_id = Some(format!("app.layout.{}", self_layout.id));
-                    update
-                },
-            ));
+            updates.extend(self_layout.generate_diff(other_layout));
         }
 
         // Compare on_keypress
         if self.on_keypress != other.on_keypress {
             updates.push(FieldUpdate {
+                entity_type: crate::EntityType::App,
                 entity_id: None,
                 field_name: "on_keypress".to_string(),
                 new_value: serde_json::to_value(&other.on_keypress).unwrap(),
@@ -295,6 +291,7 @@ impl Updatable for App {
         // Compare adjusted_bounds
         if self.adjusted_bounds != other.adjusted_bounds {
             updates.push(FieldUpdate {
+                entity_type: crate::EntityType::App,
                 entity_id: None,
                 field_name: "adjusted_bounds".to_string(),
                 new_value: serde_json::to_value(&other.adjusted_bounds).unwrap(),
@@ -307,6 +304,10 @@ impl Updatable for App {
     fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
         let updates_for_layouts = updates.clone();
         for update in updates {
+            if update.entity_id.is_some() {
+                // Skip updates that are not for the top-level entity
+                continue;
+            }
             match update.field_name.as_str() {
                 "on_keypress" => {
                     if let Ok(new_on_keypress) = serde_json::from_value::<
@@ -506,20 +507,12 @@ impl Updatable for AppContext {
         let mut updates = Vec::new();
 
         // Compare app
-        updates.extend(
-            self.app
-                .generate_diff(&other.app)
-                .into_iter()
-                .map(|mut update| {
-                    update.entity_id = None; // Top-level field
-                    update.field_name = update.field_name;
-                    update
-                }),
-        );
+        updates.extend(self.app.generate_diff(&other.app));
 
         // Compare config
         if self.config != other.config {
             updates.push(FieldUpdate {
+                entity_type: crate::EntityType::AppContext,
                 entity_id: None,
                 field_name: "config".to_string(),
                 new_value: serde_json::to_value(&other.config).unwrap(),
@@ -533,6 +526,10 @@ impl Updatable for AppContext {
         let updates_for_layouts = updates.clone();
 
         for update in updates {
+            if update.entity_id.is_some() {
+                // Skip updates that are not for the top-level entity
+                continue;
+            }
             match update.field_name.as_str() {
                 "config" => {
                     if let Ok(new_config) =

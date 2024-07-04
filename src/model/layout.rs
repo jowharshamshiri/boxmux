@@ -1,4 +1,4 @@
-use crate::{model::panel::Panel, FieldUpdate, Updatable};
+use crate::{model::panel::Panel, EntityType, FieldUpdate, Updatable};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -294,17 +294,14 @@ impl Layout {
         // Compare each pair of children
         for (self_child, other_child) in self_children.iter().zip(other_children) {
             let child_diffs = self_child.generate_diff(other_child);
-            for mut update in child_diffs {
-                // Set entity_id to reflect the nested structure
-                update.entity_id = Some(self_child.id.clone());
-                updates.push(update);
-            }
+            updates.extend(child_diffs.into_iter());
         }
 
         // Handle extra children in other
         if self_children.len() < other_children.len() {
             for other_child in &other_children[self_children.len()..] {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(other_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: serde_json::to_value(other_child).unwrap(),
@@ -316,6 +313,7 @@ impl Layout {
         if self_children.len() > other_children.len() {
             for self_child in &self_children[other_children.len()..] {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
                     entity_id: Some(self_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: Value::Null, // Representing removal
@@ -328,6 +326,9 @@ impl Layout {
 
     fn apply_children_updates(&mut self, updates: Vec<FieldUpdate>) {
         for update in updates {
+            if update.entity_type != EntityType::Panel {
+                continue;
+            }
             if let Some(entity_id) = &update.entity_id {
                 // Check if the update is for a child panel
                 if self.children.as_ref().map_or(false, |children| {
@@ -342,6 +343,7 @@ impl Layout {
                         .find(|p| p.id == *entity_id)
                     {
                         child_panel.apply_updates(vec![FieldUpdate {
+                            entity_type: EntityType::Panel,
                             entity_id: Some(child_panel.id.clone()),
                             field_name: update.field_name.clone(),
                             new_value: update.new_value.clone(),
@@ -431,6 +433,7 @@ impl Updatable for Layout {
         if self.title != other.title {
             if let Some(new_value) = &other.title {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()),
                     field_name: "title".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -440,6 +443,7 @@ impl Updatable for Layout {
         if self.refresh_interval != other.refresh_interval {
             if let Some(new_value) = other.refresh_interval {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "refresh_interval".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -447,18 +451,13 @@ impl Updatable for Layout {
             }
         }
 
-        updates.extend(
-            self.generate_children_diff(other)
-                .into_iter()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .collect::<Vec<_>>(),
-        );
+        updates.extend(self.generate_children_diff(other));
 
         // Compare other fields similarly...
         if self.fill != other.fill {
             if let Some(new_value) = other.fill {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "fill".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -469,6 +468,7 @@ impl Updatable for Layout {
         if self.fill_char != other.fill_char {
             if let Some(new_value) = other.fill_char {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "fill_char".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -479,6 +479,7 @@ impl Updatable for Layout {
         if self.selected_fill_char != other.selected_fill_char {
             if let Some(new_value) = other.selected_fill_char {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_fill_char".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -489,6 +490,7 @@ impl Updatable for Layout {
         if self.border != other.border {
             if let Some(new_value) = other.border {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "border".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -499,6 +501,7 @@ impl Updatable for Layout {
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -509,6 +512,7 @@ impl Updatable for Layout {
         if self.selected_border_color != other.selected_border_color {
             if let Some(new_value) = &other.selected_border_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -519,6 +523,7 @@ impl Updatable for Layout {
         if self.bg_color != other.bg_color {
             if let Some(new_value) = &other.bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -529,6 +534,7 @@ impl Updatable for Layout {
         if self.selected_bg_color != other.selected_bg_color {
             if let Some(new_value) = &other.selected_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -539,6 +545,7 @@ impl Updatable for Layout {
         if self.fg_color != other.fg_color {
             if let Some(new_value) = &other.fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -549,6 +556,7 @@ impl Updatable for Layout {
         if self.selected_fg_color != other.selected_fg_color {
             if let Some(new_value) = &other.selected_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -559,6 +567,7 @@ impl Updatable for Layout {
         if self.title_fg_color != other.title_fg_color {
             if let Some(new_value) = &other.title_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -569,6 +578,7 @@ impl Updatable for Layout {
         if self.title_bg_color != other.title_bg_color {
             if let Some(new_value) = &other.title_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -579,6 +589,7 @@ impl Updatable for Layout {
         if self.title_position != other.title_position {
             if let Some(new_value) = &other.title_position {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "title_position".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -589,6 +600,7 @@ impl Updatable for Layout {
         if self.selected_title_bg_color != other.selected_title_bg_color {
             if let Some(new_value) = &other.selected_title_bg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -599,6 +611,7 @@ impl Updatable for Layout {
         if self.selected_title_fg_color != other.selected_title_fg_color {
             if let Some(new_value) = &other.selected_title_fg_color {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -609,6 +622,7 @@ impl Updatable for Layout {
         if self.overflow_behavior != other.overflow_behavior {
             if let Some(new_value) = &other.overflow_behavior {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "overflow_behavior".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -619,6 +633,7 @@ impl Updatable for Layout {
         if self.root != other.root {
             if let Some(new_value) = other.root {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "root".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -629,6 +644,7 @@ impl Updatable for Layout {
         if self.on_keypress != other.on_keypress {
             if let Some(new_value) = &other.on_keypress {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "on_keypress".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -639,6 +655,7 @@ impl Updatable for Layout {
         if self.active != other.active {
             if let Some(new_value) = other.active {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "active".to_string(),
                     new_value: serde_json::to_value(&new_value).unwrap(),
@@ -649,6 +666,7 @@ impl Updatable for Layout {
         if self.panel_ids_in_tab_order != other.panel_ids_in_tab_order {
             if let Some(new_value) = &other.panel_ids_in_tab_order {
                 updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "panel_ids_in_tab_order".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -663,6 +681,9 @@ impl Updatable for Layout {
         let updates_for_children = updates.clone();
 
         for update in updates {
+            if update.entity_type != EntityType::Layout {
+                continue;
+            }
             match update.field_name.as_str() {
                 "title" => {
                     if let Some(new_title) = update.new_value.as_str() {

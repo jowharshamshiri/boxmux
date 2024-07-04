@@ -183,7 +183,6 @@ impl Runnable for RunnableImpl {
         let mut new_messages = Vec::new();
 
         if let Some(ref app_context_receiver) = self.app_context_receiver {
-            log::info!("Checking for updates in app_context_receiver");
             while let Ok((_, app_context)) = app_context_receiver.try_recv() {
                 log::info!("Received app_context update: {:?}", app_context);
                 app_context_updates = app_context;
@@ -318,7 +317,7 @@ impl ThreadManager {
             for reciever in self.app_context_receivers.values() {
                 if let Ok((uuid, app_context_updates)) = reciever.try_recv() {
                     if app_context_updates.is_empty() {
-                        log::info!("No updates received from thread {}", uuid);
+                        // log::info!("No updates received from thread {}", uuid);
                         continue;
                     } else {
                         log::info!(
