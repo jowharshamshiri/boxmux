@@ -2,6 +2,7 @@ use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::clone;
 use std::collections::HashMap;
 use std::hash::Hasher;
 
@@ -10,7 +11,7 @@ use crate::model::layout::Layout;
 
 use crate::{utils::*, AppContext, AppGraph};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Panel {
     pub id: String,
     pub title: Option<String>,
@@ -208,8 +209,8 @@ impl PartialEq for Panel {
 
 impl Eq for Panel {}
 
-impl DeepClone for Panel {
-    fn deep_clone(&self) -> Self {
+impl Clone for Panel {
+    fn clone(&self) -> Self {
         Panel {
             id: self.id.clone(),
             title: self.title.clone(),
@@ -228,7 +229,7 @@ impl DeepClone for Panel {
             children: self
                 .children
                 .as_ref()
-                .map(|children| children.iter().map(|panel| panel.deep_clone()).collect()),
+                .map(|children| children.iter().map(|panel| panel.clone()).collect()),
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
@@ -637,20 +638,123 @@ impl Panel {
     pub fn current_horizontal_scroll(&self) -> f64 {
         self.horizontal_scroll.unwrap_or(0.0)
     }
+
+    fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
+        let mut updates = Vec::new();
+
+        // Get references to children, defaulting to an empty slice if None
+        let self_children = self.children.as_deref().unwrap_or(&[]);
+        let other_children = other.children.as_deref().unwrap_or(&[]);
+
+        // Compare each pair of children
+        for (self_child, other_child) in self_children.iter().zip(other_children) {
+            let child_diffs = self_child.generate_diff(other_child);
+            for mut update in child_diffs {
+                // Set entity_id to reflect the nested structure
+                update.entity_id = Some(self_child.id.clone());
+                updates.push(update);
+            }
+        }
+
+        // Handle extra children in other
+        if self_children.len() < other_children.len() {
+            for other_child in &other_children[self_children.len()..] {
+                updates.push(FieldUpdate {
+                    entity_id: Some(other_child.id.clone()),
+                    field_name: "children".to_string(),
+                    new_value: serde_json::to_value(other_child).unwrap(),
+                });
+            }
+        }
+
+        // Handle extra children in self
+        if self_children.len() > other_children.len() {
+            for self_child in &self_children[other_children.len()..] {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self_child.id.clone()),
+                    field_name: "children".to_string(),
+                    new_value: Value::Null, // Representing removal
+                });
+            }
+        }
+
+        updates
+    }
+
+    fn apply_children_updates(&mut self, updates: Vec<FieldUpdate>) {
+        for update in updates {
+            if let Some(entity_id) = &update.entity_id {
+                // Check if the update is for a child panel
+                if self.children.as_ref().map_or(false, |children| {
+                    children.iter().any(|p| p.id == *entity_id)
+                }) {
+                    // Find the child panel and apply the update
+                    if let Some(child_panel) = self
+                        .children
+                        .as_mut()
+                        .unwrap()
+                        .iter_mut()
+                        .find(|p| p.id == *entity_id)
+                    {
+                        child_panel.apply_updates(vec![FieldUpdate {
+                            entity_id: Some(child_panel.id.clone()),
+                            field_name: update.field_name.clone(),
+                            new_value: update.new_value.clone(),
+                        }]);
+                    }
+                }
+            }
+
+            // If the entity_id matches the parent itself and field is "children", apply to all children
+            if update.field_name == "children" {
+                match update.new_value {
+                    Value::Null => {
+                        // Removing all children
+                        self.children = None;
+                    }
+                    _ => {
+                        if let Ok(new_children) =
+                            serde_json::from_value::<Vec<Panel>>(update.new_value.clone())
+                        {
+                            if self.children.is_none() {
+                                // Assign new children
+                                self.children = Some(new_children);
+                            } else {
+                                let self_children = self.children.as_mut().unwrap();
+                                for new_child in new_children {
+                                    if let Some(existing_child) =
+                                        self_children.iter_mut().find(|p| p.id == new_child.id)
+                                    {
+                                        // Update existing child
+                                        *existing_child = new_child;
+                                    } else {
+                                        // Add new child
+                                        self_children.push(new_child);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
-// Implement Updatable for Panel
 impl Updatable for Panel {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
-        // Compare each field
+        // Compare each field and add to updates if not null and different
         if self.title != other.title {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "title".to_string(),
-                new_value: serde_json::to_value(&other.title).unwrap(),
-            });
+            if let Some(new_value) = &other.title {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()),
+                    field_name: "title".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
+
         if self.position != other.position {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -659,7 +763,6 @@ impl Updatable for Panel {
             });
         }
 
-        // Compare other fields similarly...
         if self.anchor != other.anchor {
             updates.push(FieldUpdate {
                 entity_id: Some(self.id.clone()),
@@ -668,298 +771,347 @@ impl Updatable for Panel {
             });
         }
 
-        if self.min_width != other.min_width {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "min_width".to_string(),
-                new_value: serde_json::to_value(&other.min_width).unwrap(),
-            });
-        }
-
         if self.min_height != other.min_height {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "min_height".to_string(),
-                new_value: serde_json::to_value(&other.min_height).unwrap(),
-            });
+            if let Some(new_value) = other.min_height {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "min_height".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
-        if self.max_width != other.max_width {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "max_width".to_string(),
-                new_value: serde_json::to_value(&other.max_width).unwrap(),
-            });
+        if self.min_width != other.min_width {
+            if let Some(new_value) = other.min_width {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "min_width".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.max_height != other.max_height {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "max_height".to_string(),
-                new_value: serde_json::to_value(&other.max_height).unwrap(),
-            });
+            if let Some(new_value) = other.max_height {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "max_height".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.max_width != other.max_width {
+            if let Some(new_value) = other.max_width {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "max_width".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.overflow_behavior != other.overflow_behavior {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-
-                field_name: "overflow_behavior".to_string(),
-                new_value: serde_json::to_value(&other.overflow_behavior).unwrap(),
-            });
+            if let Some(new_value) = &other.overflow_behavior {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "overflow_behavior".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.scroll != other.scroll {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "scroll".to_string(),
                 new_value: serde_json::to_value(&other.scroll).unwrap(),
             });
         }
 
         if self.refresh_interval != other.refresh_interval {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "refresh_interval".to_string(),
-                new_value: serde_json::to_value(&other.refresh_interval).unwrap(),
-            });
+            if let Some(new_value) = other.refresh_interval {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "refresh_interval".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.tab_order != other.tab_order {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "tab_order".to_string(),
-                new_value: serde_json::to_value(&other.tab_order).unwrap(),
-            });
+            if let Some(new_value) = &other.tab_order {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "tab_order".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.next_focus_id != other.next_focus_id {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "next_focus_id".to_string(),
-                new_value: serde_json::to_value(&other.next_focus_id).unwrap(),
-            });
+            if let Some(new_value) = &other.next_focus_id {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "next_focus_id".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
-        if self.children != other.children {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "children".to_string(),
-                new_value: serde_json::to_value(&other.children).unwrap(),
-            });
-        }
+        updates.extend(self.generate_children_diff(other));
 
         if self.fill != other.fill {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "fill".to_string(),
                 new_value: serde_json::to_value(&other.fill).unwrap(),
             });
         }
 
         if self.fill_char != other.fill_char {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "fill_char".to_string(),
-                new_value: serde_json::to_value(&other.fill_char).unwrap(),
-            });
+            if let Some(new_value) = other.fill_char {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "fill_char".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_fill_char != other.selected_fill_char {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_fill_char".to_string(),
-                new_value: serde_json::to_value(&other.selected_fill_char).unwrap(),
-            });
+            if let Some(new_value) = other.selected_fill_char {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_fill_char".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.border != other.border {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "border".to_string(),
                 new_value: serde_json::to_value(&other.border).unwrap(),
             });
         }
 
         if self.border_color != other.border_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "border_color".to_string(),
-                new_value: serde_json::to_value(&other.border_color).unwrap(),
-            });
+            if let Some(new_value) = &other.border_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_border_color != other.selected_border_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_border_color".to_string(),
-                new_value: serde_json::to_value(&other.selected_border_color).unwrap(),
-            });
+            if let Some(new_value) = &other.selected_border_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.bg_color != other.bg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "bg_color".to_string(),
-                new_value: serde_json::to_value(&other.bg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.bg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_bg_color != other.selected_bg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_bg_color".to_string(),
-                new_value: serde_json::to_value(&other.selected_bg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.selected_bg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.fg_color != other.fg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "fg_color".to_string(),
-                new_value: serde_json::to_value(&other.fg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.fg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_fg_color != other.selected_fg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_fg_color".to_string(),
-                new_value: serde_json::to_value(&other.selected_fg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.selected_fg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.title_fg_color != other.title_fg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "title_fg_color".to_string(),
-                new_value: serde_json::to_value(&other.title_fg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.title_bg_color != other.title_bg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "title_bg_color".to_string(),
-                new_value: serde_json::to_value(&other.title_bg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_title_bg_color != other.selected_title_bg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_title_bg_color".to_string(),
-                new_value: serde_json::to_value(&other.selected_title_bg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.selected_title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected_title_fg_color != other.selected_title_fg_color {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "selected_title_fg_color".to_string(),
-                new_value: serde_json::to_value(&other.selected_title_fg_color).unwrap(),
-            });
+            if let Some(new_value) = &other.selected_title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.title_position != other.title_position {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "title_position".to_string(),
-                new_value: serde_json::to_value(&other.title_position).unwrap(),
-            });
+            if let Some(new_value) = &other.title_position {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "title_position".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.script != other.script {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "script".to_string(),
-                new_value: serde_json::to_value(&other.script).unwrap(),
-            });
+            if let Some(new_value) = &other.script {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "script".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.thread != other.thread {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "thread".to_string(),
                 new_value: serde_json::to_value(&other.thread).unwrap(),
             });
         }
 
         if self.on_keypress != other.on_keypress {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "on_keypress".to_string(),
-                new_value: serde_json::to_value(&other.on_keypress).unwrap(),
-            });
+            if let Some(new_value) = &other.on_keypress {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "on_keypress".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.horizontal_scroll != other.horizontal_scroll {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "horizontal_scroll".to_string(),
+            if let Some(new_value) = other.horizontal_scroll {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
 
-                new_value: serde_json::to_value(&other.horizontal_scroll).unwrap(),
-            });
+                    field_name: "horizontal_scroll".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.vertical_scroll != other.vertical_scroll {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "vertical_scroll".to_string(),
-                new_value: serde_json::to_value(&other.vertical_scroll).unwrap(),
-            });
+            if let Some(new_value) = other.vertical_scroll {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+
+                    field_name: "vertical_scroll".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.selected != other.selected {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "selected".to_string(),
                 new_value: serde_json::to_value(&other.selected).unwrap(),
             });
         }
 
         if self.content != other.content {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "content".to_string(),
-                new_value: serde_json::to_value(&other.content).unwrap(),
-            });
+            if let Some(new_value) = &other.content {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+
+                    field_name: "content".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.output != other.output {
             updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "output".to_string(),
                 new_value: serde_json::to_value(&other.output).unwrap(),
             });
         }
 
         if self.parent_id != other.parent_id {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "parent_id".to_string(),
-                new_value: serde_json::to_value(&other.parent_id).unwrap(),
-            });
+            if let Some(new_value) = &other.parent_id {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+
+                    field_name: "parent_id".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.parent_layout_id != other.parent_layout_id {
-            updates.push(FieldUpdate {
-                entity_id: Some(self.id.clone()),
-                field_name: "parent_layout_id".to_string(),
-                new_value: serde_json::to_value(&other.parent_layout_id).unwrap(),
-            });
+            if let Some(new_value) = &other.parent_layout_id {
+                updates.push(FieldUpdate {
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+
+                    field_name: "parent_layout_id".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         updates
     }
 
-    fn apply_updates(&mut self, updates: &[FieldUpdate]) {
+    fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
+        let updates_for_children = updates.clone();
         for update in updates {
-            if let Some(ref entity_id) = update.entity_id {
-                if entity_id != &self.id {
-                    continue;
-                }
-            }
             match update.field_name.as_str() {
                 "title" => {
                     if let Ok(new_title) =
@@ -975,19 +1127,11 @@ impl Updatable for Panel {
                         self.position = new_position;
                     }
                 }
-                // Handle other fields similarly...
                 "anchor" => {
                     if let Ok(new_anchor) =
                         serde_json::from_value::<Anchor>(update.new_value.clone())
                     {
                         self.anchor = new_anchor;
-                    }
-                }
-                "min_width" => {
-                    if let Ok(new_min_width) =
-                        serde_json::from_value::<Option<usize>>(update.new_value.clone())
-                    {
-                        self.min_width = new_min_width;
                     }
                 }
                 "min_height" => {
@@ -997,11 +1141,11 @@ impl Updatable for Panel {
                         self.min_height = new_min_height;
                     }
                 }
-                "max_width" => {
-                    if let Ok(new_max_width) =
+                "min_width" => {
+                    if let Ok(new_min_width) =
                         serde_json::from_value::<Option<usize>>(update.new_value.clone())
                     {
-                        self.max_width = new_max_width;
+                        self.min_width = new_min_width;
                     }
                 }
                 "max_height" => {
@@ -1009,6 +1153,13 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<usize>>(update.new_value.clone())
                     {
                         self.max_height = new_max_height;
+                    }
+                }
+                "max_width" => {
+                    if let Ok(new_max_width) =
+                        serde_json::from_value::<Option<usize>>(update.new_value.clone())
+                    {
+                        self.max_width = new_max_width;
                     }
                 }
                 "overflow_behavior" => {
@@ -1045,13 +1196,7 @@ impl Updatable for Panel {
                         self.next_focus_id = new_next_focus_id;
                     }
                 }
-                "children" => {
-                    if let Ok(new_children) =
-                        serde_json::from_value::<Option<Vec<Panel>>>(update.new_value.clone())
-                    {
-                        self.children = new_children;
-                    }
-                }
+                "children" => {}
                 "fill" => {
                     if let Ok(new_fill) =
                         serde_json::from_value::<Option<bool>>(update.new_value.clone())
@@ -1171,21 +1316,6 @@ impl Updatable for Panel {
                         self.thread = new_thread;
                     }
                 }
-                "on_keypress" => {
-                    if let Ok(new_on_keypress) = serde_json::from_value::<
-                        Option<HashMap<String, Vec<String>>>,
-                    >(update.new_value.clone())
-                    {
-                        self.on_keypress = new_on_keypress;
-                    }
-                }
-                "output" => {
-                    if let Ok(new_output) =
-                        serde_json::from_value::<String>(update.new_value.clone())
-                    {
-                        self.output = new_output;
-                    }
-                }
                 "horizontal_scroll" => {
                     if let Ok(new_horizontal_scroll) =
                         serde_json::from_value::<Option<f64>>(update.new_value.clone())
@@ -1207,6 +1337,20 @@ impl Updatable for Panel {
                         self.selected = new_selected;
                     }
                 }
+                "content" => {
+                    if let Ok(new_content) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.content = new_content;
+                    }
+                }
+                "output" => {
+                    if let Ok(new_output) =
+                        serde_json::from_value::<String>(update.new_value.clone())
+                    {
+                        self.output = new_output;
+                    }
+                }
                 "parent_id" => {
                     if let Ok(new_parent_id) =
                         serde_json::from_value::<Option<String>>(update.new_value.clone())
@@ -1221,8 +1365,11 @@ impl Updatable for Panel {
                         self.parent_layout_id = new_parent_layout_id;
                     }
                 }
+
+                // Handle other fields similarly...
                 _ => log::warn!("Unknown field name for Panel: {}", update.field_name),
             }
         }
+        self.apply_children_updates(updates_for_children);
     }
 }

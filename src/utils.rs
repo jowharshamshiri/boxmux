@@ -384,9 +384,13 @@ pub fn apply_buffer_if_changed(
 }
 
 pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
-    for panel in &layout.children {
-        if Some(true) == panel.selected {
-            return Some(panel.id.clone());
+    if let Some(children) = &layout.children {
+        for panel in children {
+            if let Some(selected) = panel.selected {
+                if selected {
+                    return Some(panel.id.clone());
+                }
+            }
         }
     }
 
@@ -396,16 +400,18 @@ pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
 pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
     let mut result: HashMap<String, i32> = HashMap::new();
 
-    for panel in &layout.children {
-        let tab_order = panel.tab_order.clone();
-        if tab_order.is_some() {
-            result.insert(
-                panel.id.clone(),
-                tab_order
-                    .unwrap()
-                    .parse::<i32>()
-                    .expect("Invalid tab order"),
-            );
+    if let Some(children) = &layout.children {
+        for panel in children {
+            let tab_order = panel.tab_order.clone();
+            if tab_order.is_some() {
+                result.insert(
+                    panel.id.clone(),
+                    tab_order
+                        .unwrap()
+                        .parse::<i32>()
+                        .expect("Invalid tab order"),
+                );
+            }
         }
     }
 

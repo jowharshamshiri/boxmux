@@ -96,15 +96,17 @@ pub fn draw_layout(
     // Set the background for the layout
     fill_panel(&screen_bounds(), false, &bg_color, fill_char, buffer);
 
-    for panel in &layout.children {
-        draw_panel(
-            app_context,
-            app_graph,
-            adjusted_bounds,
-            layout,
-            &panel,
-            buffer,
-        );
+    if let Some(children) = &cloned_layout.children {
+        for panel in children.iter() {
+            draw_panel(
+                app_context,
+                app_graph,
+                adjusted_bounds,
+                layout,
+                &panel,
+                buffer,
+            );
+        }
     }
 }
 
@@ -511,10 +513,9 @@ pub fn render_panel(
                 .skip(vertical_offset)
                 .take(viewable_height);
 
-			let total_lines = content_lines.len();
-			let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
-			let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
-	
+            let total_lines = content_lines.len();
+            let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
+            let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
 
             for (line_idx, line) in visible_lines.enumerate() {
                 let visible_part = line
@@ -595,7 +596,7 @@ pub fn render_panel(
             // Calculate total height of the content block
             let total_lines = content_lines.len();
             let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
-			let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
+            let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
 
             // Iterate through the content lines and print them
             for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
@@ -605,7 +606,6 @@ pub fn render_panel(
                     .take(viewable_width)
                     .collect::<String>();
 
-                
                 print_with_color_and_background_at(
                     bounds.top() + 2 + vertical_padding + i,
                     bounds.left() + 2 + horizontal_padding,

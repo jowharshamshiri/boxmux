@@ -14,9 +14,9 @@ use std::collections::HashSet;
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
-use crate::{calculate_bounds_map, Config, DeepClone, FieldUpdate, Updatable};
+use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct App {
     pub layouts: Vec<Layout>,
     #[serde(default)]
@@ -192,7 +192,10 @@ impl App {
                 }
                 root_layout_id = Some(layout.id.clone());
             }
-            for panel in &mut layout.children {
+            if layout.children.is_none() {
+                continue;
+            }
+            for panel in layout.children.as_mut().unwrap() {
                 set_parent_ids(panel, &layout.id, None);
             }
         }
@@ -254,20 +257,17 @@ impl App {
     }
 }
 
-impl DeepClone for App {
-    fn deep_clone(&self) -> Self {
+impl Clone for App {
+    fn clone(&self) -> Self {
         App {
-            layouts: self
-                .layouts
-                .iter()
-                .map(|layout| layout.deep_clone())
-                .collect(),
+            layouts: self.layouts.iter().map(|layout| layout.clone()).collect(),
             on_keypress: self.on_keypress.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
         }
     }
 }
+
 // Implement Updatable for App
 impl Updatable for App {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
@@ -304,7 +304,8 @@ impl Updatable for App {
         updates
     }
 
-    fn apply_updates(&mut self, updates: &[FieldUpdate]) {
+    fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
+        let updates_for_layouts = updates.clone();
         for update in updates {
             match update.field_name.as_str() {
                 "on_keypress" => {
@@ -324,19 +325,12 @@ impl Updatable for App {
                     }
                 }
                 _ => {
-                    // Delegate to the correct layout
-                    for layout in &mut self.layouts {
-                        if update.entity_id.as_deref() == Some(&format!("app.layout.{}", layout.id))
-                        {
-                            layout.apply_updates(&[FieldUpdate {
-                                entity_id: None,
-                                field_name: update.field_name.clone(),
-                                new_value: update.new_value.clone(),
-                            }]);
-                        }
-                    }
+                    log::warn!("Unknown field name for App: {}", update.field_name);
                 }
             }
+        }
+        for layout in &mut self.layouts {
+            layout.apply_updates(updates_for_layouts.clone());
         }
     }
 }
@@ -390,8 +384,16 @@ impl AppGraph {
         let mut graph = DiGraph::new();
         let mut node_map = HashMap::new();
 
-        for panel in &layout.children {
-            self.add_panel_recursively(&mut graph, &mut node_map, panel.clone(), None, &layout.id);
+        if let Some(children) = &layout.children {
+            for panel in children {
+                self.add_panel_recursively(
+                    &mut graph,
+                    &mut node_map,
+                    panel.clone(),
+                    None,
+                    &layout.id,
+                );
+            }
         }
 
         self.graphs.insert(layout.id.clone(), graph);
@@ -493,7 +495,7 @@ impl AppGraph {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AppContext {
     pub app: App,
     pub config: Config,
@@ -510,7 +512,7 @@ impl Updatable for AppContext {
                 .into_iter()
                 .map(|mut update| {
                     update.entity_id = None; // Top-level field
-                    update.field_name = format!("app.{}", update.field_name);
+                    update.field_name = update.field_name;
                     update
                 }),
         );
@@ -527,28 +529,23 @@ impl Updatable for AppContext {
         updates
     }
 
-    fn apply_updates(&mut self, updates: &[FieldUpdate]) {
+    fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
+        let updates_for_layouts = updates.clone();
+
         for update in updates {
-            if update.field_name.starts_with("app.") {
-                let app_update = FieldUpdate {
-                    entity_id: None,
-                    field_name: update.field_name.strip_prefix("app.").unwrap().to_string(),
-                    new_value: update.new_value.clone(),
-                };
-                self.app.apply_updates(&[app_update]);
-            } else {
-                match update.field_name.as_str() {
-                    "config" => {
-                        if let Ok(new_config) =
-                            serde_json::from_value::<Config>(update.new_value.clone())
-                        {
-                            self.config = new_config;
-                        }
+            match update.field_name.as_str() {
+                "config" => {
+                    if let Ok(new_config) =
+                        serde_json::from_value::<Config>(update.new_value.clone())
+                    {
+                        self.config = new_config;
                     }
-                    _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
                 }
+                _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
             }
         }
+
+        self.app.apply_updates(updates_for_layouts);
     }
 }
 
@@ -566,10 +563,10 @@ impl AppContext {
     }
 }
 
-impl DeepClone for AppContext {
-    fn deep_clone(&self) -> Self {
+impl Clone for AppContext {
+    fn clone(&self) -> Self {
         AppContext {
-            app: self.app.deep_clone(),
+            app: self.app.clone(),
             config: self.config.clone(),
         }
     }
@@ -627,8 +624,10 @@ fn check_unique_ids(
     layout: &Layout,
     id_set: &mut HashSet<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    for panel in &layout.children {
-        check_panel_ids(panel, id_set)?;
+    if let Some(children) = &layout.children {
+        for panel in children {
+            check_panel_ids(panel, id_set)?;
+        }
     }
     Ok(())
 }
