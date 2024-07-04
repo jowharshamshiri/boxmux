@@ -24,11 +24,7 @@ pub trait Updatable {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate>;
 
     // Apply a list of updates to the current instance
-    fn apply_updates(&mut self, updates: &[FieldUpdate]);
-}
-
-pub trait DeepClone {
-    fn deep_clone(&self) -> Self;
+    fn apply_updates(&mut self, updates: Vec<FieldUpdate>);
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -618,14 +614,16 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
     }
 
     let root_bounds = screen_bounds();
-    for panel in &layout.children {
-        dfs(
-            app_graph,
-            &layout.id,
-            panel,
-            root_bounds.clone(),
-            &mut bounds_map,
-        );
+    if let Some(children) = &layout.children {
+        for panel in children {
+            dfs(
+                app_graph,
+                &layout.id,
+                panel,
+                root_bounds.clone(),
+                &mut bounds_map,
+            );
+        }
     }
 
     bounds_map
@@ -701,9 +699,11 @@ pub fn adjust_bounds_with_constraints(
         }
     }
 
-    for panel in &layout.children {
-        let parent_bounds = dfs(panel, &mut bounds_map);
-        revalidate_children(panel, &mut bounds_map, &parent_bounds);
+    if let Some(children) = &layout.children {
+        for panel in children {
+            let parent_bounds = dfs(panel, &mut bounds_map);
+            revalidate_children(panel, &mut bounds_map, &parent_bounds);
+        }
     }
 
     bounds_map

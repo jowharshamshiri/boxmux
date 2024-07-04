@@ -1,5 +1,5 @@
 use crate::model::app::AppContext;
-use crate::{DeepClone, FieldUpdate, Updatable};
+use crate::{FieldUpdate, Updatable};
 use log::{error, info};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -132,7 +132,7 @@ impl RunnableImpl {
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let (mut updated_app_context, new_messages) = self.receive_updates();
         // self.app_context.apply_updates(&app_context_updates);
-        let original_app_context = updated_app_context.deep_clone();
+        let original_app_context = updated_app_context.clone();
         let mut should_continue = true;
         // let mut result_app_context = None;
         for message in new_messages.iter() {
@@ -162,7 +162,7 @@ impl RunnableImpl {
 
         if self.running_state == RunnableState::Running {
             let (process_should_continue, result_app_context) =
-                process_fn(self, self.app_context.deep_clone(), new_messages);
+                process_fn(self, self.app_context.clone(), new_messages);
             if result_app_context != original_app_context {
                 self.app_context = result_app_context;
                 self.send_app_context_update(original_app_context);
@@ -190,8 +190,8 @@ impl Runnable for RunnableImpl {
             }
         }
 
-        let mut updated_app_context = self.app_context.deep_clone();
-        updated_app_context.apply_updates(&app_context_updates);
+        let mut updated_app_context = self.app_context.clone();
+        updated_app_context.apply_updates(app_context_updates);
 
         if let Some(ref message_receiver) = self.message_receiver {
             while let Ok((_, message)) = message_receiver.try_recv() {
@@ -207,7 +207,7 @@ impl Runnable for RunnableImpl {
     }
 
     fn update_app_context(&mut self, app_context: AppContext) {
-        let old_app_context = self.app_context.deep_clone();
+        let old_app_context = self.app_context.clone();
         self.app_context = app_context;
         self.send_app_context_update(old_app_context);
     }
@@ -317,31 +317,30 @@ impl ThreadManager {
             // Handle app_context updates
             for reciever in self.app_context_receivers.values() {
                 if let Ok((uuid, app_context_updates)) = reciever.try_recv() {
-                    log::info!(
-                        "Received app_context update from thread {}: {:?}",
-                        uuid,
-                        app_context_updates
-                    );
-                    let original_app_context = self.app_context.clone();
-                    let initial_hash = self.get_hash(&original_app_context);
-                    let received_hash = self.get_hash(&app_context_updates);
-
-                    if initial_hash != received_hash {
-                        log::info!(
-                            "Sending app_context update to all threads: {:?}",
-                            app_context_updates
-                        );
-                        self.app_context.apply_updates(&app_context_updates);
-                        self.send_app_context_update_to_all_threads((
-                            uuid,
-                            self.app_context.generate_diff(&original_app_context),
-                        ));
-                        has_updates = true;
+                    if app_context_updates.is_empty() {
+                        log::info!("No updates received from thread {}", uuid);
+                        continue;
                     } else {
                         log::info!(
-                            "Received app_context update is the same as the current app_context"
+                            "Received {} updates from thread {}: {:?}",
+                            app_context_updates.len(),
+                            uuid,
+                            app_context_updates
                         );
                     }
+
+                    let original_app_context = self.app_context.clone();
+
+                    log::info!(
+                        "Sending app_context update to all threads: {:?}",
+                        app_context_updates
+                    );
+                    self.app_context.apply_updates(app_context_updates);
+                    self.send_app_context_update_to_all_threads((
+                        uuid,
+                        self.app_context.generate_diff(&original_app_context),
+                    ));
+                    has_updates = true;
                 }
             }
 

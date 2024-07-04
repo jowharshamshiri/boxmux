@@ -7,7 +7,6 @@ use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::socket_loop::SocketLoop;
 use boxmux_lib::thread_manager;
 use boxmux_lib::Config;
-use boxmux_lib::DeepClone;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
@@ -59,7 +58,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          messages: Vec<Message>,
                          vec: Vec<String>|
                          -> (bool, AppContext) {
-                            let mut app_context_unwrapped = app_context.deep_clone();
+                            let mut app_context_unwrapped = app_context.clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
                             let panel = app_context_unwrapped
                                 .app
@@ -75,7 +74,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                     );
 
                     let panel_refresh_loop =
-                        PanelRefreshLoop::new(app_context.deep_clone(), Box::new(vec_fn));
+                        PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
                     manager.spawn_thread(panel_refresh_loop);
                 } else {
                     non_threaded_panels.push(panel_id.clone());
@@ -98,7 +97,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  messages: Vec<Message>,
                  vec: Vec<String>|
                  -> (bool, AppContext) {
-                    let mut app_context_unwrapped = app_context.deep_clone();
+                    let mut app_context_unwrapped = app_context.clone();
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
@@ -131,8 +130,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                 }
             );
 
-            let panel_refresh_loop =
-                PanelRefreshLoop::new(app_context.deep_clone(), Box::new(vec_fn));
+            let panel_refresh_loop = PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
             manager.spawn_thread(panel_refresh_loop);
         }
     }
@@ -283,12 +281,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     }
     // }
 
-    let mut manager = ThreadManager::new(app_context.deep_clone());
+    let mut manager = ThreadManager::new(app_context.clone());
 
-    let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.deep_clone()));
-    let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.deep_clone()));
-    let resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.deep_clone()));
-    let socket_loop_uuid = manager.spawn_thread(SocketLoop::new(app_context.deep_clone()));
+    let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
+    let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.clone()));
+    let resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.clone()));
+    let socket_loop_uuid = manager.spawn_thread(SocketLoop::new(app_context.clone()));
 
     run_panel_threads(&mut manager, &app_context);
 
