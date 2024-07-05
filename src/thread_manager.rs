@@ -183,9 +183,11 @@ impl Runnable for RunnableImpl {
         let mut new_messages = Vec::new();
 
         if let Some(ref app_context_receiver) = self.app_context_receiver {
-            while let Ok((_, app_context)) = app_context_receiver.try_recv() {
-                log::info!("Received app_context update: {:?}", app_context);
-                app_context_updates = app_context;
+            while let Ok((_, received_field_updates)) = app_context_receiver.try_recv() {
+                if !received_field_updates.is_empty() {
+                    log::info!("Received app_context update: {:?}", received_field_updates);
+                    app_context_updates = received_field_updates;
+                }
             }
         }
 

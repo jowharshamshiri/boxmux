@@ -1092,12 +1092,14 @@ impl Updatable for Panel {
         }
 
         if self.selected != other.selected {
-            updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
-                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-                field_name: "selected".to_string(),
-                new_value: serde_json::to_value(&other.selected).unwrap(),
-            });
+            if let Some(new_value) = other.selected {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
         }
 
         if self.content != other.content {
