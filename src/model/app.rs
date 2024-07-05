@@ -255,6 +255,18 @@ impl App {
             app_graph
         }
     }
+
+    pub fn replace_panel(&mut self, panel: Panel) {
+        for layout in &mut self.layouts {
+            let children = &mut layout.get_all_panels();
+            for child in children {
+                if child.id == panel.id {
+                    *child = &panel.clone();
+                    return;
+                }
+            }
+        }
+    }
 }
 
 impl Clone for App {

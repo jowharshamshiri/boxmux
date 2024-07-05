@@ -1,8 +1,8 @@
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, AppContext,
-    ScreenBuffer, SocketFunction,
+    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, run_socket_function,
+    AppContext, ScreenBuffer, SocketFunction,
 };
 use crate::{thread_manager::*, FieldUpdate};
 use clap::App;
@@ -248,28 +248,19 @@ create_runnable!(
                         let message_result: Result<SocketFunction, _> =
                             serde_json::from_str(json_message.trim());
                         match message_result {
-                            Ok(socket_function) => match socket_function {
-                                SocketFunction::UpdatePanelContent { panel_id, content } => {
-                                    update_panel_content(
-                                        inner,
-                                        &mut app_context_unwrapped,
-                                        &panel_id,
-                                        &content,
-                                    );
+                            Ok(socket_function) => {
+                                match run_socket_function(socket_function, &app_context_unwrapped) {
+                                    Ok((new_app_context, messages)) => {
+                                        app_context_unwrapped = new_app_context;
+                                        for message in messages {
+                                            inner.send_message(message);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::error!("Error running socket function: {}", e);
+                                    }
                                 }
-                                SocketFunction::ChangeActiveLayout { layout_id } => {
-                                    app_context_unwrapped.app.set_active_layout(&layout_id);
-                                    inner.update_app_context(app_context_unwrapped.clone());
-                                    inner.send_message(Message::RedrawApp);
-                                }
-                                SocketFunction::UpdatePanelScript { panel_id, script } => todo!(),
-                                SocketFunction::StopPanelRefresh { panel_id } => todo!(),
-                                SocketFunction::StartPanelRefresh { panel_id } => todo!(),
-                                SocketFunction::UpdatePanel {
-                                    panel_id,
-                                    new_panel,
-                                } => todo!(),
-                            },
+                            }
                             Err(e) => {
                                 log::error!("Error reading socket message: {}", e);
                             }
@@ -311,9 +302,9 @@ create_runnable!(
                 }
             }
             // Ensure the loop continues by sleeping briefly
-            // std::thread::sleep(std::time::Duration::from_millis(
-            //     app_context.config.frame_delay,
-            // ));
+            std::thread::sleep(std::time::Duration::from_millis(
+                app_context.config.frame_delay,
+            ));
             return (should_continue, app_context_unwrapped);
         }
 

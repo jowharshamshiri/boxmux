@@ -4,13 +4,17 @@ extern crate clap;
 
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
+use boxmux_lib::send_json_to_socket;
 use boxmux_lib::socket_loop::SocketLoop;
 use boxmux_lib::thread_manager;
 use boxmux_lib::Config;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
+use boxmux_lib::Panel;
+use boxmux_lib::SocketFunction;
 use clap::{App, Arg, SubCommand};
+use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -137,10 +141,10 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let matches = App::new("Crossbash")
+    let matches = App::new("Boxmux")
         .version("1.0")
         .author("jowharshamshiri@gmail.com")
-        .about("TUI based on the provided YAML configuration.")
+        .about("A terminal multiplexer")
         .arg(
             Arg::new("yaml_file")
                 .required(true)
@@ -176,8 +180,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("update_panel")
-                .about("Updates the panel with the provided Panel")
+            SubCommand::with_name("replace_panel")
+                .about("Replaces the panel with the provided Panel")
                 .arg(
                     Arg::new("panel_id")
                         .required(true)
@@ -233,13 +237,212 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("The new content to update the panel with"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("add_panel")
+                .about("Adds a panel to a layout")
+                .arg(
+                    Arg::new("layout_id")
+                        .required(true)
+                        .index(1)
+                        .help("The layout id to add the panel to"),
+                )
+                .arg(
+                    Arg::new("panel_json")
+                        .required(true)
+                        .index(2)
+                        .help("The panel to add to the layout"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("remove_panel")
+                .about("Removes a panel from its layout")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(2)
+                        .help("The panel id to remove from its layout"),
+                ),
+        )
         .get_matches();
 
-    // Handle the send_json subcommand
-    if let Some(matches) = matches.subcommand_matches("update_panel") {
-        let json_input = matches.value_of("json_input").unwrap();
-        // send_json_to_socket(json_input)?;
-        return Ok(());
+    // Handle the stop_panel_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("stop_panel_refresh") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::StopPanelRefresh {
+                panel_id: panel_id.to_string(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for stop_panel_refresh command".into());
+        }
+    }
+
+    // Handle the start_panel_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("start_panel_refresh") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::StartPanelRefresh {
+                panel_id: panel_id.to_string(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for start_panel_refresh command".into());
+        }
+    }
+
+    // Handle the replace_panel subcommand
+    if let Some(matches) = matches.subcommand_matches("replace_panel") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            if let Some(new_panel_json) = matches.value_of("new_panel_json") {
+                // Construct the enum variant using the struct syntax
+                let submitted_panel = serde_json::from_str::<Panel>(new_panel_json)?;
+
+                let socket_function = SocketFunction::ReplacePanel {
+                    panel_id: panel_id.to_string(),
+                    new_panel: submitted_panel,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("New Panel JSON is required for replace_panel command".into());
+            }
+        } else {
+            return Err("Panel ID is required for replace_panel command".into());
+        }
+    }
+
+    // Handle the switch_active_layout subcommand
+    if let Some(matches) = matches.subcommand_matches("switch_active_layout") {
+        if let Some(layout_id_to_switch_to) = matches.value_of("layout_id_to_switch_to") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::SwitchActiveLayout {
+                layout_id: layout_id_to_switch_to.to_string(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Layout ID is required for switch_active_layout command".into());
+        }
+    }
+
+    // Handle the update_panel_script subcommand
+    if let Some(matches) = matches.subcommand_matches("update_panel_script") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            if let Some(new_panel_script) = matches.value_of("new_panel_script") {
+                let new_panel_script = serde_json::from_str::<Vec<String>>(new_panel_script)?;
+
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::ReplacePanelScript {
+                    panel_id: panel_id.to_string(),
+                    script: new_panel_script,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("New Panel Script is required for update_panel_script command".into());
+            }
+        } else {
+            return Err("Panel ID is required for update_panel_script command".into());
+        }
+    }
+
+    // Handle the update_panel_content subcommand
+    if let Some(matches) = matches.subcommand_matches("update_panel_content") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            if let Some(new_panel_content) = matches.value_of("new_panel_content") {
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::ReplacePanelContent {
+                    panel_id: panel_id.to_string(),
+                    content: new_panel_content.to_string(),
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err(
+                    "New Panel Content is required for update_panel_content command".into(),
+                );
+            }
+        } else {
+            return Err("Panel ID is required for update_panel_content command".into());
+        }
+    }
+
+    // Handle the add_panel subcommand
+    if let Some(matches) = matches.subcommand_matches("add_panel") {
+        if let Some(layout_id) = matches.value_of("layout_id") {
+            if let Some(panel_json) = matches.value_of("panel_json") {
+                let submitted_panel = serde_json::from_str::<Panel>(panel_json)?;
+
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::AddPanel {
+                    layout_id: layout_id.to_string(),
+                    panel: submitted_panel,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Panel JSON is required for add_panel command".into());
+            }
+        } else {
+            return Err("Layout ID is required for add_panel command".into());
+        }
+    }
+
+    // Handle the remove_panel subcommand
+    if let Some(matches) = matches.subcommand_matches("remove_panel") {
+        if let Some(panel_id) = matches.value_of("panel_id") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::RemovePanel {
+                panel_id: panel_id.to_string(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for remove_panel command".into());
+        }
     }
 
     let yaml_path = matches.value_of("yaml_file").unwrap();
@@ -271,16 +474,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write!(_stdout, "{}", termion::screen::ToAlternateScreen)?;
     write!(_stdout, "{}", termion::clear::All)?;
 
-    // let panel_ids_to_modify: Vec<String> = vec!["log_input".to_string()];
-
-    // for panel_id in panel_ids_to_modify {
-    //     if let Some(panel) = app_context.app.get_panel_by_id_mut(&panel_id) {
-    //         let data = vec![("A", 5), ("B", 3), ("C", 8), ("D", 2), ("E", 6), ("F", 7), ("G", 4), ("H", 5)];
-    //         let chart = generate_bar_chart(data, 10, 50);
-    //         panel.content = Some(chart);
-    //     }
-    // }
-
     let mut manager = ThreadManager::new(app_context.clone());
 
     let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
@@ -291,6 +484,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_panel_threads(&mut manager, &app_context);
 
     manager.run();
+
+    // manager.sen
 
     //restore normal screen
     write!(_stdout, "{}", termion::screen::ToMainScreen)?;

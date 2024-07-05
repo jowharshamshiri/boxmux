@@ -270,7 +270,7 @@ layouts:
                   x2: 48%
                   y2: 45%
                 script:
-                  - log show --predicate 'eventMessage contains "Error"' --info --last 1h
+                  - log show --predicate 'eventMessage contains "Error"' --info --last 1m
               - id: 'application_logs'
                 title: 'Application Logs'
                 position:

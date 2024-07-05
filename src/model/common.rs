@@ -1,12 +1,18 @@
 use regex::Regex;
 use serde_json::Value;
-use std::{collections::HashMap, error::Error, hash::Hash};
+use std::{
+    collections::HashMap,
+    error::Error,
+    hash::Hash,
+    io::{self, Read, Write},
+    os::unix::net::UnixStream,
+};
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
     screen_bounds, screen_height, screen_width,
     utils::input_bounds_to_bounds,
-    AppGraph, Layout, Panel,
+    AppContext, AppGraph, Layout, Message, Panel,
 };
 use serde::{Deserialize, Serialize};
 
@@ -68,43 +74,73 @@ impl Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum SocketFunction {
-    UpdatePanelContent { panel_id: String, content: String },
-    UpdatePanelScript { panel_id: String, script: String },
-    StopPanelRefresh { panel_id: String },
-    StartPanelRefresh { panel_id: String },
-    UpdatePanel { panel_id: String, new_panel: Panel },
-    ChangeActiveLayout { layout_id: String },
+    ReplacePanelContent {
+        panel_id: String,
+        content: String,
+    },
+    ReplacePanelScript {
+        panel_id: String,
+        script: Vec<String>,
+    },
+    StopPanelRefresh {
+        panel_id: String,
+    },
+    StartPanelRefresh {
+        panel_id: String,
+    },
+    ReplacePanel {
+        panel_id: String,
+        new_panel: Panel,
+    },
+    SwitchActiveLayout {
+        layout_id: String,
+    },
+    AddPanel {
+        layout_id: String,
+        panel: Panel,
+    },
+    RemovePanel {
+        panel_id: String,
+    },
 }
 
-// pub fn run_socket_function(
-//     app_graph: &mut AppGraph,
-//     socket_function: SocketFunction,
-// ) -> Result<(), Box<dyn Error>> {
-//     match socket_function {
-//         SocketFunction::UpdatePanelContent { panel_id, content } => {
-//             app_graph.update_panel_content(&panel_id, &content)?;
-//         }
-//         SocketFunction::UpdatePanelScript { panel_id, script } => {
-//             app_graph.update_panel_script(&panel_id, &script)?;
-//         }
-//         SocketFunction::StopPanelRefresh { panel_id } => {
-//             app_graph.stop_panel_refresh(&panel_id)?;
-//         }
-//         SocketFunction::StartPanelRefresh { panel_id } => {
-//             app_graph.start_panel_refresh(&panel_id)?;
-//         }
-//         SocketFunction::UpdatePanel {
-//             panel_id,
-//             new_panel,
-//         } => {
-//             app_graph.update_panel(&panel_id, new_panel)?;
-//         }
-//         SocketFunction::ChangeActiveLayout { layout_id } => {
-//             app_graph.change_active_layout(&layout_id)?;
-//         }
-//     }
-//     Ok(())
-// }
+pub fn run_socket_function(
+    socket_function: SocketFunction,
+    app_context: &AppContext,
+) -> Result<(AppContext, Vec<Message>), Box<dyn Error>> {
+    let mut app_context = app_context.clone();
+    let mut messages = Vec::new();
+    match socket_function {
+        SocketFunction::ReplacePanelContent { panel_id, content } => {
+            messages.push(Message::PanelOutputUpdate(panel_id, content));
+        }
+        SocketFunction::ReplacePanelScript { panel_id, script } => {
+            messages.push(Message::PanelScriptUpdate(panel_id, script));
+        }
+        SocketFunction::StopPanelRefresh { panel_id } => {
+            messages.push(Message::StopPanelRefresh(panel_id));
+        }
+        SocketFunction::StartPanelRefresh { panel_id } => {
+            messages.push(Message::StartPanelRefresh(panel_id));
+        }
+        SocketFunction::ReplacePanel {
+            panel_id,
+            new_panel,
+        } => {
+            messages.push(Message::ReplacePanel(panel_id, new_panel));
+        }
+        SocketFunction::SwitchActiveLayout { layout_id } => {
+            messages.push(Message::SwitchActiveLayout(layout_id));
+        }
+        SocketFunction::AddPanel { layout_id, panel } => {
+            messages.push(Message::AddPanel(layout_id, panel));
+        }
+        SocketFunction::RemovePanel { panel_id } => {
+            messages.push(Message::RemovePanel(panel_id));
+        }
+    }
+    Ok((app_context, messages))
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cell {
@@ -721,6 +757,14 @@ pub fn adjust_bounds_with_constraints(
 pub fn calculate_bounds_map(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
     let bounds_map = calculate_initial_bounds(app_graph, layout);
     adjust_bounds_with_constraints(layout, bounds_map)
+}
+
+pub fn send_json_to_socket(socket_path: &str, json: &str) -> io::Result<String> {
+    let mut stream = UnixStream::connect(socket_path)?;
+    stream.write_all(json.as_bytes())?;
+    let mut response = String::new();
+    stream.read_to_string(&mut response)?;
+    Ok(response)
 }
 
 #[cfg(test)]
