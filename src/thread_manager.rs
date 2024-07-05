@@ -1,5 +1,6 @@
 use crate::model::app::AppContext;
-use crate::{FieldUpdate, Updatable};
+use crate::{FieldUpdate, Panel, Updatable};
+use bincode;
 use log::{error, info};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -7,7 +8,6 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 use uuid::Uuid;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
     Exit,
@@ -25,8 +25,15 @@ pub enum Message {
     RedrawApp,
     PanelEventRefresh(String),
     PanelOutputUpdate(String, String),
+    PanelScriptUpdate(String, Vec<String>),
+    ReplacePanel(String, Panel),
+    StopPanelRefresh(String),
+    StartPanelRefresh(String),
+    SwitchActiveLayout(String),
     KeyPress(String),
     ExternalMessage(String),
+    AddPanel(String, Panel),
+    RemovePanel(String),
 }
 
 impl Hash for Message {
@@ -42,6 +49,10 @@ impl Hash for Message {
                 panel_id.hash(state);
             }
             Message::RedrawApp => "redraw_app".hash(state),
+            Message::SwitchActiveLayout(layout_id) => {
+                "switch_active_layout".hash(state);
+                layout_id.hash(state);
+            }
             Message::PanelEventRefresh(panel_id) => {
                 "panel_event_refresh".hash(state);
                 panel_id.hash(state);
@@ -55,6 +66,16 @@ impl Hash for Message {
                 panel_id.hash(state);
                 output.hash(state);
             }
+            Message::PanelScriptUpdate(panel_id, script) => {
+                "panel_script_update".hash(state);
+                panel_id.hash(state);
+                script.hash(state);
+            }
+            Message::ReplacePanel(panel_id, panel) => {
+                "replace_panel".hash(state);
+                panel_id.hash(state);
+                panel.hash(state);
+            }
             Message::KeyPress(pressed_key) => {
                 "key_press".hash(state);
                 pressed_key.hash(state);
@@ -65,6 +86,23 @@ impl Hash for Message {
                 msg.hash(state);
             }
             Message::Start => "start".hash(state),
+            Message::StopPanelRefresh(panel_id) => {
+                "stop_panel_refresh".hash(state);
+                panel_id.hash(state);
+            }
+            Message::StartPanelRefresh(panel_id) => {
+                "start_panel_refresh".hash(state);
+                panel_id.hash(state);
+            }
+            Message::AddPanel(panel_id, panel) => {
+                "add_panel".hash(state);
+                panel_id.hash(state);
+                panel.hash(state);
+            }
+            Message::RemovePanel(panel_id) => {
+                "remove_panel".hash(state);
+                panel_id.hash(state);
+            }
         }
     }
 }
@@ -130,11 +168,9 @@ impl RunnableImpl {
         &mut self,
         process_fn: &mut dyn FnMut(&mut Self, AppContext, Vec<Message>) -> (bool, AppContext),
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        let (mut updated_app_context, new_messages) = self.receive_updates();
-        // self.app_context.apply_updates(&app_context_updates);
+        let (updated_app_context, new_messages) = self.receive_updates();
         let original_app_context = updated_app_context.clone();
         let mut should_continue = true;
-        // let mut result_app_context = None;
         for message in new_messages.iter() {
             match message {
                 Message::Exit => {
@@ -185,7 +221,11 @@ impl Runnable for RunnableImpl {
         if let Some(ref app_context_receiver) = self.app_context_receiver {
             while let Ok((_, received_field_updates)) = app_context_receiver.try_recv() {
                 if !received_field_updates.is_empty() {
-                    log::info!("Received app_context update: {:?}", received_field_updates);
+                    log::info!(
+                        "Received app_context update: {:?} in thread {}",
+                        received_field_updates,
+                        self.uuid
+                    );
                     app_context_updates = received_field_updates;
                 }
             }
@@ -322,20 +362,24 @@ impl ThreadManager {
                         // log::info!("No updates received from thread {}", uuid);
                         continue;
                     } else {
+                        let app_context_updates_size_in_bytes =
+                            bincode::serialize(&app_context_updates)
+                                .unwrap_or_default()
+                                .len();
                         log::info!(
-                            "Received {} updates from thread {}: {:?}",
+                            "Received {} updates from thread {} with total size {} bytes. Will relay to all other threads.",
                             app_context_updates.len(),
                             uuid,
-                            app_context_updates
+                            app_context_updates_size_in_bytes
                         );
                     }
 
                     let original_app_context = self.app_context.clone();
 
-                    log::info!(
-                        "Sending app_context update to all threads: {:?}",
-                        app_context_updates
-                    );
+                    // log::info!(
+                    //     "Sending app_context update to all threads: {:?}",
+                    //     app_context_updates
+                    // );
                     self.app_context.apply_updates(app_context_updates);
                     self.send_app_context_update_to_all_threads((
                         uuid,
@@ -365,7 +409,6 @@ impl ThreadManager {
                     self.app_context.config.frame_delay,
                 ));
             }
-            // std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
@@ -778,7 +821,7 @@ macro_rules! create_runnable_with_dynamic_input {
 //             info!("TestRunnableTwo received message: {:?}", message);
 //         }
 //         info!("TestRunnableTwo running with data: {:?}", inner.get_app_context());
-//         inner.send_message(Message::UpdatePanel("Panel2".to_string()));
+//         inner.send_message(Message::ReplacePanel("Panel2".to_string()));
 //         true  // Continue running
 //     }
 // );
@@ -891,7 +934,7 @@ macro_rules! create_runnable_with_dynamic_input {
 //         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
 //         manager.send_message_to_all_threads((uuid1, Message::RedrawApp));
-//         manager.send_message_to_all_threads((uuid2, Message::UpdatePanel("Panel2".to_string())));
+//         manager.send_message_to_all_threads((uuid2, Message::ReplacePanel("Panel2".to_string())));
 //         manager.send_message_to_all_threads((uuid3, Message::PanelEventEnter("Panel3".to_string())));
 
 //         // Run the manager's loop in a separate thread to allow message handling
@@ -911,7 +954,7 @@ macro_rules! create_runnable_with_dynamic_input {
 //             let mut runnable = runnable.lock().unwrap();
 //             let (_, messages) = runnable.receive_updates();
 //             assert!(messages.iter().any(|msg| matches!(msg, Message::RedrawApp)));
-//             assert!(messages.iter().any(|msg| matches!(msg, Message::UpdatePanel(panel_id) if panel_id == "Panel2")));
+//             assert!(messages.iter().any(|msg| matches!(msg, Message::ReplacePanel(panel_id) if panel_id == "Panel2")));
 //             assert!(messages.iter().any(|msg| matches!(msg, Message::PanelEventEnter(panel_id) if panel_id == "Panel3")));
 //         }
 //         manager.stop();
