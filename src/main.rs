@@ -7,22 +7,17 @@ use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;
 use boxmux_lib::socket_loop::SocketLoop;
 use boxmux_lib::thread_manager;
-use boxmux_lib::Config;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
 use boxmux_lib::Panel;
 use boxmux_lib::SocketFunction;
 use clap::{App, Arg, SubCommand};
-use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
 use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
@@ -64,12 +59,17 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          -> (bool, AppContext) {
                             let mut app_context_unwrapped = app_context.clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
+                            let libs = app_context_unwrapped.app.libs.clone();
                             let panel = app_context_unwrapped
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            let output = execute_commands(panel.script.clone().unwrap().as_ref());
-                            inner.send_message(Message::PanelOutputUpdate(vec[0].clone(), output));
+                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
+
+                            inner.send_message(Message::PanelOutputUpdate(
+                                vec[0].clone(),
+                                output.unwrap(),
+                            ));
                             std::thread::sleep(std::time::Duration::from_millis(
                                 panel.calc_refresh_interval(&app_context, &app_graph),
                             ));
@@ -106,6 +106,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
                     for panel_id in vec.iter() {
+                        let libs = app_context_unwrapped.app.libs.clone();
                         let panel = app_context_unwrapped
                             .app
                             .get_panel_by_id_mut(panel_id)
@@ -118,9 +119,138 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            let output = execute_commands(panel.script.clone().unwrap().as_ref());
-                            inner
-                                .send_message(Message::PanelOutputUpdate(panel_id.clone(), output));
+                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
+                            inner.send_message(Message::PanelOutputUpdate(
+                                panel_id.clone(),
+                                output.unwrap(),
+                            ));
+
+                            *last_execution_time = Instant::now();
+                        }
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_millis(
+                        app_context.config.frame_delay,
+                    ));
+
+                    (true, app_context_unwrapped)
+                }
+            );
+
+            let panel_refresh_loop = PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+            manager.spawn_thread(panel_refresh_loop);
+        }
+    }
+}
+
+fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
+    let active_layout = app_context.app.get_active_layout();
+
+    let mut non_threaded_panels: Vec<String> = vec![];
+
+    if let Some(layout) = active_layout {
+        for panel in layout.get_all_panels() {
+            if panel.script.is_some() {
+                let panel_id = panel.id.clone();
+
+                if panel.thread.unwrap_or(false) {
+                    let vec_fn = move || vec![panel_id.clone()];
+
+                    create_runnable_with_dynamic_input!(
+                        PanelRefreshLoop,
+                        Box::new(vec_fn),
+                        |inner: &mut RunnableImpl,
+                         app_context: AppContext,
+                         messages: Vec<Message>,
+                         vec: Vec<String>|
+                         -> bool { true },
+                        |inner: &mut RunnableImpl,
+                         app_context: AppContext,
+                         messages: Vec<Message>,
+                         vec: Vec<String>|
+                         -> (bool, AppContext) {
+                            let mut app_context_unwrapped = app_context.clone();
+                            let libs = app_context_unwrapped.app.libs.clone();
+                            let app_graph = app_context_unwrapped.app.generate_graph();
+                            let panel = app_context_unwrapped
+                                .app
+                                .get_panel_by_id_mut(&vec[0])
+                                .unwrap();
+                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
+
+                            if let Ok(output) = output {
+                                inner.send_message(Message::PanelOutputUpdate(
+                                    vec[0].clone(),
+                                    output,
+                                ));
+                            } else {
+                                inner.send_message(Message::PanelOutputUpdate(
+                                    vec[0].clone(),
+                                    "Error running script".to_string(),
+                                ));
+                            }
+
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                panel.calc_refresh_interval(&app_context, &app_graph),
+                            ));
+                            (true, app_context_unwrapped)
+                        }
+                    );
+
+                    let panel_refresh_loop =
+                        PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+                    manager.spawn_thread(panel_refresh_loop);
+                    non_threaded_panels.push(panel.id.clone());
+                }
+            }
+        }
+        if !non_threaded_panels.is_empty() {
+            let vec_fn = move || non_threaded_panels.clone();
+
+            create_runnable_with_dynamic_input!(
+                PanelRefreshLoop,
+                Box::new(vec_fn),
+                |inner: &mut RunnableImpl,
+                 app_context: AppContext,
+                 messages: Vec<Message>,
+                 vec: Vec<String>|
+                 -> bool { true },
+                |inner: &mut RunnableImpl,
+                 app_context: AppContext,
+                 messages: Vec<Message>,
+                 vec: Vec<String>|
+                 -> (bool, AppContext) {
+                    let mut app_context_unwrapped = app_context.clone();
+
+                    let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
+
+                    for panel_id in vec.iter() {
+                        let libs = app_context_unwrapped.app.libs.clone();
+                        let panel = app_context_unwrapped
+                            .app
+                            .get_panel_by_id_mut(panel_id)
+                            .unwrap();
+                        let refresh_interval = panel.refresh_interval.unwrap_or(1000);
+
+                        let last_execution_time = last_execution_times
+                            .entry(panel_id.clone())
+                            .or_insert(Instant::now());
+
+                        if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
+                        {
+                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
+
+                            if let Ok(output) = output {
+                                inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    output,
+                                ));
+                            } else {
+                                inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    "Error running script".to_string(),
+                                ));
+                            }
 
                             *last_execution_time = Instant::now();
                         }

@@ -1,7 +1,7 @@
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, execute_commands, handle_keypress, run_socket_function,
+    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, run_socket_function,
     AppContext, ScreenBuffer, SocketFunction,
 };
 use crate::{thread_manager::*, FieldUpdate};
@@ -281,6 +281,7 @@ create_runnable!(
                                 .app
                                 .get_panel_by_id(&panel_id)
                                 .unwrap();
+                            let libs = app_context_unwrapped.app.libs.clone();
 
                             if let Some(actions) =
                                 handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap())
@@ -290,11 +291,18 @@ create_runnable!(
                                     .app
                                     .get_panel_by_id_mut(&panel_id)
                                     .unwrap();
-                                let new_output = execute_commands(&actions);
+                                let new_output = run_script(libs, &actions);
 
-                                panel_mut.content = Some(new_output.clone());
-                                inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(panel_id.clone()));
+                                if let Ok(new_output) = new_output {
+                                    panel_mut.content = Some(new_output.clone());
+                                    inner.update_app_context(app_context_unwrapped.clone());
+                                    inner.send_message(Message::RedrawPanel(panel_id.clone()));
+                                } else {
+                                    inner.send_message(Message::PanelOutputUpdate(
+                                        panel_id.clone(),
+                                        "Error running script".to_string(),
+                                    ));
+                                }
                             }
                         }
                     }

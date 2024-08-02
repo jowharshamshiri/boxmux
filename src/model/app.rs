@@ -17,8 +17,15 @@ use std::hash::{DefaultHasher, Hasher};
 use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct TemplateRoot {
+    pub app: App,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct App {
     pub layouts: Vec<Layout>,
+    #[serde(default)]
+    pub libs: Option<Vec<String>>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
     #[serde(skip)]
@@ -42,6 +49,7 @@ impl App {
     pub fn new() -> Self {
         App {
             layouts: Vec::new(),
+            libs: None,
             on_keypress: None,
             app_graph: None,
             adjusted_bounds: None,
@@ -273,6 +281,7 @@ impl Clone for App {
     fn clone(&self) -> Self {
         App {
             layouts: self.layouts.iter().map(|layout| layout.clone()).collect(),
+            libs: self.libs.clone(),
             on_keypress: self.on_keypress.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
@@ -622,7 +631,15 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let mut app: App = serde_yaml::from_str(&contents)?;
+    let root_result: Result<TemplateRoot, _> = serde_yaml::from_str(&contents);
+
+    let mut app = match root_result {
+        Ok(root) => root.app,
+        Err(_) => {
+            // If deserialization into Root fails, try to deserialize directly into App
+            serde_yaml::from_str(&contents)?
+        }
+    };
 
     app.validate();
 
