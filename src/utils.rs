@@ -460,6 +460,7 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
 
     None
 }
+
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
     // Create the script content in-memory
     let mut script_content = String::new();
@@ -484,64 +485,6 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
 
     Ok(output)
 }
-// pub fn run_script3(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
-//     // Create the script content in-memory
-//     let mut script_content = String::new();
-//     if let Some(paths) = libs_paths {
-//         for lib in paths {
-//             script_content.push_str(&format!("source {}\n", lib));
-//         }
-//     }
-
-//     // Add the script commands to the script content
-//     for command in script {
-//         script_content.push_str(&format!("{}\n", command));
-//     }
-
-//     // Save the script content to a temporary file for debugging
-//     // let mut file = File::create("script.sh").expect("Failed to create script file");
-//     // file.write_all(script_content.as_bytes())
-//     //     .expect("Failed to write to script file");
-
-//     // let output = pipe! {
-//     //     script_content.as_bytes() => |cmd| {
-//     //         let mut output = String::new();
-//     //         cmd.stdout.as_mut().unwrap().read_to_string(&mut output).unwrap();
-//     //         output
-//     //     }
-//     // };
-//     // let output = pipe(script_content)?;
-
-//     // // Spawn the bash process
-//     // let mut cmd = Command::new("bash")
-//     //     .arg("-c")
-//     //     .arg("-")
-//     //     .stdin(Stdio::piped())
-//     //     .stdout(Stdio::piped())
-//     //     .stderr(Stdio::piped())
-//     //     .spawn()
-//     //     .expect("Failed to spawn bash process");
-
-//     // {
-//     //     // Write the script content to the stdin of the bash process
-//     //     let stdin = cmd.stdin.as_mut().expect("Failed to open stdin");
-//     //     stdin
-//     //         .write_all(script_content.as_bytes())
-//     //         .expect("Failed to write to stdin");
-//     // }
-
-//     // // Wait for the command to complete and get the output
-//     // let output = cmd.wait_with_output().expect("Failed to read stdout");
-
-//     // // Combine stdout and stderr into a single string
-//     // let combined_output = format!(
-//     //     "{}{}",
-//     //     String::from_utf8_lossy(&output.stdout),
-//     //     String::from_utf8_lossy(&output.stderr)
-//     // );
-
-//     Ok(output)
-// }
 
 pub fn normalize_key_str(key_str: &str) -> String {
     key_str.to_lowercase().replace(" ", "").replace("+", "")
