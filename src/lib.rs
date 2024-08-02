@@ -15,14 +15,14 @@ pub mod resize_loop;
 pub mod socket_loop;
 pub mod utils;
 
+pub use draw_loop::*;
+pub use input_loop::*;
 pub use model::app::*;
 pub use model::common::*;
 pub use model::layout::*;
 pub use model::panel::*;
-pub use draw_loop::*;
-pub use input_loop::*;
-pub use utils::*;
 pub use thread_manager::*;
+pub use utils::*;
 
 #[macro_use]
 pub extern crate lazy_static;

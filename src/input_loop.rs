@@ -1,5 +1,5 @@
-use crate::{execute_commands, thread_manager::Runnable};
 use crate::{handle_keypress, AppContext, FieldUpdate};
+use crate::{run_script, thread_manager::Runnable};
 use std::io::stdin;
 use std::sync::mpsc;
 use termion::event::Key;
@@ -76,12 +76,14 @@ create_runnable!(
 
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
-                        execute_commands(&actions);
+                        let libs = app_context.app.libs.clone();
+                        let result = run_script(libs, &actions);
                     }
                 }
                 if let Some(layout_key_mappings) = &active_layout.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, layout_key_mappings) {
-                        execute_commands(&actions);
+                        let libs = app_context.app.libs.clone();
+                        run_script(libs, &actions);
                     }
                 }
 
