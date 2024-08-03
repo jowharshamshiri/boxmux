@@ -13,7 +13,7 @@ use crate::{utils::*, AppContext, AppGraph};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Choice {
     pub id: String,
-    pub title: Option<String>,
+    pub content: Option<String>,
     pub script: Option<Vec<String>>,
     #[serde(skip)]
     pub selected: bool,
@@ -22,7 +22,7 @@ pub struct Choice {
 impl Hash for Choice {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-        self.title.hash(state);
+        self.content.hash(state);
         self.script.hash(state);
         self.selected.hash(state);
     }
@@ -30,7 +30,7 @@ impl Hash for Choice {
 
 impl PartialEq for Choice {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.title == other.title && self.script == other.script
+        self.id == other.id && self.content == other.content && self.script == other.script
     }
 }
 
@@ -40,7 +40,7 @@ impl Clone for Choice {
     fn clone(&self) -> Self {
         Choice {
             id: self.id.clone(),
-            title: self.title.clone(),
+            content: self.content.clone(),
             script: self.script.clone(),
             selected: self.selected,
         }
@@ -89,7 +89,6 @@ pub struct Panel {
     pub horizontal_scroll: Option<f64>,
     pub vertical_scroll: Option<f64>,
     pub selected: Option<bool>,
-    #[serde(skip)]
     pub content: Option<String>,
     #[serde(skip)]
     pub output: String,
