@@ -30,8 +30,7 @@ app:
                 y1: 0%
                 x2: 30%
                 y2: 100%
-              script:
-                - echo 'My Awesome Dash'
+              content: 'My Awesome Dash'
               refresh_interval: 3000
             - id: 'status'
               title: 'Status'
@@ -40,8 +39,7 @@ app:
                 y1: 0%
                 x2: 98%
                 y2: 100%
-              script:
-                - echo 'Status Running'
+              content: 'Status Running'
         - id: 'sidebar'
           title: 'Sidebar'
           position:
@@ -65,23 +63,23 @@ app:
                   - echo 'Key B pressed'
               choices:
                 - id: 'menuA1'
-                  title: 'Menu A1'
+                  content: 'Menu A1'
                   script:
                     - echo 'Menu A1'
                 - id: 'menuA2'
-                  title: 'Menu A2'
+                  content: 'Menu A2'
                   script:
                     - echo 'Menu A2'
                 - id: 'menuA3'
-                  title: 'Menu A3'
+                  content: 'Menu A3'
                   script:
                     - echo 'Menu A3'
                 - id: 'menuA4'
-                  title: 'Menu A4'
+                  content: 'Menu A4'
                   script:
                     - echo 'Menu A4'
                 - id: 'menuA5'
-                  title: 'Menu A5'
+                  content: 'Menu A5'
                   script:
                     - echo 'Menu A5'
         - id: 'content'
