@@ -190,6 +190,9 @@ impl App {
         let mut root_layout_id: Option<String> = None;
 
         for layout in &mut self.layouts {
+            let mut layout_clone = layout.clone();
+            let panels_in_tab_order = layout_clone.get_panels_in_tab_order();
+
             let result = check_unique_ids(layout, &mut id_set);
             if let Err(e) = result {
                 panic!("Error: {}", e);
@@ -205,6 +208,14 @@ impl App {
             }
             for panel in layout.children.as_mut().unwrap() {
                 set_parent_ids(panel, &layout.id, None);
+                if panel.id == panels_in_tab_order[0].id {
+                    panel.selected = Some(true);
+                }
+                if let Some(choices) = &mut panel.choices {
+                    if !choices.is_empty() {
+                        choices[0].selected = true;
+                    }
+                }
             }
         }
 
