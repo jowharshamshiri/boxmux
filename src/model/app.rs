@@ -643,6 +643,9 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
 
     app.validate();
 
+    // log::info!("Loaded app from file: {}", file_path);
+    // log::debug!("App: {:#?}", app);
+
     Ok(app)
 }
 

@@ -277,6 +277,7 @@ create_runnable!(
                             .collect();
 
                         for panel_id in selected_panel_ids {
+                            let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                             let panel = app_context_unwrapped
                                 .app
                                 .get_panel_by_id(&panel_id)
@@ -294,9 +295,12 @@ create_runnable!(
                                 let new_output = run_script(libs, &actions);
 
                                 if let Ok(new_output) = new_output {
-                                    panel_mut.content = Some(new_output.clone());
-                                    inner.update_app_context(app_context_unwrapped.clone());
-                                    inner.send_message(Message::RedrawPanel(panel_id.clone()));
+                                    update_panel_content(
+                                        inner,
+                                        &mut app_context_unwrapped_cloned,
+                                        panel_mut.id.as_ref(),
+                                        &new_output,
+                                    )
                                 } else {
                                     inner.send_message(Message::PanelOutputUpdate(
                                         panel_id.clone(),
@@ -326,10 +330,34 @@ pub fn update_panel_content(
     panel_id: &str,
     output: &str,
 ) {
+    let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
     let panel = app_context_unwrapped.app.get_panel_by_id_mut(panel_id);
+
+    log::info!(
+        "Updating panel content: {}, redirection: {:?}",
+        panel_id,
+        panel.as_ref().unwrap().redirect_output
+    );
     if let Some(found_panel) = panel {
-        found_panel.content = Some(output.to_string());
-        inner.update_app_context(app_context_unwrapped.clone());
-        inner.send_message(Message::RedrawPanel(panel_id.to_string()));
+        if found_panel.redirect_output.is_some()
+            && found_panel.redirect_output.as_ref().unwrap() != panel_id
+        {
+            log::info!(
+                "Redirecting output from panel {} to panel: {}",
+                panel_id,
+                found_panel.redirect_output.as_ref().unwrap()
+            );
+            update_panel_content(
+                inner,
+                &mut app_context_unwrapped_cloned,
+                found_panel.redirect_output.as_ref().unwrap(),
+                output,
+            );
+        } else {
+            log::info!("Updating panel {} content with no redirection.", panel_id);
+            found_panel.content = Some(output.to_string());
+            inner.update_app_context(app_context_unwrapped.clone());
+            inner.send_message(Message::RedrawPanel(panel_id.to_string()));
+        }
     }
 }
