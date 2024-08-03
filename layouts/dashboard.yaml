@@ -14,6 +14,10 @@ app:
       selected_title_bg_color: 'bright_yellow'
       border_color: 'bright_white'
       selected_border_color: 'bright_yellow'
+      menu_fg_color: 'bright_white'
+      selected_menu_fg_color: 'black'
+      menu_bg_color: 'bright_black'
+      selected_menu_bg_color: 'bright_yellow'
       children:
         - id: 'header'
           title: 'Header'
@@ -66,22 +70,27 @@ app:
                   content: 'Menu A1'
                   script:
                     - echo 'Menu A1'
+                  redirect_output: 'status'
                 - id: 'menuA2'
                   content: 'Menu A2'
                   script:
                     - echo 'Menu A2'
+                  redirect_output: 'title'
                 - id: 'menuA3'
                   content: 'Menu A3'
                   script:
                     - echo 'Menu A3'
+                  redirect_output: 'status'
                 - id: 'menuA4'
                   content: 'Menu A4'
                   script:
                     - echo 'Menu A4'
+                  redirect_output: 'status'
                 - id: 'menuA5'
                   content: 'Menu A5'
                   script:
                     - echo 'Menu A5'
+                  redirect_output: 'status'
         - id: 'content'
           title: 'Content Area'
           position:

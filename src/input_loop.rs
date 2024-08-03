@@ -40,6 +40,7 @@ create_runnable!(
                                 inner.send_message(Message::PreviousPanel());
                                 "BackTab".to_string()
                             }
+                            Key::Char('\n') => "Enter".to_string(),
                             Key::Down => {
                                 inner.send_message(Message::ScrollPanelDown());
                                 "Down".to_string()
