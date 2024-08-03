@@ -170,6 +170,10 @@ pub fn draw_panel(
                 &title_bg_color,
                 &panel.calc_title_position(app_context, app_graph),
                 panel.choices.clone(),
+                &panel.calc_menu_fg_color(app_context, app_graph),
+                &panel.calc_menu_bg_color(app_context, app_graph),
+                &panel.calc_selected_menu_fg_color(app_context, app_graph),
+                &panel.calc_selected_menu_bg_color(app_context, app_graph),
                 content,
                 &fg_color,
                 &panel.calc_overflow_behavior(app_context, app_graph),
@@ -394,6 +398,10 @@ pub fn render_panel(
     title_bg_color: &str,
     title_position: &str,
     choices: Option<Vec<Choice>>,
+    menu_fg_color: &str,
+    menu_bg_color: &str,
+    selected_menu_fg_color: &str,
+    selected_menu_bg_color: &str,
     content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,
@@ -468,7 +476,35 @@ pub fn render_panel(
         }
     }
 
-    if let Some(content) = content {
+    if let Some(choices) = choices {
+        let mut y_position = bounds.top() + 1; // Start drawing menu items below the border
+        for choice in choices {
+            if y_position > bounds.bottom() - 1 {
+                break; // Don't draw outside the bounds
+            }
+
+            let fg_color = if choice.selected {
+                selected_menu_fg_color
+            } else {
+                menu_fg_color
+            };
+            let bg_color = if choice.selected {
+                selected_menu_bg_color
+            } else {
+                menu_bg_color
+            };
+
+            print_with_color_and_background_at(
+                y_position,
+                bounds.left() + 2,
+                fg_color,
+                bg_color,
+                &choice.content.unwrap(),
+                buffer,
+            );
+            y_position += 1;
+        }
+    } else if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
         let viewable_width = bounds.width().saturating_sub(4);
         let viewable_height = bounds.height().saturating_sub(4);

@@ -15,7 +15,8 @@ pub struct Choice {
     pub id: String,
     pub content: Option<String>,
     pub script: Option<Vec<String>>,
-    #[serde(skip)]
+    pub redirect_output: Option<String>,
+    #[serde(skip, default)]
     pub selected: bool,
 }
 
@@ -24,13 +25,18 @@ impl Hash for Choice {
         self.id.hash(state);
         self.content.hash(state);
         self.script.hash(state);
+        self.redirect_output.hash(state);
         self.selected.hash(state);
     }
 }
 
 impl PartialEq for Choice {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.content == other.content && self.script == other.script
+        self.id == other.id
+            && self.content == other.content
+            && self.script == other.script
+            && self.redirect_output == other.redirect_output
+            && self.selected == other.selected
     }
 }
 
@@ -42,6 +48,7 @@ impl Clone for Choice {
             id: self.id.clone(),
             content: self.content.clone(),
             script: self.script.clone(),
+            redirect_output: self.redirect_output.clone(),
             selected: self.selected,
         }
     }
@@ -81,6 +88,10 @@ pub struct Panel {
     pub selected_title_fg_color: Option<String>,
     pub title_position: Option<String>,
     pub choices: Option<Vec<Choice>>,
+    pub menu_fg_color: Option<String>,
+    pub menu_bg_color: Option<String>,
+    pub selected_menu_fg_color: Option<String>,
+    pub selected_menu_bg_color: Option<String>,
     pub redirect_output: Option<String>,
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
@@ -194,6 +205,10 @@ impl Default for Panel {
             selected_title_fg_color: None,
             title_position: None,
             choices: None,
+            menu_fg_color: None,
+            menu_bg_color: None,
+            selected_menu_fg_color: None,
+            selected_menu_bg_color: None,
             redirect_output: None,
             script: None,
             thread: Some(false),
@@ -240,6 +255,10 @@ impl PartialEq for Panel {
             && self.selected_title_fg_color == other.selected_title_fg_color
             && self.title_position == other.title_position
             && self.choices == other.choices
+            && self.menu_fg_color == other.menu_fg_color
+            && self.menu_bg_color == other.menu_bg_color
+            && self.selected_menu_fg_color == other.selected_menu_fg_color
+            && self.selected_menu_bg_color == other.selected_menu_bg_color
             && self.redirect_output == other.redirect_output
             && self.script == other.script
             && self.thread == other.thread
@@ -293,6 +312,10 @@ impl Clone for Panel {
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             title_position: self.title_position.clone(),
             choices: self.choices.clone(),
+            menu_fg_color: self.menu_fg_color.clone(),
+            menu_bg_color: self.menu_bg_color.clone(),
+            selected_menu_fg_color: self.selected_menu_fg_color.clone(),
+            selected_menu_bg_color: self.selected_menu_bg_color.clone(),
             redirect_output: self.redirect_output.clone(),
             script: self.script.clone(),
             thread: self.thread,
@@ -554,6 +577,78 @@ impl Panel {
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
             "center",
+        )
+    }
+
+    pub fn calc_menu_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.menu_fg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.menu_fg_color.clone());
+
+        inherit_string(
+            self.menu_fg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "bright_white",
+        )
+    }
+
+    pub fn calc_menu_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.menu_bg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.menu_bg_color.clone());
+
+        inherit_string(
+            self.menu_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "black",
+        )
+    }
+
+    pub fn calc_selected_menu_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.selected_menu_fg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.selected_menu_fg_color.clone());
+
+        inherit_string(
+            self.selected_menu_fg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "bright_white",
+        )
+    }
+
+    pub fn calc_selected_menu_bg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.selected_menu_bg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.selected_menu_bg_color.clone());
+
+        inherit_string(
+            self.selected_menu_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "red",
         )
     }
 
@@ -1098,6 +1193,50 @@ impl Updatable for Panel {
             }
         }
 
+        if self.menu_fg_color != other.menu_fg_color {
+            if let Some(new_value) = &other.menu_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "menu_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.menu_bg_color != other.menu_bg_color {
+            if let Some(new_value) = &other.menu_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "menu_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.selected_menu_fg_color != other.selected_menu_fg_color {
+            if let Some(new_value) = &other.selected_menu_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_menu_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.selected_menu_bg_color != other.selected_menu_bg_color {
+            if let Some(new_value) = &other.selected_menu_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "selected_menu_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
         if self.redirect_output != other.redirect_output {
             if let Some(new_value) = &other.redirect_output {
                 updates.push(FieldUpdate {
@@ -1419,6 +1558,34 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<Vec<Choice>>>(update.new_value.clone())
                     {
                         self.choices = new_choices;
+                    }
+                }
+                "menu_fg_color" => {
+                    if let Ok(new_menu_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.menu_fg_color = new_menu_fg_color;
+                    }
+                }
+                "menu_bg_color" => {
+                    if let Ok(new_menu_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.menu_bg_color = new_menu_bg_color;
+                    }
+                }
+                "selected_menu_fg_color" => {
+                    if let Ok(new_selected_menu_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.selected_menu_fg_color = new_selected_menu_fg_color;
+                    }
+                }
+                "selected_menu_bg_color" => {
+                    if let Ok(new_selected_menu_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.selected_menu_bg_color = new_selected_menu_bg_color;
                     }
                 }
                 "redirect_output" => {
