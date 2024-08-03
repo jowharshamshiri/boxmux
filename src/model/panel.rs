@@ -2,7 +2,6 @@ use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::clone;
 use std::collections::HashMap;
 use std::hash::Hasher;
 
@@ -10,6 +9,43 @@ use crate::model::common::*;
 use crate::model::layout::Layout;
 
 use crate::{utils::*, AppContext, AppGraph};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Choice {
+    pub id: String,
+    pub title: Option<String>,
+    pub script: Option<Vec<String>>,
+    #[serde(skip)]
+    pub selected: bool,
+}
+
+impl Hash for Choice {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.title.hash(state);
+        self.script.hash(state);
+        self.selected.hash(state);
+    }
+}
+
+impl PartialEq for Choice {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.title == other.title && self.script == other.script
+    }
+}
+
+impl Eq for Choice {}
+
+impl Clone for Choice {
+    fn clone(&self) -> Self {
+        Choice {
+            id: self.id.clone(),
+            title: self.title.clone(),
+            script: self.script.clone(),
+            selected: self.selected,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Panel {
@@ -44,6 +80,7 @@ pub struct Panel {
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
     pub title_position: Option<String>,
+    pub choices: Option<Vec<Choice>>,
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     #[serde(default)]
@@ -97,6 +134,11 @@ impl Hash for Panel {
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
         self.title_position.hash(state);
+        if let Some(choices) = &self.choices {
+            for choice in choices {
+                choice.hash(state);
+            }
+        }
         self.script.hash(state);
         self.thread.hash(state);
         self.output.hash(state);
@@ -150,6 +192,7 @@ impl Default for Panel {
             selected_title_bg_color: None,
             selected_title_fg_color: None,
             title_position: None,
+            choices: None,
             script: None,
             thread: Some(false),
             on_keypress: None,
@@ -194,6 +237,7 @@ impl PartialEq for Panel {
             && self.selected_title_bg_color == other.selected_title_bg_color
             && self.selected_title_fg_color == other.selected_title_fg_color
             && self.title_position == other.title_position
+            && self.choices == other.choices
             && self.script == other.script
             && self.thread == other.thread
             && self.horizontal_scroll.map(|hs| hs.to_bits())
@@ -245,6 +289,7 @@ impl Clone for Panel {
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             title_position: self.title_position.clone(),
+            choices: self.choices.clone(),
             script: self.script.clone(),
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),

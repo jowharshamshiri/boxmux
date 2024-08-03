@@ -1,6 +1,6 @@
 use termion::color;
 
-use crate::{AppContext, AppGraph, Bounds, Layout, Panel, ScreenBuffer};
+use crate::{AppContext, AppGraph, Bounds, Choice, Layout, Panel, ScreenBuffer};
 use std::collections::HashMap;
 
 use crate::model::common::Cell;
@@ -169,6 +169,7 @@ pub fn draw_panel(
                 &title_fg_color,
                 &title_bg_color,
                 &panel.calc_title_position(app_context, app_graph),
+                panel.choices.clone(),
                 content,
                 &fg_color,
                 &panel.calc_overflow_behavior(app_context, app_graph),
@@ -392,6 +393,7 @@ pub fn render_panel(
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
+    choices: Option<Vec<Choice>>,
     content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,

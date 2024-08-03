@@ -1,5 +1,5 @@
 app:
-  lib:
+  libs:
     - lib/os_lib.sh
   layouts:
     - id: 'dashboard'
@@ -50,141 +50,39 @@ app:
             x2: 20%
             y2: 95%
           children:
-            - id: 'menu1'
+            - id: 'menuA'
               position:
-                x1: 10%
+                x1: 0%
                 y1: 0%
                 x2: 90%
-                y2: 5%
+                y2: 50%
               tab_order: 1
-              script:
-                - echo 'Option 1'
-            - id: 'menu2'
-              position:
-                x1: 10%
-                y1: 6%
-                x2: 90%
-                y2: 11%
-              tab_order: 2
-              script:
-                - echo 'Option 2'
-            - id: 'menu3'
-              position:
-                x1: 10%
-                y1: 12%
-                x2: 90%
-                y2: 17%
-              tab_order: 3
-              script:
-                - echo 'Option 3'
-            - id: 'menu4'
-              position:
-                x1: 10%
-                y1: 18%
-                x2: 90%
-                y2: 23%
-              tab_order: 4
-              script:
-                - echo 'Option 4'
-            - id: 'menu5'
-              position:
-                x1: 10%
-                y1: 24%
-                x2: 90%
-                y2: 29%
-              tab_order: 5
-              script:
-                - echo 'Option 5'
-            - id: 'menu6'
-              position:
-                x1: 10%
-                y1: 30%
-                x2: 90%
-                y2: 35%
-              tab_order: 6
-              script:
-                - echo 'Option 6'
-            - id: 'menu7'
-              position:
-                x1: 10%
-                y1: 36%
-                x2: 90%
-                y2: 41%
-              tab_order: 7
-              script:
-                - echo 'Option 7'
-            - id: 'menu8'
-              position:
-                x1: 10%
-                y1: 42%
-                x2: 90%
-                y2: 47%
-              tab_order: 8
-              script:
-                - echo 'Option 8'
-            - id: 'menu9'
-              position:
-                x1: 10%
-                y1: 48%
-                x2: 90%
-                y2: 53%
-              tab_order: 9
-              script:
-                - echo 'Option 9'
-            - id: 'menu10'
-              position:
-                x1: 10%
-                y1: 54%
-                x2: 90%
-                y2: 59%
-              tab_order: 10
-              script:
-                - echo 'Option 10'
-            - id: 'menu11'
-              position:
-                x1: 10%
-                y1: 60%
-                x2: 90%
-                y2: 65%
-              tab_order: 11
-              script:
-                - echo 'Option 11'
-            - id: 'menu12'
-              position:
-                x1: 10%
-                y1: 66%
-                x2: 90%
-                y2: 71%
-              tab_order: 12
-              script:
-                - echo 'Option 12'
-            - id: 'menu13'
-              position:
-                x1: 10%
-                y1: 72%
-                x2: 90%
-                y2: 77%
-              tab_order: 13
-              script:
-                - echo 'Option 13'
-            - id: 'menu14'
-              position:
-                x1: 10%
-                y1: 78%
-                x2: 90%
-                y2: 83%
-              tab_order: 14
-              script:
-                - echo 'Option 14'
-            - id: 'menu15'
-              position:
-                x1: 10%
-                y1: 84%
-                x2: 90%
-                y2: 89%
-              tab_order: 15
-              script:
-                - echo 'Option 15'
+              on_keypress:
+                a:
+                  - echo 'Key A pressed'
+                b:
+                  - echo 'Key B pressed'
+              choices:
+                - id: 'menuA1'
+                  title: 'Menu A1'
+                  script:
+                    - echo 'Menu A1'
+                - id: 'menuA2'
+                  title: 'Menu A2'
+                  script:
+                    - echo 'Menu A2'
+                - id: 'menuA3'
+                  title: 'Menu A3'
+                  script:
+                    - echo 'Menu A3'
+                - id: 'menuA4'
+                  title: 'Menu A4'
+                  script:
+                    - echo 'Menu A4'
+                - id: 'menuA5'
+                  title: 'Menu A5'
+                  script:
+                    - echo 'Menu A5'
         - id: 'content'
           title: 'Content Area'
           position:
