@@ -380,7 +380,7 @@ create_runnable!(
                                                                 .as_ref()
                                                                 .unwrap(),
                                                             false,
-                                                            &format!("Error running script: {}", e),
+                                                            e.to_string().as_str(),
                                                         )
                                                     } else {
                                                         update_panel_content(
@@ -388,7 +388,7 @@ create_runnable!(
                                                             &mut app_context_unwrapped_cloned,
                                                             panel_id.as_ref(),
                                                             false,
-                                                            &format!("Error running script: {}", e),
+                                                            e.to_string().as_str(),
                                                         )
                                                     }
                                                 }
@@ -431,7 +431,7 @@ create_runnable!(
                                                     &mut app_context_unwrapped_cloned,
                                                     panel_mut.redirect_output.as_ref().unwrap(),
                                                     false,
-                                                    &format!("Error running script: {}", e),
+                                                    e.to_string().as_str(),
                                                 )
                                             } else {
                                                 update_panel_content(
@@ -439,7 +439,7 @@ create_runnable!(
                                                     &mut app_context_unwrapped_cloned,
                                                     panel_id.as_ref(),
                                                     false,
-                                                    &format!("Error running script: {}", e),
+                                                    e.to_string().as_str(),
                                                 )
                                             }
                                         }
