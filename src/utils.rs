@@ -1,13 +1,14 @@
-use shutil::pipe;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{self, Write};
-use std::process::{Command, Stdio};
-
 use crate::{
     model::common::{Bounds, InputBounds, ScreenBuffer},
     Layout,
 };
+use shutil::pipe;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, Write};
+use std::process::Stdio;
+use std::process::{Command, Output};
+use std::str;
 use termion::event::{Event, Key};
 use termion::{raw::RawTerminal, screen::AlternateScreen};
 
@@ -466,6 +467,31 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
     None
 }
 
+// pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
+//     // Create the script content in-memory
+//     let mut script_content = String::new();
+//     if let Some(paths) = libs_paths {
+//         for lib in paths {
+//             script_content.push_str(&format!("source {}\n", lib));
+//         }
+//     }
+
+//     // Add the script commands to the script content
+//     for command in script {
+//         script_content.push_str(&format!("{}\n", command));
+//     }
+
+//     // println!("Script content:\n{}", script_content); // Debugging output
+
+//     // Create the command sequence
+//     let command_sequence = vec![vec!["bash", "-c", &script_content]];
+
+//     // Execute the command sequence
+//     let output = pipe(command_sequence).unwrap_or_else(|e| format!("Error: {:?}", e));
+
+//     Ok(output)
+// }
+
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
     // Create the script content in-memory
     let mut script_content = String::new();
@@ -480,15 +506,32 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
         script_content.push_str(&format!("{}\n", command));
     }
 
-    // println!("Script content:\n{}", script_content); // Debugging output
+    // Execute the script and capture stdout and stderr
+    let output = Command::new("bash").arg("-c").arg(script_content).output(); // Captures both stdout and stderr
 
-    // Create the command sequence
-    let command_sequence = vec![vec!["bash", "-c", &script_content]];
-
-    // Execute the command sequence
-    let output = pipe(command_sequence).unwrap_or_else(|e| format!("Error: {:?}", e));
-
-    Ok(output)
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                // Combine stdout and stderr
+                let combined_output = format!(
+                    "{}{}",
+                    str::from_utf8(&output.stdout).unwrap_or(""),
+                    str::from_utf8(&output.stderr).unwrap_or("")
+                );
+                Ok(combined_output)
+            } else {
+                let stderr = str::from_utf8(&output.stderr).unwrap_or("");
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Command failed with error: {}", stderr),
+                ))
+            }
+        }
+        Err(e) => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to execute command: {}", e),
+        )),
+    }
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {

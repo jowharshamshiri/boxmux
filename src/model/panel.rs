@@ -87,6 +87,11 @@ pub struct Panel {
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
     pub title_position: Option<String>,
+    pub error_border_color: Option<String>,
+    pub error_bg_color: Option<String>,
+    pub error_fg_color: Option<String>,
+    pub error_title_bg_color: Option<String>,
+    pub error_title_fg_color: Option<String>,
     pub choices: Option<Vec<Choice>>,
     pub menu_fg_color: Option<String>,
     pub menu_bg_color: Option<String>,
@@ -107,6 +112,8 @@ pub struct Panel {
     pub parent_id: Option<String>,
     #[serde(skip)]
     pub parent_layout_id: Option<String>,
+    #[serde(skip, default)]
+    pub error_state: bool,
 }
 
 impl Hash for Panel {
@@ -145,6 +152,15 @@ impl Hash for Panel {
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
         self.title_position.hash(state);
+        self.menu_fg_color.hash(state);
+        self.menu_bg_color.hash(state);
+        self.selected_menu_fg_color.hash(state);
+        self.selected_menu_bg_color.hash(state);
+        self.error_border_color.hash(state);
+        self.error_bg_color.hash(state);
+        self.error_fg_color.hash(state);
+        self.error_title_bg_color.hash(state);
+        self.error_title_fg_color.hash(state);
         if let Some(choices) = &self.choices {
             for choice in choices {
                 choice.hash(state);
@@ -163,6 +179,7 @@ impl Hash for Panel {
         self.selected.hash(state);
         self.parent_id.hash(state);
         self.parent_layout_id.hash(state);
+        self.error_state.hash(state);
     }
 }
 
@@ -204,6 +221,11 @@ impl Default for Panel {
             selected_title_bg_color: None,
             selected_title_fg_color: None,
             title_position: None,
+            error_border_color: None,
+            error_bg_color: None,
+            error_fg_color: None,
+            error_title_bg_color: None,
+            error_title_fg_color: None,
             choices: None,
             menu_fg_color: None,
             menu_bg_color: None,
@@ -219,6 +241,7 @@ impl Default for Panel {
             selected: Some(false),
             parent_id: None,
             parent_layout_id: None,
+            error_state: false,
         }
     }
 }
@@ -254,6 +277,11 @@ impl PartialEq for Panel {
             && self.selected_title_bg_color == other.selected_title_bg_color
             && self.selected_title_fg_color == other.selected_title_fg_color
             && self.title_position == other.title_position
+            && self.error_border_color == other.error_border_color
+            && self.error_bg_color == other.error_bg_color
+            && self.error_fg_color == other.error_fg_color
+            && self.error_title_bg_color == other.error_title_bg_color
+            && self.error_title_fg_color == other.error_title_fg_color
             && self.choices == other.choices
             && self.menu_fg_color == other.menu_fg_color
             && self.menu_bg_color == other.menu_bg_color
@@ -270,6 +298,7 @@ impl PartialEq for Panel {
             && self.parent_id == other.parent_id
             && self.parent_layout_id == other.parent_layout_id
             && self.output == other.output
+            && self.error_state == other.error_state
     }
 }
 
@@ -311,6 +340,11 @@ impl Clone for Panel {
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             title_position: self.title_position.clone(),
+            error_border_color: self.error_border_color.clone(),
+            error_bg_color: self.error_bg_color.clone(),
+            error_fg_color: self.error_fg_color.clone(),
+            error_title_bg_color: self.error_title_bg_color.clone(),
+            error_title_fg_color: self.error_title_fg_color.clone(),
             choices: self.choices.clone(),
             menu_fg_color: self.menu_fg_color.clone(),
             menu_bg_color: self.menu_bg_color.clone(),
@@ -326,6 +360,7 @@ impl Clone for Panel {
             selected: self.selected,
             parent_id: self.parent_id.clone(),
             parent_layout_id: self.parent_layout_id.clone(),
+            error_state: self.error_state,
         }
     }
 }
@@ -376,6 +411,10 @@ impl Panel {
     }
 
     pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        if self.error_state {
+            return self.calc_error_fg_color(app_context, app_graph);
+        }
+
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_fg_color.clone()
@@ -413,6 +452,10 @@ impl Panel {
     }
 
     pub fn calc_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        if self.error_state {
+            return self.calc_error_bg_color(app_context, app_graph);
+        }
+
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_bg_color.clone()
@@ -450,6 +493,10 @@ impl Panel {
     }
 
     pub fn calc_border_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        if self.error_state {
+            return self.calc_error_border_color(app_context, app_graph);
+        }
+
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_border_color.clone()
@@ -491,6 +538,10 @@ impl Panel {
         app_context: &AppContext,
         app_graph: &AppGraph,
     ) -> String {
+        if self.error_state {
+            return self.calc_error_title_bg_color(app_context, app_graph);
+        }
+
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_bg_color.clone()
@@ -528,6 +579,10 @@ impl Panel {
     }
 
     pub fn calc_title_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        if self.error_state {
+            return self.calc_error_title_fg_color(app_context, app_graph);
+        }
+
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.selected_title_fg_color.clone()
@@ -646,6 +701,98 @@ impl Panel {
 
         inherit_string(
             self.selected_menu_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "red",
+        )
+    }
+
+    pub fn calc_error_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.error_fg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.error_fg_color.clone());
+
+        inherit_string(
+            self.error_fg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "bright_white",
+        )
+    }
+
+    pub fn calc_error_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.error_bg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.error_bg_color.clone());
+
+        inherit_string(
+            self.error_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "red",
+        )
+    }
+
+    pub fn calc_error_title_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.error_title_fg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.error_title_fg_color.clone());
+
+        inherit_string(
+            self.error_title_fg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "bright_white",
+        )
+    }
+
+    pub fn calc_error_title_bg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.error_title_bg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.error_title_bg_color.clone());
+
+        inherit_string(
+            self.error_title_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            "red",
+        )
+    }
+
+    pub fn calc_error_border_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> String {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.error_border_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.error_border_color.clone());
+
+        inherit_string(
+            self.error_border_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
             "red",
