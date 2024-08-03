@@ -5,27 +5,28 @@ app:
     - id: 'dashboard'
       root: true
       title: 'Advanced Dashboard Layout'
-      selected_fg_color: 'bright_yellow'
+      selected_fg_color: 'bright_green'
       bg_color: 'bright_black'
       selected_bg_color: 'bright_black'
       title_fg_color: 'white'
       selected_title_fg_color: 'black'
       title_bg_color: 'black'
-      selected_title_bg_color: 'bright_yellow'
+      selected_title_bg_color: 'bright_green'
       border_color: 'bright_white'
-      selected_border_color: 'bright_yellow'
+      selected_border_color: 'bright_green'
       menu_fg_color: 'bright_white'
       selected_menu_fg_color: 'black'
       menu_bg_color: 'bright_black'
-      selected_menu_bg_color: 'bright_yellow'
+      selected_menu_bg_color: 'bright_green'
       children:
         - id: 'header'
-          title: 'Header'
+          title: 'My Awesome Dashboard'
           position:
             x1: 0%
-            y1: 0%
+            y1: 2%
             x2: 100%
-            y2: 5%
+            y2: 7%
+          border: false
           children:
             - id: 'title'
               title: 'Dashboard Title'
@@ -34,6 +35,7 @@ app:
                 y1: 0%
                 x2: 30%
                 y2: 100%
+              border: true
               content: 'My Awesome Dash'
               refresh_interval: 3000
             - id: 'status'
@@ -43,62 +45,56 @@ app:
                 y1: 0%
                 x2: 98%
                 y2: 100%
+              border: true
               content: 'Status Running'
-        - id: 'sidebar'
-          title: 'Sidebar'
+        - id: 'menuA'
+          title: 'Action Menu'
           position:
-            x1: 0%
-            y1: 5%
+            x1: 5%
+            y1: 10%
             x2: 20%
-            y2: 95%
-          children:
-            - id: 'menuA'
-              title: 'Action Menu'
-              position:
-                x1: 0%
-                y1: 0%
-                x2: 90%
-                y2: 50%
-              tab_order: 1
+            y2: 90%
+          tab_order: 1
+          redirect_output: 'status'
+          on_keypress:
+            a:
+              - echo 'Key A pressed'
+            b:
+              - echo 'Key B pressed'
+          choices:
+            - id: 'menuA1'
+              content: 'Item A1'
+              script:
+                - echo 'Item A1'
               redirect_output: 'status'
-              on_keypress:
-                a:
-                  - echo 'Key A pressed'
-                b:
-                  - echo 'Key B pressed'
-              choices:
-                - id: 'menuA1'
-                  content: 'Item A1'
-                  script:
-                    - echo 'Item A1'
-                  redirect_output: 'status'
-                - id: 'menuA2'
-                  content: 'Item A2'
-                  script:
-                    - echo 'Item A2'
-                  redirect_output: 'title'
-                - id: 'menuA3'
-                  content: 'Item A3'
-                  script:
-                    - echo 'Item A3'
-                  redirect_output: 'status'
-                - id: 'menuA4'
-                  content: 'Item A4'
-                  script:
-                    - echo 'Item A4'
-                  redirect_output: 'status'
-                - id: 'menuA5'
-                  content: 'Item A5'
-                  script:
-                    - echo 'Item A5'
-                  redirect_output: 'status'
+            - id: 'menuA2'
+              content: 'Item A2'
+              script:
+                - echo 'Item A2'
+              redirect_output: 'title'
+            - id: 'menuA3'
+              content: 'Item A3'
+              script:
+                - echo 'Item A3'
+              redirect_output: 'status'
+            - id: 'menuA4'
+              content: 'Item A4'
+              script:
+                - echo 'Item A4'
+              redirect_output: 'status'
+            - id: 'menuA5'
+              content: 'Item A5'
+              script:
+                - echo 'Item A5'
+              redirect_output: 'status'
         - id: 'content'
           title: 'Content Area'
           position:
-            x1: 20%
-            y1: 5%
-            x2: 100%
-            y2: 95%
+            x1: 25%
+            y1: 10%
+            x2: 90%
+            y2: 90%
+          border: false
           children:
             - id: 'top_charts'
               title: 'Top Charts'
@@ -107,6 +103,7 @@ app:
                 y1: 0%
                 x2: 100%
                 y2: 50%
+              border: true
               children:
                 - id: 'chart1'
                   title: 'CPU Usage'
@@ -115,7 +112,7 @@ app:
                     y1: 5%
                     x2: 48%
                     y2: 45%
-                  tab_order: 16
+                  tab_order: 2
                   refresh_interval: 1000
                   script:
                     - >
@@ -129,7 +126,7 @@ app:
                     y1: 5%
                     x2: 98%
                     y2: 45%
-                  tab_order: 17
+                  tab_order: 3
                   refresh_interval: 1500
                   script:
                     - >
@@ -143,7 +140,7 @@ app:
                     y1: 50%
                     x2: 48%
                     y2: 90%
-                  tab_order: 18
+                  tab_order: 4
                   refresh_interval: 2000
                   script:
                     - >
@@ -157,7 +154,7 @@ app:
                     y1: 50%
                     x2: 98%
                     y2: 90%
-                  tab_order: 19
+                  tab_order: 5
                   refresh_interval: 2500
                   script:
                     - >
@@ -168,9 +165,10 @@ app:
               title: 'Logs'
               position:
                 x1: 0%
-                y1: 50%
+                y1: 55%
                 x2: 100%
                 y2: 100%
+              border: true
               children:
                 - id: 'system_logs'
                   title: 'System Logs'
@@ -179,6 +177,7 @@ app:
                     y1: 5%
                     x2: 48%
                     y2: 45%
+                  tab_order: 6
                   script:
                     - log show --predicate 'eventMessage contains "Error"' --info --last 1m
                 - id: 'application_logs'
@@ -188,8 +187,9 @@ app:
                     y1: 5%
                     x2: 98%
                     y2: 45%
+                  tab_order: 7
                   script:
-                    - tail -n 20 /usr/local/var/log/my_app.log
+                    - tail -n 20 /var/log/install.log
                 - id: 'security_logs'
                   title: 'Security Logs'
                   position:
@@ -197,8 +197,9 @@ app:
                     y1: 50%
                     x2: 48%
                     y2: 90%
+                  tab_order: 8
                   script:
-                    - tail -n 20 /var/log/authd.log
+                    - tail -n 20 /var/log/wifi.log
                 - id: 'custom_logs'
                   title: 'Custom Logs'
                   position:
@@ -206,14 +207,15 @@ app:
                     y1: 50%
                     x2: 98%
                     y2: 90%
+                  tab_order: 9
                   script:
-                    - tail -n 20 /path/to/custom.log
+                    - tail -n 20 /var/log/system.log
         - id: 'footer'
           title: 'Footer'
           position:
-            x1: 0%
-            y1: 95%
-            x2: 100%
-            y2: 100%
+            x1: 2%
+            y1: 93%
+            x2: 98%
+            y2: 98%
           script:
             - date
