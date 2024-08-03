@@ -73,7 +73,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 Err(e) => inner.send_message(Message::PanelOutputUpdate(
                                     panel.id.clone(),
                                     false,
-                                    format!("{:?}", e),
+                                    e.to_string(),
                                 )),
                             }
                             std::thread::sleep(std::time::Duration::from_millis(
@@ -134,14 +134,9 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 Err(e) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
                                     false,
-                                    format!("{:?}", e),
+                                    e.to_string(),
                                 )),
                             }
-                            // let output = run_script(libs, panel.script.clone().unwrap().as_ref());
-                            // inner.send_message(Message::PanelOutputUpdate(
-                            //     panel_id.clone(),
-                            //     output.unwrap(),
-                            // ));
 
                             *last_execution_time = Instant::now();
                         }
@@ -203,7 +198,7 @@ fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
                                 Err(e) => inner.send_message(Message::PanelOutputUpdate(
                                     panel.id.clone(),
                                     false,
-                                    format!("{:?}", e),
+                                    e.to_string(),
                                 )),
                             }
 
@@ -264,7 +259,7 @@ fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
                                 Err(e) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
                                     false,
-                                    format!("{:?}", e),
+                                    e.to_string(),
                                 )),
                             }
 
