@@ -328,30 +328,70 @@ create_runnable!(
                                 .app
                                 .get_panel_by_id(&panel_id)
                                 .unwrap();
-                            let libs = app_context_unwrapped.app.libs.clone();
 
-                            if let Some(actions) =
-                                handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap())
+                            let actions =
+                                handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap());
+                            if !actions.is_some()
+                                || (panel.choices.is_some() && pressed_key == "Enter")
                             {
-                                // Perform mutable operations outside the loop that borrows immutably
-                                let panel_mut = app_context_unwrapped
-                                    .app
-                                    .get_panel_by_id_mut(&panel_id)
-                                    .unwrap();
-                                let new_output = run_script(libs, &actions);
+                                if panel.choices.is_some() && pressed_key == "Enter" {
+                                    let libs = app_context_unwrapped.app.libs.clone();
+                                    let choices = panel.choices.as_ref().unwrap();
+                                    let selected_choice = choices.iter().position(|c| c.selected);
+                                    if let Some(selected_choice_unwrapped) = selected_choice {
+                                        let selected_choice = &choices[selected_choice_unwrapped];
+                                        if let Some(script) = &selected_choice.script {
+                                            let new_output = run_script(libs, script);
+                                            if let Ok(new_output) = new_output {
+                                                if selected_choice.redirect_output.is_some() {
+                                                    update_panel_content(
+                                                        inner,
+                                                        &mut app_context_unwrapped_cloned,
+                                                        selected_choice
+                                                            .redirect_output
+                                                            .as_ref()
+                                                            .unwrap(),
+                                                        &new_output,
+                                                    )
+                                                } else {
+                                                    update_panel_content(
+                                                        inner,
+                                                        &mut app_context_unwrapped_cloned,
+                                                        panel_id.as_ref(),
+                                                        &new_output,
+                                                    )
+                                                }
+                                            } else {
+                                                inner.send_message(Message::PanelOutputUpdate(
+                                                    panel_id.clone(),
+                                                    "Error running script".to_string(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(actions_unwrapped) = actions {
+                                    let libs = app_context_unwrapped.app.libs.clone();
+                                    // Perform mutable operations outside the loop that borrows immutably
+                                    let panel_mut = app_context_unwrapped
+                                        .app
+                                        .get_panel_by_id_mut(&panel_id)
+                                        .unwrap();
+                                    let new_output = run_script(libs, &actions_unwrapped);
 
-                                if let Ok(new_output) = new_output {
-                                    update_panel_content(
-                                        inner,
-                                        &mut app_context_unwrapped_cloned,
-                                        panel_mut.id.as_ref(),
-                                        &new_output,
-                                    )
-                                } else {
-                                    inner.send_message(Message::PanelOutputUpdate(
-                                        panel_id.clone(),
-                                        "Error running script".to_string(),
-                                    ));
+                                    if let Ok(new_output) = new_output {
+                                        update_panel_content(
+                                            inner,
+                                            &mut app_context_unwrapped_cloned,
+                                            panel_mut.id.as_ref(),
+                                            &new_output,
+                                        )
+                                    } else {
+                                        inner.send_message(Message::PanelOutputUpdate(
+                                            panel_id.clone(),
+                                            "Error running script".to_string(),
+                                        ));
+                                    }
                                 }
                             }
                         }
