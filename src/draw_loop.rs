@@ -287,8 +287,14 @@ create_runnable!(
                         apply_buffer(&mut new_buffer, screen);
                         *buffer = new_buffer;
                     }
-                    Message::PanelOutputUpdate(panel_id, output) => {
-                        update_panel_content(inner, &mut app_context_unwrapped, panel_id, output);
+                    Message::PanelOutputUpdate(panel_id, success, output) => {
+                        update_panel_content(
+                            inner,
+                            &mut app_context_unwrapped,
+                            panel_id,
+                            *success,
+                            output,
+                        );
                     }
                     Message::ExternalMessage(json_message) => {
                         let message_result: Result<SocketFunction, _> =
@@ -341,31 +347,51 @@ create_runnable!(
                                     if let Some(selected_choice_unwrapped) = selected_choice {
                                         let selected_choice = &choices[selected_choice_unwrapped];
                                         if let Some(script) = &selected_choice.script {
-                                            let new_output = run_script(libs, script);
-                                            if let Ok(new_output) = new_output {
-                                                if selected_choice.redirect_output.is_some() {
-                                                    update_panel_content(
-                                                        inner,
-                                                        &mut app_context_unwrapped_cloned,
-                                                        selected_choice
-                                                            .redirect_output
-                                                            .as_ref()
-                                                            .unwrap(),
-                                                        &new_output,
-                                                    )
-                                                } else {
-                                                    update_panel_content(
-                                                        inner,
-                                                        &mut app_context_unwrapped_cloned,
-                                                        panel_id.as_ref(),
-                                                        &new_output,
-                                                    )
+                                            match run_script(libs, script) {
+                                                Ok(output) => {
+                                                    if selected_choice.redirect_output.is_some() {
+                                                        update_panel_content(
+                                                            inner,
+                                                            &mut app_context_unwrapped_cloned,
+                                                            selected_choice
+                                                                .redirect_output
+                                                                .as_ref()
+                                                                .unwrap(),
+                                                            true,
+                                                            &output,
+                                                        )
+                                                    } else {
+                                                        update_panel_content(
+                                                            inner,
+                                                            &mut app_context_unwrapped_cloned,
+                                                            panel_id.as_ref(),
+                                                            true,
+                                                            &output,
+                                                        )
+                                                    }
                                                 }
-                                            } else {
-                                                inner.send_message(Message::PanelOutputUpdate(
-                                                    panel_id.clone(),
-                                                    "Error running script".to_string(),
-                                                ));
+                                                Err(e) => {
+                                                    if selected_choice.redirect_output.is_some() {
+                                                        update_panel_content(
+                                                            inner,
+                                                            &mut app_context_unwrapped_cloned,
+                                                            selected_choice
+                                                                .redirect_output
+                                                                .as_ref()
+                                                                .unwrap(),
+                                                            false,
+                                                            &format!("Error running script: {}", e),
+                                                        )
+                                                    } else {
+                                                        update_panel_content(
+                                                            inner,
+                                                            &mut app_context_unwrapped_cloned,
+                                                            panel_id.as_ref(),
+                                                            false,
+                                                            &format!("Error running script: {}", e),
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -377,20 +403,46 @@ create_runnable!(
                                         .app
                                         .get_panel_by_id_mut(&panel_id)
                                         .unwrap();
-                                    let new_output = run_script(libs, &actions_unwrapped);
 
-                                    if let Ok(new_output) = new_output {
-                                        update_panel_content(
-                                            inner,
-                                            &mut app_context_unwrapped_cloned,
-                                            panel_mut.id.as_ref(),
-                                            &new_output,
-                                        )
-                                    } else {
-                                        inner.send_message(Message::PanelOutputUpdate(
-                                            panel_id.clone(),
-                                            "Error running script".to_string(),
-                                        ));
+                                    match run_script(libs, &actions_unwrapped) {
+                                        Ok(output) => {
+                                            if panel_mut.redirect_output.is_some() {
+                                                update_panel_content(
+                                                    inner,
+                                                    &mut app_context_unwrapped_cloned,
+                                                    panel_mut.redirect_output.as_ref().unwrap(),
+                                                    true,
+                                                    &output,
+                                                )
+                                            } else {
+                                                update_panel_content(
+                                                    inner,
+                                                    &mut app_context_unwrapped_cloned,
+                                                    panel_id.as_ref(),
+                                                    true,
+                                                    &output,
+                                                )
+                                            }
+                                        }
+                                        Err(e) => {
+                                            if panel_mut.redirect_output.is_some() {
+                                                update_panel_content(
+                                                    inner,
+                                                    &mut app_context_unwrapped_cloned,
+                                                    panel_mut.redirect_output.as_ref().unwrap(),
+                                                    false,
+                                                    &format!("Error running script: {}", e),
+                                                )
+                                            } else {
+                                                update_panel_content(
+                                                    inner,
+                                                    &mut app_context_unwrapped_cloned,
+                                                    panel_id.as_ref(),
+                                                    false,
+                                                    &format!("Error running script: {}", e),
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -414,6 +466,7 @@ pub fn update_panel_content(
     inner: &mut RunnableImpl,
     app_context_unwrapped: &mut AppContext,
     panel_id: &str,
+    success: bool,
     output: &str,
 ) {
     let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
@@ -437,11 +490,13 @@ pub fn update_panel_content(
                 inner,
                 &mut app_context_unwrapped_cloned,
                 found_panel.redirect_output.as_ref().unwrap(),
+                success,
                 output,
             );
         } else {
             log::info!("Updating panel {} content with no redirection.", panel_id);
             found_panel.content = Some(output.to_string());
+            found_panel.error_state = !success;
             inner.update_app_context(app_context_unwrapped.clone());
             inner.send_message(Message::RedrawPanel(panel_id.to_string()));
         }

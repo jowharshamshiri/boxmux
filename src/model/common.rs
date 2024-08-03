@@ -76,6 +76,7 @@ impl Config {
 pub enum SocketFunction {
     ReplacePanelContent {
         panel_id: String,
+        success: bool,
         content: String,
     },
     ReplacePanelScript {
@@ -111,8 +112,12 @@ pub fn run_socket_function(
     let mut app_context = app_context.clone();
     let mut messages = Vec::new();
     match socket_function {
-        SocketFunction::ReplacePanelContent { panel_id, content } => {
-            messages.push(Message::PanelOutputUpdate(panel_id, content));
+        SocketFunction::ReplacePanelContent {
+            panel_id,
+            success,
+            content,
+        } => {
+            messages.push(Message::PanelOutputUpdate(panel_id, success, content));
         }
         SocketFunction::ReplacePanelScript { panel_id, script } => {
             messages.push(Message::PanelScriptUpdate(panel_id, script));

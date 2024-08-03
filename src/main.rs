@@ -64,12 +64,18 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
-
-                            inner.send_message(Message::PanelOutputUpdate(
-                                vec[0].clone(),
-                                output.unwrap(),
-                            ));
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    true,
+                                    output,
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    false,
+                                    format!("{:?}", e),
+                                )),
+                            }
                             std::thread::sleep(std::time::Duration::from_millis(
                                 panel.calc_refresh_interval(&app_context, &app_graph),
                             ));
@@ -119,11 +125,23 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
-                            inner.send_message(Message::PanelOutputUpdate(
-                                panel_id.clone(),
-                                output.unwrap(),
-                            ));
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    true,
+                                    output,
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    false,
+                                    format!("{:?}", e),
+                                )),
+                            }
+                            // let output = run_script(libs, panel.script.clone().unwrap().as_ref());
+                            // inner.send_message(Message::PanelOutputUpdate(
+                            //     panel_id.clone(),
+                            //     output.unwrap(),
+                            // ));
 
                             *last_execution_time = Instant::now();
                         }
@@ -176,18 +194,17 @@ fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
-
-                            if let Ok(output) = output {
-                                inner.send_message(Message::PanelOutputUpdate(
-                                    vec[0].clone(),
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    true,
                                     output,
-                                ));
-                            } else {
-                                inner.send_message(Message::PanelOutputUpdate(
-                                    vec[0].clone(),
-                                    "Error running script".to_string(),
-                                ));
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    false,
+                                    format!("{:?}", e),
+                                )),
                             }
 
                             std::thread::sleep(std::time::Duration::from_millis(
@@ -238,18 +255,17 @@ fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            let output = run_script(libs, panel.script.clone().unwrap().as_ref());
-
-                            if let Ok(output) = output {
-                                inner.send_message(Message::PanelOutputUpdate(
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
+                                    true,
                                     output,
-                                ));
-                            } else {
-                                inner.send_message(Message::PanelOutputUpdate(
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
-                                    "Error running script".to_string(),
-                                ));
+                                    false,
+                                    format!("{:?}", e),
+                                )),
                             }
 
                             *last_execution_time = Instant::now();
@@ -361,9 +377,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("The panel id to update the content of"),
                 )
                 .arg(
-                    Arg::new("new_panel_content")
+                    Arg::new("success")
                         .required(true)
                         .index(2)
+                        .help("Whether the content is a success or not"),
+                )
+                .arg(
+                    Arg::new("new_panel_content")
+                        .required(true)
+                        .index(3)
                         .help("The new content to update the panel with"),
                 ),
         )
@@ -511,6 +533,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Construct the enum variant using the struct syntax
                 let socket_function = SocketFunction::ReplacePanelContent {
                     panel_id: panel_id.to_string(),
+                    success: matches
+                        .value_of("success")
+                        .unwrap()
+                        .parse::<bool>()
+                        .unwrap(),
                     content: new_panel_content.to_string(),
                 };
 

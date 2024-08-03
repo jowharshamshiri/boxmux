@@ -25,7 +25,7 @@ pub enum Message {
     RedrawPanel(String),
     RedrawApp,
     PanelEventRefresh(String),
-    PanelOutputUpdate(String, String),
+    PanelOutputUpdate(String, bool, String),
     PanelScriptUpdate(String, Vec<String>),
     ReplacePanel(String, Panel),
     StopPanelRefresh(String),
@@ -62,9 +62,10 @@ impl Hash for Message {
             Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
             Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
             Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
-            Message::PanelOutputUpdate(panel_id, output) => {
+            Message::PanelOutputUpdate(panel_id, success, output) => {
                 "panel_output_update".hash(state);
                 panel_id.hash(state);
+                success.hash(state);
                 output.hash(state);
             }
             Message::PanelScriptUpdate(panel_id, script) => {

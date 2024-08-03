@@ -29,6 +29,11 @@ pub struct Layout {
     pub menu_bg_color: Option<String>,
     pub selected_menu_fg_color: Option<String>,
     pub selected_menu_bg_color: Option<String>,
+    pub error_border_color: Option<String>,
+    pub error_bg_color: Option<String>,
+    pub error_fg_color: Option<String>,
+    pub error_title_bg_color: Option<String>,
+    pub error_title_fg_color: Option<String>,
     pub overflow_behavior: Option<String>,
     pub root: Option<bool>,
     #[serde(default)]
@@ -66,6 +71,11 @@ impl Hash for Layout {
         self.menu_bg_color.hash(state);
         self.selected_menu_fg_color.hash(state);
         self.selected_menu_bg_color.hash(state);
+        self.error_border_color.hash(state);
+        self.error_bg_color.hash(state);
+        self.error_fg_color.hash(state);
+        self.error_title_bg_color.hash(state);
+        self.error_title_fg_color.hash(state);
         self.overflow_behavior.hash(state);
         self.root.hash(state);
         self.active.hash(state);
@@ -98,6 +108,11 @@ impl Layout {
             menu_bg_color: None,
             selected_menu_fg_color: None,
             selected_menu_bg_color: None,
+            error_border_color: None,
+            error_bg_color: None,
+            error_fg_color: None,
+            error_title_bg_color: None,
+            error_title_fg_color: None,
             overflow_behavior: None,
             root: Some(false),
             on_keypress: None,
@@ -431,6 +446,11 @@ impl Clone for Layout {
             menu_bg_color: self.menu_bg_color.clone(),
             selected_menu_fg_color: self.selected_menu_fg_color.clone(),
             selected_menu_bg_color: self.selected_menu_bg_color.clone(),
+            error_border_color: self.error_border_color.clone(),
+            error_bg_color: self.error_bg_color.clone(),
+            error_fg_color: self.error_fg_color.clone(),
+            error_title_bg_color: self.error_title_bg_color.clone(),
+            error_title_fg_color: self.error_title_fg_color.clone(),
             overflow_behavior: self.overflow_behavior.clone(),
             root: self.root,
             on_keypress: self.on_keypress.clone(),
