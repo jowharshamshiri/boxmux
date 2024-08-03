@@ -150,7 +150,31 @@ create_runnable!(
                             let selected_id = selected_panels.first().unwrap().id.clone();
                             let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
-                                found_panel.scroll_down(Some(1.0));
+                                if found_panel.choices.is_some() {
+                                    //select first or next choice
+                                    let choices = found_panel.choices.as_mut().unwrap();
+                                    let selected_choice = choices.iter().position(|c| c.selected);
+                                    let selected_choice_unwrapped = match selected_choice {
+                                        Some(selected_choice) => selected_choice,
+                                        None => 0,
+                                    };
+                                    let new_selected_choice =
+                                        if selected_choice_unwrapped + 1 < choices.len() {
+                                            selected_choice_unwrapped + 1
+                                        } else {
+                                            0
+                                        };
+                                    for (i, choice) in choices.iter_mut().enumerate() {
+                                        if i == new_selected_choice {
+                                            choice.selected = true;
+                                        } else {
+                                            choice.selected = false;
+                                        }
+                                    }
+                                } else {
+                                    found_panel.scroll_down(Some(1.0));
+                                }
+
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }
@@ -166,7 +190,29 @@ create_runnable!(
                             let selected_id = selected_panels.first().unwrap().id.clone();
                             let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
                             if let Some(found_panel) = panel {
-                                found_panel.scroll_up(Some(1.0));
+                                if found_panel.choices.is_some() {
+                                    //select first or next choice
+                                    let choices = found_panel.choices.as_mut().unwrap();
+                                    let selected_choice = choices.iter().position(|c| c.selected);
+                                    let selected_choice_unwrapped = match selected_choice {
+                                        Some(selected_choice) => selected_choice,
+                                        None => 0,
+                                    };
+                                    let new_selected_choice = if selected_choice_unwrapped > 0 {
+                                        selected_choice_unwrapped - 1
+                                    } else {
+                                        choices.len() - 1
+                                    };
+                                    for (i, choice) in choices.iter_mut().enumerate() {
+                                        if i == new_selected_choice {
+                                            choice.selected = true;
+                                        } else {
+                                            choice.selected = false;
+                                        }
+                                    }
+                                } else {
+                                    found_panel.scroll_up(Some(1.0));
+                                }
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawPanel(selected_id));
                             }

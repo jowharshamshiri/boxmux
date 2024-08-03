@@ -25,6 +25,10 @@ pub struct Layout {
     pub title_position: Option<String>,
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
+    pub menu_fg_color: Option<String>,
+    pub menu_bg_color: Option<String>,
+    pub selected_menu_fg_color: Option<String>,
+    pub selected_menu_bg_color: Option<String>,
     pub overflow_behavior: Option<String>,
     pub root: Option<bool>,
     #[serde(default)]
@@ -58,6 +62,10 @@ impl Hash for Layout {
         self.title_position.hash(state);
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
+        self.menu_fg_color.hash(state);
+        self.menu_bg_color.hash(state);
+        self.selected_menu_fg_color.hash(state);
+        self.selected_menu_bg_color.hash(state);
         self.overflow_behavior.hash(state);
         self.root.hash(state);
         self.active.hash(state);
@@ -86,6 +94,10 @@ impl Layout {
             title_position: None,
             selected_title_bg_color: None,
             selected_title_fg_color: None,
+            menu_fg_color: None,
+            menu_bg_color: None,
+            selected_menu_fg_color: None,
+            selected_menu_bg_color: None,
             overflow_behavior: None,
             root: Some(false),
             on_keypress: None,
@@ -415,6 +427,10 @@ impl Clone for Layout {
             title_position: self.title_position.clone(),
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
+            menu_fg_color: self.menu_fg_color.clone(),
+            menu_bg_color: self.menu_bg_color.clone(),
+            selected_menu_fg_color: self.selected_menu_fg_color.clone(),
+            selected_menu_bg_color: self.selected_menu_bg_color.clone(),
             overflow_behavior: self.overflow_behavior.clone(),
             root: self.root,
             on_keypress: self.on_keypress.clone(),
@@ -619,6 +635,50 @@ impl Updatable for Layout {
             }
         }
 
+        if self.menu_fg_color != other.menu_fg_color {
+            if let Some(new_value) = &other.menu_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "menu_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.menu_bg_color != other.menu_bg_color {
+            if let Some(new_value) = &other.menu_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "menu_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.selected_menu_fg_color != other.selected_menu_fg_color {
+            if let Some(new_value) = &other.selected_menu_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "selected_menu_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.selected_menu_bg_color != other.selected_menu_bg_color {
+            if let Some(new_value) = &other.selected_menu_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "selected_menu_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
         if self.overflow_behavior != other.overflow_behavior {
             if let Some(new_value) = &other.overflow_behavior {
                 updates.push(FieldUpdate {
@@ -770,6 +830,26 @@ impl Updatable for Layout {
                     if let Some(new_selected_title_fg_color) = update.new_value.as_str() {
                         self.selected_title_fg_color =
                             Some(new_selected_title_fg_color.to_string());
+                    }
+                }
+                "menu_fg_color" => {
+                    if let Some(new_menu_fg_color) = update.new_value.as_str() {
+                        self.menu_fg_color = Some(new_menu_fg_color.to_string());
+                    }
+                }
+                "menu_bg_color" => {
+                    if let Some(new_menu_bg_color) = update.new_value.as_str() {
+                        self.menu_bg_color = Some(new_menu_bg_color.to_string());
+                    }
+                }
+                "selected_menu_fg_color" => {
+                    if let Some(new_selected_menu_fg_color) = update.new_value.as_str() {
+                        self.selected_menu_fg_color = Some(new_selected_menu_fg_color.to_string());
+                    }
+                }
+                "selected_menu_bg_color" => {
+                    if let Some(new_selected_menu_bg_color) = update.new_value.as_str() {
+                        self.selected_menu_bg_color = Some(new_selected_menu_bg_color.to_string());
                     }
                 }
                 "overflow_behavior" => {
