@@ -286,7 +286,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .short('d')
                 .long("frame_delay")
                 .takes_value(true)
-                .default_value("100")
+                .default_value("30")
                 .help("Sets the frame delay in milliseconds"),
         )
         .subcommand(

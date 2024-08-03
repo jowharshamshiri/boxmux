@@ -55,7 +55,7 @@ impl Hash for Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { frame_delay: 100 }
+        Config { frame_delay: 30 }
     }
 }
 

@@ -53,6 +53,7 @@ app:
             y2: 95%
           children:
             - id: 'menuA'
+              title: 'Action Menu'
               position:
                 x1: 0%
                 y1: 0%
@@ -67,29 +68,29 @@ app:
                   - echo 'Key B pressed'
               choices:
                 - id: 'menuA1'
-                  content: 'Menu A1'
+                  content: 'Item A1'
                   script:
-                    - echo 'Menu A1'
+                    - echo 'Item A1'
                   redirect_output: 'status'
                 - id: 'menuA2'
-                  content: 'Menu A2'
+                  content: 'Item A2'
                   script:
-                    - echo 'Menu A2'
+                    - echo 'Item A2'
                   redirect_output: 'title'
                 - id: 'menuA3'
-                  content: 'Menu A3'
+                  content: 'Item A3'
                   script:
-                    - echo 'Menu A3'
+                    - echo 'Item A3'
                   redirect_output: 'status'
                 - id: 'menuA4'
-                  content: 'Menu A4'
+                  content: 'Item A4'
                   script:
-                    - echo 'Menu A4'
+                    - echo 'Item A4'
                   redirect_output: 'status'
                 - id: 'menuA5'
-                  content: 'Menu A5'
+                  content: 'Item A5'
                   script:
-                    - echo 'Menu A5'
+                    - echo 'Item A5'
                   redirect_output: 'status'
         - id: 'content'
           title: 'Content Area'
