@@ -1,6 +1,8 @@
 use termion::color;
 
-use crate::{AppContext, AppGraph, Bounds, Choice, Layout, Panel, ScreenBuffer};
+use crate::{
+    set_terminal_title, AppContext, AppGraph, Bounds, Choice, Layout, Panel, ScreenBuffer,
+};
 use std::collections::HashMap;
 
 use crate::model::common::Cell;
@@ -95,6 +97,12 @@ pub fn draw_layout(
 
     // Set the background for the layout
     fill_panel(&screen_bounds(), false, &bg_color, fill_char, buffer);
+
+    if let Some(layout_title) = &cloned_layout.title {
+        if !layout_title.trim().is_empty() {
+            set_terminal_title(layout_title);
+        }
+    }
 
     if let Some(children) = &cloned_layout.children {
         for panel in children.iter() {

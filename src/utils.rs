@@ -399,6 +399,11 @@ pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
     None
 }
 
+pub fn set_terminal_title(title: &str) {
+    print!("\x1B]0;{}\x07", title);
+    io::stdout().flush().unwrap();
+}
+
 pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
     let mut result: HashMap<String, i32> = HashMap::new();
 
