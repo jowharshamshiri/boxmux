@@ -81,6 +81,7 @@ pub struct Panel {
     pub selected_title_fg_color: Option<String>,
     pub title_position: Option<String>,
     pub choices: Option<Vec<Choice>>,
+    pub redirect_output: Option<String>,
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     #[serde(default)]
@@ -139,6 +140,7 @@ impl Hash for Panel {
                 choice.hash(state);
             }
         }
+        self.redirect_output.hash(state);
         self.script.hash(state);
         self.thread.hash(state);
         self.output.hash(state);
@@ -193,6 +195,7 @@ impl Default for Panel {
             selected_title_fg_color: None,
             title_position: None,
             choices: None,
+            redirect_output: None,
             script: None,
             thread: Some(false),
             on_keypress: None,
@@ -238,6 +241,7 @@ impl PartialEq for Panel {
             && self.selected_title_fg_color == other.selected_title_fg_color
             && self.title_position == other.title_position
             && self.choices == other.choices
+            && self.redirect_output == other.redirect_output
             && self.script == other.script
             && self.thread == other.thread
             && self.horizontal_scroll.map(|hs| hs.to_bits())
@@ -290,6 +294,7 @@ impl Clone for Panel {
             selected_title_fg_color: self.selected_title_fg_color.clone(),
             title_position: self.title_position.clone(),
             choices: self.choices.clone(),
+            redirect_output: self.redirect_output.clone(),
             script: self.script.clone(),
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),
@@ -1083,6 +1088,28 @@ impl Updatable for Panel {
             }
         }
 
+        if self.choices != other.choices {
+            if let Some(new_value) = &other.choices {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "choices".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.redirect_output != other.redirect_output {
+            if let Some(new_value) = &other.redirect_output {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "redirect_output".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
         if self.script != other.script {
             if let Some(new_value) = &other.script {
                 updates.push(FieldUpdate {
@@ -1386,6 +1413,20 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<String>>(update.new_value.clone())
                     {
                         self.title_position = new_title_position;
+                    }
+                }
+                "choices" => {
+                    if let Ok(new_choices) =
+                        serde_json::from_value::<Option<Vec<Choice>>>(update.new_value.clone())
+                    {
+                        self.choices = new_choices;
+                    }
+                }
+                "redirect_output" => {
+                    if let Ok(new_redirect_output) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.redirect_output = new_redirect_output;
                     }
                 }
                 "script" => {

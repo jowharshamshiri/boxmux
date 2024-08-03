@@ -57,6 +57,7 @@ app:
                 x2: 90%
                 y2: 50%
               tab_order: 1
+              redirect_output: 'status'
               on_keypress:
                 a:
                   - echo 'Key A pressed'

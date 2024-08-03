@@ -8,6 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 use uuid::Uuid;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
     Exit,
