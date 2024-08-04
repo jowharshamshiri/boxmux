@@ -92,6 +92,11 @@ pub struct Panel {
     pub error_fg_color: Option<String>,
     pub error_title_bg_color: Option<String>,
     pub error_title_fg_color: Option<String>,
+    pub error_selected_border_color: Option<String>,
+    pub error_selected_bg_color: Option<String>,
+    pub error_selected_fg_color: Option<String>,
+    pub error_selected_title_bg_color: Option<String>,
+    pub error_selected_title_fg_color: Option<String>,
     pub choices: Option<Vec<Choice>>,
     pub menu_fg_color: Option<String>,
     pub menu_bg_color: Option<String>,
@@ -161,6 +166,11 @@ impl Hash for Panel {
         self.error_fg_color.hash(state);
         self.error_title_bg_color.hash(state);
         self.error_title_fg_color.hash(state);
+        self.error_selected_border_color.hash(state);
+        self.error_selected_bg_color.hash(state);
+        self.error_selected_fg_color.hash(state);
+        self.error_selected_title_bg_color.hash(state);
+        self.error_selected_title_fg_color.hash(state);
         if let Some(choices) = &self.choices {
             for choice in choices {
                 choice.hash(state);
@@ -226,6 +236,11 @@ impl Default for Panel {
             error_fg_color: None,
             error_title_bg_color: None,
             error_title_fg_color: None,
+            error_selected_border_color: None,
+            error_selected_bg_color: None,
+            error_selected_fg_color: None,
+            error_selected_title_bg_color: None,
+            error_selected_title_fg_color: None,
             choices: None,
             menu_fg_color: None,
             menu_bg_color: None,
@@ -282,6 +297,11 @@ impl PartialEq for Panel {
             && self.error_fg_color == other.error_fg_color
             && self.error_title_bg_color == other.error_title_bg_color
             && self.error_title_fg_color == other.error_title_fg_color
+            && self.error_selected_border_color == other.error_selected_border_color
+            && self.error_selected_bg_color == other.error_selected_bg_color
+            && self.error_selected_fg_color == other.error_selected_fg_color
+            && self.error_selected_title_bg_color == other.error_selected_title_bg_color
+            && self.error_selected_title_fg_color == other.error_selected_title_fg_color
             && self.choices == other.choices
             && self.menu_fg_color == other.menu_fg_color
             && self.menu_bg_color == other.menu_bg_color
@@ -345,6 +365,11 @@ impl Clone for Panel {
             error_fg_color: self.error_fg_color.clone(),
             error_title_bg_color: self.error_title_bg_color.clone(),
             error_title_fg_color: self.error_title_fg_color.clone(),
+            error_selected_border_color: self.error_selected_border_color.clone(),
+            error_selected_bg_color: self.error_selected_bg_color.clone(),
+            error_selected_fg_color: self.error_selected_fg_color.clone(),
+            error_selected_title_bg_color: self.error_selected_title_bg_color.clone(),
+            error_selected_title_fg_color: self.error_selected_title_fg_color.clone(),
             choices: self.choices.clone(),
             menu_fg_color: self.menu_fg_color.clone(),
             menu_bg_color: self.menu_bg_color.clone(),
@@ -708,34 +733,76 @@ impl Panel {
     }
 
     pub fn calc_error_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
-        let parent_position = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.error_fg_color.clone());
-        let parent_layout_position = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.error_fg_color.clone());
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
+            if self.selected.unwrap_or(false) {
+                p.error_selected_fg_color.clone()
+            } else {
+                p.error_fg_color.clone()
+            }
+        });
+
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+            if self.selected.unwrap_or(false) {
+                pl.error_selected_fg_color.clone()
+            } else {
+                pl.error_fg_color.clone()
+            }
+        });
+
+        let self_color = if self.selected.unwrap_or(false) {
+            self.error_selected_fg_color.as_ref()
+        } else {
+            self.error_fg_color.as_ref()
+        };
+
+        let default_color = if self.selected.unwrap_or(false) {
+            "bright_white"
+        } else {
+            "white"
+        };
 
         inherit_string(
-            self.error_fg_color.as_ref(),
-            parent_position.as_ref(),
-            parent_layout_position.as_ref(),
-            "bright_white",
+            self_color,
+            parent_color.as_ref(),
+            parent_layout_color.as_ref(),
+            default_color,
         )
     }
 
     pub fn calc_error_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
-        let parent_position = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.error_bg_color.clone());
-        let parent_layout_position = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.error_bg_color.clone());
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
+            if self.selected.unwrap_or(false) {
+                p.error_selected_bg_color.clone()
+            } else {
+                p.error_bg_color.clone()
+            }
+        });
+
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+            if self.selected.unwrap_or(false) {
+                pl.error_selected_bg_color.clone()
+            } else {
+                pl.error_bg_color.clone()
+            }
+        });
+
+        let self_color = if self.selected.unwrap_or(false) {
+            self.error_selected_bg_color.as_ref()
+        } else {
+            self.error_bg_color.as_ref()
+        };
+
+        let default_color = if self.selected.unwrap_or(false) {
+            "bright_red"
+        } else {
+            "red"
+        };
 
         inherit_string(
-            self.error_bg_color.as_ref(),
-            parent_position.as_ref(),
-            parent_layout_position.as_ref(),
-            "red",
+            self_color,
+            parent_color.as_ref(),
+            parent_layout_color.as_ref(),
+            default_color,
         )
     }
 
@@ -744,18 +811,39 @@ impl Panel {
         app_context: &AppContext,
         app_graph: &AppGraph,
     ) -> String {
-        let parent_position = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.error_title_fg_color.clone());
-        let parent_layout_position = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.error_title_fg_color.clone());
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
+            if self.selected.unwrap_or(false) {
+                p.error_selected_title_fg_color.clone()
+            } else {
+                p.error_title_fg_color.clone()
+            }
+        });
+
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+            if self.selected.unwrap_or(false) {
+                pl.error_selected_title_fg_color.clone()
+            } else {
+                pl.error_title_fg_color.clone()
+            }
+        });
+
+        let self_color = if self.selected.unwrap_or(false) {
+            self.error_selected_title_fg_color.as_ref()
+        } else {
+            self.error_title_fg_color.as_ref()
+        };
+
+        let default_color = if self.selected.unwrap_or(false) {
+            "bright_red"
+        } else {
+            "red"
+        };
 
         inherit_string(
-            self.error_title_fg_color.as_ref(),
-            parent_position.as_ref(),
-            parent_layout_position.as_ref(),
-            "bright_white",
+            self_color,
+            parent_color.as_ref(),
+            parent_layout_color.as_ref(),
+            default_color,
         )
     }
 
@@ -764,18 +852,39 @@ impl Panel {
         app_context: &AppContext,
         app_graph: &AppGraph,
     ) -> String {
-        let parent_position = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.error_title_bg_color.clone());
-        let parent_layout_position = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.error_title_bg_color.clone());
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
+            if self.selected.unwrap_or(false) {
+                p.error_selected_title_bg_color.clone()
+            } else {
+                p.error_title_bg_color.clone()
+            }
+        });
+
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+            if self.selected.unwrap_or(false) {
+                pl.error_selected_title_bg_color.clone()
+            } else {
+                pl.error_title_bg_color.clone()
+            }
+        });
+
+        let self_color = if self.selected.unwrap_or(false) {
+            self.error_selected_title_bg_color.as_ref()
+        } else {
+            self.error_title_bg_color.as_ref()
+        };
+
+        let default_color = if self.selected.unwrap_or(false) {
+            "bright_white"
+        } else {
+            "white"
+        };
 
         inherit_string(
-            self.error_title_bg_color.as_ref(),
-            parent_position.as_ref(),
-            parent_layout_position.as_ref(),
-            "red",
+            self_color,
+            parent_color.as_ref(),
+            parent_layout_color.as_ref(),
+            default_color,
         )
     }
 
@@ -784,18 +893,39 @@ impl Panel {
         app_context: &AppContext,
         app_graph: &AppGraph,
     ) -> String {
-        let parent_position = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.error_border_color.clone());
-        let parent_layout_position = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.error_border_color.clone());
+        let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
+            if self.selected.unwrap_or(false) {
+                p.error_selected_border_color.clone()
+            } else {
+                p.error_border_color.clone()
+            }
+        });
+
+        let parent_layout_color = self.get_parent_layout_clone(app_context).and_then(|pl| {
+            if self.selected.unwrap_or(false) {
+                pl.error_selected_border_color.clone()
+            } else {
+                pl.error_border_color.clone()
+            }
+        });
+
+        let self_color = if self.selected.unwrap_or(false) {
+            self.error_selected_border_color.as_ref()
+        } else {
+            self.error_border_color.as_ref()
+        };
+
+        let default_color = if self.selected.unwrap_or(false) {
+            "bright_white"
+        } else {
+            "white"
+        };
 
         inherit_string(
-            self.error_border_color.as_ref(),
-            parent_position.as_ref(),
-            parent_layout_position.as_ref(),
-            "red",
+            self_color,
+            parent_color.as_ref(),
+            parent_layout_color.as_ref(),
+            default_color,
         )
     }
 
@@ -1329,6 +1459,125 @@ impl Updatable for Panel {
             }
         }
 
+        if self.error_state != other.error_state {
+            updates.push(FieldUpdate {
+                entity_type: EntityType::Panel,
+                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                field_name: "error_state".to_string(),
+                new_value: serde_json::to_value(&other.error_state).unwrap(),
+            });
+        }
+
+        if self.error_fg_color != other.error_fg_color {
+            if let Some(new_value) = &other.error_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_bg_color != other.error_bg_color {
+            if let Some(new_value) = &other.error_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_title_fg_color != other.error_title_fg_color {
+            if let Some(new_value) = &other.error_title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_title_bg_color != other.error_title_bg_color {
+            if let Some(new_value) = &other.error_title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_border_color != other.error_border_color {
+            if let Some(new_value) = &other.error_border_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_bg_color != other.error_selected_bg_color {
+            if let Some(new_value) = &other.error_selected_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_selected_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_fg_color != other.error_selected_fg_color {
+            if let Some(new_value) = &other.error_selected_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_selected_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_border_color != other.error_selected_border_color {
+            if let Some(new_value) = &other.error_selected_border_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_selected_border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_title_bg_color != other.error_selected_title_bg_color {
+            if let Some(new_value) = &other.error_selected_title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_selected_title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_title_fg_color != other.error_selected_title_fg_color {
+            if let Some(new_value) = &other.error_selected_title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Panel,
+                    entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
+                    field_name: "error_selected_title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
         if self.choices != other.choices {
             if let Some(new_value) = &other.choices {
                 updates.push(FieldUpdate {
@@ -1698,6 +1947,83 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<String>>(update.new_value.clone())
                     {
                         self.title_position = new_title_position;
+                    }
+                }
+                "error_state" => {
+                    if let Ok(new_error_state) =
+                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
+                    {
+                        self.error_state = new_error_state.unwrap();
+                    }
+                }
+                "error_fg_color" => {
+                    if let Ok(new_error_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_fg_color = new_error_fg_color;
+                    }
+                }
+                "error_bg_color" => {
+                    if let Ok(new_error_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_bg_color = new_error_bg_color;
+                    }
+                }
+                "error_title_fg_color" => {
+                    if let Ok(new_error_title_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_title_fg_color = new_error_title_fg_color;
+                    }
+                }
+                "error_title_bg_color" => {
+                    if let Ok(new_error_title_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_title_bg_color = new_error_title_bg_color;
+                    }
+                }
+                "error_border_color" => {
+                    if let Ok(new_error_border_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_border_color = new_error_border_color;
+                    }
+                }
+                "error_selected_bg_color" => {
+                    if let Ok(new_error_selected_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_selected_bg_color = new_error_selected_bg_color;
+                    }
+                }
+                "error_selected_fg_color" => {
+                    if let Ok(new_error_selected_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_selected_fg_color = new_error_selected_fg_color;
+                    }
+                }
+                "error_selected_border_color" => {
+                    if let Ok(new_error_selected_border_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_selected_border_color = new_error_selected_border_color;
+                    }
+                }
+                "error_selected_title_bg_color" => {
+                    if let Ok(new_error_selected_title_bg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_selected_title_bg_color = new_error_selected_title_bg_color;
+                    }
+                }
+                "error_selected_title_fg_color" => {
+                    if let Ok(new_error_selected_title_fg_color) =
+                        serde_json::from_value::<Option<String>>(update.new_value.clone())
+                    {
+                        self.error_selected_title_fg_color = new_error_selected_title_fg_color;
                     }
                 }
                 "choices" => {
