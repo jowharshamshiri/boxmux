@@ -34,6 +34,11 @@ pub struct Layout {
     pub error_fg_color: Option<String>,
     pub error_title_bg_color: Option<String>,
     pub error_title_fg_color: Option<String>,
+    pub error_selected_border_color: Option<String>,
+    pub error_selected_bg_color: Option<String>,
+    pub error_selected_fg_color: Option<String>,
+    pub error_selected_title_bg_color: Option<String>,
+    pub error_selected_title_fg_color: Option<String>,
     pub overflow_behavior: Option<String>,
     pub root: Option<bool>,
     #[serde(default)]
@@ -76,6 +81,11 @@ impl Hash for Layout {
         self.error_fg_color.hash(state);
         self.error_title_bg_color.hash(state);
         self.error_title_fg_color.hash(state);
+        self.error_selected_border_color.hash(state);
+        self.error_selected_bg_color.hash(state);
+        self.error_selected_fg_color.hash(state);
+        self.error_selected_title_bg_color.hash(state);
+        self.error_selected_title_fg_color.hash(state);
         self.overflow_behavior.hash(state);
         self.root.hash(state);
         self.active.hash(state);
@@ -113,6 +123,11 @@ impl Layout {
             error_fg_color: None,
             error_title_bg_color: None,
             error_title_fg_color: None,
+            error_selected_border_color: None,
+            error_selected_bg_color: None,
+            error_selected_fg_color: None,
+            error_selected_title_bg_color: None,
+            error_selected_title_fg_color: None,
             overflow_behavior: None,
             root: Some(false),
             on_keypress: None,
@@ -451,6 +466,11 @@ impl Clone for Layout {
             error_fg_color: self.error_fg_color.clone(),
             error_title_bg_color: self.error_title_bg_color.clone(),
             error_title_fg_color: self.error_title_fg_color.clone(),
+            error_selected_border_color: self.error_selected_border_color.clone(),
+            error_selected_bg_color: self.error_selected_bg_color.clone(),
+            error_selected_fg_color: self.error_selected_fg_color.clone(),
+            error_selected_title_bg_color: self.error_selected_title_bg_color.clone(),
+            error_selected_title_fg_color: self.error_selected_title_fg_color.clone(),
             overflow_behavior: self.overflow_behavior.clone(),
             root: self.root,
             on_keypress: self.on_keypress.clone(),
@@ -699,6 +719,116 @@ impl Updatable for Layout {
             }
         }
 
+        if self.error_border_color != other.error_border_color {
+            if let Some(new_value) = &other.error_border_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_bg_color != other.error_bg_color {
+            if let Some(new_value) = &other.error_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_fg_color != other.error_fg_color {
+            if let Some(new_value) = &other.error_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_title_bg_color != other.error_title_bg_color {
+            if let Some(new_value) = &other.error_title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_title_fg_color != other.error_title_fg_color {
+            if let Some(new_value) = &other.error_title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_border_color != other.error_selected_border_color {
+            if let Some(new_value) = &other.error_selected_border_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_selected_border_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_bg_color != other.error_selected_bg_color {
+            if let Some(new_value) = &other.error_selected_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_selected_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_fg_color != other.error_selected_fg_color {
+            if let Some(new_value) = &other.error_selected_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_selected_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_title_bg_color != other.error_selected_title_bg_color {
+            if let Some(new_value) = &other.error_selected_title_bg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_selected_title_bg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
+        if self.error_selected_title_fg_color != other.error_selected_title_fg_color {
+            if let Some(new_value) = &other.error_selected_title_fg_color {
+                updates.push(FieldUpdate {
+                    entity_type: EntityType::Layout,
+                    entity_id: Some(self.id.clone()),
+                    field_name: "error_selected_title_fg_color".to_string(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
+                });
+            }
+        }
+
         if self.overflow_behavior != other.overflow_behavior {
             if let Some(new_value) = &other.overflow_behavior {
                 updates.push(FieldUpdate {
@@ -870,6 +1000,61 @@ impl Updatable for Layout {
                 "selected_menu_bg_color" => {
                     if let Some(new_selected_menu_bg_color) = update.new_value.as_str() {
                         self.selected_menu_bg_color = Some(new_selected_menu_bg_color.to_string());
+                    }
+                }
+                "error_border_color" => {
+                    if let Some(new_error_border_color) = update.new_value.as_str() {
+                        self.error_border_color = Some(new_error_border_color.to_string());
+                    }
+                }
+                "error_bg_color" => {
+                    if let Some(new_error_bg_color) = update.new_value.as_str() {
+                        self.error_bg_color = Some(new_error_bg_color.to_string());
+                    }
+                }
+                "error_fg_color" => {
+                    if let Some(new_error_fg_color) = update.new_value.as_str() {
+                        self.error_fg_color = Some(new_error_fg_color.to_string());
+                    }
+                }
+                "error_title_bg_color" => {
+                    if let Some(new_error_title_bg_color) = update.new_value.as_str() {
+                        self.error_title_bg_color = Some(new_error_title_bg_color.to_string());
+                    }
+                }
+                "error_title_fg_color" => {
+                    if let Some(new_error_title_fg_color) = update.new_value.as_str() {
+                        self.error_title_fg_color = Some(new_error_title_fg_color.to_string());
+                    }
+                }
+                "error_selected_border_color" => {
+                    if let Some(new_error_selected_border_color) = update.new_value.as_str() {
+                        self.error_selected_border_color =
+                            Some(new_error_selected_border_color.to_string());
+                    }
+                }
+                "error_selected_bg_color" => {
+                    if let Some(new_error_selected_bg_color) = update.new_value.as_str() {
+                        self.error_selected_bg_color =
+                            Some(new_error_selected_bg_color.to_string());
+                    }
+                }
+                "error_selected_fg_color" => {
+                    if let Some(new_error_selected_fg_color) = update.new_value.as_str() {
+                        self.error_selected_fg_color =
+                            Some(new_error_selected_fg_color.to_string());
+                    }
+                }
+                "error_selected_title_bg_color" => {
+                    if let Some(new_error_selected_title_bg_color) = update.new_value.as_str() {
+                        self.error_selected_title_bg_color =
+                            Some(new_error_selected_title_bg_color.to_string());
+                    }
+                }
+                "error_selected_title_fg_color" => {
+                    if let Some(new_error_selected_title_fg_color) = update.new_value.as_str() {
+                        self.error_selected_title_fg_color =
+                            Some(new_error_selected_title_fg_color.to_string());
                     }
                 }
                 "overflow_behavior" => {
