@@ -8,6 +8,7 @@ use crate::{
 use crate::{thread_manager::*, FieldUpdate};
 use clap::App;
 use crossbeam_channel::Sender;
+use rayon::vec;
 use serde_json;
 use std::io::{self, stdout};
 use std::io::{Stdout, Write as IoWrite};
@@ -71,6 +72,7 @@ create_runnable!(
             let (adjusted_bounds, app_graph) = app_context_unwrapped
                 .app
                 .get_adjusted_bounds_and_app_graph(Some(true));
+            let mut choice_ids_now_waiting: Vec<(String, String)> = vec![];
 
             for message in &messages {
                 match message {
@@ -328,7 +330,7 @@ create_runnable!(
                         }
                     }
                     Message::KeyPress(pressed_key) => {
-                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+                        let mut app_context_for_keypress = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
                         let selected_panels: Vec<&Panel> = active_layout.get_selected_panels();
@@ -348,7 +350,7 @@ create_runnable!(
                                 .filter(|p| p.choices.is_some())
                                 .collect();
                             for panel in selected_panels_with_choices {
-                                let panel_mut = app_context_unwrapped_cloned
+                                let panel_mut = app_context_for_keypress
                                     .app
                                     .get_panel_by_id_mut(panel.id.as_str())
                                     .unwrap();
@@ -385,7 +387,10 @@ create_runnable!(
 
                                         match job_execution {
                                             Ok(job_id) => {
-                                                selected_choice_unwrapped.waiting = true;
+                                                choice_ids_now_waiting.push((
+                                                    panel.id.clone(),
+                                                    selected_choice_unwrapped.id.clone(),
+                                                ));
                                                 log::trace!(
                                                     "Dispatched choice {:?} as job: {:?}",
                                                     selected_choice_unwrapped.id,
@@ -422,7 +427,7 @@ create_runnable!(
                                             if panel.redirect_output.is_some() {
                                                 update_panel_content(
                                                     inner,
-                                                    &mut app_context_unwrapped_cloned,
+                                                    &mut app_context_for_keypress,
                                                     panel.redirect_output.as_ref().unwrap(),
                                                     true,
                                                     panel.append_output.unwrap_or(false),
@@ -431,7 +436,7 @@ create_runnable!(
                                             } else {
                                                 update_panel_content(
                                                     inner,
-                                                    &mut app_context_unwrapped_cloned,
+                                                    &mut app_context_for_keypress,
                                                     &panel.id,
                                                     true,
                                                     panel.append_output.unwrap_or(false),
@@ -443,7 +448,7 @@ create_runnable!(
                                             if panel.redirect_output.is_some() {
                                                 update_panel_content(
                                                     inner,
-                                                    &mut app_context_unwrapped_cloned,
+                                                    &mut app_context_for_keypress,
                                                     panel.redirect_output.as_ref().unwrap(),
                                                     false,
                                                     panel.append_output.unwrap_or(false),
@@ -452,7 +457,7 @@ create_runnable!(
                                             } else {
                                                 update_panel_content(
                                                     inner,
-                                                    &mut app_context_unwrapped_cloned,
+                                                    &mut app_context_for_keypress,
                                                     &panel.id,
                                                     false,
                                                     panel.append_output.unwrap_or(false),
@@ -472,6 +477,20 @@ create_runnable!(
             let choice_results: Vec<ChoiceResultPacket<ChoiceResult<String>, String>> =
                 POOL.get_results();
             let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+            for (panel_id, choice_id) in choice_ids_now_waiting {
+                app_context_unwrapped_cloned
+                    .app
+                    .get_panel_by_id_mut(panel_id.as_str())
+                    .unwrap()
+                    .choices
+                    .as_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|c| c.id == choice_id)
+                    .unwrap()
+                    .waiting = true;
+            }
+
             for choice_result in choice_results {
                 let panel = app_context_unwrapped
                     .app
@@ -617,9 +636,18 @@ pub fn update_panel_content(
             log::trace!("Updating panel {} content with no redirection.", panel_id);
             if append_output {
                 if let Some(content) = &found_panel.content {
-                    found_panel.content = Some(format!("{}\n{}", output, content));
+                    found_panel.content = Some(format!(
+                        "[{}]\n\n{}\n\n\n\n{}",
+                        chrono::Local::now().to_rfc2822(),
+                        output,
+                        content
+                    ));
                 } else {
-                    found_panel.content = Some(output.to_string());
+                    found_panel.content = Some(format!(
+                        "[{}]\n\n{}",
+                        chrono::Local::now().to_rfc2822(),
+                        output
+                    ));
                 }
             } else {
                 found_panel.content = Some(output.to_string());
