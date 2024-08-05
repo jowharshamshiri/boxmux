@@ -157,10 +157,7 @@ create_runnable!(
                                     //select first or next choice
                                     let choices = found_panel.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
-                                    let selected_choice_unwrapped = match selected_choice {
-                                        Some(selected_choice) => selected_choice,
-                                        None => 0,
-                                    };
+                                    let selected_choice_unwrapped = selected_choice.unwrap_or_default();
                                     let new_selected_choice =
                                         if selected_choice_unwrapped + 1 < choices.len() {
                                             selected_choice_unwrapped + 1
@@ -168,11 +165,7 @@ create_runnable!(
                                             0
                                         };
                                     for (i, choice) in choices.iter_mut().enumerate() {
-                                        if i == new_selected_choice {
-                                            choice.selected = true;
-                                        } else {
-                                            choice.selected = false;
-                                        }
+                                        choice.selected = i == new_selected_choice;
                                     }
                                 } else {
                                     found_panel.scroll_down(Some(1.0));
@@ -197,21 +190,14 @@ create_runnable!(
                                     //select first or next choice
                                     let choices = found_panel.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
-                                    let selected_choice_unwrapped = match selected_choice {
-                                        Some(selected_choice) => selected_choice,
-                                        None => 0,
-                                    };
+                                    let selected_choice_unwrapped = selected_choice.unwrap_or_default();
                                     let new_selected_choice = if selected_choice_unwrapped > 0 {
                                         selected_choice_unwrapped - 1
                                     } else {
                                         choices.len() - 1
                                     };
                                     for (i, choice) in choices.iter_mut().enumerate() {
-                                        if i == new_selected_choice {
-                                            choice.selected = true;
-                                        } else {
-                                            choice.selected = false;
-                                        }
+                                        choice.selected = i == new_selected_choice;
                                     }
                                 } else {
                                     found_panel.scroll_up(Some(1.0));
@@ -256,7 +242,7 @@ create_runnable!(
                     Message::RedrawPanel(panel_id) => {
                         if let Some(mut found_panel) = app_context_unwrapped
                             .app
-                            .get_panel_by_id_mut(&panel_id)
+                            .get_panel_by_id_mut(panel_id)
                             .cloned()
                         {
                             new_buffer = buffer.clone();
@@ -294,7 +280,7 @@ create_runnable!(
                         let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                         let panel = app_context_unwrapped
                             .app
-                            .get_panel_by_id(&panel_id)
+                            .get_panel_by_id(panel_id)
                             .unwrap();
                         update_panel_content(
                             inner,
@@ -415,8 +401,8 @@ create_runnable!(
 
                         for panel in selected_panels_with_keypress_events {
                             let actions =
-                                handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap());
-                            if !actions.is_some() {
+                                handle_keypress(pressed_key, &panel.on_keypress.clone().unwrap());
+                            if actions.is_none() {
                                 if let Some(actions_unwrapped) = actions {
                                     let libs = app_context_unwrapped.app.libs.clone();
 

@@ -1,8 +1,7 @@
 use crate::model::app::AppContext;
-use crate::model::panel;
 use crate::{run_script, FieldUpdate, Panel, Updatable};
 use bincode;
-use log::{error, info};
+use log::{error};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -337,7 +336,7 @@ impl ThreadManager {
             message_senders: HashMap::new(),
             app_context_receivers: HashMap::new(),
             message_receivers: HashMap::new(),
-            app_context: app_context,
+            app_context,
         }
     }
 

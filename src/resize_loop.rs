@@ -19,7 +19,7 @@ create_runnable!(
      messages: Vec<Message>|
      -> (bool, AppContext) {
         let mut signals =
-            Signals::new(&[SIGWINCH, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGCONT]).unwrap();
+            Signals::new([SIGWINCH, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGCONT]).unwrap();
 
         for signal in signals.forever() {
             match signal {

@@ -58,11 +58,11 @@ impl Clone for Choice {
             id: self.id.clone(),
             content: self.content.clone(),
             script: self.script.clone(),
-            thread: self.thread.clone(),
+            thread: self.thread,
             redirect_output: self.redirect_output.clone(),
-            append_output: self.append_output.clone(),
-            selected: self.selected.clone(),
-            waiting: self.waiting.clone(),
+            append_output: self.append_output,
+            selected: self.selected,
+            waiting: self.waiting,
         }
     }
 }
@@ -361,7 +361,7 @@ impl Clone for Panel {
             children: self
                 .children
                 .as_ref()
-                .map(|children| children.iter().map(|panel| panel.clone()).collect()),
+                .map(|children| children.to_vec()),
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
@@ -434,11 +434,7 @@ impl Panel {
             .parent_layout_id
             .as_ref()
             .expect("Parent layout ID missing");
-        if let Some(parent) = app_graph.get_parent(layout_id, &self.id) {
-            Some(parent.clone()) // Clone the result to break the lifetime dependency
-        } else {
-            None
-        }
+        app_graph.get_parent(layout_id, &self.id).cloned()
     }
 
     pub fn get_parent_layout_clone(&self, app_context: &AppContext) -> Option<Layout> {
@@ -446,11 +442,7 @@ impl Panel {
             .parent_layout_id
             .as_ref()
             .expect("Parent layout ID missing");
-        if let Some(parent_layout) = app_context.app.get_layout_by_id(layout_id) {
-            Some(parent_layout.clone()) // Clone the result to break the lifetime dependency
-        } else {
-            None
-        }
+        app_context.app.get_layout_by_id(layout_id).cloned()
     }
 
     pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
@@ -950,17 +942,17 @@ impl Panel {
     pub fn calc_fill_char(&self, app_context: &AppContext, app_graph: &AppGraph) -> char {
         let parent_fill_char = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
-                p.fill_char.clone()
+                p.fill_char
             } else {
-                p.fill_char.clone()
+                p.fill_char
             }
         });
 
         let parent_layout_fill_char = self.get_parent_layout_clone(app_context).and_then(|pl| {
             if self.selected.unwrap_or(false) {
-                pl.selected_fill_char.clone()
+                pl.selected_fill_char
             } else {
-                pl.fill_char.clone()
+                pl.fill_char
             }
         });
 
@@ -981,10 +973,10 @@ impl Panel {
     pub fn calc_border(&self, app_context: &AppContext, app_graph: &AppGraph) -> bool {
         let parent_border = self
             .get_parent_clone(app_graph)
-            .and_then(|p| p.border.clone());
+            .and_then(|p| p.border);
         let parent_layout_border = self
             .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.border.clone());
+            .and_then(|pl| pl.border);
 
         inherit_bool(
             self.border.as_ref(),
@@ -1013,10 +1005,10 @@ impl Panel {
     pub fn calc_refresh_interval(&self, app_context: &AppContext, app_graph: &AppGraph) -> u64 {
         let parent_refresh_interval = self
             .get_parent_clone(app_graph)
-            .and_then(|p| p.refresh_interval.clone());
+            .and_then(|p| p.refresh_interval);
         let parent_layout_interval = self
             .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.refresh_interval.clone());
+            .and_then(|pl| pl.refresh_interval);
 
         inherit_u64(
             self.refresh_interval.as_ref(),
@@ -1277,7 +1269,7 @@ impl Updatable for Panel {
                 entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "scroll".to_string(),
-                new_value: serde_json::to_value(&other.scroll).unwrap(),
+                new_value: serde_json::to_value(other.scroll).unwrap(),
             });
         }
 
@@ -1321,7 +1313,7 @@ impl Updatable for Panel {
                 entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "fill".to_string(),
-                new_value: serde_json::to_value(&other.fill).unwrap(),
+                new_value: serde_json::to_value(other.fill).unwrap(),
             });
         }
 
@@ -1352,7 +1344,7 @@ impl Updatable for Panel {
                 entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "border".to_string(),
-                new_value: serde_json::to_value(&other.border).unwrap(),
+                new_value: serde_json::to_value(other.border).unwrap(),
             });
         }
 
@@ -1482,7 +1474,7 @@ impl Updatable for Panel {
                 entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "error_state".to_string(),
-                new_value: serde_json::to_value(&other.error_state).unwrap(),
+                new_value: serde_json::to_value(other.error_state).unwrap(),
             });
         }
 
@@ -1678,7 +1670,7 @@ impl Updatable for Panel {
                 entity_type: EntityType::Panel,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "thread".to_string(),
-                new_value: serde_json::to_value(&other.thread).unwrap(),
+                new_value: serde_json::to_value(other.thread).unwrap(),
             });
         }
 
