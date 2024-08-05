@@ -1,5 +1,6 @@
 use crate::model::app::AppContext;
-use crate::{FieldUpdate, Panel, Updatable};
+use crate::model::panel;
+use crate::{run_script, FieldUpdate, Panel, Updatable};
 use bincode;
 use log::{error, info};
 use std::collections::hash_map::DefaultHasher;
@@ -223,7 +224,7 @@ impl Runnable for RunnableImpl {
         if let Some(ref app_context_receiver) = self.app_context_receiver {
             while let Ok((_, received_field_updates)) = app_context_receiver.try_recv() {
                 if !received_field_updates.is_empty() {
-                    log::info!(
+                    log::trace!(
                         "Received app_context update: {:?} in thread {}",
                         received_field_updates,
                         self.uuid
@@ -318,6 +319,7 @@ impl Runnable for RunnableImpl {
     }
 }
 
+#[derive(Debug)]
 pub struct ThreadManager {
     threads: HashMap<Uuid, thread::JoinHandle<()>>,
     app_context_senders: HashMap<Uuid, mpsc::Sender<(Uuid, Vec<FieldUpdate>)>>,
@@ -361,14 +363,14 @@ impl ThreadManager {
             for reciever in self.app_context_receivers.values() {
                 if let Ok((uuid, app_context_updates)) = reciever.try_recv() {
                     if app_context_updates.is_empty() {
-                        // log::info!("No updates received from thread {}", uuid);
+                        // log::trace!("No updates received from thread {}", uuid);
                         continue;
                     } else {
                         let app_context_updates_size_in_bytes =
                             bincode::serialize(&app_context_updates)
                                 .unwrap_or_default()
                                 .len();
-                        log::info!(
+                        log::trace!(
                             "Received {} updates from thread {} with total size {} bytes. Will relay to all other threads.",
                             app_context_updates.len(),
                             uuid,
@@ -378,11 +380,11 @@ impl ThreadManager {
 
                     let original_app_context = self.app_context.clone();
 
-                    // log::info!(
+                    // log::trace!(
                     //     "Sending app_context update to all threads: {:?}",
                     //     app_context_updates
                     // );
-                    self.app_context.apply_updates(app_context_updates);
+                    self.app_context.app.apply_updates(app_context_updates);
                     self.send_app_context_update_to_all_threads((
                         uuid,
                         self.app_context.generate_diff(&original_app_context),
@@ -445,7 +447,7 @@ impl ThreadManager {
                         error!("Runnable encountered an error: {}", e);
                     } else if let Ok(continue_running) = result {
                         if !continue_running {
-                            info!("Stopping thread as directed by run method");
+                            log::trace!("Stopping thread as directed by run method");
                             break;
                         }
                     }
@@ -455,7 +457,7 @@ impl ThreadManager {
 
         self.threads.insert(uuid, handle);
 
-        log::info!("Thread spawned: {}", uuid);
+        log::trace!("Thread spawned: {}", uuid);
 
         uuid
     }
@@ -475,7 +477,7 @@ impl ThreadManager {
                     error!("Failed to send update to thread: {}", e);
                 }
             } else {
-                log::info!("Skipping sending update to thread: {}", uuid);
+                log::trace!("Skipping sending update to thread: {}", uuid);
             }
         }
     }
@@ -724,6 +726,62 @@ macro_rules! create_runnable_with_dynamic_input {
             }
         }
     };
+}
+
+pub fn run_script_in_thread(
+    app_context: AppContext,
+    manager: &mut ThreadManager,
+    panel_id: String,
+    choice_id: String,
+) -> Uuid {
+    let vec_fn = move || vec![panel_id.clone(), choice_id.clone()];
+
+    create_runnable_with_dynamic_input!(
+        ChoiceScriptRunner,
+        Box::new(vec_fn),
+        |inner: &mut RunnableImpl,
+         app_context: AppContext,
+         messages: Vec<Message>,
+         vec: Vec<String>|
+         -> bool { true },
+        |inner: &mut RunnableImpl,
+         app_context: AppContext,
+         messages: Vec<Message>,
+         vec: Vec<String>|
+         -> (bool, AppContext) {
+            let mut app_context_unwrapped = app_context.clone();
+            let app_graph = app_context_unwrapped.app.generate_graph();
+            let libs = app_context_unwrapped.app.libs.clone();
+            let panel = app_context_unwrapped
+                .app
+                .get_panel_by_id_mut(&vec[0])
+                .unwrap();
+            let choice = panel
+                .choices
+                .as_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|c| c.id == vec[1])
+                .unwrap();
+            match run_script(libs, choice.script.clone().unwrap().as_ref()) {
+                Ok(output) => {
+                    inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
+                }
+                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                    choice.id.clone(),
+                    false,
+                    e.to_string(),
+                )),
+            }
+            std::thread::sleep(std::time::Duration::from_millis(
+                panel.calc_refresh_interval(&app_context, &app_graph),
+            ));
+            (false, app_context_unwrapped)
+        }
+    );
+
+    let choice_refresh_loop = ChoiceScriptRunner::new(app_context.clone(), Box::new(vec_fn));
+    manager.spawn_thread(choice_refresh_loop)
 }
 
 // create_runnable!(

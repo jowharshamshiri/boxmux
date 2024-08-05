@@ -15,6 +15,7 @@ pub struct Choice {
     pub id: String,
     pub content: Option<String>,
     pub script: Option<Vec<String>>,
+    pub thread: Option<bool>,
     pub redirect_output: Option<String>,
     #[serde(skip, default)]
     pub selected: bool,
@@ -25,6 +26,7 @@ impl Hash for Choice {
         self.id.hash(state);
         self.content.hash(state);
         self.script.hash(state);
+        self.thread.hash(state);
         self.redirect_output.hash(state);
         self.selected.hash(state);
     }
@@ -35,6 +37,7 @@ impl PartialEq for Choice {
         self.id == other.id
             && self.content == other.content
             && self.script == other.script
+            && self.thread == other.thread
             && self.redirect_output == other.redirect_output
             && self.selected == other.selected
     }
@@ -48,6 +51,7 @@ impl Clone for Choice {
             id: self.id.clone(),
             content: self.content.clone(),
             script: self.script.clone(),
+            thread: self.thread,
             redirect_output: self.redirect_output.clone(),
             selected: self.selected,
         }
