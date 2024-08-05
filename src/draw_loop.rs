@@ -157,7 +157,8 @@ create_runnable!(
                                     //select first or next choice
                                     let choices = found_panel.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
-                                    let selected_choice_unwrapped = selected_choice.unwrap_or_default();
+                                    let selected_choice_unwrapped =
+                                        selected_choice.unwrap_or_default();
                                     let new_selected_choice =
                                         if selected_choice_unwrapped + 1 < choices.len() {
                                             selected_choice_unwrapped + 1
@@ -190,7 +191,8 @@ create_runnable!(
                                     //select first or next choice
                                     let choices = found_panel.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
-                                    let selected_choice_unwrapped = selected_choice.unwrap_or_default();
+                                    let selected_choice_unwrapped =
+                                        selected_choice.unwrap_or_default();
                                     let new_selected_choice = if selected_choice_unwrapped > 0 {
                                         selected_choice_unwrapped - 1
                                     } else {
@@ -278,10 +280,7 @@ create_runnable!(
                     }
                     Message::PanelOutputUpdate(panel_id, success, output) => {
                         let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
-                        let panel = app_context_unwrapped
-                            .app
-                            .get_panel_by_id(panel_id)
-                            .unwrap();
+                        let panel = app_context_unwrapped.app.get_panel_by_id(panel_id).unwrap();
                         update_panel_content(
                             inner,
                             &mut app_context_unwrapped_cloned,

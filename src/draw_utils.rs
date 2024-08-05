@@ -606,8 +606,8 @@ pub fn render_panel(
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
                 let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64)
-                        .floor() as usize
+                    ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
+                        as usize
                 } else {
                     0
                 };
