@@ -5,12 +5,13 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 pub struct ChoiceResultPacket<T, E> {
+    pub job_id: String,
     pub choice_id: String,
     pub panel_id: String,
     pub result: Result<T, E>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChoiceResult<T> {
     pub success: bool,
     pub result: T,
@@ -20,6 +21,12 @@ impl<T> ChoiceResult<T> {
     pub fn new(success: bool, result: T) -> Self {
         ChoiceResult { success, result }
     }
+}
+
+pub enum JobStatus {
+    Queued,
+    Executing,
+    Finished,
 }
 
 #[derive(Debug)]
@@ -50,10 +57,10 @@ impl ChoiceThreadManager {
                 log::error!("Panic in thread pool: {:?}", panic_info);
             })
             .exit_handler(|exit_info| {
-                log::info!("Thread pool exited: {:?}", exit_info);
+                log::trace!("Thread pool exited: {:?}", exit_info);
             })
             .start_handler(|thread_index| {
-                log::info!("Thread {} started", thread_index);
+                log::trace!("Thread {} started", thread_index);
             })
             .build()
             .unwrap();
@@ -120,16 +127,21 @@ impl ChoiceThreadManager {
         }
     }
 
-    pub fn execute<F, T, E>(&self, choice_id: String, panel_id: String, job: F)
+    pub fn execute<F, T, E>(
+        &self,
+        choice_id: String,
+        panel_id: String,
+        job: F,
+    ) -> std::result::Result<String, String>
     where
         F: FnOnce(Sender<Result<T, E>>) + Send + 'static,
         T: Any + Send + 'static + std::fmt::Debug,
         E: Any + Send + 'static + std::fmt::Debug,
     {
+        let job_id = Uuid::new_v4();
         {
-            let job_id = Uuid::new_v4().to_string();
             let mut queued_jobs = self.queued_jobs.lock().unwrap();
-            queued_jobs.insert(job_id, (choice_id.clone(), panel_id.clone()));
+            queued_jobs.insert(job_id.to_string(), (choice_id.clone(), panel_id.clone()));
         }
 
         let job_boxed = Box::new(move |sender: Sender<Box<dyn Any + Send>>| {
@@ -137,6 +149,7 @@ impl ChoiceThreadManager {
             job(res_sender);
             let result = res_receiver.recv().unwrap();
             let packet: Box<dyn Any + Send> = Box::new(ChoiceResultPacket {
+                job_id: job_id.to_string(),
                 choice_id,
                 panel_id,
                 result,
@@ -144,8 +157,10 @@ impl ChoiceThreadManager {
             sender.send(packet).unwrap();
         }) as Box<dyn FnOnce(Sender<Box<dyn Any + Send>>) + Send>;
 
-        log::info!("Sending job to thread pool");
+        log::trace!("Sending job to thread pool");
         self.sender.send(job_boxed).unwrap();
+
+        Ok(job_id.to_string())
     }
 
     pub fn get_results<T, E>(&self) -> Vec<ChoiceResultPacket<T, E>>
@@ -156,9 +171,9 @@ impl ChoiceThreadManager {
         let mut results = Vec::new();
         let expected_type_id = TypeId::of::<ChoiceResultPacket<T, E>>();
 
-        log::info!("Fetching results from result_receiver");
+        log::trace!("Fetching results from result_receiver");
         while let Ok(res) = self.result_receiver.lock().unwrap().try_recv() {
-            log::info!("Result received");
+            log::trace!("Result received");
             match res.downcast::<ChoiceResultPacket<T, E>>() {
                 Ok(res) => {
                     results.push(*res);
@@ -172,7 +187,7 @@ impl ChoiceThreadManager {
                 }
             }
         }
-        log::info!("Total results fetched: {}", results.len());
+        log::trace!("Total results fetched: {}", results.len());
         results
     }
 
@@ -186,5 +201,47 @@ impl ChoiceThreadManager {
 
     pub fn get_finished_jobs(&self) -> HashMap<String, (String, String)> {
         self.finished_jobs.lock().unwrap().clone()
+    }
+
+    pub fn get_jobs_for_choice_id(&self, choice_id: &str, state: JobStatus) -> Vec<String> {
+        match state {
+            JobStatus::Queued => self
+                .queued_jobs
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, (cid, _))| cid == choice_id)
+                .map(|(jid, _)| jid.clone())
+                .collect(),
+            JobStatus::Executing => self
+                .executing_jobs
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, (cid, _))| cid == choice_id)
+                .map(|(jid, _)| jid.clone())
+                .collect(),
+            JobStatus::Finished => self
+                .finished_jobs
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, (cid, _))| cid == choice_id)
+                .map(|(jid, _)| jid.clone())
+                .collect(),
+        }
+    }
+
+    pub fn check_job_status(&self, job_id: &str) -> std::result::Result<JobStatus, String> {
+        if self.queued_jobs.lock().unwrap().contains_key(job_id) {
+            return Ok(JobStatus::Queued);
+        }
+        if self.executing_jobs.lock().unwrap().contains_key(job_id) {
+            return Ok(JobStatus::Executing);
+        }
+        if self.finished_jobs.lock().unwrap().contains_key(job_id) {
+            return Ok(JobStatus::Finished);
+        }
+        Err(format!("Job with id {} not found", job_id))
     }
 }

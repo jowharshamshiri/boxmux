@@ -502,12 +502,19 @@ pub fn render_panel(
                 menu_bg_color
             };
 
+            let formatted_content;
+            if choice.waiting {
+                formatted_content = format!("{}...", choice.content.as_ref().unwrap());
+            } else {
+                formatted_content = choice.content.as_ref().unwrap().to_string();
+            }
+
             print_with_color_and_background_at(
                 y_position,
                 bounds.left() + 2,
                 fg_color,
                 bg_color,
-                &choice.content.unwrap(),
+                &formatted_content,
                 buffer,
             );
             y_position += 1;
