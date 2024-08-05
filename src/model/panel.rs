@@ -17,8 +17,11 @@ pub struct Choice {
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     pub redirect_output: Option<String>,
+    pub append_output: Option<bool>,
     #[serde(skip, default)]
     pub selected: bool,
+    #[serde(skip, default)]
+    pub waiting: bool,
 }
 
 impl Hash for Choice {
@@ -28,7 +31,9 @@ impl Hash for Choice {
         self.script.hash(state);
         self.thread.hash(state);
         self.redirect_output.hash(state);
+        self.append_output.hash(state);
         self.selected.hash(state);
+        self.waiting.hash(state);
     }
 }
 
@@ -39,7 +44,9 @@ impl PartialEq for Choice {
             && self.script == other.script
             && self.thread == other.thread
             && self.redirect_output == other.redirect_output
+            && self.append_output == other.append_output
             && self.selected == other.selected
+            && self.waiting == other.waiting
     }
 }
 
@@ -51,9 +58,11 @@ impl Clone for Choice {
             id: self.id.clone(),
             content: self.content.clone(),
             script: self.script.clone(),
-            thread: self.thread,
+            thread: self.thread.clone(),
             redirect_output: self.redirect_output.clone(),
-            selected: self.selected,
+            append_output: self.append_output.clone(),
+            selected: self.selected.clone(),
+            waiting: self.waiting.clone(),
         }
     }
 }
@@ -107,6 +116,7 @@ pub struct Panel {
     pub selected_menu_fg_color: Option<String>,
     pub selected_menu_bg_color: Option<String>,
     pub redirect_output: Option<String>,
+    pub append_output: Option<bool>,
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     #[serde(default)]
@@ -181,6 +191,7 @@ impl Hash for Panel {
             }
         }
         self.redirect_output.hash(state);
+        self.append_output.hash(state);
         self.script.hash(state);
         self.thread.hash(state);
         self.output.hash(state);
@@ -251,6 +262,7 @@ impl Default for Panel {
             selected_menu_fg_color: None,
             selected_menu_bg_color: None,
             redirect_output: None,
+            append_output: None,
             script: None,
             thread: Some(false),
             on_keypress: None,
@@ -312,6 +324,7 @@ impl PartialEq for Panel {
             && self.selected_menu_fg_color == other.selected_menu_fg_color
             && self.selected_menu_bg_color == other.selected_menu_bg_color
             && self.redirect_output == other.redirect_output
+            && self.append_output == other.append_output
             && self.script == other.script
             && self.thread == other.thread
             && self.horizontal_scroll.map(|hs| hs.to_bits())
@@ -380,6 +393,7 @@ impl Clone for Panel {
             selected_menu_fg_color: self.selected_menu_fg_color.clone(),
             selected_menu_bg_color: self.selected_menu_bg_color.clone(),
             redirect_output: self.redirect_output.clone(),
+            append_output: self.append_output,
             script: self.script.clone(),
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),

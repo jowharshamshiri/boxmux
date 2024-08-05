@@ -1,4 +1,4 @@
-use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManager};
+use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManager, JobStatus};
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
@@ -291,11 +291,17 @@ create_runnable!(
                         *buffer = new_buffer;
                     }
                     Message::PanelOutputUpdate(panel_id, success, output) => {
+                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+                        let panel = app_context_unwrapped
+                            .app
+                            .get_panel_by_id(&panel_id)
+                            .unwrap();
                         update_panel_content(
                             inner,
-                            &mut app_context_unwrapped,
+                            &mut app_context_unwrapped_cloned,
                             panel_id,
                             *success,
+                            panel.append_output.unwrap_or(false),
                             output,
                         );
                     }
@@ -331,11 +337,12 @@ create_runnable!(
                             .map(|p| p.id.clone())
                             .collect();
 
+                        let libs = app_context_unwrapped.app.libs.clone();
+
                         for panel_id in selected_panel_ids {
-                            let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                             let panel = app_context_unwrapped
                                 .app
-                                .get_panel_by_id(&panel_id)
+                                .get_panel_by_id_mut(&panel_id)
                                 .unwrap();
 
                             let actions =
@@ -344,20 +351,20 @@ create_runnable!(
                                 || (panel.choices.is_some() && pressed_key == "Enter")
                             {
                                 if panel.choices.is_some() && pressed_key == "Enter" {
-                                    let libs = app_context_unwrapped.app.libs.clone();
-                                    let choices = panel.choices.as_ref().unwrap();
-                                    let selected_choice = choices.iter().position(|c| c.selected);
+                                    let choices = panel.choices.as_mut().unwrap();
+                                    let selected_choice = choices.iter_mut().find(|c| c.selected);
                                     if let Some(selected_choice_unwrapped) = selected_choice {
-                                        let selected_choice = &choices[selected_choice_unwrapped];
-                                        if let Some(script) = &selected_choice.script {
+                                        let script_clone = selected_choice_unwrapped.script.clone();
+                                        if let Some(script_clone_unwrapped) = script_clone {
                                             let libs_clone = libs.clone();
-                                            let script_clone = script.clone();
                                             let job =
                                                 move |sender: Sender<
                                                     Result<ChoiceResult<String>, String>,
                                                 >| {
-                                                    let result =
-                                                        run_script(libs_clone, &script_clone);
+                                                    let result = run_script(
+                                                        libs_clone,
+                                                        &script_clone_unwrapped,
+                                                    );
                                                     let mut success = false;
                                                     let result_string = match result {
                                                         Ok(output) => {
@@ -375,48 +382,56 @@ create_runnable!(
                                                         .unwrap();
                                                 };
 
-                                            POOL.execute(
-                                                selected_choice.id.clone(),
+                                            let job_execution = POOL.execute(
+                                                selected_choice_unwrapped.id.clone(),
                                                 panel_id.clone(),
                                                 job,
                                             );
 
-                                            log::info!("Dispatched choice script: {:?}", script);
-                                            log::debug!(
-                                                "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
-                                                POOL.get_queued_jobs().len(),
-                                                POOL.get_executing_jobs().len(),
-                                                POOL.get_finished_jobs().len()
-                                            );
-
-                                            // POOL.execute(
-                                            //     selected_choice.id.clone(),
-                                            //     panel_id.clone(),
-                                            //     move |res_sender| {
-                                            //         let result =
-                                            //             run_script(libs_clone, &script_clone);
-                                            //         res_sender.send(result).unwrap();
-                                            //     },
-                                            // );
+                                            match job_execution {
+                                                Ok(job_id) => {
+                                                    selected_choice_unwrapped.waiting = true;
+                                                    log::info!(
+                                                        "Dispatched choice {:?} as job: {:?}",
+                                                        selected_choice_unwrapped.id,
+                                                        job_id
+                                                    );
+                                                    log::debug!(
+                                                        "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
+                                                        POOL.get_queued_jobs().len(),
+                                                        POOL.get_executing_jobs().len(),
+                                                        POOL.get_finished_jobs().len()
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    log::error!(
+                                                        "Error dispatching choice script: {}",
+                                                        e
+                                                    );
+                                                }
+                                            }
                                         }
                                     }
                                 }
                                 if let Some(actions_unwrapped) = actions {
                                     let libs = app_context_unwrapped.app.libs.clone();
                                     // Perform mutable operations outside the loop that borrows immutably
-                                    let panel_mut = app_context_unwrapped
+                                    let mut app_context_unwrapped_cloned =
+                                        app_context_unwrapped.clone();
+                                    let panel = app_context_unwrapped
                                         .app
-                                        .get_panel_by_id_mut(&panel_id)
+                                        .get_panel_by_id(&panel_id)
                                         .unwrap();
 
                                     match run_script(libs, &actions_unwrapped) {
                                         Ok(output) => {
-                                            if panel_mut.redirect_output.is_some() {
+                                            if panel.redirect_output.is_some() {
                                                 update_panel_content(
                                                     inner,
                                                     &mut app_context_unwrapped_cloned,
-                                                    panel_mut.redirect_output.as_ref().unwrap(),
+                                                    panel.redirect_output.as_ref().unwrap(),
                                                     true,
+                                                    panel.append_output.unwrap_or(false),
                                                     &output,
                                                 )
                                             } else {
@@ -425,17 +440,19 @@ create_runnable!(
                                                     &mut app_context_unwrapped_cloned,
                                                     panel_id.as_ref(),
                                                     true,
+                                                    panel.append_output.unwrap_or(false),
                                                     &output,
                                                 )
                                             }
                                         }
                                         Err(e) => {
-                                            if panel_mut.redirect_output.is_some() {
+                                            if panel.redirect_output.is_some() {
                                                 update_panel_content(
                                                     inner,
                                                     &mut app_context_unwrapped_cloned,
-                                                    panel_mut.redirect_output.as_ref().unwrap(),
+                                                    panel.redirect_output.as_ref().unwrap(),
                                                     false,
+                                                    panel.append_output.unwrap_or(false),
                                                     e.to_string().as_str(),
                                                 )
                                             } else {
@@ -444,6 +461,7 @@ create_runnable!(
                                                     &mut app_context_unwrapped_cloned,
                                                     panel_id.as_ref(),
                                                     false,
+                                                    panel.append_output.unwrap_or(false),
                                                     e.to_string().as_str(),
                                                 )
                                             }
@@ -457,51 +475,78 @@ create_runnable!(
                 }
             }
 
-            let results: Vec<ChoiceResultPacket<ChoiceResult<String>, String>> = POOL.get_results();
+            let choice_results: Vec<ChoiceResultPacket<ChoiceResult<String>, String>> =
+                POOL.get_results();
             let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
-            for result in results {
+            for choice_result in choice_results {
                 let panel = app_context_unwrapped
                     .app
-                    .get_panel_by_id(result.panel_id.as_str())
+                    .get_panel_by_id_mut(choice_result.panel_id.as_str())
                     .unwrap();
                 let selected_choice = panel
                     .choices
-                    .as_ref()
+                    .as_mut()
                     .unwrap()
-                    .iter()
-                    .find(|c| c.id == result.choice_id)
+                    .iter_mut()
+                    .find(|c| c.id == choice_result.choice_id)
                     .unwrap();
-                log::debug!(
+                log::trace!(
                     "received choice result for panel: {} choice: {}",
-                    result.panel_id,
-                    result.choice_id
+                    choice_result.panel_id,
+                    choice_result.choice_id
                 );
 
-                log::debug!(
+                log::trace!(
                     "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
                     POOL.get_queued_jobs().len(),
                     POOL.get_executing_jobs().len(),
                     POOL.get_finished_jobs().len()
                 );
 
-                match result.result {
+                if POOL
+                    .get_jobs_for_choice_id(&selected_choice.id, JobStatus::Executing)
+                    .is_empty()
+                {
+                    log::trace!(
+                        "Choice {:?} has finished executing, removing from waiting state.",
+                        selected_choice.id
+                    );
+
+                    app_context_unwrapped_cloned
+                        .app
+                        .get_panel_by_id_mut(choice_result.panel_id.as_str())
+                        .unwrap()
+                        .choices
+                        .as_mut()
+                        .unwrap()
+                        .iter_mut()
+                        .find(|c| c.id == choice_result.choice_id)
+                        .unwrap()
+                        .waiting = false;
+                }
+
+                match choice_result.result {
                     Ok(output) => {
-                        log::debug!("Choice script output: {}", output.result);
+                        let cloned_output = output.clone();
+                        log::trace!("Choice script output: {}", cloned_output.result);
                         if selected_choice.redirect_output.is_some() {
                             update_panel_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
                                 selected_choice.redirect_output.as_ref().unwrap(),
-                                output.success,
-                                &output.result,
+                                cloned_output.success,
+                                selected_choice.append_output.unwrap_or(false),
+                                cloned_output.result.as_str(),
                             )
                         } else {
+                            let cloned_output = output.clone();
                             update_panel_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
                                 panel.id.as_ref(),
-                                output.success,
-                                &output.result,
+                                cloned_output.success,
+                                selected_choice.append_output.unwrap_or(false),
+                                cloned_output.result.as_str(),
                             )
                         }
                     }
@@ -513,6 +558,7 @@ create_runnable!(
                                 &mut app_context_unwrapped_cloned,
                                 selected_choice.redirect_output.as_ref().unwrap(),
                                 false,
+                                selected_choice.append_output.unwrap_or(false),
                                 e.to_string().as_str(),
                             )
                         } else {
@@ -521,6 +567,7 @@ create_runnable!(
                                 &mut app_context_unwrapped_cloned,
                                 panel.id.as_ref(),
                                 false,
+                                selected_choice.append_output.unwrap_or(false),
                                 e.to_string().as_str(),
                             )
                         }
@@ -532,7 +579,7 @@ create_runnable!(
             std::thread::sleep(std::time::Duration::from_millis(
                 app_context.config.frame_delay,
             ));
-            return (should_continue, app_context_unwrapped);
+            return (should_continue, app_context_unwrapped_cloned);
         }
 
         (should_continue, app_context)
@@ -544,6 +591,7 @@ pub fn update_panel_content(
     app_context_unwrapped: &mut AppContext,
     panel_id: &str,
     success: bool,
+    append_output: bool,
     output: &str,
 ) {
     let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
@@ -568,11 +616,20 @@ pub fn update_panel_content(
                 &mut app_context_unwrapped_cloned,
                 found_panel.redirect_output.as_ref().unwrap(),
                 success,
+                append_output,
                 output,
             );
         } else {
             log::trace!("Updating panel {} content with no redirection.", panel_id);
-            found_panel.content = Some(output.to_string());
+            if append_output {
+                if let Some(content) = &found_panel.content {
+                    found_panel.content = Some(format!("{}\n{}", content, output));
+                } else {
+                    found_panel.content = Some(output.to_string());
+                }
+            } else {
+                found_panel.content = Some(output.to_string());
+            }
             found_panel.error_state = !success;
             inner.update_app_context(app_context_unwrapped.clone());
             inner.send_message(Message::RedrawPanel(panel_id.to_string()));

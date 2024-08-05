@@ -683,6 +683,13 @@ fn check_panel_ids(
             check_panel_ids(child, id_set)?;
         }
     }
+    if let Some(choices) = &panel.choices {
+        for choice in choices {
+            if !id_set.insert(choice.id.clone()) {
+                return Err(format!("Duplicate ID found: {}", choice.id).into());
+            }
+        }
+    }
     Ok(())
 }
 
