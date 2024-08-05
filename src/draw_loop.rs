@@ -381,6 +381,14 @@ create_runnable!(
                                                 job,
                                             );
 
+                                            log::info!("Dispatched choice script: {:?}", script);
+                                            log::debug!(
+                                                "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
+                                                POOL.get_queued_jobs().len(),
+                                                POOL.get_executing_jobs().len(),
+                                                POOL.get_finished_jobs().len()
+                                            );
+
                                             // POOL.execute(
                                             //     selected_choice.id.clone(),
                                             //     panel_id.clone(),
@@ -390,7 +398,6 @@ create_runnable!(
                                             //         res_sender.send(result).unwrap();
                                             //     },
                                             // );
-                                            log::info!("Dispatched choice script: {:?}", script);
                                         }
                                     }
                                 }
@@ -468,6 +475,13 @@ create_runnable!(
                     "received choice result for panel: {} choice: {}",
                     result.panel_id,
                     result.choice_id
+                );
+
+                log::debug!(
+                    "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
+                    POOL.get_queued_jobs().len(),
+                    POOL.get_executing_jobs().len(),
+                    POOL.get_finished_jobs().len()
                 );
 
                 match result.result {
