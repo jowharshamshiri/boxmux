@@ -3,7 +3,7 @@ use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, run_socket_function,
-    AppContext, ScreenBuffer, SocketFunction,
+    AppContext, Panel, ScreenBuffer, SocketFunction,
 };
 use crate::{thread_manager::*, FieldUpdate};
 use clap::App;
@@ -328,100 +328,94 @@ create_runnable!(
                         }
                     }
                     Message::KeyPress(pressed_key) => {
+                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
-                        let selected_panel_ids: Vec<String> = active_layout
-                            .get_selected_panels()
+                        let selected_panels: Vec<&Panel> = active_layout.get_selected_panels();
+
+                        let selected_panels_with_keypress_events: Vec<&Panel> = selected_panels
+                            .clone()
                             .into_iter()
                             .filter(|p| p.on_keypress.is_some())
-                            .map(|p| p.id.clone())
+                            .filter(|p| p.choices.is_none())
                             .collect();
 
                         let libs = app_context_unwrapped.app.libs.clone();
 
-                        for panel_id in selected_panel_ids {
-                            let panel = app_context_unwrapped
-                                .app
-                                .get_panel_by_id_mut(&panel_id)
-                                .unwrap();
+                        if pressed_key == "Enter" {
+                            let selected_panels_with_choices: Vec<&Panel> = selected_panels
+                                .into_iter()
+                                .filter(|p| p.choices.is_some())
+                                .collect();
+                            for panel in selected_panels_with_choices {
+                                let panel_mut = app_context_unwrapped_cloned
+                                    .app
+                                    .get_panel_by_id_mut(panel.id.as_str())
+                                    .unwrap();
+                                let choices = panel_mut.choices.as_mut().unwrap();
+                                let selected_choice = choices.iter_mut().find(|c| c.selected);
+                                if let Some(selected_choice_unwrapped) = selected_choice {
+                                    let script_clone = selected_choice_unwrapped.script.clone();
+                                    if let Some(script_clone_unwrapped) = script_clone {
+                                        let libs_clone = libs.clone();
+                                        let job = move |sender: Sender<
+                                            Result<ChoiceResult<String>, String>,
+                                        >| {
+                                            let result =
+                                                run_script(libs_clone, &script_clone_unwrapped);
+                                            let mut success = false;
+                                            let result_string = match result {
+                                                Ok(output) => {
+                                                    success = true;
+                                                    output
+                                                }
+                                                Err(e) => e.to_string(),
+                                            };
 
-                            let actions =
-                                handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap());
-                            if !actions.is_some()
-                                || (panel.choices.is_some() && pressed_key == "Enter")
-                            {
-                                if panel.choices.is_some() && pressed_key == "Enter" {
-                                    let choices = panel.choices.as_mut().unwrap();
-                                    let selected_choice = choices.iter_mut().find(|c| c.selected);
-                                    if let Some(selected_choice_unwrapped) = selected_choice {
-                                        let script_clone = selected_choice_unwrapped.script.clone();
-                                        if let Some(script_clone_unwrapped) = script_clone {
-                                            let libs_clone = libs.clone();
-                                            let job =
-                                                move |sender: Sender<
-                                                    Result<ChoiceResult<String>, String>,
-                                                >| {
-                                                    let result = run_script(
-                                                        libs_clone,
-                                                        &script_clone_unwrapped,
-                                                    );
-                                                    let mut success = false;
-                                                    let result_string = match result {
-                                                        Ok(output) => {
-                                                            success = true;
-                                                            output
-                                                        }
-                                                        Err(e) => e.to_string(),
-                                                    };
+                                            sender
+                                                .send(Ok(ChoiceResult::new(success, result_string)))
+                                                .unwrap();
+                                        };
 
-                                                    sender
-                                                        .send(Ok(ChoiceResult::new(
-                                                            success,
-                                                            result_string,
-                                                        )))
-                                                        .unwrap();
-                                                };
+                                        let job_execution = POOL.execute(
+                                            selected_choice_unwrapped.id.clone(),
+                                            panel.id.clone(),
+                                            job,
+                                        );
 
-                                            let job_execution = POOL.execute(
-                                                selected_choice_unwrapped.id.clone(),
-                                                panel_id.clone(),
-                                                job,
-                                            );
-
-                                            match job_execution {
-                                                Ok(job_id) => {
-                                                    selected_choice_unwrapped.waiting = true;
-                                                    log::trace!(
-                                                        "Dispatched choice {:?} as job: {:?}",
-                                                        selected_choice_unwrapped.id,
-                                                        job_id
-                                                    );
-                                                    log::debug!(
+                                        match job_execution {
+                                            Ok(job_id) => {
+                                                selected_choice_unwrapped.waiting = true;
+                                                log::trace!(
+                                                    "Dispatched choice {:?} as job: {:?}",
+                                                    selected_choice_unwrapped.id,
+                                                    job_id
+                                                );
+                                                log::debug!(
                                                         "Queued jobs: {:?}, executing jobs: {:?}, finished jobs: {:?}",
                                                         POOL.get_queued_jobs().len(),
                                                         POOL.get_executing_jobs().len(),
                                                         POOL.get_finished_jobs().len()
                                                     );
-                                                }
-                                                Err(e) => {
-                                                    log::error!(
-                                                        "Error dispatching choice script: {}",
-                                                        e
-                                                    );
-                                                }
+                                            }
+                                            Err(e) => {
+                                                log::error!(
+                                                    "Error dispatching choice script: {}",
+                                                    e
+                                                );
                                             }
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        for panel in selected_panels_with_keypress_events {
+                            let actions =
+                                handle_keypress(&pressed_key, &panel.on_keypress.clone().unwrap());
+                            if !actions.is_some() {
                                 if let Some(actions_unwrapped) = actions {
                                     let libs = app_context_unwrapped.app.libs.clone();
-                                    // Perform mutable operations outside the loop that borrows immutably
-                                    let mut app_context_unwrapped_cloned =
-                                        app_context_unwrapped.clone();
-                                    let panel = app_context_unwrapped
-                                        .app
-                                        .get_panel_by_id(&panel_id)
-                                        .unwrap();
 
                                     match run_script(libs, &actions_unwrapped) {
                                         Ok(output) => {
@@ -438,7 +432,7 @@ create_runnable!(
                                                 update_panel_content(
                                                     inner,
                                                     &mut app_context_unwrapped_cloned,
-                                                    panel_id.as_ref(),
+                                                    &panel.id,
                                                     true,
                                                     panel.append_output.unwrap_or(false),
                                                     &output,
@@ -459,7 +453,7 @@ create_runnable!(
                                                 update_panel_content(
                                                     inner,
                                                     &mut app_context_unwrapped_cloned,
-                                                    panel_id.as_ref(),
+                                                    &panel.id,
                                                     false,
                                                     panel.append_output.unwrap_or(false),
                                                     e.to_string().as_str(),
