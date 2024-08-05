@@ -6,11 +6,9 @@ use crate::{
     AppContext, Panel, ScreenBuffer, SocketFunction,
 };
 use crate::{thread_manager::*, FieldUpdate};
-use clap::App;
 use crossbeam_channel::Sender;
-use rayon::vec;
 use serde_json;
-use std::io::{self, stdout};
+use std::io::stdout;
 use std::io::{Stdout, Write as IoWrite};
 use std::sync::{mpsc, Mutex};
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -503,6 +501,7 @@ create_runnable!(
                     .iter_mut()
                     .find(|c| c.id == choice_result.choice_id)
                     .unwrap();
+
                 log::trace!(
                     "received choice result for panel: {} choice: {}",
                     choice_result.panel_id,
