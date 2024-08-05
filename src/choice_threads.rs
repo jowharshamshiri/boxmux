@@ -78,7 +78,7 @@ impl ChoiceThreadManager {
 
             pool.spawn(move || loop {
                 let task = {
-                    let mut rcv = receiver_clone.lock().unwrap();
+                    let rcv = receiver_clone.lock().unwrap();
                     rcv.recv()
                 };
                 if let Ok(task) = task {
