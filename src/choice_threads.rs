@@ -1,7 +1,11 @@
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use rayon::prelude::*;
 use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
+
+use crate::model::panel;
 
 pub struct ChoiceResultPacket<T, E> {
     pub choice_id: String,
@@ -27,6 +31,9 @@ pub struct ChoiceThreadManager {
     receiver: Arc<Mutex<Receiver<Box<dyn FnOnce(Sender<Box<dyn Any + Send>>) + Send>>>>,
     result_sender: Sender<Box<dyn Any + Send>>,
     result_receiver: Arc<Mutex<Receiver<Box<dyn Any + Send>>>>,
+    queued_jobs: Arc<Mutex<HashMap<String, (String, String)>>>,
+    executing_jobs: Arc<Mutex<HashMap<String, (String, String)>>>,
+    finished_jobs: Arc<Mutex<HashMap<String, (String, String)>>>,
 }
 
 impl ChoiceThreadManager {
@@ -54,17 +61,52 @@ impl ChoiceThreadManager {
             .build()
             .unwrap();
 
+        let queued_jobs: Arc<Mutex<HashMap<String, (String, String)>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+        let executing_jobs: Arc<Mutex<HashMap<String, (String, String)>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+        let finished_jobs: Arc<Mutex<HashMap<String, (String, String)>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+
         // Start the worker threads
         for _ in 0..num_threads {
             let receiver_clone = Arc::clone(&receiver);
             let result_sender_clone = result_sender.clone();
+            let queued_jobs_clone = Arc::clone(&queued_jobs);
+            let executing_jobs_clone = Arc::clone(&executing_jobs);
+            let finished_jobs_clone = Arc::clone(&finished_jobs);
+
             pool.spawn(move || loop {
-                match receiver_clone.lock().unwrap().try_recv() {
-                    Ok(task) => {
-                        task(result_sender_clone.clone());
+                let task = {
+                    let mut rcv = receiver_clone.lock().unwrap();
+                    rcv.recv()
+                };
+                if let Ok(task) = task {
+                    let (job_id, choice_id, panel_id) = {
+                        let queued_jobs = queued_jobs_clone.lock().unwrap();
+                        let (job_id, (choice_id, panel_id)) = queued_jobs.iter().next().unwrap();
+                        (job_id.clone(), choice_id.clone(), panel_id.clone())
+                    };
+
+                    {
+                        let mut queued_jobs = queued_jobs_clone.lock().unwrap();
+                        queued_jobs.remove(job_id.as_str());
                     }
-                    Err(_) => {
-                        // std::thread::sleep(std::time::Duration::from_millis(10));
+
+                    {
+                        let mut executing_jobs = executing_jobs_clone.lock().unwrap();
+                        executing_jobs
+                            .insert(job_id.clone(), (choice_id.clone(), panel_id.clone()));
+                    }
+
+                    task(result_sender_clone.clone());
+                    {
+                        let mut executing_jobs = executing_jobs_clone.lock().unwrap();
+                        executing_jobs.remove(job_id.as_str());
+
+                        let mut finished_jobs = finished_jobs_clone.lock().unwrap();
+                        finished_jobs
+                            .insert(job_id.clone(), (choice_id.clone(), panel_id.to_string()));
                     }
                 }
             });
@@ -75,6 +117,9 @@ impl ChoiceThreadManager {
             receiver,
             result_sender,
             result_receiver,
+            queued_jobs,
+            executing_jobs,
+            finished_jobs,
         }
     }
 
@@ -84,6 +129,12 @@ impl ChoiceThreadManager {
         T: Any + Send + 'static + std::fmt::Debug,
         E: Any + Send + 'static + std::fmt::Debug,
     {
+        {
+            let job_id = Uuid::new_v4().to_string();
+            let mut queued_jobs = self.queued_jobs.lock().unwrap();
+            queued_jobs.insert(job_id, (choice_id.clone(), panel_id.clone()));
+        }
+
         let job_boxed = Box::new(move |sender: Sender<Box<dyn Any + Send>>| {
             let (res_sender, res_receiver) = unbounded();
             job(res_sender);
@@ -127,45 +178,16 @@ impl ChoiceThreadManager {
         log::info!("Total results fetched: {}", results.len());
         results
     }
+
+    pub fn get_queued_jobs(&self) -> HashMap<String, (String, String)> {
+        self.queued_jobs.lock().unwrap().clone()
+    }
+
+    pub fn get_executing_jobs(&self) -> HashMap<String, (String, String)> {
+        self.executing_jobs.lock().unwrap().clone()
+    }
+
+    pub fn get_finished_jobs(&self) -> HashMap<String, (String, String)> {
+        self.finished_jobs.lock().unwrap().clone()
+    }
 }
-
-// pub fn main() {
-//     // Initialize the ChoiceThreadManager with 4 threads
-//     let manager = ChoiceThreadManager::new(4);
-
-//     // Define a simple job
-//     let job = |sender: Sender<Result<i32, String>>| {
-//         let result = 2 + 2;
-//         sender.send(Ok(result)).unwrap();
-//     };
-
-//     // Execute the job with choice_id and panel_id
-//     manager.execute("choice_1".to_string(), "panel_1".to_string(), job);
-
-//     // Execute more jobs to test concurrency
-//     for i in 2..6 {
-//         let job = |sender: Sender<Result<i32, String>>| {
-//             let result = i * 2;
-//             sender.send(Ok(result)).unwrap();
-//         };
-//         manager.execute(format!("choice_{}", i), "panel_1".to_string(), job);
-//     }
-
-//     // Simulate other work while the jobs are processed
-//     std::thread::sleep(std::time::Duration::from_secs(1));
-
-//     // Retrieve and print the results
-//     let results: Vec<ChoiceResultPacket<i32, String>> = manager.get_results();
-//     for result in results {
-//         match result.result {
-//             Ok(value) => println!(
-//                 "Result for {}-{}: {:?}",
-//                 result.choice_id, result.panel_id, value
-//             ),
-//             Err(e) => println!(
-//                 "Error for {}-{}: {:?}",
-//                 result.choice_id, result.panel_id, e
-//             ),
-//         }
-//     }
-// }
