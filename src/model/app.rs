@@ -11,7 +11,7 @@ use serde_yaml;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::{calculate_bounds_map, Config, FieldUpdate, ThreadManager, Updatable};
+use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
@@ -43,6 +43,12 @@ impl PartialEq for App {
 }
 
 impl Eq for App {}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl App {
     pub fn new() -> Self {
@@ -262,7 +268,7 @@ impl App {
 
     pub fn generate_graph(&mut self) -> AppGraph {
         if let Some(app_graph) = self.app_graph.clone() {
-            return app_graph;
+            app_graph
         } else {
             let mut app_graph = AppGraph::new();
 
@@ -290,7 +296,7 @@ impl App {
 impl Clone for App {
     fn clone(&self) -> Self {
         App {
-            layouts: self.layouts.iter().map(|layout| layout.clone()).collect(),
+            layouts: self.layouts.to_vec(),
             libs: self.libs.clone(),
             on_keypress: self.on_keypress.clone(),
             app_graph: self.app_graph.clone(),
@@ -403,6 +409,12 @@ impl PartialEq for AppGraph {
 }
 
 impl Eq for AppGraph {}
+
+impl Default for AppGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AppGraph {
     pub fn new() -> Self {

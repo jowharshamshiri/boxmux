@@ -195,7 +195,7 @@ impl Layout {
         let mut selected_panels = Vec::new();
 
         if let Some(ref children) = self.children {
-            recursive_collect(&children, &mut selected_panels);
+            recursive_collect(children, &mut selected_panels);
         }
         selected_panels
     }
@@ -252,7 +252,7 @@ impl Layout {
                 a.tab_order
                     .as_ref()
                     .unwrap()
-                    .cmp(&b.tab_order.as_ref().unwrap())
+                    .cmp(b.tab_order.as_ref().unwrap())
             });
 
             self.panel_ids_in_tab_order = Some(panels.iter().map(|p| p.id.clone()).collect());
@@ -273,7 +273,7 @@ impl Layout {
 
         let mut all_panels = Vec::new();
         if let Some(ref children) = self.children {
-            recursive_collect(&children, &mut all_panels);
+            recursive_collect(children, &mut all_panels);
         }
         all_panels
     }
@@ -434,7 +434,7 @@ impl Clone for Layout {
     fn clone(&self) -> Self {
         let mut cloned_children = None;
         if let Some(ref children) = self.children {
-            cloned_children = Some(children.iter().map(|panel| panel.clone()).collect());
+            cloned_children = Some(children.to_vec());
         }
 
         Layout {
@@ -502,7 +502,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "refresh_interval".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -516,7 +516,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "fill".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -527,7 +527,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "fill_char".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -538,7 +538,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "selected_fill_char".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -549,7 +549,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "border".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -846,7 +846,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "root".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }
@@ -868,7 +868,7 @@ impl Updatable for Layout {
                     entity_type: EntityType::Layout,
                     entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the panel
                     field_name: "active".to_string(),
-                    new_value: serde_json::to_value(&new_value).unwrap(),
+                    new_value: serde_json::to_value(new_value).unwrap(),
                 });
             }
         }

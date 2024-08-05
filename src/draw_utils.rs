@@ -111,7 +111,7 @@ pub fn draw_layout(
                 app_graph,
                 adjusted_bounds,
                 layout,
-                &panel,
+                panel,
                 buffer,
             );
         }
@@ -160,7 +160,7 @@ pub fn draw_panel(
             let fill_char = panel.calc_fill_char(app_context, app_graph);
 
             // Draw fill
-            fill_panel(&value, border, &bg_color, fill_char, buffer);
+            fill_panel(value, border, &bg_color, fill_char, buffer);
 
             let mut content = panel.content.as_deref();
             // check output is not null or empty
@@ -169,7 +169,7 @@ pub fn draw_panel(
             }
 
             render_panel(
-                &value,
+                value,
                 &border_color,
                 &bg_color,
                 &parent_bg_color,
@@ -219,7 +219,7 @@ pub fn print_with_color_and_background_at(
 ) {
     let fg_color_code = get_fg_color(fg_color);
     let bg_color_code = get_bg_color(bg_color);
-    for (i, mut ch) in text.chars().enumerate() {
+    for (i, ch) in text.chars().enumerate() {
         let cell = Cell {
             fg_color: fg_color_code.clone(),
             bg_color: bg_color_code.clone(),
@@ -379,17 +379,13 @@ pub fn draw_horizontal_line_with_title(
                     buffer,
                 );
             }
-        } else {
-            if draw_border {
-                // If the title is too long, just draw a line without the title
-                draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
-            }
-        }
-    } else {
-        if draw_border {
-            // If there is no title, just draw a full horizontal line
+        } else if draw_border {
+            // If the title is too long, just draw a line without the title
             draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
         }
+    } else if draw_border {
+        // If there is no title, just draw a full horizontal line
+        draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
     }
 }
 
@@ -471,17 +467,15 @@ pub fn render_panel(
                 buffer,
             );
         }
-    } else {
-        if *draw_border {
-            draw_horizontal_line(
-                bounds.top(),
-                bounds.left(),
-                bounds.right(),
-                border_color,
-                bg_color,
-                buffer,
-            );
-        }
+    } else if *draw_border {
+        draw_horizontal_line(
+            bounds.top(),
+            bounds.left(),
+            bounds.right(),
+            border_color,
+            bg_color,
+            buffer,
+        );
     }
 
     if let Some(choices) = choices {
@@ -612,7 +606,7 @@ pub fn render_panel(
             // Drawing the scroll nobs within the borders
             if max_content_height > viewable_height {
                 let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll as f64 / 100.0) * (viewable_height.saturating_sub(1)) as f64)
+                    ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64)
                         .floor() as usize
                 } else {
                     0
@@ -629,7 +623,7 @@ pub fn render_panel(
 
             if max_content_width > viewable_width {
                 let scrollbar_position = if viewable_width > 2 {
-                    ((horizontal_scroll as f64 / 100.0) * (viewable_width.saturating_sub(2)) as f64)
+                    ((horizontal_scroll / 100.0) * (viewable_width.saturating_sub(2)) as f64)
                         .floor() as usize
                 } else {
                     0
@@ -686,80 +680,78 @@ pub fn render_panel(
         } else if overflow_behavior == "removed" {
             fill_panel(&bounds, false, parent_bg_color, ' ', buffer);
         }
-    } else {
-        if *draw_border {
-            // Draw bottom border
-            if !scrollbars_drawn {
-                draw_horizontal_line(
-                    bounds.bottom(),
-                    bounds.left(),
-                    bounds.right(),
-                    border_color,
-                    bg_color,
-                    buffer,
-                );
-            }
-
-            // Draw left border
-            draw_vertical_line(
+    } else if *draw_border {
+        // Draw bottom border
+        if !scrollbars_drawn {
+            draw_horizontal_line(
+                bounds.bottom(),
                 bounds.left(),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
+
+        // Draw left border
+        draw_vertical_line(
+            bounds.left(),
+            bounds.top() + 1,
+            bounds.bottom().saturating_sub(1),
+            border_color,
+            bg_color,
+            buffer,
+        );
+
+        // Draw right border
+        if !scrollbars_drawn {
+            draw_vertical_line(
+                bounds.right(),
                 bounds.top() + 1,
                 bounds.bottom().saturating_sub(1),
                 border_color,
                 bg_color,
                 buffer,
             );
-
-            // Draw right border
-            if !scrollbars_drawn {
-                draw_vertical_line(
-                    bounds.right(),
-                    bounds.top() + 1,
-                    bounds.bottom().saturating_sub(1),
-                    border_color,
-                    bg_color,
-                    buffer,
-                );
-            }
-
-            // Draw corners
-            buffer.update(
-                bounds.left(),
-                bounds.top(),
-                Cell {
-                    fg_color: border_color_code.clone(),
-                    bg_color: bg_color_code.clone(),
-                    ch: '┌',
-                },
-            );
-            buffer.update(
-                bounds.right(),
-                bounds.top(),
-                Cell {
-                    fg_color: border_color_code.clone(),
-                    bg_color: bg_color_code.clone(),
-                    ch: '┐',
-                },
-            );
-            buffer.update(
-                bounds.left(),
-                bounds.bottom(),
-                Cell {
-                    fg_color: border_color_code.clone(),
-                    bg_color: bg_color_code.clone(),
-                    ch: '└',
-                },
-            );
-            buffer.update(
-                bounds.right(),
-                bounds.bottom(),
-                Cell {
-                    fg_color: border_color_code.clone(),
-                    bg_color: bg_color_code.clone(),
-                    ch: '┘',
-                },
-            );
         }
+
+        // Draw corners
+        buffer.update(
+            bounds.left(),
+            bounds.top(),
+            Cell {
+                fg_color: border_color_code.clone(),
+                bg_color: bg_color_code.clone(),
+                ch: '┌',
+            },
+        );
+        buffer.update(
+            bounds.right(),
+            bounds.top(),
+            Cell {
+                fg_color: border_color_code.clone(),
+                bg_color: bg_color_code.clone(),
+                ch: '┐',
+            },
+        );
+        buffer.update(
+            bounds.left(),
+            bounds.bottom(),
+            Cell {
+                fg_color: border_color_code.clone(),
+                bg_color: bg_color_code.clone(),
+                ch: '└',
+            },
+        );
+        buffer.update(
+            bounds.right(),
+            bounds.bottom(),
+            Cell {
+                fg_color: border_color_code.clone(),
+                bg_color: bg_color_code.clone(),
+                ch: '┘',
+            },
+        );
     }
 }
 

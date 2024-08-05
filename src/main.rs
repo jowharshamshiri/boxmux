@@ -2,7 +2,6 @@
 extern crate lazy_static;
 extern crate clap;
 
-use boxmux_lib::choice_threads;
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;

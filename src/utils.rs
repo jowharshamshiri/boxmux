@@ -1,17 +1,12 @@
 use crate::{
     model::common::{Bounds, InputBounds, ScreenBuffer},
-    Layout, RunnableImpl,
+    Layout,
 };
-use crossbeam_channel::{unbounded, Receiver};
 use regex::Regex;
-use shutil::pipe;
-use std::fs::File;
 use std::io::{self, Write};
-use std::process::Stdio;
-use std::process::{Command, Output};
+use std::process::{Command};
 use std::str;
-use std::thread;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap};
 use termion::event::{Event, Key};
 use termion::{raw::RawTerminal, screen::AlternateScreen};
 
@@ -509,7 +504,7 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {
-    key_str.to_lowercase().replace(" ", "").replace("+", "")
+    key_str.to_lowercase().replace([' ', '+'], "")
 }
 
 pub fn extract_key_str(event: Event) -> Option<String> {

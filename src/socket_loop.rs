@@ -1,9 +1,9 @@
 use crate::thread_manager::Runnable;
-use crate::{AppContext, Config, FieldUpdate};
+use crate::{AppContext, FieldUpdate};
 use std::fs;
-use std::io::{self, Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::{mpsc, Arc, Mutex};
+use std::io::{Read, Write};
+use std::os::unix::net::{UnixListener};
+use std::sync::{mpsc};
 
 use crate::thread_manager::*;
 

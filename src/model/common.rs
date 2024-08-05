@@ -1,4 +1,3 @@
-use regex::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -109,7 +108,7 @@ pub fn run_socket_function(
     socket_function: SocketFunction,
     app_context: &AppContext,
 ) -> Result<(AppContext, Vec<Message>), Box<dyn Error>> {
-    let mut app_context = app_context.clone();
+    let app_context = app_context.clone();
     let mut messages = Vec::new();
     match socket_function {
         SocketFunction::ReplacePanelContent {
@@ -159,6 +158,12 @@ pub struct ScreenBuffer {
     pub width: usize,
     pub height: usize,
     pub buffer: Vec<Vec<Cell>>,
+}
+
+impl Default for ScreenBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ScreenBuffer {
@@ -286,11 +291,13 @@ impl PartialEq for Bounds {
 impl Eq for Bounds {}
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+#[derive(Default)]
 pub enum Anchor {
     TopLeft,
     TopRight,
     BottomLeft,
     BottomRight,
+    #[default]
     Center,
     CenterTop,
     CenterBottom,
@@ -298,11 +305,6 @@ pub enum Anchor {
     CenterRight,
 }
 
-impl Default for Anchor {
-    fn default() -> Self {
-        Anchor::Center
-    }
-}
 
 impl Bounds {
     pub fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
