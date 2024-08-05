@@ -3,6 +3,7 @@ use crate::{
     Layout, RunnableImpl,
 };
 use crossbeam_channel::{unbounded, Receiver};
+use regex::Regex;
 use shutil::pipe;
 use std::fs::File;
 use std::io::{self, Write};
@@ -489,11 +490,13 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
     match output {
         Ok(output) => {
             // Combine stdout and stderr
-            let combined_output = format!(
+            let mut combined_output = format!(
                 "{}{}",
                 str::from_utf8(&output.stdout).unwrap_or(""),
                 str::from_utf8(&output.stderr).unwrap_or("")
             );
+
+            combined_output = strip_ansi_codes(&combined_output);
 
             if output.status.success() {
                 Ok(combined_output)
@@ -585,4 +588,9 @@ pub fn handle_keypress(
         }
     }
     None
+}
+
+pub fn strip_ansi_codes(input: &str) -> String {
+    let re = Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").unwrap();
+    re.replace_all(input, "").to_string()
 }
