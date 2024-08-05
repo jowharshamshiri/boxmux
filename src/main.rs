@@ -158,7 +158,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Boxmux")
-        .version("1.0")
+        .version("0.76.71205")
         .author("jowharshamshiri@gmail.com")
         .about("A terminal multiplexer")
         .arg(
@@ -511,8 +511,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run_panel_threads(&mut manager, &app_context);
 
     manager.run();
-
-    // manager.sen
 
     //restore normal screen
     write!(_stdout, "{}", termion::screen::ToMainScreen)?;
