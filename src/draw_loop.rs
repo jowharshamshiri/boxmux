@@ -75,7 +75,7 @@ create_runnable!(
             for message in &messages {
                 match message {
                     Message::PanelEventRefresh(_) => {
-                        log::info!("PanelEventRefresh");
+                        log::trace!("PanelEventRefresh");
                     }
                     Message::Exit => should_continue = false,
                     Message::Terminate => should_continue = false,
@@ -391,7 +391,7 @@ create_runnable!(
                                             match job_execution {
                                                 Ok(job_id) => {
                                                     selected_choice_unwrapped.waiting = true;
-                                                    log::info!(
+                                                    log::trace!(
                                                         "Dispatched choice {:?} as job: {:?}",
                                                         selected_choice_unwrapped.id,
                                                         job_id
@@ -623,7 +623,7 @@ pub fn update_panel_content(
             log::trace!("Updating panel {} content with no redirection.", panel_id);
             if append_output {
                 if let Some(content) = &found_panel.content {
-                    found_panel.content = Some(format!("{}\n{}", content, output));
+                    found_panel.content = Some(format!("{}\n{}", output, content));
                 } else {
                     found_panel.content = Some(output.to_string());
                 }

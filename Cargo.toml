@@ -1,6 +1,6 @@
 [package]
 name = "boxmux"
-version = "0.1.0"
+version = "0.76.71205"
 edition = "2021"
 
 [lib]

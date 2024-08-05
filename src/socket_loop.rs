@@ -31,7 +31,7 @@ create_runnable!(
                     match stream.read_to_string(&mut buffer) {
                         Ok(size) => {
                             let data = &buffer[..size];
-                            log::info!("Received message: {}", buffer);
+                            log::debug!("Received message: {}", buffer);
                             inner.send_message(Message::ExternalMessage(buffer.trim().to_string()));
                             stream.write_all(b"Message Received.").unwrap();
                         }
