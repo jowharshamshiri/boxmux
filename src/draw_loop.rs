@@ -1,3 +1,4 @@
+use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManager};
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
@@ -6,8 +7,9 @@ use crate::{
 };
 use crate::{thread_manager::*, FieldUpdate};
 use clap::App;
+use crossbeam_channel::Sender;
 use serde_json;
-use std::io::stdout;
+use std::io::{self, stdout};
 use std::io::{Stdout, Write as IoWrite};
 use std::sync::{mpsc, Mutex};
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -19,6 +21,7 @@ lazy_static! {
     static ref GLOBAL_SCREEN: Mutex<Option<AlternateScreen<RawTerminal<Stdout>>>> =
         Mutex::new(None);
     static ref GLOBAL_BUFFER: Mutex<Option<ScreenBuffer>> = Mutex::new(None);
+    static ref POOL: ChoiceThreadManager = ChoiceThreadManager::new(4);
 }
 
 create_runnable!(
@@ -347,52 +350,47 @@ create_runnable!(
                                     if let Some(selected_choice_unwrapped) = selected_choice {
                                         let selected_choice = &choices[selected_choice_unwrapped];
                                         if let Some(script) = &selected_choice.script {
-                                            match run_script(libs, script) {
-                                                Ok(output) => {
-                                                    if selected_choice.redirect_output.is_some() {
-                                                        update_panel_content(
-                                                            inner,
-                                                            &mut app_context_unwrapped_cloned,
-                                                            selected_choice
-                                                                .redirect_output
-                                                                .as_ref()
-                                                                .unwrap(),
-                                                            true,
-                                                            &output,
-                                                        )
-                                                    } else {
-                                                        update_panel_content(
-                                                            inner,
-                                                            &mut app_context_unwrapped_cloned,
-                                                            panel_id.as_ref(),
-                                                            true,
-                                                            &output,
-                                                        )
-                                                    }
-                                                }
-                                                Err(e) => {
-                                                    if selected_choice.redirect_output.is_some() {
-                                                        update_panel_content(
-                                                            inner,
-                                                            &mut app_context_unwrapped_cloned,
-                                                            selected_choice
-                                                                .redirect_output
-                                                                .as_ref()
-                                                                .unwrap(),
-                                                            false,
-                                                            e.to_string().as_str(),
-                                                        )
-                                                    } else {
-                                                        update_panel_content(
-                                                            inner,
-                                                            &mut app_context_unwrapped_cloned,
-                                                            panel_id.as_ref(),
-                                                            false,
-                                                            e.to_string().as_str(),
-                                                        )
-                                                    }
-                                                }
-                                            }
+                                            let libs_clone = libs.clone();
+                                            let script_clone = script.clone();
+                                            let job =
+                                                move |sender: Sender<
+                                                    Result<ChoiceResult<String>, String>,
+                                                >| {
+                                                    let result =
+                                                        run_script(libs_clone, &script_clone);
+                                                    let mut success = false;
+                                                    let result_string = match result {
+                                                        Ok(output) => {
+                                                            success = true;
+                                                            output
+                                                        }
+                                                        Err(e) => e.to_string(),
+                                                    };
+
+                                                    sender
+                                                        .send(Ok(ChoiceResult::new(
+                                                            success,
+                                                            result_string,
+                                                        )))
+                                                        .unwrap();
+                                                };
+
+                                            POOL.execute(
+                                                selected_choice.id.clone(),
+                                                panel_id.clone(),
+                                                job,
+                                            );
+
+                                            // POOL.execute(
+                                            //     selected_choice.id.clone(),
+                                            //     panel_id.clone(),
+                                            //     move |res_sender| {
+                                            //         let result =
+                                            //             run_script(libs_clone, &script_clone);
+                                            //         res_sender.send(result).unwrap();
+                                            //     },
+                                            // );
+                                            log::info!("Dispatched choice script: {:?}", script);
                                         }
                                     }
                                 }
@@ -451,6 +449,71 @@ create_runnable!(
                     _ => {}
                 }
             }
+
+            let results: Vec<ChoiceResultPacket<ChoiceResult<String>, String>> = POOL.get_results();
+            let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+            for result in results {
+                let panel = app_context_unwrapped
+                    .app
+                    .get_panel_by_id(result.panel_id.as_str())
+                    .unwrap();
+                let selected_choice = panel
+                    .choices
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|c| c.id == result.choice_id)
+                    .unwrap();
+                log::debug!(
+                    "received choice result for panel: {} choice: {}",
+                    result.panel_id,
+                    result.choice_id
+                );
+
+                match result.result {
+                    Ok(output) => {
+                        log::debug!("Choice script output: {}", output.result);
+                        if selected_choice.redirect_output.is_some() {
+                            update_panel_content(
+                                inner,
+                                &mut app_context_unwrapped_cloned,
+                                selected_choice.redirect_output.as_ref().unwrap(),
+                                output.success,
+                                &output.result,
+                            )
+                        } else {
+                            update_panel_content(
+                                inner,
+                                &mut app_context_unwrapped_cloned,
+                                panel.id.as_ref(),
+                                output.success,
+                                &output.result,
+                            )
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error running choice script: {}", e);
+                        if selected_choice.redirect_output.is_some() {
+                            update_panel_content(
+                                inner,
+                                &mut app_context_unwrapped_cloned,
+                                selected_choice.redirect_output.as_ref().unwrap(),
+                                false,
+                                e.to_string().as_str(),
+                            )
+                        } else {
+                            update_panel_content(
+                                inner,
+                                &mut app_context_unwrapped_cloned,
+                                panel.id.as_ref(),
+                                false,
+                                e.to_string().as_str(),
+                            )
+                        }
+                    }
+                }
+            }
+
             // Ensure the loop continues by sleeping briefly
             std::thread::sleep(std::time::Duration::from_millis(
                 app_context.config.frame_delay,
@@ -472,7 +535,7 @@ pub fn update_panel_content(
     let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
     let panel = app_context_unwrapped.app.get_panel_by_id_mut(panel_id);
 
-    log::info!(
+    log::trace!(
         "Updating panel content: {}, redirection: {:?}",
         panel_id,
         panel.as_ref().unwrap().redirect_output
@@ -481,7 +544,7 @@ pub fn update_panel_content(
         if found_panel.redirect_output.is_some()
             && found_panel.redirect_output.as_ref().unwrap() != panel_id
         {
-            log::info!(
+            log::trace!(
                 "Redirecting output from panel {} to panel: {}",
                 panel_id,
                 found_panel.redirect_output.as_ref().unwrap()
@@ -494,7 +557,7 @@ pub fn update_panel_content(
                 output,
             );
         } else {
-            log::info!("Updating panel {} content with no redirection.", panel_id);
+            log::trace!("Updating panel {} content with no redirection.", panel_id);
             found_panel.content = Some(output.to_string());
             found_panel.error_state = !success;
             inner.update_app_context(app_context_unwrapped.clone());

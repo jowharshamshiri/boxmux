@@ -1,14 +1,16 @@
 use crate::{
     model::common::{Bounds, InputBounds, ScreenBuffer},
-    Layout,
+    Layout, RunnableImpl,
 };
+use crossbeam_channel::{unbounded, Receiver};
 use shutil::pipe;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
 use std::process::Stdio;
 use std::process::{Command, Output};
 use std::str;
+use std::thread;
+use std::{collections::HashMap, sync::Arc};
 use termion::event::{Event, Key};
 use termion::{raw::RawTerminal, screen::AlternateScreen};
 
@@ -502,6 +504,52 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
         Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
     }
 }
+// pub fn run_script_with_callback<F>(
+//     libs_paths: Option<Vec<String>>,
+//     script: Vec<String>,
+//     callback: F,
+//     runnable: Arc<RunnableImpl>,
+// ) where
+//     F: Fn(Arc<RunnableImpl>, io::Result<String>) + Send + 'static,
+// {
+//     thread::spawn(move || {
+//         // Create the script content in-memory
+//         let mut script_content = String::new();
+//         if let Some(paths) = libs_paths {
+//             for lib in paths {
+//                 script_content.push_str(&format!("source {}\n", lib));
+//             }
+//         }
+
+//         // Add the script commands to the script content
+//         for command in script {
+//             script_content.push_str(&format!("{}\n", command));
+//         }
+
+//         // Execute the script and capture stdout and stderr
+//         let output = Command::new("bash").arg("-c").arg(script_content).output(); // Captures both stdout and stderr
+
+//         let result = match output {
+//             Ok(output) => {
+//                 // Combine stdout and stderr
+//                 let combined_output = format!(
+//                     "{}{}",
+//                     str::from_utf8(&output.stdout).unwrap_or(""),
+//                     str::from_utf8(&output.stderr).unwrap_or("")
+//                 );
+
+//                 if output.status.success() {
+//                     Ok(combined_output)
+//                 } else {
+//                     Err(io::Error::new(io::ErrorKind::Other, combined_output))
+//                 }
+//             }
+//             Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+//         };
+
+//         callback(runnable, result);
+//     });
+// }
 
 pub fn normalize_key_str(key_str: &str) -> String {
     key_str.to_lowercase().replace(" ", "").replace("+", "")

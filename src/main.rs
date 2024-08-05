@@ -2,6 +2,7 @@
 extern crate lazy_static;
 extern crate clap;
 
+use boxmux_lib::choice_threads;
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;
@@ -88,131 +89,6 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                     manager.spawn_thread(panel_refresh_loop);
                 } else {
                     non_threaded_panels.push(panel_id.clone());
-                }
-            }
-        }
-        if !non_threaded_panels.is_empty() {
-            let vec_fn = move || non_threaded_panels.clone();
-
-            create_runnable_with_dynamic_input!(
-                PanelRefreshLoop,
-                Box::new(vec_fn),
-                |inner: &mut RunnableImpl,
-                 app_context: AppContext,
-                 messages: Vec<Message>,
-                 vec: Vec<String>|
-                 -> bool { true },
-                |inner: &mut RunnableImpl,
-                 app_context: AppContext,
-                 messages: Vec<Message>,
-                 vec: Vec<String>|
-                 -> (bool, AppContext) {
-                    let mut app_context_unwrapped = app_context.clone();
-
-                    let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
-
-                    for panel_id in vec.iter() {
-                        let libs = app_context_unwrapped.app.libs.clone();
-                        let panel = app_context_unwrapped
-                            .app
-                            .get_panel_by_id_mut(panel_id)
-                            .unwrap();
-                        let refresh_interval = panel.refresh_interval.unwrap_or(1000);
-
-                        let last_execution_time = last_execution_times
-                            .entry(panel_id.clone())
-                            .or_insert(Instant::now());
-
-                        if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
-                        {
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
-                            }
-
-                            *last_execution_time = Instant::now();
-                        }
-                    }
-
-                    std::thread::sleep(std::time::Duration::from_millis(
-                        app_context.config.frame_delay,
-                    ));
-
-                    (true, app_context_unwrapped)
-                }
-            );
-
-            let panel_refresh_loop = PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-            manager.spawn_thread(panel_refresh_loop);
-        }
-    }
-}
-
-fn run_panel_threads2(manager: &mut ThreadManager, app_context: &AppContext) {
-    let active_layout = app_context.app.get_active_layout();
-
-    let mut non_threaded_panels: Vec<String> = vec![];
-
-    if let Some(layout) = active_layout {
-        for panel in layout.get_all_panels() {
-            if panel.script.is_some() {
-                let panel_id = panel.id.clone();
-
-                if panel.thread.unwrap_or(false) {
-                    let vec_fn = move || vec![panel_id.clone()];
-
-                    create_runnable_with_dynamic_input!(
-                        PanelRefreshLoop,
-                        Box::new(vec_fn),
-                        |inner: &mut RunnableImpl,
-                         app_context: AppContext,
-                         messages: Vec<Message>,
-                         vec: Vec<String>|
-                         -> bool { true },
-                        |inner: &mut RunnableImpl,
-                         app_context: AppContext,
-                         messages: Vec<Message>,
-                         vec: Vec<String>|
-                         -> (bool, AppContext) {
-                            let mut app_context_unwrapped = app_context.clone();
-                            let libs = app_context_unwrapped.app.libs.clone();
-                            let app_graph = app_context_unwrapped.app.generate_graph();
-                            let panel = app_context_unwrapped
-                                .app
-                                .get_panel_by_id_mut(&vec[0])
-                                .unwrap();
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
-                            }
-
-                            std::thread::sleep(std::time::Duration::from_millis(
-                                panel.calc_refresh_interval(&app_context, &app_graph),
-                            ));
-                            (true, app_context_unwrapped)
-                        }
-                    );
-
-                    let panel_refresh_loop =
-                        PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-                    manager.spawn_thread(panel_refresh_loop);
-                    non_threaded_panels.push(panel.id.clone());
                 }
             }
         }

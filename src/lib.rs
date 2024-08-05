@@ -8,6 +8,7 @@ pub mod model {
 
 #[macro_use]
 pub mod thread_manager;
+pub mod choice_threads;
 pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;

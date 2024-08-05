@@ -11,10 +11,9 @@ use serde_yaml;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::{calculate_bounds_map, Config, FieldUpdate, ThreadManager, Updatable};
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
-
-use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TemplateRoot {
