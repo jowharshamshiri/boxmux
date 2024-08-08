@@ -1,3 +1,0 @@
-#apt repos
-
-#ppa:rmescandon/yq

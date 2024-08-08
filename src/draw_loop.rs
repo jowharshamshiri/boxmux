@@ -618,25 +618,7 @@ pub fn update_panel_content(
             );
         } else {
             log::trace!("Updating panel {} content with no redirection.", panel_id);
-            if append_output {
-                if let Some(content) = &found_panel.content {
-                    found_panel.content = Some(format!(
-                        "[{}]\n\n{}\n\n\n\n{}",
-                        chrono::Local::now().to_rfc2822(),
-                        output,
-                        content
-                    ));
-                } else {
-                    found_panel.content = Some(format!(
-                        "[{}]\n\n{}",
-                        chrono::Local::now().to_rfc2822(),
-                        output
-                    ));
-                }
-            } else {
-                found_panel.content = Some(output.to_string());
-            }
-            found_panel.error_state = !success;
+            found_panel.update_content(output, append_output, success);
             inner.update_app_context(app_context_unwrapped.clone());
             inner.send_message(Message::RedrawPanel(panel_id.to_string()));
         }
