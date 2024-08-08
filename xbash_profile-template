@@ -1,6 +1,0 @@
-#!/bin/bash
-
-if [ -z "$PROJ_HOME_DIR" ]; then
-    echo "PROJ_HOME_DIR is not set"
-    return 1
-fi

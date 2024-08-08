@@ -1,12 +1,13 @@
+use crate::model::common::*;
+use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::hash::Hasher;
-
-use crate::model::common::*;
-use crate::model::layout::Layout;
+use std::io::Write;
 
 use crate::{utils::*, AppContext, AppGraph};
 
@@ -125,6 +126,7 @@ pub struct Panel {
     pub vertical_scroll: Option<f64>,
     pub selected: Option<bool>,
     pub content: Option<String>,
+    pub save_in_file: Option<String>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -195,6 +197,7 @@ impl Hash for Panel {
         self.script.hash(state);
         self.thread.hash(state);
         self.output.hash(state);
+        self.save_in_file.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -267,6 +270,7 @@ impl Default for Panel {
             thread: Some(false),
             on_keypress: None,
             output: "".to_string(),
+            save_in_file: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -335,6 +339,7 @@ impl PartialEq for Panel {
             && self.parent_id == other.parent_id
             && self.parent_layout_id == other.parent_layout_id
             && self.output == other.output
+            && self.save_in_file == other.save_in_file
             && self.error_state == other.error_state
     }
 }
@@ -358,10 +363,7 @@ impl Clone for Panel {
             refresh_interval: self.refresh_interval,
             tab_order: self.tab_order.clone(),
             next_focus_id: self.next_focus_id.clone(),
-            children: self
-                .children
-                .as_ref()
-                .map(|children| children.to_vec()),
+            children: self.children.as_ref().map(|children| children.to_vec()),
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
@@ -398,6 +400,7 @@ impl Clone for Panel {
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),
             output: self.output.clone(),
+            save_in_file: self.save_in_file.clone(),
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -971,9 +974,7 @@ impl Panel {
     }
 
     pub fn calc_border(&self, app_context: &AppContext, app_graph: &AppGraph) -> bool {
-        let parent_border = self
-            .get_parent_clone(app_graph)
-            .and_then(|p| p.border);
+        let parent_border = self.get_parent_clone(app_graph).and_then(|p| p.border);
         let parent_layout_border = self
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.border);
@@ -1172,6 +1173,38 @@ impl Panel {
                     }
                 }
             }
+        }
+    }
+
+    pub fn update_content(&mut self, new_content: &str, append_content: bool, success: bool) {
+        let mut formatted_content = new_content.to_string();
+        if append_content {
+            if let Some(self_content) = &self.content {
+                formatted_content = format!(
+                    "[{}]\n\n{}\n\n\n\n{}",
+                    chrono::Local::now().to_rfc2822(),
+                    new_content,
+                    self_content
+                );
+            } else {
+                formatted_content =
+                    format!("[{}]\n\n{}", chrono::Local::now().to_rfc2822(), new_content);
+            }
+        }
+        self.content = Some(formatted_content);
+        self.error_state = !success;
+
+        if self.save_in_file.is_some() {
+            //include date
+            let formatted_content_for_file =
+                format!("[{}]\n\n{}", chrono::Local::now().to_rfc2822(), new_content);
+            let mut file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(append_content)
+                .open(self.save_in_file.clone().unwrap())
+                .unwrap();
+            writeln!(file, "{}", formatted_content_for_file).unwrap();
         }
     }
 }
