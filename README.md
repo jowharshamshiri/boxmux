@@ -10,7 +10,7 @@
 
 ## ✨ What is BoxMux?
 
-BoxMux is a powerful, declarative framework for building terminal user interfaces using simple YAML configuration files. Whether you're creating system monitoring dashboards, interactive CLI tools, or complex terminal applications, BoxMux provides an intuitive way to design and deploy rich interfaces without writing complex UI code.
+BoxMux is a declarative framework for building terminal user interfaces using simple YAML configuration files. Whether you're creating system monitoring dashboards, interactive CLI tools, or complex terminal applications, BoxMux provides an intuitive way to design and deploy rich interfaces without writing complex UI code.
 
 ### 🚀 Key Features
 

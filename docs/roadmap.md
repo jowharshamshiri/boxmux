@@ -1,7 +1,5 @@
 # BoxMux Roadmap
 
-This document outlines the future direction and planned features for BoxMux. Our objective is to make BoxMux the most powerful and user-friendly terminal UI framework available.
-
 ## Table of Contents
 
 - [Objective](#objectives)
@@ -15,7 +13,7 @@ This document outlines the future direction and planned features for BoxMux. Our
 
 ### Core Objective
 
-To create a powerful, declarative, and accessible framework that makes building rich terminal interfaces as simple as writing configuration files.
+To create a declarative, and accessible framework that makes building rich terminal interfaces as simple as writing configuration files.
 
 - **Accessibility**: Make TUI development accessible to everyone
 - **Performance**: Maintain excellent performance even with complex interfaces
