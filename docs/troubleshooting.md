@@ -7,8 +7,10 @@ This guide helps you diagnose and resolve common issues with BoxMux.
 ### Installation Problems
 
 #### Rust Not Found
+
 **Problem**: `cargo: command not found`
 **Solution**:
+
 ```bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -16,8 +18,10 @@ source ~/.cargo/env
 ```
 
 #### Build Failures
+
 **Problem**: Compilation errors during `cargo build`
 **Solution**:
+
 ```bash
 # Update Rust
 rustup update
@@ -30,15 +34,19 @@ cargo build
 ### Runtime Issues
 
 #### Configuration File Not Found
+
 **Problem**: `Error: Configuration file not found`
 **Solution**:
+
 - Verify file path: `ls -la layouts/dashboard.yaml`
 - Use absolute path: `./run_boxmux.sh /full/path/to/config.yaml`
 - Check file permissions: `chmod 644 layouts/dashboard.yaml`
 
 #### YAML Syntax Errors
+
 **Problem**: `Error parsing YAML`
 **Solution**:
+
 ```bash
 # Validate YAML syntax
 yamllint layouts/dashboard.yaml
@@ -50,8 +58,10 @@ yamllint layouts/dashboard.yaml
 ```
 
 #### Script Execution Fails
+
 **Problem**: Panel scripts don't execute
 **Solution**:
+
 - Check script permissions: `chmod +x script.sh`
 - Verify shell path: Use absolute paths like `/bin/bash`
 - Test script independently: `bash -c "your_script_here"`
@@ -59,34 +69,32 @@ yamllint layouts/dashboard.yaml
 ### Performance Issues
 
 #### High CPU Usage
+
 **Problem**: BoxMux uses too much CPU
 **Solution**:
+
 - Increase refresh intervals in configuration
 - Optimize scripts to run faster
 - Reduce number of panels with scripts
 - Check for infinite loops in scripts
 
-#### Memory Leaks
-**Problem**: Memory usage keeps growing
-**Solution**:
-- Restart BoxMux periodically
-- Avoid very large output in panels
-- Use scrolling for large content
-- Monitor script memory usage
-
 ### Display Issues
 
 #### Corrupted Display
+
 **Problem**: Interface appears broken or corrupted
 **Solution**:
+
 - Clear terminal: `clear` or `Ctrl+L`
 - Resize terminal window
 - Restart BoxMux
 - Check terminal compatibility
 
 #### Colors Not Working
+
 **Problem**: Colors appear incorrect or missing
 **Solution**:
+
 - Check terminal color support: `echo $TERM`
 - Use standard color names
 - Test with different terminal emulators
@@ -95,6 +103,7 @@ yamllint layouts/dashboard.yaml
 ## Debugging
 
 ### Enable Debug Logging
+
 ```bash
 # Run with debug output
 RUST_LOG=debug ./run_boxmux.sh layouts/dashboard.yaml
@@ -104,6 +113,7 @@ RUST_LOG=boxmux::draw_utils=debug ./run_boxmux.sh layouts/dashboard.yaml
 ```
 
 ### Check Application Logs
+
 ```bash
 # View application logs
 tail -f app.log
@@ -113,6 +123,7 @@ grep -i error app.log
 ```
 
 ### Validate Configuration
+
 ```bash
 # Check YAML syntax
 python -c "import yaml; yaml.safe_load(open('layouts/dashboard.yaml'))"
@@ -122,6 +133,7 @@ cat layouts/dashboard.yaml | curl -X POST -H "Content-Type: application/yaml" -d
 ```
 
 ### Test Individual Components
+
 ```bash
 # Test script execution
 bash -c "your_script_command_here"
@@ -142,6 +154,7 @@ echo '{"GetStatus": {}}' | nc -U /tmp/boxmux.sock
 ### Information to Include
 
 When reporting issues, include:
+
 - BoxMux version: `cargo --version`
 - Operating system: `uname -a`
 - Terminal emulator and version
@@ -153,7 +166,6 @@ When reporting issues, include:
 ### Where to Get Help
 
 - **GitHub Issues**: Bug reports and feature requests
-- **GitHub Discussions**: Questions and community help
 - **Documentation**: Check all docs files
 - **Examples**: Review example configurations
 
@@ -180,6 +192,7 @@ app:
 ## Recovery Procedures
 
 ### Reset Configuration
+
 ```bash
 # Backup current configuration
 cp layouts/dashboard.yaml layouts/dashboard.yaml.backup
@@ -189,6 +202,7 @@ cp layouts/dashboard.yaml.example layouts/dashboard.yaml
 ```
 
 ### Clear Application State
+
 ```bash
 # Remove temporary files
 rm -f /tmp/boxmux.sock
@@ -199,6 +213,7 @@ clear
 ```
 
 ### Emergency Stop
+
 ```bash
 # Force quit BoxMux
 pkill -f boxmux
@@ -206,5 +221,3 @@ pkill -f boxmux
 # Or use Ctrl+C in terminal
 # Or close terminal window
 ```
-
-This troubleshooting guide should help you resolve most common issues. If you continue to experience problems, please don't hesitate to seek help from the community.

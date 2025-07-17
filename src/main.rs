@@ -492,7 +492,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         File::create("app.log")?,
     )])?;
     let config = boxmux_lib::model::common::Config::new(frame_delay);
-    let app = load_app_from_yaml(yaml_path.to_str().unwrap()).expect("Failed to load app");
+    let app = match load_app_from_yaml(yaml_path.to_str().unwrap()) {
+        Ok(app) => app,
+        Err(e) => {
+            eprintln!("Error loading YAML configuration file: {}", yaml_path.display());
+            eprintln!();
+            
+            // Check if it's a YAML parsing error
+            if let Some(yaml_error) = e.downcast_ref::<serde_yaml::Error>() {
+                eprintln!("YAML parsing error:");
+                eprintln!("  {}", yaml_error);
+                
+                // Try to provide more specific guidance
+                let error_msg = format!("{}", yaml_error);
+                if error_msg.contains("missing field") {
+                    eprintln!();
+                    eprintln!("Common fixes:");
+                    eprintln!("  • Make sure your YAML file starts with 'app:'");
+                    eprintln!("  • Check that all required fields are present");
+                    eprintln!("  • Ensure proper indentation (use spaces, not tabs)");
+                } else if error_msg.contains("invalid type") {
+                    eprintln!();
+                    eprintln!("Common fixes:");
+                    eprintln!("  • Check that field values match expected types");
+                    eprintln!("  • Strings should be quoted if they contain special characters");
+                    eprintln!("  • Arrays should use proper YAML list syntax");
+                } else if error_msg.contains("duplicate") {
+                    eprintln!();
+                    eprintln!("Common fixes:");
+                    eprintln!("  • Check for duplicate field names");
+                    eprintln!("  • Ensure all panel IDs are unique");
+                }
+            } else if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
+                eprintln!("File system error:");
+                eprintln!("  {}", io_error);
+                eprintln!();
+                eprintln!("Common fixes:");
+                eprintln!("  • Check that the file exists: {}", yaml_path.display());
+                eprintln!("  • Verify you have read permissions");
+                eprintln!("  • Make sure the file path is correct");
+            } else {
+                eprintln!("Configuration error:");
+                eprintln!("  {}", e);
+            }
+            
+            eprintln!();
+            eprintln!("For help with configuration syntax, see:");
+            eprintln!("  https://github.com/jowharshamshiri/boxmux/tree/main/docs");
+            
+            std::process::exit(1);
+        }
+    };
 
     let app_context = AppContext::new(app, config);
 

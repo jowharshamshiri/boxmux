@@ -5,6 +5,7 @@ Welcome to BoxMux! This guide will help you create your first terminal interface
 ## Prerequisites
 
 Before starting, ensure you have:
+
 - **Rust** (latest stable version) - [Install Rust](https://rustup.rs/)
 - **Git** for cloning the repository
 - **Basic terminal knowledge** - familiarity with command line
@@ -34,6 +35,7 @@ chmod +x run_boxmux.sh
 ```
 
 If successful, you should see a rich terminal interface with multiple panels, menus, and real-time updates. Use:
+
 - **Tab** to navigate between panels
 - **Arrow keys** to navigate menu items
 - **Enter** to select menu items
@@ -70,6 +72,7 @@ app:
 ```
 
 Run it:
+
 ```bash
 ./run_boxmux.sh hello.yaml
 ```
@@ -96,22 +99,28 @@ app:                    # Root application configuration
 ## Core Concepts
 
 ### 1. Layouts
+
 A layout is a interface definition. Each layout can contain multiple panels arranged in a hierarchy.
 
 ### 2. Panels
+
 Panels are the building blocks of your interface. They can contain:
+
 - Static text content
 - Dynamic content from scripts
 - Interactive menus
 - Nested child panels
 
 ### 3. Positioning
+
 BoxMux uses percentage-based positioning:
+
 - `x1, y1`: Top-left corner
 - `x2, y2`: Bottom-right corner
 - Values are percentages of the parent container
 
 ### 4. Hierarchy
+
 Panels can contain child panels, creating nested layouts:
 
 ```yaml
@@ -256,6 +265,7 @@ app:
 ## Key Features to Explore
 
 ### 1. Styling and Colors
+
 ```yaml
 bg_color: 'black'
 fg_color: 'white'
@@ -266,6 +276,7 @@ selected_bg_color: 'blue'
 ```
 
 ### 2. Keyboard Shortcuts
+
 ```yaml
 on_keypress:
   r:                    # Press 'r' to refresh
@@ -275,6 +286,7 @@ on_keypress:
 ```
 
 ### 3. Script Integration
+
 ```yaml
 script:
   - echo 'Multi-line'
@@ -284,6 +296,7 @@ script:
 ```
 
 ### 4. Output Redirection
+
 ```yaml
 redirect_output: 'target_panel_id'    # Send output to another panel
 append_output: true                   # Append instead of replace
@@ -292,6 +305,7 @@ append_output: true                   # Append instead of replace
 ## Common Patterns
 
 ### Header/Footer Layout
+
 ```yaml
 children:
   - id: 'header'
@@ -303,6 +317,7 @@ children:
 ```
 
 ### Sidebar Layout
+
 ```yaml
 children:
   - id: 'sidebar'
@@ -312,6 +327,7 @@ children:
 ```
 
 ### Grid Layout
+
 ```yaml
 children:
   - id: 'top_left'
@@ -339,22 +355,26 @@ children:
 ### Common Issues
 
 **YAML Syntax Errors**
+
 ```bash
 # Validate YAML syntax
 yamllint your-file.yaml
 ```
 
 **Script Execution Problems**
+
 - Check script permissions
 - Test scripts independently
 - Use absolute paths for commands
 
 **Layout Issues**
+
 - Verify position percentages add up correctly
 - Check for overlapping panels
 - Ensure all required fields are present
 
 **Performance Problems**
+
 - Reduce refresh intervals
 - Optimize script execution
 - Limit output size
@@ -373,6 +393,3 @@ Now that you understand the basics:
 - Check the [Troubleshooting Guide](troubleshooting.md)
 - Review the [FAQ](faq.md)
 - Open an issue on GitHub
-- Join our community discussions
-
-Happy building with BoxMux! 🚀

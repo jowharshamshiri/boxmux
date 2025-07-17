@@ -181,75 +181,8 @@ impl App {
     }
 
     pub fn validate(&mut self) {
-        fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
-            panel.parent_layout_id = Some(parent_layout_id.to_string());
-            panel.parent_id = parent_id;
-
-            if let Some(ref mut children) = panel.children {
-                for child in children {
-                    set_parent_ids(child, parent_layout_id, Some(panel.id.clone()));
-                }
-            }
-        }
-        let mut id_set = HashSet::new();
-        let mut root_layout_id: Option<String> = None;
-
-        for layout in &mut self.layouts {
-            let mut layout_clone = layout.clone();
-            let panels_in_tab_order = layout_clone.get_panels_in_tab_order();
-
-            let result = check_unique_ids(layout, &mut id_set);
-            if let Err(e) = result {
-                panic!("Error: {}", e);
-            }
-            if layout.root.unwrap_or(false) {
-                if root_layout_id.is_some() {
-                    panic!("Multiple root layouts detected, which is not allowed.");
-                }
-                root_layout_id = Some(layout.id.clone());
-            }
-            if layout.children.is_none() {
-                continue;
-            }
-            for panel in layout.children.as_mut().unwrap() {
-                set_parent_ids(panel, &layout.id, None);
-                if panel.id == panels_in_tab_order[0].id {
-                    panel.selected = Some(true);
-                }
-                if let Some(choices) = &mut panel.choices {
-                    if !choices.is_empty() {
-                        choices[0].selected = true;
-                    }
-                }
-            }
-        }
-
-        if root_layout_id.is_none() {
-            log::debug!("No root layout defined in the application, defaulting to first layout.");
-            if let Some(first_layout) = self.layouts.first() {
-                root_layout_id = Some(first_layout.id.clone());
-            } else {
-                panic!("No layouts defined in the application.");
-            }
-        }
-
-        // Set the root layout as active
-        if let Some(root_layout_id) = root_layout_id {
-            if let Some(root_layout) = self.get_layout_by_id_mut(&root_layout_id) {
-                if root_layout.active.is_none() || !root_layout.active.unwrap() {
-                    log::debug!("Setting root layout '{}' as active", root_layout_id);
-                    root_layout.active = Some(true);
-                    root_layout.root = Some(true);
-
-                    // Set all other layouts as inactive
-                    for layout in &mut self.layouts {
-                        if layout.id != root_layout_id {
-                            layout.active = Some(false);
-                            layout.root = Some(false);
-                        }
-                    }
-                }
-            }
+        if let Err(e) = validate_app(self) {
+            panic!("Validation error: {}", e);
         }
     }
 
@@ -594,9 +527,8 @@ impl PartialEq for AppContext {
 }
 
 impl AppContext {
-    pub fn new(mut app: App, config: Config) -> Self {
-        app.validate();
-
+    pub fn new(app: App, config: Config) -> Self {
+        // App is already validated in load_app_from_yaml
         AppContext { app, config }
     }
 }
@@ -661,18 +593,105 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
         }
     };
 
-    app.validate();
+    // Validate the app configuration
+    match validate_app(&mut app) {
+        Ok(_) => {
+            // log::info!("Loaded app from file: {}", file_path);
+            // log::debug!("App: {:#?}", app);
+            Ok(app)
+        }
+        Err(validation_error) => {
+            Err(format!("Configuration validation error: {}", validation_error).into())
+        }
+    }
+}
 
-    // log::info!("Loaded app from file: {}", file_path);
-    // log::debug!("App: {:#?}", app);
+fn validate_app(app: &mut App) -> Result<(), String> {
+    if app.layouts.is_empty() {
+        return Err("No layouts defined in the application. Please add at least one layout with panels.".to_string());
+    }
 
-    Ok(app)
+    fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
+        panel.parent_layout_id = Some(parent_layout_id.to_string());
+        panel.parent_id = parent_id;
+
+        if let Some(ref mut children) = panel.children {
+            for child in children {
+                set_parent_ids(child, parent_layout_id, Some(panel.id.clone()));
+            }
+        }
+    }
+
+    let mut id_set = HashSet::new();
+    let mut root_layout_id: Option<String> = None;
+    let mut root_count = 0;
+
+    for layout in &mut app.layouts {
+        let mut layout_clone = layout.clone();
+        let panels_in_tab_order = layout_clone.get_panels_in_tab_order();
+
+        // Check for unique IDs
+        if let Err(e) = check_unique_ids(layout, &mut id_set) {
+            return Err(e);
+        }
+
+        // Check for multiple root layouts
+        if layout.root.unwrap_or(false) {
+            root_count += 1;
+            if root_count > 1 {
+                return Err("Multiple root layouts detected. Only one layout can be marked as 'root: true'.".to_string());
+            }
+            root_layout_id = Some(layout.id.clone());
+        }
+
+        if layout.children.is_none() {
+            continue;
+        }
+
+        // Set up parent relationships and defaults
+        for panel in layout.children.as_mut().unwrap() {
+            set_parent_ids(panel, &layout.id, None);
+            if !panels_in_tab_order.is_empty() && panel.id == panels_in_tab_order[0].id {
+                panel.selected = Some(true);
+            }
+            if let Some(choices) = &mut panel.choices {
+                if !choices.is_empty() {
+                    choices[0].selected = true;
+                }
+            }
+        }
+    }
+
+    // Set default root layout if none specified
+    if root_layout_id.is_none() {
+        if let Some(first_layout) = app.layouts.first() {
+            root_layout_id = Some(first_layout.id.clone());
+        }
+    }
+
+    // Set the root layout as active
+    if let Some(root_layout_id) = root_layout_id {
+        if let Some(root_layout) = app.layouts.iter_mut().find(|l| l.id == root_layout_id) {
+            root_layout.active = Some(true);
+            root_layout.root = Some(true);
+
+            // Set all other layouts as inactive
+            for layout in &mut app.layouts {
+                if layout.id != root_layout_id {
+                    layout.active = Some(false);
+                    layout.root = Some(false);
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn check_unique_ids(
     layout: &Layout,
     id_set: &mut HashSet<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), String> {
     if let Some(children) = &layout.children {
         for panel in children {
             check_panel_ids(panel, id_set)?;
@@ -684,9 +703,9 @@ fn check_unique_ids(
 fn check_panel_ids(
     panel: &Panel,
     id_set: &mut HashSet<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), String> {
     if !id_set.insert(panel.id.clone()) {
-        return Err(format!("Duplicate ID found: {}", panel.id).into());
+        return Err(format!("Duplicate panel ID found: '{}'. All panel IDs must be unique across the entire application.", panel.id));
     }
     if let Some(children) = &panel.children {
         for child in children {
@@ -696,7 +715,7 @@ fn check_panel_ids(
     if let Some(choices) = &panel.choices {
         for choice in choices {
             if !id_set.insert(choice.id.clone()) {
-                return Err(format!("Duplicate ID found: {}", choice.id).into());
+                return Err(format!("Duplicate choice ID found: '{}'. All choice IDs must be unique across the entire application.", choice.id));
             }
         }
     }
