@@ -1,15 +1,12 @@
 use crate::{handle_keypress, AppContext, FieldUpdate};
 use crate::{run_script, thread_manager::Runnable};
-use std::io::stdin;
 use std::sync::mpsc;
-use termion::event::Key;
-use termion::input::TermRead;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, poll, read};
+use std::time::Duration;
 
 use crate::thread_manager::*;
 
 use uuid::Uuid;
-
-use termion::event::Event;
 create_runnable!(
     InputLoop,
     |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
@@ -17,58 +14,63 @@ create_runnable!(
      app_context: AppContext,
      messages: Vec<Message>|
      -> (bool, AppContext) {
-        let stdin = stdin();
         let mut should_continue = true;
 
         let active_layout = app_context.app.get_active_layout().unwrap();
 
-        for c in stdin.events() {
-            if let Ok(event) = c {
+        if poll(Duration::from_millis(10)).unwrap() {
+            if let Ok(event) = read() {
                 let key_str = match event {
-                    Event::Key(key) => {
-                        match key {
-                            Key::Char('q') => {
+                    Event::Key(KeyEvent { code, modifiers, .. }) => {
+                        match code {
+                            KeyCode::Char('q') => {
                                 inner.send_message(Message::Exit);
                                 should_continue = false; // Stop running
                                 "q".to_string()
                             }
-                            Key::Char('\t') => {
+                            KeyCode::Tab => {
                                 inner.send_message(Message::NextPanel());
                                 "Tab".to_string()
                             }
-                            Key::BackTab => {
+                            KeyCode::BackTab => {
                                 inner.send_message(Message::PreviousPanel());
                                 "BackTab".to_string()
                             }
-                            Key::Char('\n') => "Enter".to_string(),
-                            Key::Down => {
+                            KeyCode::Enter => "Enter".to_string(),
+                            KeyCode::Down => {
                                 inner.send_message(Message::ScrollPanelDown());
                                 "Down".to_string()
                             }
-                            Key::Up => {
+                            KeyCode::Up => {
                                 inner.send_message(Message::ScrollPanelUp());
                                 "Up".to_string()
                             }
-                            Key::Left => {
+                            KeyCode::Left => {
                                 inner.send_message(Message::ScrollPanelLeft());
                                 "Left".to_string()
                             }
-                            Key::Right => {
+                            KeyCode::Right => {
                                 inner.send_message(Message::ScrollPanelRight());
                                 "Right".to_string()
                             }
-                            Key::Char(c) => c.to_string(),
-                            Key::Ctrl(c) => format!("Ctrl+{}", c),
-                            Key::Alt(c) => format!("Alt+{}", c),
-                            Key::Backspace => "Backspace".to_string(),
-                            Key::Delete => "Delete".to_string(),
-                            Key::Esc => "Esc".to_string(),
-                            Key::Home => "Home".to_string(),
-                            Key::End => "End".to_string(),
-                            Key::PageUp => "PageUp".to_string(),
-                            Key::PageDown => "PageDown".to_string(),
-                            Key::F(n) => format!("F{}", n),
-                            Key::Insert => "Insert".to_string(),
+                            KeyCode::Char(c) => {
+                                if modifiers.contains(KeyModifiers::CONTROL) {
+                                    format!("Ctrl+{}", c)
+                                } else if modifiers.contains(KeyModifiers::ALT) {
+                                    format!("Alt+{}", c)
+                                } else {
+                                    c.to_string()
+                                }
+                            }
+                            KeyCode::Backspace => "Backspace".to_string(),
+                            KeyCode::Delete => "Delete".to_string(),
+                            KeyCode::Esc => "Esc".to_string(),
+                            KeyCode::Home => "Home".to_string(),
+                            KeyCode::End => "End".to_string(),
+                            KeyCode::PageUp => "PageUp".to_string(),
+                            KeyCode::PageDown => "PageDown".to_string(),
+                            KeyCode::F(n) => format!("F{}", n),
+                            KeyCode::Insert => "Insert".to_string(),
                             _ => return (true, app_context),
                         }
                     }
@@ -78,13 +80,13 @@ create_runnable!(
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        let result = run_script(libs, &actions);
+                        let _result = run_script(libs, &actions);
                     }
                 }
                 if let Some(layout_key_mappings) = &active_layout.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, layout_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        run_script(libs, &actions);
+                        let _ = run_script(libs, &actions);
                     }
                 }
 

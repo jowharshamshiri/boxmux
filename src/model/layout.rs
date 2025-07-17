@@ -1113,3 +1113,696 @@ impl Updatable for Layout {
         self.apply_children_updates(updates_for_children);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::common::InputBounds;
+    use crate::model::panel::Panel;
+
+    // === Helper Functions ===
+
+    /// Creates a basic test panel with the given id.
+    /// This helper demonstrates how to create a Panel for Layout testing.
+    fn create_test_panel(id: &str) -> Panel {
+        Panel {
+            id: id.to_string(),
+            title: Some(format!("Test Panel {}", id)),
+            position: InputBounds {
+                x1: "0%".to_string(),
+                y1: "0%".to_string(),
+                x2: "100%".to_string(),
+                y2: "100%".to_string(),
+            },
+            tab_order: Some(id.to_string()),
+            selected: Some(false),
+            ..Default::default()
+        }
+    }
+
+    /// Creates a test Layout with the given id and optional children.
+    /// This helper demonstrates how to create a Layout for testing.
+    fn create_test_layout(id: &str, children: Option<Vec<Panel>>) -> Layout {
+        Layout {
+            id: id.to_string(),
+            title: Some(format!("Test Layout {}", id)),
+            children,
+            root: Some(false),
+            active: Some(false),
+            ..Default::default()
+        }
+    }
+
+    // === Layout Default Tests ===
+
+    /// Tests that Layout::default() creates a layout with expected default values.
+    /// This test demonstrates the default Layout construction behavior.
+    #[test]
+    fn test_layout_default() {
+        let layout = Layout::default();
+        assert_eq!(layout.id, "");
+        assert_eq!(layout.title, None);
+        assert_eq!(layout.children, None);
+        assert_eq!(layout.root, Some(false));
+        assert_eq!(layout.active, Some(false));
+        assert_eq!(layout.refresh_interval, None);
+        assert_eq!(layout.panel_ids_in_tab_order, None);
+    }
+
+    /// Tests that Layout::new() creates a layout with expected default values.
+    /// This test demonstrates the Layout::new() construction behavior.
+    #[test]
+    fn test_layout_new() {
+        let layout = Layout::new();
+        assert_eq!(layout.id, "");
+        assert_eq!(layout.title, None);
+        assert_eq!(layout.children, None);
+        assert_eq!(layout.root, Some(false));
+        assert_eq!(layout.active, Some(false));
+        assert_eq!(layout.refresh_interval, None);
+        assert_eq!(layout.panel_ids_in_tab_order, None);
+    }
+
+    // === Layout Creation Tests ===
+
+    /// Tests creating a Layout with specific values.
+    /// This test demonstrates how to create a Layout with custom properties.
+    #[test]
+    fn test_layout_creation() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let children = vec![panel1, panel2];
+        
+        let layout = Layout {
+            id: "test_layout".to_string(),
+            title: Some("Test Layout".to_string()),
+            children: Some(children),
+            root: Some(true),
+            active: Some(true),
+            refresh_interval: Some(1000),
+            ..Default::default()
+        };
+        
+        assert_eq!(layout.id, "test_layout");
+        assert_eq!(layout.title, Some("Test Layout".to_string()));
+        assert_eq!(layout.children.as_ref().unwrap().len(), 2);
+        assert_eq!(layout.root, Some(true));
+        assert_eq!(layout.active, Some(true));
+        assert_eq!(layout.refresh_interval, Some(1000));
+    }
+
+    // === Layout Panel Management Tests ===
+
+    /// Tests that Layout::get_panel_by_id() finds panels correctly.
+    /// This test demonstrates the panel retrieval feature.
+    #[test]
+    fn test_layout_get_panel_by_id() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        let found_panel = layout.get_panel_by_id("panel1");
+        assert!(found_panel.is_some());
+        assert_eq!(found_panel.unwrap().id, "panel1");
+        
+        let not_found = layout.get_panel_by_id("nonexistent");
+        assert!(not_found.is_none());
+    }
+
+    /// Tests that Layout::get_panel_by_id() finds nested panels correctly.
+    /// This test demonstrates the recursive panel retrieval feature.
+    #[test]
+    fn test_layout_get_panel_by_id_nested() {
+        let child_panel = create_test_panel("child");
+        let parent_panel = Panel {
+            id: "parent".to_string(),
+            children: Some(vec![child_panel]),
+            ..Default::default()
+        };
+        let layout = create_test_layout("test", Some(vec![parent_panel]));
+        
+        let found_child = layout.get_panel_by_id("child");
+        assert!(found_child.is_some());
+        assert_eq!(found_child.unwrap().id, "child");
+    }
+
+    /// Tests that Layout::get_panel_by_id_mut() finds and allows modification.
+    /// This test demonstrates the mutable panel retrieval feature.
+    #[test]
+    fn test_layout_get_panel_by_id_mut() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        let found_panel = layout.get_panel_by_id_mut("panel1");
+        assert!(found_panel.is_some());
+        
+        // Modify the panel
+        found_panel.unwrap().title = Some("Modified Title".to_string());
+        
+        // Verify the modification
+        let verified_panel = layout.get_panel_by_id("panel1");
+        assert_eq!(verified_panel.unwrap().title, Some("Modified Title".to_string()));
+    }
+
+    /// Tests that Layout::get_panel_by_id_mut() handles empty layout.
+    /// This test demonstrates edge case handling in mutable panel retrieval.
+    #[test]
+    fn test_layout_get_panel_by_id_mut_empty() {
+        let mut layout = create_test_layout("test", None);
+        
+        let found_panel = layout.get_panel_by_id_mut("nonexistent");
+        assert!(found_panel.is_none());
+    }
+
+    // === Layout Panel Selection Tests ===
+
+    /// Tests that Layout::get_selected_panels() returns selected panels.
+    /// This test demonstrates the selected panel retrieval feature.
+    #[test]
+    fn test_layout_get_selected_panels() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.selected = Some(true);
+        panel2.selected = Some(false);
+        panel3.selected = Some(true);
+        
+        let layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].id, "panel1");
+        assert_eq!(selected[1].id, "panel3");
+    }
+
+    /// Tests that Layout::get_selected_panels() handles no selected panels.
+    /// This test demonstrates edge case handling in selected panel retrieval.
+    #[test]
+    fn test_layout_get_selected_panels_none() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+    }
+
+    /// Tests that Layout::select_only_panel() selects only the specified panel.
+    /// This test demonstrates the exclusive panel selection feature.
+    #[test]
+    fn test_layout_select_only_panel() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.selected = Some(true);
+        panel2.selected = Some(true);
+        panel3.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        layout.select_only_panel("panel2");
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel2");
+    }
+
+    /// Tests that Layout::select_only_panel() handles nonexistent panel.
+    /// This test demonstrates edge case handling in panel selection.
+    #[test]
+    fn test_layout_select_only_panel_nonexistent() {
+        let mut panel1 = create_test_panel("panel1");
+        panel1.selected = Some(true);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1]));
+        
+        layout.select_only_panel("nonexistent");
+        
+        // All panels should be deselected
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+    }
+
+    /// Tests that Layout::deselect_all_panels() deselects all panels.
+    /// This test demonstrates the panel deselection feature.
+    #[test]
+    fn test_layout_deselect_all_panels() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.selected = Some(true);
+        panel2.selected = Some(true);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        layout.deselect_all_panels();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+    }
+
+    // === Layout Tab Order Tests ===
+
+    /// Tests that Layout::get_panels_in_tab_order() returns panels in tab order.
+    /// This test demonstrates the tab order retrieval feature.
+    #[test]
+    fn test_layout_get_panels_in_tab_order() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.tab_order = Some("3".to_string());
+        panel2.tab_order = Some("1".to_string());
+        panel3.tab_order = Some("2".to_string());
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        let panels_in_order = layout.get_panels_in_tab_order();
+        assert_eq!(panels_in_order.len(), 3);
+        assert_eq!(panels_in_order[0].id, "panel2"); // tab_order: "1"
+        assert_eq!(panels_in_order[1].id, "panel3"); // tab_order: "2"
+        assert_eq!(panels_in_order[2].id, "panel1"); // tab_order: "3"
+    }
+
+    /// Tests that Layout::get_panels_in_tab_order() ignores panels without tab_order.
+    /// This test demonstrates tab order filtering behavior.
+    #[test]
+    fn test_layout_get_panels_in_tab_order_filtered() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = None; // No tab order
+        panel3.tab_order = Some("2".to_string());
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        let panels_in_order = layout.get_panels_in_tab_order();
+        assert_eq!(panels_in_order.len(), 2);
+        assert_eq!(panels_in_order[0].id, "panel1");
+        assert_eq!(panels_in_order[1].id, "panel3");
+    }
+
+    /// Tests that Layout::get_panels_in_tab_order() handles nested panels.
+    /// This test demonstrates recursive tab order retrieval.
+    #[test]
+    fn test_layout_get_panels_in_tab_order_nested() {
+        let mut child_panel = create_test_panel("child");
+        child_panel.tab_order = Some("2".to_string());
+        
+        let mut parent_panel = create_test_panel("parent");
+        parent_panel.tab_order = Some("1".to_string());
+        parent_panel.children = Some(vec![child_panel]);
+        
+        let mut layout = create_test_layout("test", Some(vec![parent_panel]));
+        
+        let panels_in_order = layout.get_panels_in_tab_order();
+        assert_eq!(panels_in_order.len(), 2);
+        assert_eq!(panels_in_order[0].id, "parent");
+        assert_eq!(panels_in_order[1].id, "child");
+    }
+
+    /// Tests that Layout::select_next_panel() advances selection correctly.
+    /// This test demonstrates the next panel selection feature.
+    #[test]
+    fn test_layout_select_next_panel() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        panel3.tab_order = Some("3".to_string());
+        
+        panel1.selected = Some(true);
+        panel2.selected = Some(false);
+        panel3.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        layout.select_next_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel2");
+    }
+
+    /// Tests that Layout::select_next_panel() wraps around to first panel.
+    /// This test demonstrates the wrap-around behavior in next panel selection.
+    #[test]
+    fn test_layout_select_next_panel_wrap_around() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        
+        panel1.selected = Some(false);
+        panel2.selected = Some(true); // Last panel selected
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        layout.select_next_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel1"); // Wrapped to first
+    }
+
+    /// Tests that Layout::select_next_panel() handles no selection.
+    /// This test demonstrates next panel selection with no current selection.
+    #[test]
+    fn test_layout_select_next_panel_no_selection() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        
+        panel1.selected = Some(false);
+        panel2.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        layout.select_next_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel1"); // First panel selected
+    }
+
+    /// Tests that Layout::select_previous_panel() moves selection backwards.
+    /// This test demonstrates the previous panel selection feature.
+    #[test]
+    fn test_layout_select_previous_panel() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        let mut panel3 = create_test_panel("panel3");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        panel3.tab_order = Some("3".to_string());
+        
+        panel1.selected = Some(false);
+        panel2.selected = Some(true);
+        panel3.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
+        
+        layout.select_previous_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel1");
+    }
+
+    /// Tests that Layout::select_previous_panel() wraps around to last panel.
+    /// This test demonstrates the wrap-around behavior in previous panel selection.
+    #[test]
+    fn test_layout_select_previous_panel_wrap_around() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        
+        panel1.selected = Some(true); // First panel selected
+        panel2.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        layout.select_previous_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel2"); // Wrapped to last
+    }
+
+    /// Tests that Layout::select_previous_panel() handles no selection.
+    /// This test demonstrates previous panel selection with no current selection.
+    #[test]
+    fn test_layout_select_previous_panel_no_selection() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.tab_order = Some("1".to_string());
+        panel2.tab_order = Some("2".to_string());
+        
+        panel1.selected = Some(false);
+        panel2.selected = Some(false);
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        layout.select_previous_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "panel2"); // Last panel selected
+    }
+
+    /// Tests that Layout navigation handles empty panel lists.
+    /// This test demonstrates edge case handling in panel navigation.
+    #[test]
+    fn test_layout_navigation_empty_panels() {
+        let mut layout = create_test_layout("test", None);
+        
+        // These should not panic
+        layout.select_next_panel();
+        layout.select_previous_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+    }
+
+    /// Tests that Layout navigation handles panels without tab order.
+    /// This test demonstrates edge case handling with non-tabbable panels.
+    #[test]
+    fn test_layout_navigation_no_tab_order() {
+        let mut panel1 = create_test_panel("panel1");
+        let mut panel2 = create_test_panel("panel2");
+        
+        panel1.tab_order = None;
+        panel2.tab_order = None;
+        
+        let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        // These should not panic
+        layout.select_next_panel();
+        layout.select_previous_panel();
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+    }
+
+    // === Layout All Panels Tests ===
+
+    /// Tests that Layout::get_all_panels() returns all panels.
+    /// This test demonstrates the all panels retrieval feature.
+    #[test]
+    fn test_layout_get_all_panels() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout = create_test_layout("test", Some(vec![panel1, panel2]));
+        
+        let all_panels = layout.get_all_panels();
+        assert_eq!(all_panels.len(), 2);
+        assert_eq!(all_panels[0].id, "panel1");
+        assert_eq!(all_panels[1].id, "panel2");
+    }
+
+    /// Tests that Layout::get_all_panels() includes nested panels.
+    /// This test demonstrates recursive panel retrieval.
+    #[test]
+    fn test_layout_get_all_panels_nested() {
+        let child_panel = create_test_panel("child");
+        let parent_panel = Panel {
+            id: "parent".to_string(),
+            children: Some(vec![child_panel]),
+            ..Default::default()
+        };
+        let layout = create_test_layout("test", Some(vec![parent_panel]));
+        
+        let all_panels = layout.get_all_panels();
+        assert_eq!(all_panels.len(), 2);
+        assert_eq!(all_panels[0].id, "parent");
+        assert_eq!(all_panels[1].id, "child");
+    }
+
+    /// Tests that Layout::get_all_panels() handles empty layout.
+    /// This test demonstrates edge case handling in all panels retrieval.
+    #[test]
+    fn test_layout_get_all_panels_empty() {
+        let layout = create_test_layout("test", None);
+        
+        let all_panels = layout.get_all_panels();
+        assert_eq!(all_panels.len(), 0);
+    }
+
+    // === Layout Clone Tests ===
+
+    /// Tests that Layout implements Clone correctly.
+    /// This test demonstrates Layout cloning behavior.
+    #[test]
+    fn test_layout_clone() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout1 = create_test_layout("test", Some(vec![panel1, panel2]));
+        let layout2 = layout1.clone();
+        
+        assert_eq!(layout1.id, layout2.id);
+        assert_eq!(layout1.title, layout2.title);
+        assert_eq!(layout1.children.as_ref().unwrap().len(), 
+                   layout2.children.as_ref().unwrap().len());
+        assert_eq!(layout1.root, layout2.root);
+        assert_eq!(layout1.active, layout2.active);
+    }
+
+    /// Tests that Layout cloning includes nested panels.
+    /// This test demonstrates Layout cloning with nested structure.
+    #[test]
+    fn test_layout_clone_nested() {
+        let child_panel = create_test_panel("child");
+        let parent_panel = Panel {
+            id: "parent".to_string(),
+            children: Some(vec![child_panel]),
+            ..Default::default()
+        };
+        let layout1 = create_test_layout("test", Some(vec![parent_panel]));
+        let layout2 = layout1.clone();
+        
+        assert_eq!(layout1.children.as_ref().unwrap()[0].children.as_ref().unwrap().len(),
+                   layout2.children.as_ref().unwrap()[0].children.as_ref().unwrap().len());
+        assert_eq!(layout1.children.as_ref().unwrap()[0].children.as_ref().unwrap()[0].id,
+                   layout2.children.as_ref().unwrap()[0].children.as_ref().unwrap()[0].id);
+    }
+
+    // === Layout Hash Tests ===
+
+    /// Tests that Layout implements Hash correctly.
+    /// This test demonstrates Layout hashing behavior.
+    #[test]
+    fn test_layout_hash() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout1 = create_test_layout("test", Some(vec![panel1.clone(), panel2.clone()]));
+        let layout2 = create_test_layout("test", Some(vec![panel1, panel2]));
+        let layout3 = create_test_layout("other", Some(vec![]));
+        
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher1 = DefaultHasher::new();
+        let mut hasher2 = DefaultHasher::new();
+        let mut hasher3 = DefaultHasher::new();
+        
+        layout1.hash(&mut hasher1);
+        layout2.hash(&mut hasher2);
+        layout3.hash(&mut hasher3);
+        
+        assert_eq!(hasher1.finish(), hasher2.finish());
+        assert_ne!(hasher1.finish(), hasher3.finish());
+    }
+
+    // === Layout PartialEq Tests ===
+
+    /// Tests that Layout implements PartialEq correctly.
+    /// This test demonstrates Layout equality comparison.
+    #[test]
+    fn test_layout_equality() {
+        let panel1 = create_test_panel("panel1");
+        let panel2 = create_test_panel("panel2");
+        let layout1 = create_test_layout("test", Some(vec![panel1.clone(), panel2.clone()]));
+        let layout2 = create_test_layout("test", Some(vec![panel1, panel2]));
+        let layout3 = create_test_layout("other", Some(vec![]));
+        
+        assert_eq!(layout1, layout2);
+        assert_ne!(layout1, layout3);
+    }
+
+    /// Tests that Layout equality considers all fields.
+    /// This test demonstrates comprehensive Layout equality checking.
+    #[test]
+    fn test_layout_equality_comprehensive() {
+        let panel = create_test_panel("panel");
+        
+        let layout1 = Layout {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            children: Some(vec![panel.clone()]),
+            root: Some(true),
+            active: Some(false),
+            ..Default::default()
+        };
+        
+        let layout2 = Layout {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            children: Some(vec![panel.clone()]),
+            root: Some(true),
+            active: Some(false),
+            ..Default::default()
+        };
+        
+        let layout3 = Layout {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            children: Some(vec![panel]),
+            root: Some(false), // Different root value
+            active: Some(false),
+            ..Default::default()
+        };
+        
+        assert_eq!(layout1, layout2);
+        assert_ne!(layout1, layout3);
+    }
+
+    // === Layout Edge Cases ===
+
+    /// Tests that Layout handles operations on empty children gracefully.
+    /// This test demonstrates edge case handling with empty children.
+    #[test]
+    fn test_layout_empty_children_operations() {
+        let mut layout = create_test_layout("test", Some(vec![]));
+        
+        // These should not panic
+        let panels = layout.get_all_panels();
+        assert_eq!(panels.len(), 0);
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+        
+        let tab_ordered = layout.get_panels_in_tab_order();
+        assert_eq!(tab_ordered.len(), 0);
+        
+        layout.select_next_panel();
+        layout.select_previous_panel();
+        layout.select_only_panel("nonexistent");
+        layout.deselect_all_panels();
+    }
+
+    /// Tests that Layout handles None children gracefully.
+    /// This test demonstrates edge case handling with None children.
+    #[test]
+    fn test_layout_none_children_operations() {
+        let mut layout = create_test_layout("test", None);
+        
+        // These should not panic
+        let panels = layout.get_all_panels();
+        assert_eq!(panels.len(), 0);
+        
+        let selected = layout.get_selected_panels();
+        assert_eq!(selected.len(), 0);
+        
+        let tab_ordered = layout.get_panels_in_tab_order();
+        assert_eq!(tab_ordered.len(), 0);
+        
+        layout.select_next_panel();
+        layout.select_previous_panel();
+        layout.select_only_panel("nonexistent");
+        layout.deselect_all_panels();
+    }
+}

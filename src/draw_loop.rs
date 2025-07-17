@@ -9,16 +9,17 @@ use crate::{thread_manager::*, FieldUpdate};
 use crossbeam_channel::Sender;
 use serde_json;
 use std::io::stdout;
-use std::io::{Stdout, Write as IoWrite};
+use std::io::Stdout;
 use std::sync::{mpsc, Mutex};
-use termion::raw::{IntoRawMode, RawTerminal};
-use termion::screen::AlternateScreen;
+use crossterm::{
+    terminal::{enable_raw_mode, EnterAlternateScreen},
+    ExecutableCommand,
+};
 
 use uuid::Uuid;
 
 lazy_static! {
-    static ref GLOBAL_SCREEN: Mutex<Option<AlternateScreen<RawTerminal<Stdout>>>> =
-        Mutex::new(None);
+    static ref GLOBAL_SCREEN: Mutex<Option<Stdout>> = Mutex::new(None);
     static ref GLOBAL_BUFFER: Mutex<Option<ScreenBuffer>> = Mutex::new(None);
     static ref POOL: ChoiceThreadManager = ChoiceThreadManager::new(4);
 }
@@ -34,7 +35,10 @@ create_runnable!(
             .get_adjusted_bounds_and_app_graph(Some(true));
 
         if global_screen.is_none() {
-            *global_screen = Some(AlternateScreen::from(stdout().into_raw_mode().unwrap()));
+            let mut stdout = stdout();
+            enable_raw_mode().unwrap();
+            stdout.execute(EnterAlternateScreen).unwrap();
+            *global_screen = Some(stdout);
             *global_buffer = Some(ScreenBuffer::new());
         }
 
@@ -267,7 +271,7 @@ create_runnable!(
                         }
                     }
                     Message::RedrawApp | Message::Resize => {
-                        write!(screen, "{}", termion::clear::All).unwrap();
+                        screen.execute(crossterm::terminal::Clear(crossterm::terminal::ClearType::All)).unwrap();
                         let mut new_buffer = ScreenBuffer::new();
                         draw_app(
                             &app_context_unwrapped,
