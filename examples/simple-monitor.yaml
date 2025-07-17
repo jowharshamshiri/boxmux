@@ -1,0 +1,90 @@
+app:
+  layouts:
+    - id: 'simple_monitor'
+      root: true
+      title: 'Simple System Monitor'
+      bg_color: 'black'
+      fg_color: 'white'
+      title_fg_color: 'bright_yellow'
+      title_bg_color: 'blue'
+      selected_bg_color: 'bright_blue'
+      border_color: 'green'
+      children:
+        - id: 'header'
+          title: 'System Overview'
+          position:
+            x1: 5%
+            y1: 5%
+            x2: 95%
+            y2: 15%
+          content: 'Welcome to Simple System Monitor'
+          border: true
+          
+        - id: 'cpu_panel'
+          title: 'CPU Usage'
+          position:
+            x1: 5%
+            y1: 20%
+            x2: 47%
+            y2: 60%
+          refresh_interval: 2000
+          script:
+            - echo "CPU Usage:"
+            - top -l 1 | grep "CPU usage" | head -1
+            - echo ""
+            - echo "Top processes:"
+            - ps aux --sort=-%cpu | head -5 | awk '{print $2, $3, $11}'
+          border: true
+          
+        - id: 'memory_panel'
+          title: 'Memory Usage'
+          position:
+            x1: 53%
+            y1: 20%
+            x2: 95%
+            y2: 60%
+          refresh_interval: 2000
+          script:
+            - echo "Memory Usage:"
+            - top -l 1 | grep "PhysMem" | head -1
+            - echo ""
+            - echo "Memory by process:"
+            - ps aux --sort=-%mem | head -5 | awk '{print $2, $4, $11}'
+          border: true
+          
+        - id: 'disk_panel'
+          title: 'Disk Usage'
+          position:
+            x1: 5%
+            y1: 65%
+            x2: 47%
+            y2: 85%
+          refresh_interval: 10000
+          script:
+            - df -h | head -5
+          border: true
+          
+        - id: 'network_panel'
+          title: 'Network Info'
+          position:
+            x1: 53%
+            y1: 65%
+            x2: 95%
+            y2: 85%
+          refresh_interval: 5000
+          script:
+            - echo "Network interfaces:"
+            - ifconfig | grep "inet " | head -3
+          border: true
+          
+        - id: 'footer'
+          title: 'Status'
+          position:
+            x1: 5%
+            y1: 90%
+            x2: 95%
+            y2: 95%
+          refresh_interval: 1000
+          script:
+            - echo "Last updated: $(date)"
+          border: false
