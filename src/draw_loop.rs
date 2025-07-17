@@ -34,7 +34,8 @@ create_runnable!(
             .app
             .get_adjusted_bounds_and_app_graph(Some(true));
 
-        if global_screen.is_none() {
+        let is_first_render = global_screen.is_none();
+        if is_first_render {
             let mut stdout = stdout();
             enable_raw_mode().unwrap();
             stdout.execute(EnterAlternateScreen).unwrap();
@@ -52,7 +53,12 @@ create_runnable!(
                 &adjusted_bounds,
                 &mut new_buffer,
             );
-            apply_buffer_if_changed(buffer, &new_buffer, screen);
+            if is_first_render {
+                // Force full render on first run to ensure everything is drawn
+                apply_buffer(&mut new_buffer, screen);
+            } else {
+                apply_buffer_if_changed(buffer, &new_buffer, screen);
+            }
             *buffer = new_buffer;
         }
 
