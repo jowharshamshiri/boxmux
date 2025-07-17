@@ -481,35 +481,6 @@ Before submitting a PR:
 - [ ] No merge conflicts
 - [ ] Descriptive commit messages
 
-## Review Process
-
-### Review Criteria
-
-Pull requests are reviewed for:
-
-1. **Code quality**: Readability, maintainability
-2. **Functionality**: Does it work as intended?
-3. **Testing**: Adequate test coverage
-4. **Documentation**: Clear and complete
-5. **Performance**: No unnecessary performance impact
-6. **Security**: No security vulnerabilities
-
-### Review Timeline
-
-- **Initial review**: Within 48 hours
-- **Follow-up**: Within 24 hours of updates
-- **Final approval**: After all requirements met
-
-### Addressing Feedback
-
-When addressing review feedback:
-
-1. **Respond to all comments**
-2. **Make requested changes**
-3. **Ask questions** if unclear
-4. **Update PR description** if scope changes
-5. **Request re-review** when ready
-
 ### Communication Channels
 
 - **GitHub Issues**: Bug reports and feature requests

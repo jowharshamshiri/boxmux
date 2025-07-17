@@ -9,6 +9,7 @@
 ![BoxMux Dashboard](./docs/screenshot.png)
 ![BoxMux Dashboard](./docs/code.png)
 ![BoxMux Dashboard](./docs/screenshot_2.png)
+![BoxMux Dashboard](./docs/socket_control.png)
 
 ## ✨ What is BoxMux?
 
