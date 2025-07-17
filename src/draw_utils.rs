@@ -249,6 +249,26 @@ pub fn draw_horizontal_line(
     }
 }
 
+pub fn fill_horizontal_background(
+    y: usize,
+    x1: usize,
+    x2: usize,
+    fg_color: &str,
+    bg_color: &str,
+    buffer: &mut ScreenBuffer,
+) {
+    let fg_color_code = get_fg_color(fg_color);
+    let bg_color_code = get_bg_color(bg_color);
+    for x in x1..=x2 {
+        let cell = Cell {
+            fg_color: fg_color_code.clone(),
+            bg_color: bg_color_code.clone(),
+            ch: ' ',
+        };
+        buffer.update(x, y, cell);
+    }
+}
+
 pub fn draw_vertical_line(
     x: usize,
     y1: usize,
@@ -349,17 +369,17 @@ pub fn draw_horizontal_line_with_title(
                     _ => (x1, width, 0), // Default to no title
                 };
 
-            if draw_border {
-                draw_horizontal_line(
-                    y,
-                    x1,
-                    x1 + line_before_title_length,
-                    fg_color,
-                    bg_color,
-                    buffer,
-                );
-            }
+            // First, fill the entire title area with title background
+            fill_horizontal_background(
+                y,
+                title_start_position,
+                title_start_position + title_length - 1,
+                title_fg_color,
+                title_bg_color,
+                buffer,
+            );
 
+            // Then print the title text on top
             print_with_color_and_background_at(
                 y,
                 title_start_position,
@@ -369,7 +389,16 @@ pub fn draw_horizontal_line_with_title(
                 buffer,
             );
 
+            // Draw borders if needed
             if draw_border {
+                draw_horizontal_line(
+                    y,
+                    x1,
+                    x1 + line_before_title_length,
+                    fg_color,
+                    bg_color,
+                    buffer,
+                );
                 draw_horizontal_line(
                     y,
                     x1 + line_before_title_length + title_length,
@@ -387,6 +416,7 @@ pub fn draw_horizontal_line_with_title(
         // If there is no title, just draw a full horizontal line
         draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
     }
+    // If there is no title and no border, do nothing
 }
 
 static H_SCROLL_CHAR: &str = "|";
