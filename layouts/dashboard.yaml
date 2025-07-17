@@ -4,7 +4,7 @@ app:
   layouts:
     - id: 'dashboard'
       root: true
-      title: 'Advanced Dashboard Layout'
+      title: 'Dashboard Layout'
       selected_fg_color: 'bright_green'
       bg_color: 'bright_black'
       selected_bg_color: 'bright_black'
