@@ -1,6 +1,4 @@
 app:
-  libs:
-    - lib/os_lib.sh
   layouts:
     - id: 'dashboard'
       root: true
