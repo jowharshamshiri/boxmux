@@ -326,6 +326,29 @@ impl Layout {
         }
     }
 
+    pub fn replace_panel_recursive(&mut self, replacement_panel: &Panel) -> Option<bool> {
+        fn replace_in_panels(panels: &mut [Panel], replacement: &Panel) -> bool {
+            for panel in panels {
+                if panel.id == replacement.id {
+                    *panel = replacement.clone();
+                    return true;
+                }
+                if let Some(ref mut children) = panel.children {
+                    if replace_in_panels(children, replacement) {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+
+        if let Some(ref mut children) = self.children {
+            Some(replace_in_panels(children, replacement_panel))
+        } else {
+            Some(false)
+        }
+    }
+
     fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 
@@ -1163,8 +1186,8 @@ mod tests {
         assert_eq!(layout.id, "");
         assert_eq!(layout.title, None);
         assert_eq!(layout.children, None);
-        assert_eq!(layout.root, Some(false));
-        assert_eq!(layout.active, Some(false));
+        assert_eq!(layout.root, None);
+        assert_eq!(layout.active, None);
         assert_eq!(layout.refresh_interval, None);
         assert_eq!(layout.panel_ids_in_tab_order, None);
     }

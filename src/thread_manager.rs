@@ -1090,7 +1090,9 @@ mod tests {
 
     // Helper function to create test AppContext
     fn create_test_app_context() -> AppContext {
-        let app = App::new();
+        let mut app = App::new();
+        let layout = create_test_layout("test_layout");
+        app.layouts.push(layout);
         let config = Config::default();
         AppContext::new(app, config)
     }
