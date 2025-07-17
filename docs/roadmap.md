@@ -15,11 +15,9 @@
 
 To create a declarative, and accessible framework that makes building rich terminal interfaces as simple as writing configuration files.
 
-- **Accessibility**: Make TUI development accessible to everyone
-- **Performance**: Maintain excellent performance even with complex interfaces
+- **Accessibility**: Make TUI development accessible
+- **Performance**: Maintain performance even with complex interfaces
 - **Flexibility**: Support a wide range of use cases and applications
-- **Ecosystem**: Build a thriving community and ecosystem around BoxMux
-- **Innovation**: Push the boundaries of what's possible in terminal interfaces
 
 ## Current Status
 

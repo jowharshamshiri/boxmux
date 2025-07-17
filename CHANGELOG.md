@@ -197,8 +197,6 @@ I welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) fo
 
 - **Documentation**: [docs/index.md](docs/index.md)
 - **Issues**: [GitHub Issues](https://github.com/jowharshamshiri/boxmux/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/jowharshamshiri/boxmux/discussions)
-- **Community**: [Discord](https://discord.gg/boxmux)
 
 ## License
 

@@ -6,7 +6,8 @@
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Version](https://img.shields.io/badge/version-0.76.71205-blue.svg)](https://github.com/jowharshamshiri/boxmux)
 
-![BoxMux Dashboard](./docs/screenshot.png)
+![BoxMux Dashboard](./docs/code.png)
+![BoxMux Dashboard](./docs/screenshot_2.png)
 
 ## ✨ What is BoxMux?
 

@@ -7,7 +7,7 @@ Welcome to the docs for BoxMux, the YAML-driven terminal UI framework.
 ### 🚀 Getting Started
 
 - **[Installation & Setup](getting-started.md)** - Get BoxMux up and running
-- **[Your First Interface](getting-started.md#your-first-interface)** - Create your first BoxMux interface
+- **[Create an Interface](getting-started.md#your-first-interface)** - Create your BoxMux interface
 - **[Core Concepts](getting-started.md#core-concepts)** - Understanding layouts, panels, and positioning
 
 ### 📚 Documentation
@@ -39,7 +39,7 @@ Welcome to the docs for BoxMux, the YAML-driven terminal UI framework.
 7. **[Security](security.md)** - Security considerations and guidelines
 8. **[Deployment](deployment.md)** - Production deployment guide
 
-### Community & Development
+### Development
 
 9. **[Contributing](../CONTRIBUTING.md)** - Contribution guidelines
 10. **[Roadmap](roadmap.md)** - Future development plans
@@ -172,28 +172,18 @@ echo '{"RefreshPanel": {"panel_id": "monitor"}}' | nc -U /tmp/boxmux.sock
 - CI/CD pipelines
 - Alert management
 
-## Community Resources
+## Resources
 
 ### Support Channels
 
 - **[GitHub Issues](https://github.com/jowharshamshiri/boxmux/issues)** - Bug reports and feature requests
-- **[GitHub Discussions](https://github.com/jowharshamshiri/boxmux/discussions)** - Community help and ideas
-- **[Discord](https://discord.gg/boxmux)** - Real-time chat and support
-- **[Email](mailto:support@boxmux.org)** - Direct support
 
 ### Contributing
 
 - **[Contribution Guide](../CONTRIBUTING.md)** - How to contribute
-- **[Code of Conduct](../CODE_OF_CONDUCT.md)** - Community guidelines
+- **[Code of Conduct](../CODE_OF_CONDUCT.md)** - Guidelines
 - **[Development Setup](../CONTRIBUTING.md#development-setup)** - Get started developing
 - **[Issue Templates](https://github.com/jowharshamshiri/boxmux/issues/new/choose)** - Report bugs or request features
-
-### External Resources
-
-- **[Awesome BoxMux](https://github.com/topics/boxmux)** - Community projects
-- **[Stack Overflow](https://stackoverflow.com/questions/tagged/boxmux)** - Q&A
-- **[Reddit](https://reddit.com/r/boxmux)** - Community discussions
-- **[YouTube](https://youtube.com/boxmux)** - Video tutorials
 
 ## License and Legal
 
@@ -219,9 +209,3 @@ This documentation is continuously improved based on user feedback. If you find 
 
 1. **[Open an issue](https://github.com/jowharshamshiri/boxmux/issues/new)** on GitHub
 2. **[Submit a pull request](https://github.com/jowharshamshiri/boxmux/pulls)** with improvements
-3. **[Join the discussion](https://github.com/jowharshamshiri/boxmux/discussions)** about documentation
-4. **[Contact us directly](mailto:docs@boxmux.org)** with feedback
-
----
-
-**Welcome to BoxMux! I'm excited to see what you'll build.** 🚀

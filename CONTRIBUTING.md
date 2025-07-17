@@ -15,7 +15,6 @@ Welcome to BoxMux! I'm excited that you're interested in contributing to making 
 - [Documentation](#documentation)
 - [Submitting Changes](#submitting-changes)
 - [Review Process](#review-process)
-- [Community](#community)
 
 ## Code of Conduct
 
@@ -28,13 +27,13 @@ I pledge to make participation in our project a harassment-free experience for e
 ### Our Standards
 
 **Positive behavior includes:**
+
 - Using welcoming and inclusive language
 - Being respectful of differing viewpoints and experiences
 - Gracefully accepting constructive criticism
-- Focusing on what is best for the community
-- Showing empathy towards other community members
 
 **Unacceptable behavior includes:**
+
 - Harassment, trolling, or derogatory comments
 - Public or private harassment
 - Publishing others' private information without permission
@@ -49,6 +48,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 ### Prerequisites
 
 Before contributing, ensure you have:
+
 - **Rust** (latest stable version) - [Install Rust](https://rustup.rs/)
 - **Git** for version control
 - **A Unix-like system** (Linux, macOS, or WSL)
@@ -58,19 +58,26 @@ Before contributing, ensure you have:
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
+
    ```bash
    git clone https://github.com/jowharshamshiri/boxmux.git
    cd boxmux
    ```
+
 3. **Set up the upstream remote**:
+
    ```bash
    git remote add upstream https://github.com/original-owner/boxmux.git
    ```
+
 4. **Build the project**:
+
    ```bash
    cargo build
    ```
+
 5. **Run the tests**:
+
    ```bash
    cargo test
    ```
@@ -80,6 +87,7 @@ Before contributing, ensure you have:
 ### Environment Setup
 
 1. **Install development dependencies**:
+
    ```bash
    # For linting and formatting
    rustup component add rustfmt clippy
@@ -97,6 +105,7 @@ Before contributing, ensure you have:
    - **Emacs**: Install rust-mode and lsp-mode
 
 3. **Configure Git hooks** (optional but recommended):
+
    ```bash
    # Pre-commit hook for formatting
    echo '#!/bin/bash
@@ -179,7 +188,7 @@ For new features:
 - **Performance tests**: Benchmark critical paths
 - **Configuration tests**: Test various YAML configurations
 
-### Community Contributions
+### Contributions
 
 - **Issue triage**: Help categorize and prioritize issues
 - **User support**: Answer questions in discussions
@@ -200,6 +209,7 @@ I use a simple Git flow:
 ### Development Workflow
 
 1. **Create a feature branch**:
+
    ```bash
    git checkout -b feature/awesome-feature
    ```
@@ -210,6 +220,7 @@ I use a simple Git flow:
    - Update documentation as needed
 
 3. **Test your changes**:
+
    ```bash
    cargo test
    cargo clippy
@@ -217,6 +228,7 @@ I use a simple Git flow:
    ```
 
 4. **Commit your changes**:
+
    ```bash
    git add .
    git commit -m "Add awesome feature
@@ -227,6 +239,7 @@ I use a simple Git flow:
    ```
 
 5. **Push to your fork**:
+
    ```bash
    git push origin feature/awesome-feature
    ```
@@ -249,6 +262,7 @@ Include motivation and context.
 ```
 
 **Types:**
+
 - `feat`: New features
 - `fix`: Bug fixes
 - `docs`: Documentation updates
@@ -264,6 +278,7 @@ Include motivation and context.
 I follow the standard Rust style guidelines:
 
 1. **Use `rustfmt`** for consistent formatting:
+
    ```bash
    cargo fmt
    ```
@@ -274,6 +289,7 @@ I follow the standard Rust style guidelines:
    - `SCREAMING_SNAKE_CASE` for constants
 
 3. **Use `clippy`** for linting:
+
    ```bash
    cargo clippy -- -D warnings
    ```
@@ -303,6 +319,7 @@ I follow the standard Rust style guidelines:
 ### Documentation Standards
 
 1. **Code comments**:
+
    ```rust
    /// Renders a panel with the given configuration.
    /// 
@@ -320,6 +337,7 @@ I follow the standard Rust style guidelines:
    ```
 
 2. **Module documentation**:
+
    ```rust
    //! This module handles panel rendering and drawing utilities.
    //! 
@@ -414,6 +432,7 @@ cargo doc --document-private-items --open
 ### Pull Request Process
 
 1. **Ensure your branch is up-to-date**:
+
    ```bash
    git checkout main
    git pull upstream main
@@ -429,6 +448,7 @@ cargo doc --document-private-items --open
    - Screenshots (if UI changes)
 
 3. **PR template**:
+
    ```markdown
    ## Description
    Brief description of the changes.
@@ -490,14 +510,10 @@ When addressing review feedback:
 4. **Update PR description** if scope changes
 5. **Request re-review** when ready
 
-## Community
-
 ### Communication Channels
 
 - **GitHub Issues**: Bug reports and feature requests
 - **GitHub Discussions**: General questions and ideas
-- **Discord**: Real-time chat (if available)
-- **Email**: For sensitive issues
 
 ### Getting Help
 
@@ -505,8 +521,6 @@ If you need help:
 
 1. **Check existing documentation**
 2. **Search GitHub issues**
-3. **Ask in discussions**
-4. **Join community chat**
 
 ### Recognition
 
@@ -562,6 +576,7 @@ valgrind --leak-check=full ./target/debug/boxmux
 ### Version Numbering
 
 I use semantic versioning (SemVer):
+
 - **MAJOR**: Incompatible API changes
 - **MINOR**: New functionality (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)
@@ -573,11 +588,3 @@ I use semantic versioning (SemVer):
 3. Create release PR
 4. Tag release after merge
 5. Publish to crates.io (maintainers)
-
-## Thank You
-
-Thank you for contributing to BoxMux! Your contributions help make terminal interfaces more beautiful and functional for everyone. I appreciate your time and effort in making this project better.
-
----
-
-*This document is living and will be updated as the project evolves. Please check back regularly for updates.*
