@@ -12,7 +12,7 @@ use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
 use boxmux_lib::Panel;
 use boxmux_lib::SocketFunction;
-use clap::{App, Arg, SubCommand};
+use clap::{Arg, Command};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -157,7 +157,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let matches = App::new("Boxmux")
+    let matches = Command::new("Boxmux")
         .version("0.76.71205")
         .author("jowharshamshiri@gmail.com")
         .about("A terminal multiplexer")
@@ -171,12 +171,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("frame_delay")
                 .short('d')
                 .long("frame_delay")
-                .takes_value(true)
+                .value_name("DELAY")
                 .default_value("30")
                 .help("Sets the frame delay in milliseconds"),
         )
         .subcommand(
-            SubCommand::with_name("stop_panel_refresh")
+            Command::new("stop_panel_refresh")
                 .about("Stops the refresh of the panel")
                 .arg(
                     Arg::new("panel_id")
@@ -186,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("start_panel_refresh")
+            Command::new("start_panel_refresh")
                 .about("Starts the refresh of the panel")
                 .arg(
                     Arg::new("panel_id")
@@ -196,7 +196,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("replace_panel")
+            Command::new("replace_panel")
                 .about("Replaces the panel with the provided Panel")
                 .arg(
                     Arg::new("panel_id")
@@ -212,7 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("switch_active_layout")
+            Command::new("switch_active_layout")
                 .about("Switches the active layout")
                 .arg(
                     Arg::new("layout_id_to_switch_to")
@@ -222,7 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("update_panel_script")
+            Command::new("update_panel_script")
                 .about("Updates the panel script")
                 .arg(
                     Arg::new("panel_id")
@@ -238,7 +238,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("update_panel_content")
+            Command::new("update_panel_content")
                 .about("Updates the panel content")
                 .arg(
                     Arg::new("panel_id")
@@ -260,7 +260,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("add_panel")
+            Command::new("add_panel")
                 .about("Adds a panel to a layout")
                 .arg(
                     Arg::new("layout_id")
@@ -276,12 +276,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            SubCommand::with_name("remove_panel")
+            Command::new("remove_panel")
                 .about("Removes a panel from its layout")
                 .arg(
                     Arg::new("panel_id")
                         .required(true)
-                        .index(2)
+                        .index(1)
                         .help("The panel id to remove from its layout"),
                 ),
         )
@@ -289,10 +289,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the stop_panel_refresh subcommand
     if let Some(matches) = matches.subcommand_matches("stop_panel_refresh") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
             // Construct the enum variant using the struct syntax
             let socket_function = SocketFunction::StopPanelRefresh {
-                panel_id: panel_id.to_string(),
+                panel_id: panel_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -308,10 +308,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the start_panel_refresh subcommand
     if let Some(matches) = matches.subcommand_matches("start_panel_refresh") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
             // Construct the enum variant using the struct syntax
             let socket_function = SocketFunction::StartPanelRefresh {
-                panel_id: panel_id.to_string(),
+                panel_id: panel_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -327,13 +327,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the replace_panel subcommand
     if let Some(matches) = matches.subcommand_matches("replace_panel") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
-            if let Some(new_panel_json) = matches.value_of("new_panel_json") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            if let Some(new_panel_json) = matches.get_one::<String>("new_panel_json") {
                 // Construct the enum variant using the struct syntax
                 let submitted_panel = serde_json::from_str::<Panel>(new_panel_json)?;
 
                 let socket_function = SocketFunction::ReplacePanel {
-                    panel_id: panel_id.to_string(),
+                    panel_id: panel_id.clone(),
                     new_panel: submitted_panel,
                 };
 
@@ -353,7 +353,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the switch_active_layout subcommand
     if let Some(matches) = matches.subcommand_matches("switch_active_layout") {
-        if let Some(layout_id_to_switch_to) = matches.value_of("layout_id_to_switch_to") {
+        if let Some(layout_id_to_switch_to) = matches.get_one::<String>("layout_id_to_switch_to") {
             // Construct the enum variant using the struct syntax
             let socket_function = SocketFunction::SwitchActiveLayout {
                 layout_id: layout_id_to_switch_to.to_string(),
@@ -372,13 +372,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the update_panel_script subcommand
     if let Some(matches) = matches.subcommand_matches("update_panel_script") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
-            if let Some(new_panel_script) = matches.value_of("new_panel_script") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            if let Some(new_panel_script) = matches.get_one::<String>("new_panel_script") {
                 let new_panel_script = serde_json::from_str::<Vec<String>>(new_panel_script)?;
 
                 // Construct the enum variant using the struct syntax
                 let socket_function = SocketFunction::ReplacePanelScript {
-                    panel_id: panel_id.to_string(),
+                    panel_id: panel_id.clone(),
                     script: new_panel_script,
                 };
 
@@ -398,17 +398,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the update_panel_content subcommand
     if let Some(matches) = matches.subcommand_matches("update_panel_content") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
-            if let Some(new_panel_content) = matches.value_of("new_panel_content") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            if let Some(new_panel_content) = matches.get_one::<String>("new_panel_content") {
                 // Construct the enum variant using the struct syntax
                 let socket_function = SocketFunction::ReplacePanelContent {
-                    panel_id: panel_id.to_string(),
+                    panel_id: panel_id.clone(),
                     success: matches
-                        .value_of("success")
+                        .get_one::<String>("success")
                         .unwrap()
                         .parse::<bool>()
                         .unwrap(),
-                    content: new_panel_content.to_string(),
+                    content: new_panel_content.clone(),
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -429,8 +429,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the add_panel subcommand
     if let Some(matches) = matches.subcommand_matches("add_panel") {
-        if let Some(layout_id) = matches.value_of("layout_id") {
-            if let Some(panel_json) = matches.value_of("panel_json") {
+        if let Some(layout_id) = matches.get_one::<String>("layout_id") {
+            if let Some(panel_json) = matches.get_one::<String>("panel_json") {
                 let submitted_panel = serde_json::from_str::<Panel>(panel_json)?;
 
                 // Construct the enum variant using the struct syntax
@@ -455,10 +455,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Handle the remove_panel subcommand
     if let Some(matches) = matches.subcommand_matches("remove_panel") {
-        if let Some(panel_id) = matches.value_of("panel_id") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
             // Construct the enum variant using the struct syntax
             let socket_function = SocketFunction::RemovePanel {
-                panel_id: panel_id.to_string(),
+                panel_id: panel_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -472,9 +472,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let yaml_path = matches.value_of("yaml_file").unwrap();
+    let yaml_path = matches.get_one::<String>("yaml_file").unwrap();
     let frame_delay = matches
-        .value_of("frame_delay")
+        .get_one::<String>("frame_delay")
         .unwrap()
         .parse::<u64>()
         .unwrap_or(100);
@@ -497,9 +497,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_context = AppContext::new(app, config);
 
     //create alternate screen in terminal and clear it
+    use crossterm::{execute, terminal};
     let mut _stdout = std::io::stdout();
-    write!(_stdout, "{}", termion::screen::ToAlternateScreen)?;
-    write!(_stdout, "{}", termion::clear::All)?;
+    execute!(_stdout, terminal::EnterAlternateScreen)?;
+    execute!(_stdout, terminal::Clear(terminal::ClearType::All))?;
 
     let mut manager = ThreadManager::new(app_context.clone());
 
@@ -513,7 +514,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     manager.run();
 
     //restore normal screen
-    write!(_stdout, "{}", termion::screen::ToMainScreen)?;
+    execute!(_stdout, terminal::LeaveAlternateScreen)?;
 
     Ok(())
 }

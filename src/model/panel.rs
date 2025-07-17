@@ -2182,3 +2182,616 @@ impl Updatable for Panel {
         self.apply_children_updates(updates_for_children);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::app::{App, AppContext};
+    use crate::model::layout::Layout;
+    use crate::Config;
+
+    // === Helper Functions ===
+
+    /// Creates a basic test panel with minimal required fields.
+    /// This helper demonstrates how to create a Panel for testing purposes.
+    fn create_test_panel(id: &str) -> Panel {
+        Panel {
+            id: id.to_string(),
+            title: Some(format!("Test Panel {}", id)),
+            position: InputBounds {
+                x1: "0%".to_string(),
+                y1: "0%".to_string(),
+                x2: "100%".to_string(),
+                y2: "100%".to_string(),
+            },
+            ..Default::default()
+        }
+    }
+
+    /// Creates a test Choice with the given id and content.
+    /// This helper demonstrates how to create a Choice for testing purposes.
+    fn create_test_choice(id: &str, content: &str) -> Choice {
+        Choice {
+            id: id.to_string(),
+            content: Some(content.to_string()),
+            script: None,
+            thread: Some(false),
+            redirect_output: None,
+            append_output: None,
+            selected: false,
+            waiting: false,
+        }
+    }
+
+    /// Creates a test AppContext with a simple layout for testing.
+    /// This helper demonstrates how to create an AppContext for Panel testing.
+    fn create_test_app_context() -> AppContext {
+        let mut app = App::new();
+        let layout = Layout {
+            id: "test_layout".to_string(),
+            children: Some(vec![create_test_panel("test_panel")]),
+            ..Default::default()
+        };
+        app.layouts.push(layout);
+        AppContext::new(app, Config::default())
+    }
+
+    // === Panel Default Tests ===
+
+    /// Tests that Panel::default() creates a panel with expected default values.
+    /// This test demonstrates the default Panel construction behavior.
+    #[test]
+    fn test_panel_default() {
+        let panel = Panel::default();
+        assert_eq!(panel.id, "");
+        assert_eq!(panel.title, None);
+        assert_eq!(panel.scroll, false);
+        assert_eq!(panel.anchor, Anchor::Center);
+        assert_eq!(panel.selected, Some(false));
+        assert_eq!(panel.thread, Some(false));
+        assert_eq!(panel.horizontal_scroll, Some(0.0));
+        assert_eq!(panel.vertical_scroll, Some(0.0));
+        assert_eq!(panel.error_state, false);
+        assert_eq!(panel.output, "");
+    }
+
+    // === Panel Creation Tests ===
+
+    /// Tests creating a Panel with specific values.
+    /// This test demonstrates how to create a Panel with custom properties.
+    #[test]
+    fn test_panel_creation() {
+        let panel = Panel {
+            id: "test_panel".to_string(),
+            title: Some("Test Panel".to_string()),
+            position: InputBounds {
+                x1: "10%".to_string(),
+                y1: "20%".to_string(),
+                x2: "90%".to_string(),
+                y2: "80%".to_string(),
+            },
+            scroll: true,
+            anchor: Anchor::TopLeft,
+            selected: Some(true),
+            content: Some("Test content".to_string()),
+            ..Default::default()
+        };
+        
+        assert_eq!(panel.id, "test_panel");
+        assert_eq!(panel.title, Some("Test Panel".to_string()));
+        assert_eq!(panel.scroll, true);
+        assert_eq!(panel.anchor, Anchor::TopLeft);
+        assert_eq!(panel.selected, Some(true));
+        assert_eq!(panel.content, Some("Test content".to_string()));
+    }
+
+    // === Panel Bounds Tests ===
+
+    /// Tests that Panel::bounds() calculates bounds correctly.
+    /// This test demonstrates the bounds calculation feature using screen bounds.
+    #[test]
+    fn test_panel_bounds() {
+        let panel = Panel {
+            id: "test".to_string(),
+            position: InputBounds {
+                x1: "25%".to_string(),
+                y1: "50%".to_string(),
+                x2: "75%".to_string(),
+                y2: "100%".to_string(),
+            },
+            ..Default::default()
+        };
+        
+        // Note: This test depends on screen_bounds() which uses termion
+        // In a real test environment, you might want to mock this
+        let bounds = panel.bounds();
+        let screen_bounds = crate::utils::screen_bounds();
+        let expected_x1 = screen_bounds.width() / 4;
+        let expected_y1 = screen_bounds.height() / 2;
+        let expected_x2 = (screen_bounds.width() * 3) / 4;
+        let expected_y2 = screen_bounds.height();
+        
+        assert_eq!(bounds.x1, expected_x1);
+        assert_eq!(bounds.y1, expected_y1);
+        assert_eq!(bounds.x2, expected_x2);
+        assert_eq!(bounds.y2, expected_y2);
+    }
+
+    /// Tests that Panel::absolute_bounds() works with parent bounds.
+    /// This test demonstrates the absolute bounds calculation feature.
+    #[test]
+    fn test_panel_absolute_bounds() {
+        let panel = Panel {
+            id: "test".to_string(),
+            position: InputBounds {
+                x1: "25%".to_string(),
+                y1: "50%".to_string(),
+                x2: "75%".to_string(),
+                y2: "100%".to_string(),
+            },
+            ..Default::default()
+        };
+        
+        let parent_bounds = Bounds::new(0, 0, 100, 200);
+        let bounds = panel.absolute_bounds(Some(&parent_bounds));
+        
+        assert_eq!(bounds.x1, 25);
+        assert_eq!(bounds.y1, 100);
+        assert_eq!(bounds.x2, 75);
+        assert_eq!(bounds.y2, 200);
+    }
+
+    /// Tests that Panel::update_bounds_absolutely() updates position correctly.
+    /// This test demonstrates the bounds update feature.
+    #[test]
+    fn test_panel_update_bounds_absolutely() {
+        let mut panel = Panel {
+            id: "test".to_string(),
+            position: InputBounds {
+                x1: "0%".to_string(),
+                y1: "0%".to_string(),
+                x2: "100%".to_string(),
+                y2: "100%".to_string(),
+            },
+            ..Default::default()
+        };
+        
+        let new_bounds = Bounds::new(25, 50, 75, 100);
+        let parent_bounds = Bounds::new(0, 0, 100, 200);
+        
+        panel.update_bounds_absolutely(new_bounds, Some(&parent_bounds));
+        
+        assert_eq!(panel.position.x1, "25%");
+        assert_eq!(panel.position.y1, "25%");
+        assert_eq!(panel.position.x2, "75%");
+        assert_eq!(panel.position.y2, "50%");
+    }
+
+    // === Panel Output Tests ===
+
+    /// Tests that Panel::set_output() updates the output field.
+    /// This test demonstrates the output setting feature.
+    #[test]
+    fn test_panel_set_output() {
+        let mut panel = Panel::default();
+        assert_eq!(panel.output, "");
+        
+        panel.set_output("Test output");
+        assert_eq!(panel.output, "Test output");
+    }
+
+    /// Tests that Panel::update_content() updates content and error state.
+    /// This test demonstrates the content update feature.
+    #[test]
+    fn test_panel_update_content() {
+        let mut panel = Panel::default();
+        
+        // Test successful update
+        panel.update_content("New content", false, true);
+        assert_eq!(panel.content, Some("New content".to_string()));
+        assert_eq!(panel.error_state, false);
+        
+        // Test error update
+        panel.update_content("Error content", false, false);
+        assert_eq!(panel.content, Some("Error content".to_string()));
+        assert_eq!(panel.error_state, true);
+    }
+
+    /// Tests that Panel::update_content() handles content appending.
+    /// This test demonstrates the content appending feature.
+    #[test]
+    fn test_panel_update_content_append() {
+        let mut panel = Panel {
+            content: Some("Existing content".to_string()),
+            ..Default::default()
+        };
+        
+        panel.update_content("New content", true, true);
+        
+        // Check that content was appended with timestamp
+        let content = panel.content.unwrap();
+        assert!(content.contains("New content"));
+        assert!(content.contains("Existing content"));
+        assert!(content.contains("[")); // Timestamp format
+    }
+
+    // === Panel Selection Tests ===
+
+    /// Tests that Panel::is_selectable() correctly identifies selectable panels.
+    /// This test demonstrates the panel selectability feature.
+    #[test]
+    fn test_panel_is_selectable() {
+        let mut panel = Panel::default();
+        
+        // Panel without tab_order is not selectable
+        assert!(!panel.is_selectable());
+        
+        // Panel with tab_order "none" is not selectable
+        panel.tab_order = Some("none".to_string());
+        assert!(!panel.is_selectable());
+        
+        // Panel with numeric tab_order is selectable
+        panel.tab_order = Some("1".to_string());
+        assert!(panel.is_selectable());
+    }
+
+    /// Tests that Panel::is_selected() correctly identifies selected panels.
+    /// This test demonstrates the panel selection state feature.
+    #[test]
+    fn test_panel_is_selected() {
+        let mut panel = Panel::default();
+        
+        // Default panel is not selected
+        assert!(!panel.is_selected());
+        
+        // Panel with selected = Some(true) is selected
+        panel.selected = Some(true);
+        assert!(panel.is_selected());
+        
+        // Panel with selected = Some(false) is not selected
+        panel.selected = Some(false);
+        assert!(!panel.is_selected());
+    }
+
+    // === Panel Scrolling Tests ===
+
+    /// Tests that Panel::scroll_down() increases vertical scroll.
+    /// This test demonstrates the downward scrolling feature.
+    #[test]
+    fn test_panel_scroll_down() {
+        let mut panel = Panel::default();
+        
+        // Initial scroll should be 0
+        assert_eq!(panel.current_vertical_scroll(), 0.0);
+        
+        // Scroll down by default amount
+        panel.scroll_down(None);
+        assert_eq!(panel.current_vertical_scroll(), 5.0);
+        
+        // Scroll down by custom amount
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 15.0);
+        
+        // Scroll should not exceed 100%
+        panel.scroll_down(Some(90.0));
+        assert_eq!(panel.current_vertical_scroll(), 100.0);
+    }
+
+    /// Tests that Panel::scroll_up() decreases vertical scroll.
+    /// This test demonstrates the upward scrolling feature.
+    #[test]
+    fn test_panel_scroll_up() {
+        let mut panel = Panel {
+            vertical_scroll: Some(50.0),
+            ..Default::default()
+        };
+        
+        // Scroll up by default amount
+        panel.scroll_up(None);
+        assert_eq!(panel.current_vertical_scroll(), 45.0);
+        
+        // Scroll up by custom amount
+        panel.scroll_up(Some(20.0));
+        assert_eq!(panel.current_vertical_scroll(), 25.0);
+        
+        // Scroll should not go below 0
+        panel.scroll_up(Some(50.0));
+        assert_eq!(panel.current_vertical_scroll(), 0.0);
+    }
+
+    /// Tests that Panel::scroll_right() increases horizontal scroll.
+    /// This test demonstrates the rightward scrolling feature.
+    #[test]
+    fn test_panel_scroll_right() {
+        let mut panel = Panel::default();
+        
+        // Initial scroll should be 0
+        assert_eq!(panel.current_horizontal_scroll(), 0.0);
+        
+        // Scroll right by default amount
+        panel.scroll_right(None);
+        assert_eq!(panel.current_horizontal_scroll(), 5.0);
+        
+        // Scroll right by custom amount
+        panel.scroll_right(Some(10.0));
+        assert_eq!(panel.current_horizontal_scroll(), 15.0);
+        
+        // Scroll should not exceed 100%
+        panel.scroll_right(Some(90.0));
+        assert_eq!(panel.current_horizontal_scroll(), 100.0);
+    }
+
+    /// Tests that Panel::scroll_left() decreases horizontal scroll.
+    /// This test demonstrates the leftward scrolling feature.
+    #[test]
+    fn test_panel_scroll_left() {
+        let mut panel = Panel {
+            horizontal_scroll: Some(50.0),
+            ..Default::default()
+        };
+        
+        // Scroll left by default amount
+        panel.scroll_left(None);
+        assert_eq!(panel.current_horizontal_scroll(), 45.0);
+        
+        // Scroll left by custom amount
+        panel.scroll_left(Some(20.0));
+        assert_eq!(panel.current_horizontal_scroll(), 25.0);
+        
+        // Scroll should not go below 0
+        panel.scroll_left(Some(50.0));
+        assert_eq!(panel.current_horizontal_scroll(), 0.0);
+    }
+
+    // === Choice Tests ===
+
+    /// Tests that Choice::new() creates a choice with expected values.
+    /// This test demonstrates Choice creation and property access.
+    #[test]
+    fn test_choice_creation() {
+        let choice = create_test_choice("test_choice", "Test Content");
+        
+        assert_eq!(choice.id, "test_choice");
+        assert_eq!(choice.content, Some("Test Content".to_string()));
+        assert_eq!(choice.selected, false);
+        assert_eq!(choice.waiting, false);
+        assert_eq!(choice.thread, Some(false));
+    }
+
+    /// Tests that Choice implements Clone correctly.
+    /// This test demonstrates Choice cloning behavior.
+    #[test]
+    fn test_choice_clone() {
+        let choice1 = create_test_choice("test", "content");
+        let choice2 = choice1.clone();
+        
+        assert_eq!(choice1, choice2);
+        assert_eq!(choice1.id, choice2.id);
+        assert_eq!(choice1.content, choice2.content);
+    }
+
+    /// Tests that Choice implements PartialEq correctly.
+    /// This test demonstrates Choice equality comparison.
+    #[test]
+    fn test_choice_equality() {
+        let choice1 = create_test_choice("test", "content");
+        let choice2 = create_test_choice("test", "content");
+        let choice3 = create_test_choice("other", "content");
+        
+        assert_eq!(choice1, choice2);
+        assert_ne!(choice1, choice3);
+    }
+
+    /// Tests that Choice implements Hash correctly.
+    /// This test demonstrates Choice hashing behavior.
+    #[test]
+    fn test_choice_hash() {
+        let choice1 = create_test_choice("test", "content");
+        let choice2 = create_test_choice("test", "content");
+        let choice3 = create_test_choice("other", "content");
+        
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher1 = DefaultHasher::new();
+        let mut hasher2 = DefaultHasher::new();
+        let mut hasher3 = DefaultHasher::new();
+        
+        choice1.hash(&mut hasher1);
+        choice2.hash(&mut hasher2);
+        choice3.hash(&mut hasher3);
+        
+        assert_eq!(hasher1.finish(), hasher2.finish());
+        assert_ne!(hasher1.finish(), hasher3.finish());
+    }
+
+    // === Panel Clone Tests ===
+
+    /// Tests that Panel implements Clone correctly.
+    /// This test demonstrates Panel cloning behavior.
+    #[test]
+    fn test_panel_clone() {
+        let panel1 = create_test_panel("test");
+        let panel2 = panel1.clone();
+        
+        assert_eq!(panel1, panel2);
+        assert_eq!(panel1.id, panel2.id);
+        assert_eq!(panel1.title, panel2.title);
+        assert_eq!(panel1.position, panel2.position);
+    }
+
+    /// Tests that Panel cloning includes children.
+    /// This test demonstrates Panel cloning with nested children.
+    #[test]
+    fn test_panel_clone_with_children() {
+        let child_panel = create_test_panel("child");
+        let parent_panel = Panel {
+            id: "parent".to_string(),
+            children: Some(vec![child_panel]),
+            ..Default::default()
+        };
+        
+        let cloned = parent_panel.clone();
+        
+        assert_eq!(parent_panel.children.as_ref().unwrap().len(), 1);
+        assert_eq!(cloned.children.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            parent_panel.children.as_ref().unwrap()[0].id,
+            cloned.children.as_ref().unwrap()[0].id
+        );
+    }
+
+    // === Panel Hash Tests ===
+
+    /// Tests that Panel implements Hash correctly.
+    /// This test demonstrates Panel hashing behavior.
+    #[test]
+    fn test_panel_hash() {
+        let panel1 = create_test_panel("test");
+        let panel2 = create_test_panel("test");
+        let panel3 = create_test_panel("other");
+        
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher1 = DefaultHasher::new();
+        let mut hasher2 = DefaultHasher::new();
+        let mut hasher3 = DefaultHasher::new();
+        
+        panel1.hash(&mut hasher1);
+        panel2.hash(&mut hasher2);
+        panel3.hash(&mut hasher3);
+        
+        assert_eq!(hasher1.finish(), hasher2.finish());
+        assert_ne!(hasher1.finish(), hasher3.finish());
+    }
+
+    // === Panel Validation Tests ===
+
+    /// Tests that Panel handles edge cases in scrolling.
+    /// This test demonstrates edge case handling in scrolling methods.
+    #[test]
+    fn test_panel_scrolling_edge_cases() {
+        let mut panel = Panel::default();
+        
+        // Test scrolling when scroll values are None
+        panel.vertical_scroll = None;
+        panel.horizontal_scroll = None;
+        
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.vertical_scroll, Some(10.0));
+        
+        panel.scroll_right(Some(15.0));
+        assert_eq!(panel.horizontal_scroll, Some(15.0));
+        
+        panel.scroll_up(Some(5.0));
+        assert_eq!(panel.vertical_scroll, Some(5.0));
+        
+        panel.scroll_left(Some(10.0));
+        assert_eq!(panel.horizontal_scroll, Some(5.0));
+    }
+
+    /// Tests that Panel handles empty and None values correctly.
+    /// This test demonstrates edge case handling in Panel properties.
+    #[test]
+    fn test_panel_empty_values() {
+        let panel = Panel {
+            id: "test".to_string(),
+            title: Some("".to_string()),
+            content: Some("".to_string()),
+            tab_order: Some("".to_string()),
+            ..Default::default()
+        };
+        
+        assert_eq!(panel.id, "test");
+        assert_eq!(panel.title, Some("".to_string()));
+        assert_eq!(panel.content, Some("".to_string()));
+        assert!(!panel.is_selectable()); // Empty tab_order should not be selectable
+    }
+
+    // === Panel with Choices Tests ===
+
+    /// Tests that Panel correctly handles choices.
+    /// This test demonstrates Panel choice management.
+    #[test]
+    fn test_panel_with_choices() {
+        let choice1 = create_test_choice("choice1", "First Choice");
+        let choice2 = create_test_choice("choice2", "Second Choice");
+        
+        let panel = Panel {
+            id: "test".to_string(),
+            choices: Some(vec![choice1, choice2]),
+            ..Default::default()
+        };
+        
+        assert_eq!(panel.choices.as_ref().unwrap().len(), 2);
+        assert_eq!(panel.choices.as_ref().unwrap()[0].id, "choice1");
+        assert_eq!(panel.choices.as_ref().unwrap()[1].id, "choice2");
+    }
+
+    /// Tests that Panel correctly handles choice selection.
+    /// This test demonstrates Panel choice selection behavior.
+    #[test]
+    fn test_panel_choice_selection() {
+        let mut choice1 = create_test_choice("choice1", "First Choice");
+        let mut choice2 = create_test_choice("choice2", "Second Choice");
+        
+        choice1.selected = true;
+        choice2.selected = false;
+        
+        let panel = Panel {
+            id: "test".to_string(),
+            choices: Some(vec![choice1, choice2]),
+            ..Default::default()
+        };
+        
+        assert_eq!(panel.choices.as_ref().unwrap()[0].selected, true);
+        assert_eq!(panel.choices.as_ref().unwrap()[1].selected, false);
+    }
+
+    // === Panel PartialEq Tests ===
+
+    /// Tests that Panel implements PartialEq correctly.
+    /// This test demonstrates Panel equality comparison.
+    #[test]
+    fn test_panel_equality() {
+        let panel1 = create_test_panel("test");
+        let panel2 = create_test_panel("test");
+        let panel3 = create_test_panel("other");
+        
+        assert_eq!(panel1, panel2);
+        assert_ne!(panel1, panel3);
+    }
+
+    /// Tests that Panel equality considers all fields.
+    /// This test demonstrates comprehensive Panel equality checking.
+    #[test]
+    fn test_panel_equality_comprehensive() {
+        let panel1 = Panel {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            scroll: true,
+            selected: Some(true),
+            ..Default::default()
+        };
+        
+        let panel2 = Panel {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            scroll: true,
+            selected: Some(true),
+            ..Default::default()
+        };
+        
+        let panel3 = Panel {
+            id: "test".to_string(),
+            title: Some("Test".to_string()),
+            scroll: false, // Different scroll value
+            selected: Some(true),
+            ..Default::default()
+        };
+        
+        assert_eq!(panel1, panel2);
+        assert_ne!(panel1, panel3);
+    }
+}
