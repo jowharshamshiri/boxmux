@@ -1237,13 +1237,24 @@ mod tests {
         assert_eq!(screen_buffer.buffer[0].len(), 5);
     }
 
+    // === Helper Functions ===
+
+    /// Creates a test app context with a valid layout for testing.
+    /// This helper ensures tests have a valid app context with layouts.
+    fn create_test_app_context() -> AppContext {
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+        let dashboard_path = current_dir.join("layouts/tests.yaml");
+        let app = crate::load_app_from_yaml(dashboard_path.to_str().unwrap()).expect("Failed to load app");
+        AppContext::new(app, Config::default())
+    }
+
     // === SocketFunction Tests ===
 
     /// Tests that run_socket_function() correctly handles ReplacePanelContent.
     /// This test demonstrates socket function message processing.
     #[test]
     fn test_run_socket_function_replace_panel_content() {
-        let app_context = AppContext::new(crate::App::new(), Config::default());
+        let app_context = create_test_app_context();
         let socket_function = SocketFunction::ReplacePanelContent {
             panel_id: "test_panel".to_string(),
             success: true,
@@ -1269,7 +1280,7 @@ mod tests {
     /// This test demonstrates socket function layout switching.
     #[test]
     fn test_run_socket_function_switch_active_layout() {
-        let app_context = AppContext::new(crate::App::new(), Config::default());
+        let app_context = create_test_app_context();
         let socket_function = SocketFunction::SwitchActiveLayout {
             layout_id: "new_layout".to_string(),
         };

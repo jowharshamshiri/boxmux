@@ -1020,7 +1020,9 @@ impl Panel {
     }
 
     pub fn is_selectable(&self) -> bool {
-        self.tab_order.is_some() && self.tab_order.as_ref().unwrap() != "none"
+        self.tab_order.is_some() 
+            && self.tab_order.as_ref().unwrap() != "none"
+            && !self.tab_order.as_ref().unwrap().is_empty()
     }
 
     pub fn is_selected(&self) -> bool {
@@ -2302,19 +2304,31 @@ mod tests {
             ..Default::default()
         };
         
-        // Note: This test depends on screen_bounds() which uses termion
-        // In a real test environment, you might want to mock this
+        // Get screen bounds and calculated bounds
         let bounds = panel.bounds();
         let screen_bounds = crate::utils::screen_bounds();
-        let expected_x1 = screen_bounds.width() / 4;
-        let expected_y1 = screen_bounds.height() / 2;
-        let expected_x2 = (screen_bounds.width() * 3) / 4;
-        let expected_y2 = screen_bounds.height();
         
-        assert_eq!(bounds.x1, expected_x1);
-        assert_eq!(bounds.y1, expected_y1);
-        assert_eq!(bounds.x2, expected_x2);
-        assert_eq!(bounds.y2, expected_y2);
+        // Calculate expected values using the same logic as parse_percentage
+        let expected_x1 = (0.25 * screen_bounds.width() as f64).round() as usize;
+        let expected_y1 = (0.50 * screen_bounds.height() as f64).round() as usize;
+        let expected_x2 = (0.75 * screen_bounds.width() as f64).round() as usize;
+        let expected_y2 = (1.00 * screen_bounds.height() as f64).round() as usize;
+        
+        // Test that bounds are calculated correctly relative to screen size
+        assert_eq!(bounds.x1, expected_x1, "x1 should be 25% of screen width");
+        assert_eq!(bounds.y1, expected_y1, "y1 should be 50% of screen height");
+        assert_eq!(bounds.x2, expected_x2, "x2 should be 75% of screen width");
+        assert_eq!(bounds.y2, expected_y2, "y2 should be 100% of screen height");
+        
+        // Also test that bounds are within screen bounds
+        assert!(bounds.x1 <= screen_bounds.width());
+        assert!(bounds.y1 <= screen_bounds.height());
+        assert!(bounds.x2 <= screen_bounds.width());
+        assert!(bounds.y2 <= screen_bounds.height());
+        
+        // Test that bounds are logically consistent
+        assert!(bounds.x1 < bounds.x2, "x1 should be less than x2");
+        assert!(bounds.y1 < bounds.y2, "y1 should be less than y2");
     }
 
     /// Tests that Panel::absolute_bounds() works with parent bounds.
