@@ -179,3 +179,4 @@ cython_debug/
 # already existing elements were commented out
 
 #/target
+.scrap/
