@@ -1,81 +1,95 @@
-# BoxMux Roadmap
+# BoxMux Development Roadmap
 
-## Objectives
+## Project Vision
 
-### Core Objective
+**Create a declarative, accessible framework that makes building rich terminal interfaces as simple as writing configuration files.**
 
-To create a declarative, and accessible framework that makes building rich terminal interfaces as simple as writing configuration files.
+### Core Objectives
+- **Accessibility**: Make TUI development accessible to non-programmers
+- **Performance**: Maintain high performance even with complex interfaces  
+- **Flexibility**: Support diverse use cases from system monitoring to development tools
 
-- **Accessibility**: Make TUI development accessible
-- **Performance**: Maintain performance even with complex interfaces
-- **Flexibility**: Support a wide range of use cases and applications
+## Current Status: v0.76.71205 (Production Ready)
 
-## Current Status
+### ✅ Completed Core Features
+- **YAML Configuration System** - Complete declarative interface definition
+- **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
+- **Socket-based API** - External control via Unix domain sockets
+- **Rich Component Library** - Panels, menus, charts, real-time updates
+- **Cross-platform Support** - Verified on macOS, Linux, Unix systems
+- **Performance Optimization** - Sub-millisecond input handling, efficient rendering
+- **Comprehensive Documentation** - User guides, API reference, examples
 
-### BoxMux v0.76 (Current)
+### Recent Achievements (v0.76)
+- ✅ Enhanced error handling and debugging capabilities
+- ✅ Crossterm migration for improved cross-platform compatibility
+- ✅ Security updates for all dependencies
+- ✅ Test coverage improvements (90%+)
+- ✅ Critical rendering bug fixes
 
-- ✅ YAML-based configuration system
-- ✅ Hierarchical panel system
-- ✅ Real-time updates and refresh intervals
-- ✅ Interactive menus and navigation
-- ✅ Socket-based API for external control
-- ✅ Cross-platform support (macOS, Linux)
-- ✅ Test suite
-- ✅ Script integration and execution
-- ✅ Color and styling system
-- ✅ Scrolling and overflow handling
+## Planned Enhancements
 
-### Recent Achievements
+### 🎯 Next Release (v0.8) - Enhanced Capabilities
+**Focus**: Advanced features and developer experience improvements
 
-- Fixed critical title background rendering issue
-- Migrated from termion to crossterm for better cross-platform support
-- Updated all dependencies to latest secure versions
-- Added test coverage (90%+)
-- Improved error handling and debugging capabilities
-
-**Focus: Polish and Usability**
-
-#### Features
-
-- [ ] **Enhanced Charting Capabilities**
-  - Built-in chart types (bar, line, scatter, pie)
-  - Data streaming support
-  - Custom chart rendering engine
-  - Integration with popular data sources
+#### High Priority Features
+- [ ] **Enhanced Charting System**
+  - Built-in chart types (bar, line, scatter, pie charts)
+  - Real-time data streaming support  
+  - ASCII art chart rendering engine
+  - Integration with popular data sources (CSV, JSON, APIs)
 
 - [ ] **Configuration Validation**
-  - Schema-based YAML validation
-  - Detailed error messages with line numbers
-  - Configuration suggestions and auto-completion
-  - Live configuration validation
+  - Schema-based YAML validation with detailed error messages
+  - Configuration auto-completion and suggestions
+  - Live validation during editing
+  - Better error reporting with line numbers and context
 
-- [ ] **Improved Error Handling**
-  - Better error messages with context
-  - Error recovery mechanisms
-  - Debugging tools and diagnostics
-  - Error reporting to external systems
+- [ ] **Plugin Architecture**
+  - Dynamic loading of custom panel types
+  - Standardized plugin API
+  - Plugin marketplace and distribution
+  - Community-contributed components
+
+#### Medium Priority Features  
+- [ ] **Hot Configuration Reload**
+  - Watch configuration files for changes
+  - Safe state preservation during reload
+  - Error recovery and rollback mechanisms
 
 - [ ] **Performance Optimizations**
-  - Reduced memory footprint
-  - Faster rendering pipeline
+  - Memory usage analysis and reduction
+  - Faster rendering pipeline optimizations
   - Background processing improvements
-  - Profiling and benchmarking tools
+  - Built-in profiling and benchmarking tools
 
-**Focus: Stability and Enterprise Features**
+### 🚀 Future Releases (v1.0+) - Advanced Features
+**Focus**: Enterprise features and ecosystem expansion
 
-#### Features
+#### Enterprise Features
+- [ ] **Multi-file Configuration System**
+  - Include/import system for modular configurations
+  - Template and component libraries
+  - Configuration inheritance and composition
 
-- [ ] **Enterprise Features**
-  - Role-based access control
-  - Audit logging and compliance
-  - SSO integration
-  - Enterprise deployment tools
+- [ ] **Network Communication**
+  - TCP/WebSocket support for remote interfaces
+  - Distributed dashboard capabilities
+  - Real-time collaboration features
+  - Authentication and secure remote access
 
-- [ ] **Networking**
-  - Remote BoxMux instances
-  - Distributed dashboards
-  - Real-time collaboration
-  - Network-based data sources
+- [ ] **Advanced UI Features**
+  - Mouse support for terminal interactions
+  - Graphics and image support beyond ASCII
+  - Custom themes and visual customization
+  - Responsive design templates
+
+#### Developer Experience
+- [ ] **Enhanced Tooling**
+  - Configuration file generator and wizard
+  - Visual layout editor
+  - Debug mode with live configuration editing
+  - Integration with popular IDEs and editors
 
 ### How to Contribute
 
