@@ -74,4 +74,4 @@ path = "src/lib.rs"
 [package]
 edition = "2021"
 name = "boxmux"
-version = "0.106.102010"
+version = "0.107.102016"
