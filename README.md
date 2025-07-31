@@ -263,36 +263,6 @@ Contributions welcome. Please read our [Contributing Guidelines](CONTRIBUTING.md
 7. Push to the branch: `git push origin feature/amazing-feature`
 8. Open a Pull Request
 
-## Roadmap
-
-### Current Focus (v0.8)
-
-- [ ] Enhanced charting capabilities
-- [ ] Plugin system for custom components
-- [ ] Configuration validation and error handling
-- [ ] Performance optimizations
-- [ ] Improved documentation and examples
-
-### Future Features (v1.0+)
-
-- [ ] Mouse support
-- [ ] graphics and rendering
-- [ ] Network-based remote interfaces
-- [ ] Configuration hot-reloading
-- [ ] Built-in data sources and connectors
-- [ ] Web-based configuration editor
-- [ ] Package management system
-- [ ] Multi-language scripting support
-
-### Technical Improvements
-
-- [ ] Memory usage optimization
-- [ ] Better error messages and debugging
-- [ ] Configuration schema validation
-- [ ] Automated testing framework
-- [ ] Cross-platform compatibility testing
-- [ ] Performance benchmarking
-
 ## Performance
 
 BoxMux performance characteristics:
