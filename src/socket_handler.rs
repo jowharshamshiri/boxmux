@@ -1,6 +1,6 @@
 use crate::model::common::SocketFunction;
 use crate::thread_manager::Message;
-use rust_janus::{UnixDatagramServer, JanusError};
+use rust_janus::{JanusServer, JanusError};
 use rust_janus::protocol::{SocketCommand};
 use serde_json;
 use std::sync::mpsc::Sender;
@@ -32,7 +32,7 @@ impl BoxMuxSocketHandler {
 }
 
 impl BoxMuxSocketHandler {
-    pub async fn register_handlers(&self, server: &mut UnixDatagramServer) -> Result<(), JanusError> {
+    pub async fn register_handlers(&self, server: &mut JanusServer) -> Result<(), JanusError> {
         // Register replace-panel-content command
         let message_sender_clone = self.message_sender.clone();
         let sender_uuid_clone = self.sender_uuid;

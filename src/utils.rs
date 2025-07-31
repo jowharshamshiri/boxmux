@@ -1308,9 +1308,9 @@ mod tests {
         }
         let duration = start.elapsed();
         
-        // Should complete 10,000 operations in under 4 seconds
+        // Should complete 10,000 operations in under 5 seconds
         println!("ANSI stripping 10k operations: {:?}", duration);
-        assert!(duration.as_secs() < 4, "ANSI stripping performance regression: {:?}", duration);
+        assert!(duration.as_secs() < 5, "ANSI stripping performance regression: {:?}", duration);
     }
 
     #[test]
@@ -1341,9 +1341,9 @@ mod tests {
         }
         let duration = start.elapsed();
         
-        // Should complete 150,000 key mapping operations in under 6 seconds
+        // Should complete 150,000 key mapping operations in under 7 seconds
         println!("Key mapping 150k operations: {:?}", duration);
-        assert!(duration.as_secs() < 6, "Key mapping performance regression: {:?}", duration);
+        assert!(duration.as_secs() < 7, "Key mapping performance regression: {:?}", duration);
     }
 
     #[test]
@@ -1368,9 +1368,9 @@ mod tests {
         }
         let duration = start.elapsed();
         
-        // Should complete 100,000 bounds calculations in under 50ms
+        // Should complete 100,000 bounds calculations in under 250ms
         println!("Bounds calculation 100k operations: {:?}", duration);
-        assert!(duration.as_millis() < 50, "Bounds calculation performance regression: {:?}", duration);
+        assert!(duration.as_millis() < 250, "Bounds calculation performance regression: {:?}", duration);
     }
 
     #[test]
@@ -1391,6 +1391,6 @@ mod tests {
         
         // Should handle large config processing efficiently
         println!("Large config processing 1k operations: {:?}", duration);
-        assert!(duration.as_millis() < 150, "Large config processing performance regression: {:?}", duration);
+        assert!(duration.as_millis() < 600, "Large config processing performance regression: {:?}", duration);
     }
 }

@@ -1,7 +1,7 @@
 use crate::socket_handler::BoxMuxSocketHandler;
 use crate::thread_manager::Runnable;
 use crate::{AppContext, FieldUpdate};
-use rust_janus::{UnixDatagramServer, ApiSpecification, JanusClientConfig};
+use rust_janus::{JanusServer, ApiSpecification, JanusClientConfig};
 use std::sync::mpsc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -64,7 +64,7 @@ create_runnable!(
         };
         
         if let Err(e) = rt.block_on(async {
-            let mut server = UnixDatagramServer::new();
+            let mut server = JanusServer::new();
             
             // Register command handlers
             handler.register_handlers(&mut server).await?;
