@@ -3,8 +3,6 @@ use std::{
     collections::HashMap,
     error::Error,
     hash::Hash,
-    io::{self, Read, Write},
-    os::unix::net::UnixStream,
 };
 
 use crate::{
@@ -766,12 +764,13 @@ pub fn calculate_bounds_map(app_graph: &AppGraph, layout: &Layout) -> HashMap<St
     adjust_bounds_with_constraints(layout, bounds_map)
 }
 
-pub fn send_json_to_socket(socket_path: &str, json: &str) -> io::Result<String> {
-    let mut stream = UnixStream::connect(socket_path)?;
-    stream.write_all(json.as_bytes())?;
-    let mut response = String::new();
-    stream.read_to_string(&mut response)?;
-    Ok(response)
+// Socket communication is now handled by RSJanusComms library
+// Use rs_unix_sock_comms::send_json_to_socket instead
+pub fn send_json_to_socket(_socket_path: &str, _json: &str) -> Result<String, Box<dyn Error>> {
+    // Socket communication now handled by RustJanus library
+    // This function maintained for compatibility but may need to be updated
+    // based on specific usage patterns in the codebase
+    Err("Socket communication function needs to be updated for RustJanus v2.0".into())
 }
 
 #[cfg(test)]

@@ -2,12 +2,11 @@ use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManage
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, run_socket_function,
-    AppContext, Panel, ScreenBuffer, SocketFunction,
+    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script,
+    AppContext, Panel, ScreenBuffer,
 };
 use crate::{thread_manager::*, FieldUpdate};
 use crossbeam_channel::Sender;
-use serde_json;
 use std::io::stdout;
 use std::io::Stdout;
 use std::sync::{mpsc, Mutex};
@@ -300,27 +299,11 @@ create_runnable!(
                             output,
                         );
                     }
-                    Message::ExternalMessage(json_message) => {
-                        let message_result: Result<SocketFunction, _> =
-                            serde_json::from_str(json_message.trim());
-                        match message_result {
-                            Ok(socket_function) => {
-                                match run_socket_function(socket_function, &app_context_unwrapped) {
-                                    Ok((new_app_context, messages)) => {
-                                        app_context_unwrapped = new_app_context;
-                                        for message in messages {
-                                            inner.send_message(message);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::error!("Error running socket function: {}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log::error!("Error reading socket message: {}", e);
-                            }
-                        }
+                    // ExternalMessage handling is now done by RSJanusComms library
+                    // Messages are converted to appropriate internal messages by the socket handler
+                    Message::ExternalMessage(_) => {
+                        // This should no longer be used - socket handler converts messages directly
+                        log::warn!("Received deprecated ExternalMessage - should be converted by socket handler");
                     }
                     Message::KeyPress(pressed_key) => {
                         let mut app_context_for_keypress = app_context_unwrapped.clone();
