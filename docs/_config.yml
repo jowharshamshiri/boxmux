@@ -1,6 +1,6 @@
-# BoxMux Documentation Site Configuration
+# BoxMux Site Configuration
 
-title: BoxMux Documentation
+title: BoxMux
 description: A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.
 url: https://jowharshamshiri.github.io/boxmux
 baseurl: /boxmux
