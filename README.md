@@ -1,6 +1,6 @@
-# BoxMux 📦
+# BoxMux
 
-**A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.**
+**Automate tasks and put automation into terminal dashboards with minimal effort. Use YAML to transform Unix commands into interactive programs running in organized, threaded interfaces.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
@@ -11,56 +11,56 @@
 ![BoxMux Dashboard](./docs/screenshot_2.png)
 ![BoxMux Dashboard](./docs/socket_control.png)
 
-## ✨ What is BoxMux?
+## What is BoxMux?
 
-BoxMux is a declarative framework for building terminal user interfaces using simple YAML configuration files. Whether you're creating system monitoring dashboards, interactive CLI tools, or complex terminal applications, BoxMux provides an intuitive way to design and deploy rich interfaces without writing complex UI code.
+BoxMux lets you automate tasks and immediately visualize that automation in terminal interfaces. Define shell commands and scripts in YAML configuration to create monitoring dashboards, system administration tools, and interactive applications. Commands execute in separate threads with clean process management and real-time output display.
 
-### 🚀 Key Features
+### Key Features
 
-- **📝 YAML-Driven**: Define your entire interface using simple, readable YAML configuration
-- **🎨 Rich UI Components**: Panels, menus, charts, logs, and interactive elements
-- **⚡ Real-time Updates**: Built-in refresh intervals and live data streaming
-- **🎛️ Interactive**: Keyboard navigation, menu selection, and custom keybindings
-- **🔌 Socket Integration**: Real-time communication via Unix sockets
-- **📊 Data Visualization**: Support for charts, graphs, and custom visualizations
-- **🎯 Flexible Layouts**: Percentage-based positioning and nested components
-- **🌈 Customizable**: Full control over colors, borders, and styling
-- **🔄 Script Integration**: Execute shell scripts and display output in panels
-- **📱 Cross-platform**: Works on macOS, Linux, and other Unix-like systems
+- Unix Command Integration: Transform shell commands into dashboard panels
+- Multi-threaded Execution: Each command runs in isolated threads
+- YAML Configuration: Define command pipelines and layouts declaratively
+- Real-time Updates: Configurable refresh intervals for command execution
+- Interactive Elements: Navigate between commands and control execution
+- Socket Communication: External control and data injection via Unix sockets
+- Process Management: Clean handling of long-running and periodic commands
+- Layout System: Organize command outputs in structured layouts
+- Data Visualization: Display command output as charts and logs
+- Cross-platform: Works with standard Unix tooling
 
-## 🎯 Use Cases
+## Use Cases
 
-- **System Monitoring**: Create real-time dashboards for CPU, memory, disk usage
-- **DevOps Tools**: Build deployment interfaces and log monitoring systems
-- **CLI Applications**: Develop interactive command-line tools with rich interfaces
-- **Data Visualization**: Display metrics, charts, and live data streams
-- **Administrative Interfaces**: Build tools for system administration and management
-- **Development Tools**: Create debugging interfaces and development dashboards
+- System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
+- DevOps Tools: Orchestrate deployment scripts with real-time feedback
+- Log Analysis: Run `tail`, `grep`, `awk` commands with structured output
+- Network Monitoring: Execute `netstat`, `ss`, `ping` with visual organization
+- Database Operations: Run queries and maintenance scripts with progress tracking
+- Development Workflows: Combine build, test, and deployment commands
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- **Rust** (latest stable version) - [Install Rust](https://rustup.rs/)
-- **Shell access** (bash/zsh) for script execution
-- **Optional**: `gnuplot` for charting features
+- Rust (latest stable version) - [Install Rust](https://rustup.rs/)
+- Shell access (bash/zsh) for script execution
+- Optional: `gnuplot` for charting features
 
 ### Installation
 
-1. **Clone the repository**
+1. Clone the repository
 
    ```bash
    git clone https://github.com/jowharshamshiri/boxmux.git
    cd boxmux
    ```
 
-2. **Build BoxMux**
+2. Build BoxMux
 
    ```bash
    cargo build --release
    ```
 
-3. **Run the example dashboard**
+3. Run the example dashboard
 
    ```bash
    ./run_boxmux.sh layouts/dashboard.yaml
@@ -96,42 +96,42 @@ Run it:
 ./run_boxmux.sh my-interface.yaml
 ```
 
-## 📚 Documentation
+## Documentation
 
-### 📖 Core Concepts
+### Core Concepts
 
-- **[Getting Started](docs/getting-started.md)** - Step-by-step guide to your first interface
-- **[Configuration Reference](docs/configuration.md)** - YAML configuration guide
-- **[Examples](docs/examples.md)** - Real-world examples and use cases
-- **[API Reference](docs/api.md)** - Socket messaging and programmatic control
+- [Getting Started](docs/getting-started.md) - Step-by-step guide to your first interface
+- [Configuration Reference](docs/configuration.md) - YAML configuration guide
+- [Examples](docs/examples.md) - Real-world examples and use cases
+- [API Reference](docs/api.md) - Socket messaging and programmatic control
 
-### 🔧 Topics
+### Topics
 
-- **[Layouts & Positioning](docs/layouts.md)** - Creating complex layouts
-- **[Scripting & Automation](docs/scripting.md)** - Integrating shell scripts
-- **[Themes & Styling](docs/themes.md)** - Customizing appearance
-- **[Performance & Optimization](docs/performance.md)** - Best practices
+- [Layouts & Positioning](docs/layouts.md) - Creating layouts
+- [Scripting & Automation](docs/scripting.md) - Integrating shell scripts
+- [Themes & Styling](docs/themes.md) - Customizing appearance
+- [Performance & Optimization](docs/performance.md) - Best practices
 
-## 🎨 Interface Components
+## Interface Components
 
 ### Panels
 
-- **Content Panels**: Display static or dynamic text
-- **Interactive Menus**: Navigate and select options
-- **Chart Panels**: Visualize data with ASCII charts
-- **Log Panels**: Monitor log files and streams
-- **Input Panels**: Handle user input and commands
+- Content Panels: Display static or dynamic text
+- Interactive Menus: Navigate and select options
+- Chart Panels: Visualize data with ASCII charts
+- Log Panels: Monitor log files and streams
+- Input Panels: Handle user input and commands
 
 ### Features
 
-- **Tab Navigation**: Move between interactive elements
-- **Keyboard Shortcuts**: Custom keybindings and actions
-- **Real-time Updates**: Automatic refresh intervals
-- **Scrolling**: Handle large content with scroll support
-- **Borders & Styling**: Customize appearance
-- **Color Themes**: Full color customization
+- Tab Navigation: Move between interactive elements
+- Keyboard Shortcuts: Custom keybindings and actions
+- Real-time Updates: Automatic refresh intervals
+- Scrolling: Handle large content with scroll support
+- Borders & Styling: Customize appearance
+- Color Themes: Color customization
 
-## 🏗️ Configuration Structure
+## Configuration Structure
 
 BoxMux uses a hierarchical YAML structure:
 
@@ -161,7 +161,7 @@ app:
                 - echo 'Selected option 1'
 ```
 
-## 🔌 Socket Integration
+## Socket Integration
 
 BoxMux supports real-time communication via Unix sockets:
 
@@ -173,7 +173,7 @@ echo '{"UpdatePanel": {"panel_id": "status", "content": "Connected"}}' | nc -U /
 echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmux.sock
 ```
 
-## 🎯 Example Gallery
+## Example Gallery
 
 ### System Monitor
 
@@ -215,7 +215,7 @@ echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmu
     - gnuplot -e "set terminal dumb; plot '/tmp/metrics.dat' with lines"
 ```
 
-## 🛠️ Development
+## Development
 
 ### Building from Source
 
@@ -248,9 +248,9 @@ boxmux/
 └── examples/               # Example interfaces
 ```
 
-## 🤝 Contributing
+## Contributing
 
-I welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details.
+Contributions welcome. Please read our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ### Development Setup
 
@@ -263,9 +263,9 @@ I welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.
 7. Push to the branch: `git push origin feature/amazing-feature`
 8. Open a Pull Request
 
-## 🗺️ Roadmap
+## Roadmap
 
-### 🎯 Current Focus (v0.8)
+### Current Focus (v0.8)
 
 - [ ] Enhanced charting capabilities
 - [ ] Plugin system for custom components
@@ -273,7 +273,7 @@ I welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.
 - [ ] Performance optimizations
 - [ ] Improved documentation and examples
 
-### 🚀 Future Features (v1.0+)
+### Future Features (v1.0+)
 
 - [ ] Mouse support
 - [ ] graphics and rendering
@@ -284,7 +284,7 @@ I welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.
 - [ ] Package management system
 - [ ] Multi-language scripting support
 
-### 🔧 Technical Improvements
+### Technical Improvements
 
 - [ ] Memory usage optimization
 - [ ] Better error messages and debugging
@@ -293,16 +293,16 @@ I welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.
 - [ ] Cross-platform compatibility testing
 - [ ] Performance benchmarking
 
-## 📊 Performance
+## Performance
 
-BoxMux is designed for efficiency:
+BoxMux performance characteristics:
 
-- **Low Memory**: Minimal memory footprint
-- **Fast Rendering**: Optimized screen updates
-- **Efficient Threading**: Multi-threaded architecture
-- **Responsive**: Sub-millisecond input handling
+- Low Memory: Minimal memory footprint
+- Fast Rendering: Optimized screen updates
+- Efficient Threading: Multi-threaded architecture
+- Responsive: Sub-millisecond input handling
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -325,17 +325,8 @@ BoxMux is designed for efficiency:
 
 For more help, see our [Troubleshooting Guide](docs/troubleshooting.md).
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- Built with [Rust](https://www.rust-lang.org/)
-- Terminal handling via [Crossterm](https://github.com/crossterm-rs/crossterm)
-- YAML parsing with [serde_yaml](https://github.com/dtolnay/serde-yaml)
-- Inspired by tmux, screen, and TUI frameworks
-
 ---
-
-**Made with [Bahram Joharshamshiri](https://github.com/jowharshamshiri)**
