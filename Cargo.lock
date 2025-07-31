@@ -3,6 +3,22 @@
 version = 3
 
 [[package]]
+name = "RustJanus"
+version = "2.0.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "env_logger",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -418,8 +434,9 @@ dependencies = [
 
 [[package]]
 name = "boxmux"
-version = "0.99.96632"
+version = "0.100.96830"
 dependencies = [
+ "RustJanus",
  "actix-web",
  "actix-web-prom",
  "anyhow",

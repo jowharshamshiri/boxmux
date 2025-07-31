@@ -64,10 +64,18 @@ pub fn bounds_to_input_bounds(abs_bounds: &Bounds, parent_bounds: &Bounds) -> In
 
 pub fn parse_percentage(value: &str, total: usize) -> usize {
     if value.ends_with('%') {
-        let percentage = value.trim_end_matches('%').parse::<f64>().unwrap() / 100.0;
-        (percentage * total as f64).round() as usize
+        match value.trim_end_matches('%').parse::<f64>() {
+            Ok(percentage) => {
+                let normalized = percentage.max(0.0).min(100.0) / 100.0;
+                (normalized * total as f64).round() as usize
+            }
+            Err(_) => 0, // Default to 0 for invalid percentage values
+        }
     } else {
-        value.parse::<usize>().unwrap()
+        match value.parse::<usize>() {
+            Ok(val) => val,
+            Err(_) => 0, // Default to 0 for invalid absolute values
+        }
     }
 }
 
@@ -498,7 +506,12 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
             if output.status.success() {
                 Ok(combined_output)
             } else {
-                Err(io::Error::new(io::ErrorKind::Other, combined_output))
+                let error_message = if combined_output.trim().is_empty() {
+                    format!("Script execution failed with exit code: {}", output.status.code().unwrap_or(-1))
+                } else {
+                    combined_output
+                };
+                Err(io::Error::new(io::ErrorKind::Other, error_message))
             }
         }
         Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
@@ -1282,5 +1295,102 @@ mod tests {
     fn test_strip_ansi_codes_empty() {
         assert_eq!(strip_ansi_codes(""), "");
         assert_eq!(strip_ansi_codes("\x1b[0m"), "");
+    }
+
+    // Performance benchmarks for critical functions
+    #[test]
+    fn benchmark_strip_ansi_codes_performance() {
+        let test_string = "\x1b[1;31;40mThis is a test string with ANSI codes\x1b[0m\x1b[32mGreen text\x1b[0m";
+        
+        let start = std::time::Instant::now();
+        for _ in 0..10000 {
+            let _ = strip_ansi_codes(test_string);
+        }
+        let duration = start.elapsed();
+        
+        // Should complete 10,000 operations in under 4 seconds
+        println!("ANSI stripping 10k operations: {:?}", duration);
+        assert!(duration.as_secs() < 4, "ANSI stripping performance regression: {:?}", duration);
+    }
+
+    #[test]
+    fn benchmark_run_script_performance() {
+        let start = std::time::Instant::now();
+        for _ in 0..100 {
+            let _ = run_script(None, &vec!["echo test".to_string()]);
+        }
+        let duration = start.elapsed();
+        
+        // Should complete 100 script executions in under 5 seconds
+        println!("Script execution 100 operations: {:?}", duration);
+        assert!(duration.as_secs() < 5, "Script execution performance regression: {:?}", duration);
+    }
+
+    #[test]
+    fn benchmark_handle_keypress_performance() {
+        let mut key_mappings = std::collections::HashMap::new();
+        key_mappings.insert("Ctrl + C".to_string(), vec!["exit".to_string()]);
+        key_mappings.insert("Ctrl + D".to_string(), vec!["quit".to_string()]);
+        key_mappings.insert("Enter".to_string(), vec!["confirm".to_string()]);
+        
+        let start = std::time::Instant::now();
+        for _ in 0..50000 {
+            let _ = handle_keypress("ctrl+c", &key_mappings);
+            let _ = handle_keypress("enter", &key_mappings);
+            let _ = handle_keypress("unknown", &key_mappings);
+        }
+        let duration = start.elapsed();
+        
+        // Should complete 150,000 key mapping operations in under 6 seconds
+        println!("Key mapping 150k operations: {:?}", duration);
+        assert!(duration.as_secs() < 6, "Key mapping performance regression: {:?}", duration);
+    }
+
+    #[test]
+    fn benchmark_bounds_calculation_performance() {
+        let input_bounds = InputBounds {
+            x1: "10".to_string(),
+            y1: "20".to_string(),
+            x2: "90".to_string(),
+            y2: "44".to_string(),
+        };
+        
+        let parent_bounds = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 100,
+            y2: 50,
+        };
+        
+        let start = std::time::Instant::now();
+        for _ in 0..100000 {
+            let _ = input_bounds_to_bounds(&input_bounds, &parent_bounds);
+        }
+        let duration = start.elapsed();
+        
+        // Should complete 100,000 bounds calculations in under 50ms
+        println!("Bounds calculation 100k operations: {:?}", duration);
+        assert!(duration.as_millis() < 50, "Bounds calculation performance regression: {:?}", duration);
+    }
+
+    #[test]
+    fn benchmark_large_config_parsing() {
+        // Create a large configuration structure
+        let mut panels = Vec::new();
+        for i in 0..1000 {
+            panels.push(format!("panel_{}", i));
+        }
+        
+        let start = std::time::Instant::now();
+        for _ in 0..1000 {
+            // Simulate processing large panel lists
+            let _sorted: Vec<_> = panels.iter().collect();
+            let _filtered: Vec<_> = panels.iter().filter(|p| p.contains("1")).collect();
+        }
+        let duration = start.elapsed();
+        
+        // Should handle large config processing efficiently
+        println!("Large config processing 1k operations: {:?}", duration);
+        assert!(duration.as_millis() < 150, "Large config processing performance regression: {:?}", duration);
     }
 }

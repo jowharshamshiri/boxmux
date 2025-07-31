@@ -32,6 +32,9 @@ tempfile = "3.2"
 thiserror = "1.0"
 tokio-postgres = "0.7"
 
+[dependencies.RustJanus]
+path = "../Janus/RustJanus"
+
 [dependencies.chrono]
 features = ["serde"]
 version = "0.4"
@@ -71,4 +74,4 @@ path = "src/lib.rs"
 [package]
 edition = "2021"
 name = "boxmux"
-version = "0.100.96830"
+version = "0.101.99319"

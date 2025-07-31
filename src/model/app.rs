@@ -1115,7 +1115,7 @@ mod tests {
     /// Tests that App::validate() panics with duplicate IDs.
     /// This test demonstrates the duplicate ID validation feature.
     #[test]
-    #[should_panic(expected = "Duplicate ID found: panel1")]
+    #[should_panic(expected = "Validation error: Duplicate panel ID found: 'panel1'. All panel IDs must be unique across the entire application.")]
     fn test_app_validate_duplicate_ids_panics() {
         let mut app = App::new();
         
@@ -1132,7 +1132,7 @@ mod tests {
     /// Tests that App::validate() panics with multiple root layouts.
     /// This test demonstrates the multiple root layout validation feature.
     #[test]
-    #[should_panic(expected = "Multiple root layouts detected, which is not allowed.")]
+    #[should_panic(expected = "Validation error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.")]
     fn test_app_validate_multiple_root_panics() {
         let mut app = create_test_app();
         
