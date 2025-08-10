@@ -89,7 +89,7 @@ impl BoxMuxSocketHandler {
             let args = request.args.unwrap_or_default();
             let panel_id = args.get("panel_id")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| JSONRPCError::validation_error("Missing required argument: panel_id")))?;
+                .ok_or_else(|| JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: panel_id".to_string())))?;
                 
             let socket_function = SocketFunction::StopPanelRefresh {
                 panel_id: panel_id.to_string(),
@@ -105,7 +105,7 @@ impl BoxMuxSocketHandler {
             let args = request.args.unwrap_or_default();
             let panel_id = args.get("panel_id")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| JSONRPCError::validation_error("Missing required argument: panel_id")))?;
+                .ok_or_else(|| JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: panel_id".to_string())))?;
                 
             let socket_function = SocketFunction::StartPanelRefresh {
                 panel_id: panel_id.to_string(),
@@ -121,7 +121,7 @@ impl BoxMuxSocketHandler {
             let args = request.args.unwrap_or_default();
             let layout_id = args.get("layout_id")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| JSONRPCError::validation_error("Missing required argument: layout_id")))?;
+                .ok_or_else(|| JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: layout_id".to_string())))?;
                 
             let socket_function = SocketFunction::SwitchActiveLayout {
                 layout_id: layout_id.to_string(),
@@ -183,7 +183,7 @@ impl BoxMuxSocketHandler {
             let args = request.args.unwrap_or_default();
             let panel_id = args.get("panel_id")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| JSONRPCError::validation_error("Missing required argument: panel_id")))?;
+                .ok_or_else(|| JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: panel_id".to_string())))?;
                 
             let socket_function = SocketFunction::RemovePanel {
                 panel_id: panel_id.to_string(),
