@@ -3,6 +3,7 @@ name = "boxmux"
 path = "src/main.rs"
 
 [dependencies]
+RustJanus = "0.31.47279"
 actix-web = "4.0"
 actix-web-prom = "0.6"
 anyhow = "1.0"
@@ -31,9 +32,6 @@ strum_macros = "0.25"
 tempfile = "3.2"
 thiserror = "1.0"
 tokio-postgres = "0.7"
-
-[dependencies.RustJanus]
-path = "../Janus/RustJanus"
 
 [dependencies.chrono]
 features = ["serde"]
@@ -74,4 +72,4 @@ path = "src/lib.rs"
 [package]
 edition = "2021"
 name = "boxmux"
-version = "0.108.102050"
+version = "0.109.102064"

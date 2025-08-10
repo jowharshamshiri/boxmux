@@ -1,7 +1,7 @@
 use crate::socket_handler::BoxMuxSocketHandler;
 use crate::thread_manager::Runnable;
 use crate::{AppContext, FieldUpdate};
-use rust_janus::{JanusServer, ApiSpecification, JanusClientConfig};
+use rust_janus::{JanusServer, ServerConfig};
 use std::sync::mpsc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -17,34 +17,14 @@ create_runnable!(
      -> (bool, AppContext) {
         let socket_path = "/tmp/boxmux.sock";
         
-        // Load API specification
-        let _api_spec = match tokio::runtime::Runtime::new() {
-            Ok(rt) => {
-                match rt.block_on(ApiSpecification::from_file("api-spec.json")) {
-                    Ok(spec) => spec,
-                    Err(e) => {
-                        log::error!("Failed to load API specification: {}", e);
-                        return (false, app_context);
-                    }
-                }
-            }
-            Err(e) => {
-                log::error!("Failed to create async runtime: {}", e);
-                return (false, app_context);
-            }
-        };
-        
-        // Create client configuration
-        let _config = JanusClientConfig {
-            max_concurrent_connections: 10,
+        // Create server configuration
+        let config = ServerConfig {
+            socket_path: socket_path.to_string(),
+            max_connections: 100,
+            default_timeout: 30,
             max_message_size: 10_000_000, // 10MB
-            connection_timeout: Duration::from_secs(30),
-            max_pending_commands: 100,
-            max_command_handlers: 50,
-            enable_resource_monitoring: true,
-            max_channel_name_length: 256,
-            max_command_name_length: 256,
-            max_args_data_size: 5_000_000, // 5MB
+            cleanup_on_start: true,
+            cleanup_on_shutdown: true,
         };
 
         // Create message handler with reference to thread manager
@@ -64,20 +44,20 @@ create_runnable!(
         };
         
         if let Err(e) = rt.block_on(async {
-            let mut server = JanusServer::new();
+            let mut server = JanusServer::new(config);
             
             // Register command handlers
             handler.register_handlers(&mut server).await?;
             
             // Start listening for commands (this will block)
-            server.start_listening(socket_path).await?;
+            server.start_listening().await?;
             
             // Keep server running
             while server.is_running() {
                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             }
             
-            Ok::<(), rust_janus::JanusError>(())
+            Ok::<(), rust_janus::JSONRPCError>(())
         }) {
             log::error!("Socket server error: {}", e);
             return (false, app_context);
