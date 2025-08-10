@@ -3,8 +3,9 @@
 **Automate tasks and put automation into terminal dashboards with minimal effort. Use YAML to transform Unix commands into interactive programs running in organized, threaded interfaces.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Version](https://img.shields.io/badge/version-0.76.71205-blue.svg)](https://github.com/jowharshamshiri/boxmux)
+[![Crates.io](https://img.shields.io/crates/v/boxmux.svg)](https://crates.io/crates/boxmux)
+[![Downloads](https://img.shields.io/crates/d/boxmux.svg)](https://crates.io/crates/boxmux)
+[![Docs.rs](https://docs.rs/boxmux/badge.svg)](https://docs.rs/boxmux)
 
 ![BoxMux Dashboard](./docs/screenshot.png)
 ![BoxMux Dashboard](./docs/code.png)
