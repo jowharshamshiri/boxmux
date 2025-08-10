@@ -4,8 +4,11 @@ version = 3
 
 [[package]]
 name = "RustJanus"
-version = "2.0.0"
+version = "0.31.47279"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee647e497d95d19324beeca9fcd90a53c483c6b01f934e82074218acbbf13d4"
 dependencies = [
+ "async-trait",
  "chrono",
  "clap",
  "env_logger",
@@ -434,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "boxmux"
-version = "0.107.102016"
+version = "0.109.102064"
 dependencies = [
  "RustJanus",
  "actix-web",
