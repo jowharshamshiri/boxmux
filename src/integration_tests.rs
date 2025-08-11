@@ -9,7 +9,7 @@ mod tests {
     use crate::model::common::SocketFunction;
     use crate::socket_handler::BoxMuxSocketHandler;
     use crate::thread_manager::Message;
-    use rust_janus::protocol::SocketCommand;
+    use rust_janus::protocol::JanusRequest;
     use std::sync::mpsc;
     use std::collections::HashMap;
     use serde_json::json;
@@ -91,8 +91,7 @@ mod tests {
         args.insert("content".to_string(), json!("content"));
         // Missing panel_id
         
-        let socket_cmd = SocketCommand::new(
-            "boxmux-control".to_string(),
+        let socket_cmd = JanusRequest::new(
             "replace-panel-content".to_string(),
             Some(args),
             None,
@@ -102,18 +101,20 @@ mod tests {
         let message_sender_clone = handler.message_sender().clone();
         let sender_uuid_clone = handler.sender_uuid();
         
-        let result = (move |cmd: SocketCommand| {
+        let result = (move |cmd: JanusRequest| {
             let args = cmd.args.unwrap_or_default();
             let _panel_id = args.get("panel_id")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| rust_janus::JanusError::ValidationError("Missing required argument: panel_id".to_string()))?;
+                .ok_or_else(|| rust_janus::JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: panel_id".to_string())))?;
             
-            Ok::<serde_json::Value, rust_janus::JanusError>(json!({"status": "success"}))
+            Ok::<serde_json::Value, rust_janus::JSONRPCError>(json!({"status": "success"}))
         })(socket_cmd);
 
         assert!(result.is_err());
-        if let Err(rust_janus::JanusError::ValidationError(msg)) = result {
-            assert!(msg.contains("Missing required argument: panel_id"));
+        if let Err(err) = result {
+            // The actual error details are in err.data.details, not err.message
+            let details = err.data.and_then(|d| d.details).unwrap_or_default();
+            assert!(details.contains("Missing required argument: panel_id"));
         } else {
             panic!("Expected ValidationError for missing panel_id");
         }

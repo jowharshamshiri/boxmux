@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout 60 cargo check)"
+      "Bash(timeout 60 cargo check)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
