@@ -2867,4 +2867,209 @@ mod tests {
         assert_eq!(panel1, panel2);
         assert_ne!(panel1, panel3);
     }
+
+    // === Script Deserializer Tests ===
+
+    /// Tests that script deserializer handles simple string arrays.
+    /// This test demonstrates basic script array deserialization.
+    #[test]
+    fn test_script_deserialize_string_array() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script:
+              - "echo hello"
+              - "echo world"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 2);
+        assert_eq!(script[0], "echo hello");
+        assert_eq!(script[1], "echo world");
+    }
+
+    /// Tests that script deserializer handles YAML literal blocks.
+    /// This test demonstrates literal block script deserialization.
+    #[test]
+    fn test_script_deserialize_literal_block() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script: |
+              echo "Line 1"
+              echo "Line 2"
+              echo "Line 3"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 3);
+        assert_eq!(script[0], "echo \"Line 1\"");
+        assert_eq!(script[1], "echo \"Line 2\"");
+        assert_eq!(script[2], "echo \"Line 3\"");
+    }
+
+    /// Tests that script deserializer handles mixed arrays with literal blocks.
+    /// This test demonstrates mixed script format deserialization.
+    #[test] 
+    fn test_script_deserialize_mixed_array() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script:
+              - |
+                if command -v free >/dev/null; then
+                  echo "Memory available"
+                fi
+              - "echo 'Simple command'"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 2);
+        assert!(script[0].contains("if command -v free"));
+        assert!(script[0].contains("echo \"Memory available\""));
+        assert_eq!(script[1], "echo 'Simple command'");
+    }
+
+    /// Tests that script deserializer handles empty script values.
+    /// This test demonstrates empty script handling.
+    #[test]
+    fn test_script_deserialize_empty_values() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        assert_eq!(panel.script, None);
+    }
+
+    /// Tests that script deserializer filters empty lines from literal blocks.
+    /// This test demonstrates empty line filtering.
+    #[test]
+    fn test_script_deserialize_filters_empty_lines() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script: |
+              echo "First line"
+
+              echo "Third line"
+              
+              echo "Fifth line"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 3);
+        assert_eq!(script[0], "echo \"First line\"");
+        assert_eq!(script[1], "echo \"Third line\"");
+        assert_eq!(script[2], "echo \"Fifth line\"");
+    }
+
+    /// Tests that Choice script deserializer works with all formats.
+    /// This test demonstrates Choice script deserialization compatibility.
+    #[test]
+    fn test_choice_script_deserialize_formats() {
+        let yaml = r#"
+            id: "test_choice"
+            content: "Test Choice"
+            script:
+              - "echo simple"
+              - |
+                if true; then
+                  echo "complex"
+                fi
+        "#;
+        
+        let choice: Choice = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = choice.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 2);
+        assert_eq!(script[0], "echo simple");
+        assert!(script[1].contains("if true"));
+        assert!(script[1].contains("echo \"complex\""));
+    }
+
+    /// Tests that script deserializer handles single string format.
+    /// This test demonstrates single string script deserialization.
+    #[test]
+    fn test_script_deserialize_single_string() {
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script: "echo single command"
+        "#;
+        
+        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 1);
+        assert_eq!(script[0], "echo single command");
+    }
+
+    /// Tests that script deserializer handles complex YAML structures gracefully.
+    /// This test demonstrates error resilience in script deserialization.
+    #[test]
+    fn test_script_deserialize_error_handling() {
+        // Test with valid YAML that has complex script structures
+        let yaml = r#"
+            id: "test"
+            position:
+              x1: "0%"
+              y1: "0%"
+              x2: "100%"
+              y2: "100%"
+            script:
+              - "echo normal"
+              - |
+                # Complex multiline script
+                for i in {1..3}; do
+                  echo "Line $i"
+                done
+              - "echo final"
+        "#;
+        
+        let result = serde_yaml::from_str::<Panel>(yaml);
+        assert!(result.is_ok(), "Should handle complex scripts without error");
+        
+        let panel = result.unwrap();
+        let script = panel.script.expect("Script should be present");
+        
+        assert_eq!(script.len(), 3);
+        assert_eq!(script[0], "echo normal");
+        assert!(script[1].contains("for i in"));
+        assert!(script[1].contains("echo \"Line $i\""));
+        assert_eq!(script[2], "echo final");
+    }
 }

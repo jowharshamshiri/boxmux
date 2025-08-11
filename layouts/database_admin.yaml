@@ -1,0 +1,389 @@
+app:
+  layouts:
+    - id: 'database_admin'
+      root: true
+      title: 'Database Administration Console'
+      # Database theme - purple/magenta for data management
+      bg_color: 'black'
+      fg_color: 'bright_white'
+      selected_fg_color: 'black'
+      selected_bg_color: 'bright_magenta'
+      border_color: 'bright_magenta'
+      selected_border_color: 'bright_blue'
+      title_fg_color: 'bright_magenta'
+      title_bg_color: 'black'
+      children:
+        # Database header
+        - id: 'db_header'
+          title: 'Database Administration Console - Multi-DB Management'
+          position:
+            x1: "0%"
+            y1: "0%"
+            x2: "100%"
+            y2: "6%"
+          border: true
+          border_color: 'bright_magenta'
+          bg_color: 'black'
+          fg_color: 'bright_magenta'
+          refresh_interval: 5000
+          script:
+            - "echo 'DB ADMIN | HOST: $(hostname) | TIME: $(date \"+%Y-%m-%d %H:%M:%S\") | SERVICES: $(ps aux | grep -E \"(mysql|postgres|redis|mongo)\" | grep -v grep | wc -l) active'"
+
+        # Database connection panel
+        - id: 'db_connections'
+          title: 'Database Connections'
+          position:
+            x1: "1%"
+            y1: "8%"
+            x2: "30%"
+            y2: "50%"
+          tab_order: 1
+          border: true
+          border_color: 'cyan'
+          choices:
+            - id: 'mysql_status'
+              content: 'MySQL Status'
+              script:
+                - "echo 'MYSQL DATABASE STATUS'"
+                - "echo '===================='"
+                - "echo ''"
+                - "if command -v mysql >/dev/null 2>&1; then"
+                - "  echo 'MySQL Client: Available'"
+                - "  if pgrep mysqld >/dev/null 2>&1; then"
+                - "    echo 'MySQL Server: RUNNING'"
+                - "    echo ''"
+                - "    echo 'Connection Test:'"
+                - "    if mysql -u root -e 'SELECT VERSION();' 2>/dev/null; then"
+                - "      echo 'Root connection: SUCCESS'"
+                - "      echo ''"
+                - "      echo 'Database List:'"
+                - "      mysql -u root -e 'SHOW DATABASES;' 2>/dev/null | head -10"
+                - "      echo ''"
+                - "      echo 'Process List:'"
+                - "      mysql -u root -e 'SHOW PROCESSLIST;' 2>/dev/null | head -8"
+                - "    else"
+                - "      echo 'Root connection: FAILED (check credentials)'"
+                - "    fi"
+                - "  else"
+                - "    echo 'MySQL Server: NOT RUNNING'"
+                - "    echo 'Service status: '$(systemctl is-active mysql 2>/dev/null || echo 'Unknown')"
+                - "  fi"
+                - "else"
+                - "  echo 'MySQL Client: NOT INSTALLED'"
+                - "  echo 'Install with: apt install mysql-client'"
+                - "fi"
+              redirect_output: 'query_results'
+            - id: 'postgres_status'
+              content: 'PostgreSQL'
+              script:
+                - "echo 'POSTGRESQL DATABASE STATUS'"
+                - "echo '========================='"
+                - "echo ''"
+                - "if command -v psql >/dev/null 2>&1; then"
+                - "  echo 'PostgreSQL Client: Available'"
+                - "  if pgrep postgres >/dev/null 2>&1; then"
+                - "    echo 'PostgreSQL Server: RUNNING'"
+                - "    echo ''"
+                - "    echo 'Connection Test:'"
+                - "    if sudo -u postgres psql -c '\\l' 2>/dev/null; then"
+                - "      echo 'Connection: SUCCESS'"
+                - "      echo ''"
+                - "      echo 'Database List:'"
+                - "      sudo -u postgres psql -c '\\l' 2>/dev/null | head -10"
+                - "      echo ''"
+                - "      echo 'Active Connections:'"
+                - "      sudo -u postgres psql -c 'SELECT datname, usename, client_addr FROM pg_stat_activity WHERE state = \\'active\\';' 2>/dev/null"
+                - "    else"
+                - "      echo 'Connection: FAILED (check permissions)'"
+                - "    fi"
+                - "  else"
+                - "    echo 'PostgreSQL Server: NOT RUNNING'"
+                - "    echo 'Service status: '$(systemctl is-active postgresql 2>/dev/null || echo 'Unknown')"
+                - "  fi"
+                - "else"
+                - "  echo 'PostgreSQL Client: NOT INSTALLED'"
+                - "  echo 'Install with: apt install postgresql-client'"
+                - "fi"
+              redirect_output: 'query_results'
+            - id: 'redis_status'
+              content: 'Redis Cache'
+              script:
+                - "echo 'REDIS CACHE STATUS'"
+                - "echo '================='"
+                - "echo ''"
+                - "if command -v redis-cli >/dev/null 2>&1; then"
+                - "  echo 'Redis Client: Available'"
+                - "  if pgrep redis-server >/dev/null 2>&1; then"
+                - "    echo 'Redis Server: RUNNING'"
+                - "    echo ''"
+                - "    echo 'Connection Test:'"
+                - "    if redis-cli ping 2>/dev/null | grep PONG >/dev/null; then"
+                - "      echo 'Connection: SUCCESS'"
+                - "      echo ''"
+                - "      echo 'Redis Info:'"
+                - "      redis-cli info server 2>/dev/null | grep -E 'redis_version|uptime_in_seconds|connected_clients' | head -5"
+                - "      echo ''"
+                - "      echo 'Memory Usage:'"
+                - "      redis-cli info memory 2>/dev/null | grep -E 'used_memory_human|used_memory_peak_human' | head -3"
+                - "      echo ''"
+                - "      echo 'Key Statistics:'"
+                - "      redis-cli info keyspace 2>/dev/null | head -5"
+                - "    else"
+                - "      echo 'Connection: FAILED'"
+                - "    fi"
+                - "  else"
+                - "    echo 'Redis Server: NOT RUNNING'"
+                - "    echo 'Service status: '$(systemctl is-active redis 2>/dev/null || echo 'Unknown')"
+                - "  fi"
+                - "else"
+                - "  echo 'Redis Client: NOT INSTALLED'"
+                - "  echo 'Install with: apt install redis-tools'"
+                - "fi"
+              redirect_output: 'query_results'
+            - id: 'mongodb_status'
+              content: 'MongoDB'
+              script:
+                - "echo 'MONGODB DATABASE STATUS'"
+                - "echo '======================'"
+                - "echo ''"
+                - "if command -v mongo >/dev/null 2>&1 || command -v mongosh >/dev/null 2>&1; then"
+                - "  echo 'MongoDB Client: Available'"
+                - "  if pgrep mongod >/dev/null 2>&1; then"
+                - "    echo 'MongoDB Server: RUNNING'"
+                - "    echo ''"
+                - "    echo 'Connection Test:'"
+                - "    mongo_cmd=\"mongo\""
+                - "    if command -v mongosh >/dev/null 2>&1; then mongo_cmd=\"mongosh\"; fi"
+                - "    if $mongo_cmd --eval 'db.runCommand({ping: 1})' 2>/dev/null | grep '\"ok\" : 1' >/dev/null; then"
+                - "      echo 'Connection: SUCCESS'"
+                - "      echo ''"
+                - "      echo 'Database List:'"
+                - "      $mongo_cmd --quiet --eval 'db.adminCommand(\"listDatabases\")' 2>/dev/null | head -10"
+                - "      echo ''"
+                - "      echo 'Server Status:'"
+                - "      $mongo_cmd --quiet --eval 'db.serverStatus().connections' 2>/dev/null"
+                - "    else"
+                - "      echo 'Connection: FAILED'"
+                - "    fi"
+                - "  else"
+                - "    echo 'MongoDB Server: NOT RUNNING'"
+                - "    echo 'Service status: '$(systemctl is-active mongod 2>/dev/null || echo 'Unknown')"
+                - "  fi"
+                - "else"
+                - "  echo 'MongoDB Client: NOT INSTALLED'"
+                - "  echo 'Install with: apt install mongodb-clients'"
+                - "fi"
+              redirect_output: 'query_results'
+
+        # Database monitoring
+        - id: 'db_monitoring'
+          title: 'Performance Monitoring'
+          position:
+            x1: "32%"
+            y1: "8%"
+            x2: "65%"
+            y2: "50%"
+          border: true
+          border_color: 'yellow'
+          bg_color: 'black'
+          fg_color: 'bright_yellow'
+          refresh_interval: 4000
+          script:
+            - "echo 'DATABASE PERFORMANCE'"
+            - "echo '=================='"
+            - "echo ''"
+            - "echo 'System Resources:'"
+            - "echo 'CPU Load: '$(uptime | cut -d: -f4- | cut -d, -f1)"
+            - "if command -v free >/dev/null 2>&1; then"
+            - "  free -h | grep Mem | awk '{print \"Memory: \" $3 \"/\" $2 \" (\" $3/$2*100 \"% used)\"}'"
+            - "else"
+            - "  vm_stat | head -3"
+            - "fi"
+            - "echo 'Disk I/O: '$(iostat 1 1 2>/dev/null | tail -1 | awk '{print $4}' 2>/dev/null || echo 'N/A')"
+            - "echo ''"
+            - "echo 'Database Processes:'"
+            - "ps aux | grep -E '(mysql|postgres|redis|mongo)' | grep -v grep | awk '{printf \"%-12s %s %s\\n\", $11, $3\"%\", $4\"%\"}' | head -8"
+            - "echo ''"
+            - "echo 'Network Connections:'"
+            - "if command -v ss >/dev/null 2>&1; then"
+            - "  ss -tlnp | grep -E ':(3306|5432|6379|27017)' | awk '{print $1 \" \" $4}'"
+            - "else"
+            - "  netstat -tln 2>/dev/null | grep -E ':(3306|5432|6379|27017)' | awk '{print $1 \" \" $4}'"
+            - "fi"
+            - "echo ''"
+            - "echo 'Disk Usage (Database dirs):'"
+            - "for dir in /var/lib/mysql /var/lib/postgresql /var/lib/redis /var/lib/mongodb; do"
+            - "  if [ -d \"$dir\" ]; then"
+            - "    du -sh \"$dir\" 2>/dev/null | awk '{print $2 \": \" $1}'"
+            - "  fi"
+            - "done"
+
+        # Database tools
+        - id: 'db_tools'
+          title: 'Administration Tools'
+          position:
+            x1: "67%"
+            y1: "8%"
+            x2: "99%"
+            y2: "50%"
+          tab_order: 2
+          border: true
+          border_color: 'green'
+          choices:
+            - id: 'backup_status'
+              content: 'Backup Status'
+              script:
+                - "echo 'DATABASE BACKUP STATUS'"
+                - "echo '====================='"
+                - "echo ''"
+                - "echo 'MySQL Backups:'"
+                - "if [ -d /var/backups ] && ls /var/backups/*mysql* 2>/dev/null; then"
+                - "  ls -lah /var/backups/*mysql* 2>/dev/null | tail -5"
+                - "else"
+                - "  echo 'No MySQL backup files found in /var/backups'"
+                - "fi"
+                - "echo ''"
+                - "echo 'PostgreSQL Backups:'"
+                - "if [ -d /var/backups ] && ls /var/backups/*postgres* 2>/dev/null; then"
+                - "  ls -lah /var/backups/*postgres* 2>/dev/null | tail -5"
+                - "else"
+                - "  echo 'No PostgreSQL backup files found in /var/backups'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Backup Script Status:'"
+                - "if command -v crontab >/dev/null 2>&1; then"
+                - "  echo 'Crontab entries for backups:'"
+                - "  crontab -l 2>/dev/null | grep -i backup | head -3"
+                - "else"
+                - "  echo 'Crontab not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Available Disk Space:'"
+                - "df -h /var/backups 2>/dev/null || df -h /"
+              redirect_output: 'query_results'
+            - id: 'log_analysis'
+              content: 'Log Analysis'
+              script:
+                - "echo 'DATABASE LOG ANALYSIS'"
+                - "echo '===================='"
+                - "echo ''"
+                - "echo 'MySQL Error Log:'"
+                - "if [ -f /var/log/mysql/error.log ]; then"
+                - "  tail -8 /var/log/mysql/error.log 2>/dev/null | grep -v '^$' | tail -5"
+                - "else"
+                - "  echo 'MySQL error log not found'"
+                - "fi"
+                - "echo ''"
+                - "echo 'PostgreSQL Log:'"
+                - "if [ -f /var/log/postgresql/postgresql.log ]; then"
+                - "  tail -8 /var/log/postgresql/postgresql.log 2>/dev/null | grep -v '^$' | tail -5"
+                - "elif ls /var/log/postgresql/*.log 2>/dev/null; then"
+                - "  tail -8 /var/log/postgresql/*.log 2>/dev/null | tail -5"
+                - "else"
+                - "  echo 'PostgreSQL log not found'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Redis Log:'"
+                - "if [ -f /var/log/redis/redis-server.log ]; then"
+                - "  tail -8 /var/log/redis/redis-server.log 2>/dev/null | tail -5"
+                - "else"
+                - "  echo 'Redis log not found'"
+                - "fi"
+                - "echo ''"
+                - "echo 'System Journal (Database services):'"
+                - "if command -v journalctl >/dev/null 2>&1; then"
+                - "  journalctl -u mysql -u postgresql -u redis --no-pager -n 3 2>/dev/null | tail -3"
+                - "else"
+                - "  echo 'Systemd journal not available'"
+                - "fi"
+              redirect_output: 'query_results'
+            - id: 'maintenance'
+              content: 'Maintenance'
+              script:
+                - "echo 'DATABASE MAINTENANCE'"
+                - "echo '=================='"
+                - "echo ''"
+                - "echo 'MySQL Maintenance:'"
+                - "if command -v mysqlcheck >/dev/null 2>&1; then"
+                - "  echo 'MySQL check tool available'"
+                - "  echo 'Run: mysqlcheck -u root -p --all-databases'"
+                - "else"
+                - "  echo 'mysqlcheck not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'PostgreSQL Maintenance:'"
+                - "if command -v vacuumdb >/dev/null 2>&1; then"
+                - "  echo 'PostgreSQL vacuum tool available'"
+                - "  echo 'Run: sudo -u postgres vacuumdb --all --analyze'"
+                - "else"
+                - "  echo 'vacuumdb not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Redis Maintenance:'"
+                - "if command -v redis-cli >/dev/null 2>&1; then"
+                - "  echo 'Redis CLI available'"
+                - "  if redis-cli ping 2>/dev/null | grep PONG >/dev/null; then"
+                - "    echo 'Redis memory usage: '$(redis-cli info memory 2>/dev/null | grep used_memory_human | cut -d: -f2)"
+                - "    echo 'Run BGSAVE for backup: redis-cli bgsave'"
+                - "  fi"
+                - "else"
+                - "  echo 'redis-cli not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Disk Space Check:'"
+                - "for dir in /var/lib/mysql /var/lib/postgresql /var/lib/redis; do"
+                - "  if [ -d \"$dir\" ]; then"
+                - "    df -h \"$dir\" 2>/dev/null | tail -1 | awk '{print $6 \": \" $5 \" used\"} '"
+                - "  fi"
+                - "done"
+              redirect_output: 'query_results'
+            - id: 'user_management'
+              content: 'Users & Perms'
+              script:
+                - "echo 'DATABASE USER MANAGEMENT'"
+                - "echo '======================'"
+                - "echo ''"
+                - "echo 'MySQL Users:'"
+                - "if mysql -u root -e 'SELECT User, Host FROM mysql.user;' 2>/dev/null; then"
+                - "  echo 'MySQL user query successful'"
+                - "else"
+                - "  echo 'MySQL user query failed (check root access)'"
+                - "fi"
+                - "echo ''"
+                - "echo 'PostgreSQL Users:'"
+                - "if sudo -u postgres psql -c '\\du' 2>/dev/null; then"
+                - "  echo 'PostgreSQL user query successful'"
+                - "else"
+                - "  echo 'PostgreSQL user query failed (check postgres access)'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Redis Security:'"
+                - "if command -v redis-cli >/dev/null 2>&1; then"
+                - "  if redis-cli ping 2>/dev/null | grep PONG >/dev/null; then"
+                - "    redis-cli config get requirepass 2>/dev/null | tail -1 | sed 's/^$/No password set/' | xargs echo 'Password protection:'"
+                - "  fi"
+                - "else"
+                - "  echo 'Redis CLI not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Security Recommendations:'"
+                - "echo '- Use strong passwords for all database users'"
+                - "echo '- Limit network access with firewall rules'"
+                - "echo '- Enable SSL/TLS encryption'"
+                - "echo '- Regular security updates'"
+                - "echo '- Monitor authentication logs'"
+              redirect_output: 'query_results'
+
+        # Query results area
+        - id: 'query_results'
+          title: 'Query Results & Command Output'
+          position:
+            x1: "1%"
+            y1: "52%"
+            x2: "99%"
+            y2: "95%"
+          border: true
+          border_color: 'white'
+          bg_color: 'black'
+          fg_color: 'bright_white'
+          content: "Database Administration Console\\n\\nSelect a database connection to check status:\\n• MySQL - Check server status and connections\\n• PostgreSQL - Verify cluster status\\n• Redis - Monitor cache performance\\n• MongoDB - Document database status\\n\\nAdministration tools available:\\n• Backup status monitoring\\n• Log file analysis\\n• Database maintenance tasks\\n• User and permission management\\n\\nQuery results and command output will appear here"
