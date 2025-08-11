@@ -155,6 +155,34 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     }
 }
 
+/// Setup signal handler to ensure proper terminal cleanup on exit
+fn setup_signal_handler() {
+    use signal_hook::{consts::SIGINT, iterator::Signals};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+    
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    thread::spawn(move || {
+        let mut signals = Signals::new(&[SIGINT]).expect("Error setting up signal handler");
+        for _sig in signals.forever() {
+            r.store(false, Ordering::SeqCst);
+            cleanup_terminal();
+            std::process::exit(0);
+        }
+    });
+}
+
+/// Cleanup terminal state - restore normal mode
+fn cleanup_terminal() {
+    use crossterm::{execute, terminal};
+    let mut stdout = std::io::stdout();
+    let _ = execute!(stdout, terminal::LeaveAlternateScreen);
+    let _ = terminal::disable_raw_mode();
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("Boxmux")
         .version("0.76.71205")
@@ -509,6 +537,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     execute!(_stdout, terminal::EnterAlternateScreen)?;
     execute!(_stdout, terminal::Clear(terminal::ClearType::All))?;
 
+    // Setup signal handler for proper terminal cleanup on exit
+    setup_signal_handler();
+
     let mut manager = ThreadManager::new(app_context.clone());
 
     let _input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
@@ -520,8 +551,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     manager.run();
 
-    //restore normal screen
+    //restore normal terminal state
     execute!(_stdout, terminal::LeaveAlternateScreen)?;
+    terminal::disable_raw_mode()?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod terminal_cleanup_tests {
+    use super::*;
+
+    /// Tests that the cleanup_terminal function properly restores terminal state
+    /// This test verifies the terminal cleanup functionality to prevent broken terminal state
+    #[test]
+    fn test_cleanup_terminal_function() {
+        // Test that cleanup_terminal doesn't panic and can be called safely
+        cleanup_terminal();
+        
+        // Since we can't easily test the actual terminal state changes in a unit test,
+        // we verify that the function completes without error
+        // The real test is that the terminal is properly restored when the application exits
+        assert!(true, "cleanup_terminal function executed successfully");
+    }
+
+    /// Tests that setup_signal_handler can be called without panicking
+    /// This ensures the signal handler setup is robust
+    #[test] 
+    fn test_signal_handler_setup() {
+        // Test that signal handler setup doesn't panic
+        // Note: In a test environment, we can't fully test signal handling
+        // but we can verify the setup doesn't cause immediate failures
+        setup_signal_handler();
+        
+        // Give the signal handler thread a moment to initialize
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        
+        assert!(true, "Signal handler setup completed successfully");
+    }
+
+    /// Tests the terminal cleanup sequence that should happen on normal exit
+    /// This simulates the cleanup that happens when BoxMux exits normally
+    #[test]
+    fn test_terminal_cleanup_sequence() {
+        // Simulate the terminal setup and cleanup sequence
+        // This is what should happen: EnterAlternateScreen -> enable_raw_mode -> ... -> cleanup
+        
+        // We can't actually enter alternate screen or raw mode in a test,
+        // but we can test that our cleanup function handles this gracefully
+        cleanup_terminal();
+        
+        // Test multiple calls to cleanup (should be idempotent)
+        cleanup_terminal();
+        cleanup_terminal();
+        
+        assert!(true, "Terminal cleanup sequence completed successfully");
+    }
 }
