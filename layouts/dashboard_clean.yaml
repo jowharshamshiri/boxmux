@@ -1,0 +1,261 @@
+app:
+  layouts:
+    - id: 'dashboard_clean'
+      root: true
+      title: 'System Dashboard - Clean'
+      selected_fg_color: 'cyan'
+      bg_color: 'black'
+      selected_bg_color: 'black'
+      title_fg_color: 'bright_cyan'
+      selected_title_fg_color: 'black'
+      title_bg_color: 'black'
+      selected_title_bg_color: 'cyan'
+      border_color: 'cyan'
+      selected_border_color: 'bright_cyan'
+      menu_fg_color: 'bright_white'
+      selected_menu_fg_color: 'black'
+      menu_bg_color: 'black'
+      selected_menu_bg_color: 'cyan'
+      children:
+        # Header
+        - id: 'header'
+          title: 'System Dashboard'
+          position:
+            x1: 0%
+            y1: 0%
+            x2: 100%
+            y2: 8%
+          border: true
+          border_color: 'bright_cyan'
+          title_fg_color: 'bright_cyan'
+          bg_color: 'black'
+          children:
+            - id: 'system_info'
+              title: 'System Overview'
+              position:
+                x1: 2%
+                y1: 10%
+                x2: 35%
+                y2: 90%
+              border: true
+              border_color: 'cyan'
+              refresh_interval: 5000
+              script:
+                - hostname
+                - whoami
+                - uptime
+            - id: 'system_stats'
+              title: 'Quick Stats'
+              position:
+                x1: 38%
+                y1: 10%
+                x2: 63%
+                y2: 90%
+              border: true
+              border_color: 'cyan'
+              refresh_interval: 3000
+              script:
+                - free -h
+                - df -h /
+            - id: 'status_enhanced'
+              title: 'System Status'
+              position:
+                x1: 66%
+                y1: 10%
+                x2: 98%
+                y2: 90%
+              border: true
+              border_color: 'green'
+              bg_color: 'black'
+              fg_color: 'bright_green'
+              refresh_interval: 2000
+              script:
+                - echo "Status: Online"
+                - date
+
+        # Control Panel
+        - id: 'action_menu'
+          title: 'Control Panel'
+          position:
+            x1: 1%
+            y1: 10%
+            x2: 18%
+            y2: 92%
+          tab_order: 1
+          border_color: 'bright_magenta'
+          redirect_output: 'system_stats'
+          choices:
+            - id: 'sys_info'
+              content: 'System Info'
+              script:
+                - uname -a
+              redirect_output: 'system_stats'
+            - id: 'processes'
+              content: 'Top Processes'
+              script:
+                - ps aux | head -10
+              redirect_output: 'system_stats'
+            - id: 'disk_usage'
+              content: 'Disk Usage'
+              script:
+                - df -h
+              redirect_output: 'system_stats'
+            - id: 'network_info'
+              content: 'Network Info'
+              script:
+                - ifconfig | head -15
+              redirect_output: 'system_stats'
+            - id: 'memory_detail'
+              content: 'Memory Detail'
+              script:
+                - free -h
+                - echo "Memory details available"
+              redirect_output: 'system_stats'
+
+        # Metrics Area
+        - id: 'metrics_area'
+          title: 'System Metrics'
+          position:
+            x1: 20%
+            y1: 10%
+            x2: 99%
+            y2: 92%
+          border: false
+          children:
+            # Charts Section
+            - id: 'realtime_charts'
+              title: 'Real-Time System Metrics'
+              position:
+                x1: 0%
+                y1: 0%
+                x2: 100%
+                y2: 48%
+              border: true
+              border_color: 'bright_yellow'
+              children:
+                - id: 'cpu_chart'
+                  title: 'CPU Usage'
+                  position:
+                    x1: 2%
+                    y1: 8%
+                    x2: 48%
+                    y2: 48%
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 2
+                  refresh_interval: 2000
+                  script:
+                    - echo "CPU Usage:"
+                    - top -l 1 | head -8 || top -bn1 | head -8
+                    - echo "Load Average:"
+                    - uptime
+
+                - id: 'memory_chart'
+                  title: 'Memory Usage'
+                  position:
+                    x1: 52%
+                    y1: 8%
+                    x2: 98%
+                    y2: 48%
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 3
+                  refresh_interval: 3000
+                  script:
+                    - echo "Memory Status:"
+                    - free -h 2>/dev/null || vm_stat | head -8
+                    - echo "Swap Usage:"
+                    - free | grep Swap 2>/dev/null || echo "Swap info via vm_stat"
+
+                - id: 'network_chart'
+                  title: 'Network Activity'
+                  position:
+                    x1: 2%
+                    y1: 52%
+                    x2: 48%
+                    y2: 92%
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 4
+                  refresh_interval: 4000
+                  script:
+                    - echo "Network Interfaces:"
+                    - netstat -i 2>/dev/null | head -6 || ifconfig | head -12
+                    - echo "Connections:"
+                    - netstat -an | head -6 2>/dev/null || echo "Network stats available"
+
+                - id: 'disk_chart'
+                  title: 'Disk Activity'
+                  position:
+                    x1: 52%
+                    y1: 52%
+                    x2: 98%
+                    y2: 92%
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 5
+                  refresh_interval: 5000
+                  script:
+                    - echo "Disk Usage:"
+                    - df -h
+                    - echo "I/O Stats:"
+                    - iostat 2>/dev/null | head -8 || echo "I/O stats not available"
+
+            # Log Monitoring
+            - id: 'log_monitoring'
+              title: 'System Logs and Events'
+              position:
+                x1: 0%
+                y1: 52%
+                x2: 100%
+                y2: 100%
+              border: true
+              border_color: 'bright_blue'
+              children:
+                - id: 'system_events'
+                  title: 'System Events'
+                  position:
+                    x1: 2%
+                    y1: 8%
+                    x2: 48%
+                    y2: 92%
+                  border: true
+                  border_color: 'blue'
+                  tab_order: 6
+                  refresh_interval: 10000
+                  script:
+                    - echo "Recent System Events:"
+                    - tail -10 /var/log/system.log 2>/dev/null || journalctl -n 10 --no-pager 2>/dev/null || dmesg | tail -10
+
+                - id: 'security_events'
+                  title: 'Security Log'
+                  position:
+                    x1: 52%
+                    y1: 8%
+                    x2: 98%
+                    y2: 92%
+                  border: true
+                  border_color: 'red'
+                  tab_order: 7
+                  refresh_interval: 15000
+                  script:
+                    - echo "Security Events:"
+                    - tail -8 /var/log/auth.log 2>/dev/null || tail -8 /var/log/secure 2>/dev/null || echo "No auth logs found"
+                    - echo "Recent Logins:"
+                    - last | head -3 2>/dev/null || echo "Login history not available"
+
+        # Footer
+        - id: 'footer_enhanced'
+          title: 'System Status Bar'
+          position:
+            x1: 0%
+            y1: 94%
+            x2: 100%
+            y2: 100%
+          border: true
+          border_color: 'bright_cyan'
+          bg_color: 'black'
+          fg_color: 'bright_cyan'
+          refresh_interval: 1000
+          script:
+            - echo "$(date) | Host: $(hostname) | User: $(whoami)"

@@ -331,7 +331,7 @@ pub fn draw_horizontal_line_with_title(
         let title_length = formatted_title.len();
 
         if title_length <= width {
-            let (title_start_position, line_before_title_length, line_after_title_length) =
+            let (title_start_position, line_before_title_length, _line_after_title_length) =
                 match title_position {
                     "start" => {
                         let title_start_position = x1 + title_padding;

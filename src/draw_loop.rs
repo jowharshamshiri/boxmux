@@ -25,7 +25,7 @@ lazy_static! {
 
 create_runnable!(
     DrawLoop,
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool {
+    |_inner: &mut RunnableImpl, app_context: AppContext, _messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut app_context_unwrapped = app_context.clone();
@@ -74,7 +74,7 @@ create_runnable!(
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
-            let mut new_buffer = ScreenBuffer::new();
+            let mut new_buffer;
             let mut app_context_unwrapped = app_context.clone();
             let (adjusted_bounds, app_graph) = app_context_unwrapped
                 .app

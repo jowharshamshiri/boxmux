@@ -36,6 +36,7 @@ pub use model::layout::*;
 pub use model::panel::*;
 pub use thread_manager::*;
 pub use utils::*;
+pub use validation::*;
 
 #[macro_use]
 pub extern crate lazy_static;

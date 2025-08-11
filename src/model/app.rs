@@ -9,9 +9,9 @@ use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
+use crate::validation::SchemaValidator;
 use core::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
 
@@ -181,8 +181,22 @@ impl App {
     }
 
     pub fn validate(&mut self) {
-        if let Err(e) = validate_app(self) {
-            panic!("Validation error: {}", e);
+        let mut validator = SchemaValidator::new();
+        match validator.validate_app(self) {
+            Ok(_) => {
+                // Apply post-validation setup
+                if let Err(e) = apply_post_validation_setup(self) {
+                    panic!("Post-validation setup error: {}", e);
+                }
+            }
+            Err(validation_errors) => {
+                let error_messages: Vec<String> = validation_errors
+                    .into_iter()
+                    .map(|e| format!("{}", e))
+                    .collect();
+                let combined_message = error_messages.join("; ");
+                panic!("Validation errors: {}", combined_message);
+            }
         }
     }
 
@@ -587,30 +601,92 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
 
     let mut app = match root_result {
         Ok(root) => root.app,
-        Err(_) => {
-            // If deserialization into Root fails, try to deserialize directly into App
-            serde_yaml::from_str(&contents)?
+        Err(serde_error) => {
+            // Enhanced error handling with Rust-style line/column display
+            if let Some(location) = serde_error.location() {
+                let line_num = location.line();
+                let col_num = location.column();
+                let error_display = create_rust_style_error_display(
+                    &contents, file_path, line_num, col_num, &format!("{}", serde_error)
+                );
+                return Err(error_display.into());
+            }
+            
+            // Fallback: try to deserialize directly into App
+            match serde_yaml::from_str::<App>(&contents) {
+                Ok(app) => app,
+                Err(app_error) => {
+                    if let Some(location) = app_error.location() {
+                        let line_num = location.line();
+                        let col_num = location.column();
+                        let error_display = create_rust_style_error_display(
+                            &contents, file_path, line_num, col_num, &format!("{}", app_error)
+                        );
+                        return Err(error_display.into());
+                    }
+                    return Err(format!("YAML parsing error: {}", app_error).into());
+                }
+            }
         }
     };
 
-    // Validate the app configuration
-    match validate_app(&mut app) {
+    // Validate the app configuration using SchemaValidator
+    let mut validator = SchemaValidator::new();
+    match validator.validate_app(&app) {
         Ok(_) => {
-            // log::info!("Loaded app from file: {}", file_path);
-            // log::debug!("App: {:#?}", app);
+            // Apply the old validation logic for setting up parent relationships and defaults
+            apply_post_validation_setup(&mut app)?;
             Ok(app)
-        }
-        Err(validation_error) => {
-            Err(format!("Configuration validation error: {}", validation_error).into())
+        },
+        Err(validation_errors) => {
+            let error_messages: Vec<String> = validation_errors
+                .into_iter()
+                .map(|e| format!("{}", e))
+                .collect();
+            let combined_message = error_messages.join("; ");
+            Err(format!("Configuration validation errors: {}", combined_message).into())
         }
     }
 }
 
-fn validate_app(app: &mut App) -> Result<(), String> {
-    if app.layouts.is_empty() {
-        return Err("No layouts defined in the application. Please add at least one layout with panels.".to_string());
+fn create_rust_style_error_display(
+    contents: &str, 
+    file_path: &str, 
+    line_num: usize, 
+    col_num: usize, 
+    error_msg: &str
+) -> String {
+    let lines: Vec<&str> = contents.lines().collect();
+    
+    // Ensure we have valid line numbers (serde_yaml uses 1-based indexing)
+    if line_num == 0 || line_num > lines.len() {
+        return format!("YAML parsing error: {}", error_msg);
     }
+    
+    let error_line = lines[line_num - 1];
+    let line_num_width = format!("{}", line_num).len().max(3);
+    
+    // Create the error display similar to Rust compiler
+    let mut result = String::new();
+    result.push_str(&format!("error: {}\n", error_msg));
+    result.push_str(&format!(" --> {}:{}:{}\n", file_path, line_num, col_num));
+    result.push_str(&format!("  |\n"));
+    result.push_str(&format!("{:width$} | {}\n", line_num, error_line, width = line_num_width));
+    
+    // Add column indicator with ^^^ under the problematic area
+    if col_num > 0 && col_num <= error_line.len() + 1 {
+        let spaces_before_pipe = " ".repeat(line_num_width);
+        let spaces_before_caret = " ".repeat(col_num.saturating_sub(1));
+        result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, "^"));
+    }
+    
+    result
+}
 
+fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
+    // This function applies the setup logic that was previously in validate_app
+    // after the SchemaValidator has already validated the structure
+    
     fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
         panel.parent_layout_id = Some(parent_layout_id.to_string());
         panel.parent_id = parent_id;
@@ -622,25 +698,14 @@ fn validate_app(app: &mut App) -> Result<(), String> {
         }
     }
 
-    let mut id_set = HashSet::new();
     let mut root_layout_id: Option<String> = None;
-    let mut root_count = 0;
 
     for layout in &mut app.layouts {
         let mut layout_clone = layout.clone();
         let panels_in_tab_order = layout_clone.get_panels_in_tab_order();
 
-        // Check for unique IDs
-        if let Err(e) = check_unique_ids(layout, &mut id_set) {
-            return Err(e);
-        }
-
-        // Check for multiple root layouts
+        // Identify root layout
         if layout.root.unwrap_or(false) {
-            root_count += 1;
-            if root_count > 1 {
-                return Err("Multiple root layouts detected. Only one layout can be marked as 'root: true'.".to_string());
-            }
             root_layout_id = Some(layout.id.clone());
         }
 
@@ -688,39 +753,8 @@ fn validate_app(app: &mut App) -> Result<(), String> {
     Ok(())
 }
 
-fn check_unique_ids(
-    layout: &Layout,
-    id_set: &mut HashSet<String>,
-) -> Result<(), String> {
-    if let Some(children) = &layout.children {
-        for panel in children {
-            check_panel_ids(panel, id_set)?;
-        }
-    }
-    Ok(())
-}
-
-fn check_panel_ids(
-    panel: &Panel,
-    id_set: &mut HashSet<String>,
-) -> Result<(), String> {
-    if !id_set.insert(panel.id.clone()) {
-        return Err(format!("Duplicate panel ID found: '{}'. All panel IDs must be unique across the entire application.", panel.id));
-    }
-    if let Some(children) = &panel.children {
-        for child in children {
-            check_panel_ids(child, id_set)?;
-        }
-    }
-    if let Some(choices) = &panel.choices {
-        for choice in choices {
-            if !id_set.insert(choice.id.clone()) {
-                return Err(format!("Duplicate choice ID found: '{}'. All choice IDs must be unique across the entire application.", choice.id));
-            }
-        }
-    }
-    Ok(())
-}
+// The old check_unique_ids and check_panel_ids functions are no longer needed
+// because SchemaValidator handles ID uniqueness validation
 
 #[cfg(test)]
 mod tests {
@@ -1106,7 +1140,7 @@ mod tests {
     /// Tests that App::validate() panics with no layouts.
     /// This test demonstrates the empty app validation behavior.
     #[test]
-    #[should_panic(expected = "No layouts defined in the application.")]
+    #[should_panic(expected = "Required field 'layouts' is missing")]
     fn test_app_validate_empty_panics() {
         let mut app = App::new();
         app.validate();
@@ -1115,7 +1149,7 @@ mod tests {
     /// Tests that App::validate() panics with duplicate IDs.
     /// This test demonstrates the duplicate ID validation feature.
     #[test]
-    #[should_panic(expected = "Validation error: Duplicate panel ID found: 'panel1'. All panel IDs must be unique across the entire application.")]
+    #[should_panic(expected = "Duplicate ID 'panel1' found in panels")]
     fn test_app_validate_duplicate_ids_panics() {
         let mut app = App::new();
         
@@ -1132,7 +1166,7 @@ mod tests {
     /// Tests that App::validate() panics with multiple root layouts.
     /// This test demonstrates the multiple root layout validation feature.
     #[test]
-    #[should_panic(expected = "Validation error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.")]
+    #[should_panic(expected = "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.")]
     fn test_app_validate_multiple_root_panics() {
         let mut app = create_test_app();
         
@@ -1620,5 +1654,106 @@ mod tests {
     fn test_load_app_from_yaml_invalid_file() {
         let result = load_app_from_yaml("nonexistent.yaml");
         assert!(result.is_err());
+    }
+
+    /// Tests SchemaValidator integration with load_app_from_yaml.
+    /// This test demonstrates the comprehensive validation system integration.
+    #[test]
+    fn test_load_app_from_yaml_with_schema_validation() {
+        use std::fs;
+        use std::io::Write;
+        
+        // Create a temporary invalid YAML file for testing validation
+        let temp_file = "/tmp/boxmux_test_invalid.yaml";
+        let invalid_yaml_content = r#"
+app:
+  layouts:
+    - id: 'layout1'
+      root: true
+      children:
+        - id: 'panel1'
+          position:
+            x1: 0%
+            y1: 0%
+            x2: 50%
+            y2: 50%
+        - id: 'panel1'  # Duplicate ID - should fail validation
+          position:
+            x1: 50%
+            y1: 0%
+            x2: 100%
+            y2: 50%
+"#;
+        
+        // Write the invalid content to temp file
+        let mut file = fs::File::create(temp_file).expect("Failed to create temp file");
+        file.write_all(invalid_yaml_content.as_bytes()).expect("Failed to write temp file");
+        
+        // Test that SchemaValidator catches the duplicate ID
+        let result = load_app_from_yaml(temp_file);
+        assert!(result.is_err(), "SchemaValidator should catch duplicate IDs");
+        
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Duplicate ID 'panel1' found in panels"), 
+                "Error message should mention duplicate ID: {}", error_msg);
+        
+        // Clean up
+        let _ = fs::remove_file(temp_file);
+        
+        // Test valid YAML passes validation
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+        let valid_dashboard_path = current_dir.join("layouts/tests.yaml");
+        
+        let valid_result = load_app_from_yaml(valid_dashboard_path.to_str().unwrap());
+        assert!(valid_result.is_ok(), "Valid YAML should pass SchemaValidator");
+        
+        let app = valid_result.unwrap();
+        assert_eq!(app.layouts.len(), 1);
+        assert_eq!(app.layouts[0].id, "dashboard");
+    }
+
+    /// Tests SchemaValidator integration with multiple root layouts error.
+    /// This test demonstrates schema validation for structural errors.
+    #[test]
+    fn test_load_app_from_yaml_multiple_root_layouts_error() {
+        use std::fs;
+        use std::io::Write;
+        
+        let temp_file = "/tmp/boxmux_test_multiple_roots.yaml";
+        let multiple_roots_yaml = r#"
+app:
+  layouts:
+    - id: 'layout1'
+      root: true
+      children:
+        - id: 'panel1'
+          position:
+            x1: 0%
+            y1: 0%
+            x2: 100%
+            y2: 100%
+    - id: 'layout2'
+      root: true  # Second root - should fail validation
+      children:
+        - id: 'panel2'
+          position:
+            x1: 0%
+            y1: 0%
+            x2: 100%
+            y2: 100%
+"#;
+        
+        let mut file = fs::File::create(temp_file).expect("Failed to create temp file");
+        file.write_all(multiple_roots_yaml.as_bytes()).expect("Failed to write temp file");
+        
+        let result = load_app_from_yaml(temp_file);
+        assert!(result.is_err(), "SchemaValidator should catch multiple root layouts");
+        
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Multiple root layouts detected"), 
+                "Error message should mention multiple root layouts: {}", error_msg);
+        
+        // Clean up
+        let _ = fs::remove_file(temp_file);
     }
 }
