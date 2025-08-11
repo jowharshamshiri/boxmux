@@ -7,10 +7,11 @@
 [![Downloads](https://img.shields.io/crates/d/boxmux.svg)](https://crates.io/crates/boxmux)
 [![Docs.rs](https://docs.rs/boxmux/badge.svg)](https://docs.rs/boxmux)
 
-![BoxMux Dashboard](./docs/screenshot.png)
 ![BoxMux Dashboard](./docs/code.png)
-![BoxMux Dashboard](./docs/screenshot_2.png)
 ![BoxMux Dashboard](./docs/socket_control.png)
+
+![BoxMux Dashboard](./docs/screenshot.png)
+![BoxMux Dashboard](./docs/screenshot_2.png)
 
 ## What is BoxMux?
 
@@ -300,4 +301,10 @@ For more help, see our [Troubleshooting Guide](docs/troubleshooting.md).
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Layouts Showcase
+
+![BoxMux Dashboard](./docs/screenshot_3.png)
+![BoxMux Dashboard](./docs/screenshot_4.png)
+![BoxMux Dashboard](./docs/screenshot_5.png)
+![BoxMux Dashboard](./docs/screenshot_6.png)
 ---
