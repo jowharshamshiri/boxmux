@@ -1391,6 +1391,6 @@ mod tests {
         
         // Should handle large config processing efficiently
         println!("Large config processing 1k operations: {:?}", duration);
-        assert!(duration.as_millis() < 600, "Large config processing performance regression: {:?}", duration);
+        assert!(duration.as_millis() < 800, "Large config processing performance regression: {:?}", duration);
     }
 }

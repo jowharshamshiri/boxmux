@@ -757,14 +757,14 @@ pub fn run_script_in_thread(
     create_runnable_with_dynamic_input!(
         ChoiceScriptRunner,
         Box::new(vec_fn),
-        |inner: &mut RunnableImpl,
-         app_context: AppContext,
-         messages: Vec<Message>,
-         vec: Vec<String>|
+        |_inner: &mut RunnableImpl,
+         _app_context: AppContext,
+         _messages: Vec<Message>,
+         _vec: Vec<String>|
          -> bool { true },
         |inner: &mut RunnableImpl,
          app_context: AppContext,
-         messages: Vec<Message>,
+         _messages: Vec<Message>,
          vec: Vec<String>|
          -> (bool, AppContext) {
             let mut app_context_unwrapped = app_context.clone();

@@ -76,7 +76,7 @@ impl SchemaValidator {
         
         // Validate each layout
         for (idx, layout) in app.layouts.iter().enumerate() {
-            self.validate_layout(layout, &format!("layouts[{}]", idx));
+            let _ = self.validate_layout(layout, &format!("layouts[{}]", idx));
         }
         
         // Validate root layout constraints
@@ -101,7 +101,7 @@ impl SchemaValidator {
         // Validate panels if present
         if let Some(panels) = &layout.children {
             for (idx, panel) in panels.iter().enumerate() {
-                self.validate_panel(panel, &format!("{}.children[{}]", path, idx));
+                let _ = self.validate_panel(panel, &format!("{}.children[{}]", path, idx));
             }
         }
 
@@ -127,7 +127,7 @@ impl SchemaValidator {
         // Validate child panels recursively
         if let Some(children) = &panel.children {
             for (idx, child) in children.iter().enumerate() {
-                self.validate_panel(child, &format!("{}.children[{}]", path, idx));
+                let _ = self.validate_panel(child, &format!("{}.children[{}]", path, idx));
             }
         }
 
@@ -237,16 +237,38 @@ impl SchemaValidator {
 
     fn collect_ids(&mut self, app: &App) {
         for layout in &app.layouts {
-            self.layout_ids.insert(layout.id.clone());
-            self.collect_panel_ids_recursive(&layout.children);
+            if !self.layout_ids.insert(layout.id.clone()) {
+                self.add_error(ValidationError::DuplicateId {
+                    id: layout.id.clone(),
+                    location: "layouts".to_string(),
+                });
+            }
+            self.collect_panel_ids_recursive(&layout.children, "panels");
         }
     }
 
-    fn collect_panel_ids_recursive(&mut self, panels: &Option<Vec<Panel>>) {
+    fn collect_panel_ids_recursive(&mut self, panels: &Option<Vec<Panel>>, location: &str) {
         if let Some(panel_list) = panels {
             for panel in panel_list {
-                self.panel_ids.insert(panel.id.clone());
-                self.collect_panel_ids_recursive(&panel.children);
+                if !self.panel_ids.insert(panel.id.clone()) {
+                    self.add_error(ValidationError::DuplicateId {
+                        id: panel.id.clone(),
+                        location: location.to_string(),
+                    });
+                }
+                self.collect_panel_ids_recursive(&panel.children, location);
+                
+                // Check choice IDs if they exist
+                if let Some(choices) = &panel.choices {
+                    for choice in choices {
+                        if !self.panel_ids.insert(choice.id.clone()) {
+                            self.add_error(ValidationError::DuplicateId {
+                                id: choice.id.clone(),
+                                location: "choices".to_string(),
+                            });
+                        }
+                    }
+                }
             }
         }
     }
@@ -494,5 +516,59 @@ mod tests {
         
         let errors = result.unwrap_err();
         assert!(errors.iter().any(|e| matches!(e, ValidationError::InvalidFieldValue { .. })));
+    }
+
+    #[test]
+    fn test_validation_error_formatting() {
+        // Test that ValidationError instances format correctly for user display
+        let duplicate_error = ValidationError::DuplicateId {
+            id: "panel1".to_string(),
+            location: "panels".to_string(),
+        };
+        assert_eq!(duplicate_error.to_string(), "Duplicate ID 'panel1' found in panels");
+        
+        let missing_field_error = ValidationError::MissingRequiredField {
+            field: "layouts".to_string(),
+        };
+        assert_eq!(missing_field_error.to_string(), "Required field 'layouts' is missing");
+        
+        let schema_error = ValidationError::SchemaStructure {
+            message: "Multiple root layouts detected. Only one layout can be marked as 'root: true'.".to_string(),
+        };
+        assert_eq!(schema_error.to_string(), "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.");
+    }
+
+    #[test]
+    fn test_comprehensive_validation_with_multiple_errors() {
+        let mut validator = SchemaValidator::new();
+        
+        // Create an app with multiple validation errors
+        let mut app = App::new();
+        
+        // Error 1: Multiple root layouts
+        let mut layout1 = create_test_layout("layout1");
+        layout1.root = Some(true);
+        let mut layout2 = create_test_layout("layout2");  
+        layout2.root = Some(true);  // Second root - should cause error
+        
+        // Error 2: Duplicate panel IDs
+        let panel1 = create_test_panel("panel1");
+        let panel1_dup = create_test_panel("panel1");  // Duplicate ID
+        layout1.children = Some(vec![panel1]);
+        layout2.children = Some(vec![panel1_dup]);
+        
+        app.layouts = vec![layout1, layout2];
+        
+        let result = validator.validate_app(&app);
+        assert!(result.is_err());
+        
+        let errors = result.unwrap_err();
+        assert!(errors.len() >= 2, "Should have at least 2 validation errors");
+        
+        // Check for multiple root layouts error
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::SchemaStructure { .. })));
+        
+        // Check for duplicate ID error
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::DuplicateId { .. })));
     }
 }

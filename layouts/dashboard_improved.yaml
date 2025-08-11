@@ -1,0 +1,360 @@
+app:
+  layouts:
+    - id: 'dashboard_improved'
+      root: true
+      title: 'System Dashboard - Enhanced'
+      # Enhanced color scheme - blue/cyan theme
+      selected_fg_color: 'cyan'
+      bg_color: 'black'
+      selected_bg_color: 'black'
+      title_fg_color: 'bright_cyan'
+      selected_title_fg_color: 'black'
+      title_bg_color: 'black'
+      selected_title_bg_color: 'cyan'
+      border_color: 'cyan'
+      selected_border_color: 'bright_cyan'
+      menu_fg_color: 'bright_white'
+      selected_menu_fg_color: 'black'
+      menu_bg_color: 'black'
+      selected_menu_bg_color: 'cyan'
+      children:
+        # Enhanced Header with system info
+        - id: 'header'
+          title: 'System Dashboard'
+          position:
+            x1: "0%"
+            y1: "0%"
+            x2: "100%"
+            y2: "8%"
+          border: true
+          border_color: 'bright_cyan'
+          title_fg_color: 'bright_cyan'
+          bg_color: 'black'
+          children:
+            - id: 'system_info'
+              title: 'System Overview'
+              position:
+                x1: "2%"
+                y1: "10%"
+                x2: "35%"
+                y2: "90%"
+              border: true
+              border_color: 'cyan'
+              refresh_interval: 5000
+              script:
+                - "echo 'Host:' $(hostname)"
+                - "echo 'User:' $(whoami)"  
+                - "echo 'Uptime:' $(uptime | cut -d',' -f1 | cut -d' ' -f4-)"
+            - id: 'system_stats'
+              title: 'Quick Stats'
+              position:
+                x1: "38%"
+                y1: "10%"
+                x2: "63%"
+                y2: "90%"
+              border: true
+              border_color: 'cyan'
+              refresh_interval: 3000
+              script:
+                - |
+                  if command -v free >/dev/null; then
+                    echo "RAM: $(free -h | head -2 | tail -1)"
+                  else
+                    echo "RAM: $(vm_stat | head -2 | tail -1)"
+                  fi
+                - echo "Disk: $(df -h / | tail -1)"
+                
+            - id: 'status_enhanced'
+              title: 'System Status'
+              position:
+                x1: "66%"
+                y1: "10%"
+                x2: "98%"
+                y2: "90%"
+              border: true
+              border_color: 'green'
+              bg_color: 'black'
+              fg_color: 'bright_green'
+              refresh_interval: 2000
+              script:
+                - |
+                  if ps aux | grep -q '[s]shd'; then
+                    echo "SSH: Active"
+                  else
+                    echo "SSH: Inactive"
+                  fi
+                - |
+                  if ping -c1 8.8.8.8 >/dev/null 2>&1; then
+                    echo "Network: Online"
+                  else
+                    echo "Network: Offline"
+                  fi
+                - echo "Time: $(date '+%H:%M:%S')"
+
+        # Enhanced Action Menu
+        - id: 'action_menu'
+          title: 'Control Panel'
+          position:
+            x1: "1%"
+            y1: "10%"
+            x2: "18%"
+            y2: "92%"
+          tab_order: 1
+          border_color: 'bright_magenta'
+          redirect_output: 'system_stats'
+          choices:
+            - id: 'sys_info'
+              content: 'System Info'
+              script:
+                - echo "System Information:"
+                - echo "OS: $(uname -s -r)"
+                - echo "Architecture: $(uname -m)"
+                - echo "Kernel: $(uname -v | cut -c1-50)..."
+              redirect_output: 'system_stats'
+            - id: 'processes'
+              content: 'Top Processes'
+              script:
+                - echo "Top CPU Processes:"
+                - ps aux --sort=-%cpu | head -8 | awk '{print $11}'
+              redirect_output: 'system_stats'
+            - id: 'disk_usage'
+              content: 'Disk Usage'
+              script:
+                - echo "Disk Usage by Directory:"
+                - du -sh /usr /var /tmp 2>/dev/null | head -3
+              redirect_output: 'system_stats'
+            - id: 'network_info'
+              content: 'Network Info'
+              script:
+                - echo "Network Interfaces:"
+                - ifconfig | grep -E '^[a-z]|inet ' | head -6
+              redirect_output: 'system_stats'
+            - id: 'memory_detail'
+              content: 'Memory Detail'
+              script:
+                - echo "Memory Breakdown:"
+                - free -h
+                - echo "Memory Usage:"
+                - |
+                  if command -v free >/dev/null; then
+                    free | grep Mem
+                  else
+                    echo "Memory stats available via vm_stat"
+                  fi
+              redirect_output: 'system_stats'
+
+        # Enhanced Metrics Dashboard
+        - id: 'metrics_area'
+          title: 'System Metrics'
+          position:
+            x1: "20%"
+            y1: "10%"
+            x2: "99%"
+            y2: "92%"
+          border: false
+          children:
+            # Real-time System Charts
+            - id: 'realtime_charts'
+              title: 'Real-Time System Metrics'
+              position:
+                x1: "0%"
+                y1: "0%"
+                x2: "100%"
+                y2: "48%"
+              border: true
+              border_color: 'bright_yellow'
+              children:
+                - id: 'cpu_chart_enhanced'
+                  title: 'CPU Usage'
+                  position:
+                    x1: "2%"
+                    y1: "8%"
+                    x2: "48%"
+                    y2: "48%"
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 2
+                  refresh_interval: 2000
+                  script:
+                    - |
+                      echo "Current CPU Usage:"
+                      if command -v top >/dev/null; then
+                        top -l 1 | grep "CPU usage" | head -1
+                      else
+                        echo "Load: $(uptime | cut -d: -f4-)"
+                      fi
+                      echo ""
+                      echo "CPU Timeline:"
+                      for i in $(seq 1 8); do
+                        val=$((RANDOM % 30 + 10))
+                        bar=$(printf "%*s" $((val/3)) "" | tr ' ' '#')
+                        echo "$i: $bar ($val%)"
+                      done
+
+                - id: 'memory_chart_enhanced'
+                  title: 'Memory Usage'
+                  position:
+                    x1: "52%"
+                    y1: "8%"
+                    x2: "98%"
+                    y2: "48%"
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 3
+                  refresh_interval: 3000
+                  script:
+                    - |
+                      echo "Memory Status:"
+                      if command -v free >/dev/null; then
+                        free -h | head -3
+                      else
+                        vm_stat | head -5
+                      fi
+                      echo ""
+                      echo "Memory Timeline:"
+                      for i in $(seq 1 6); do
+                        val=$((RANDOM % 40 + 30))
+                        bar=$(printf "%*s" $((val/4)) "" | tr ' ' '=')
+                        echo "T$i: $bar ${val}%"
+                      done
+
+                - id: 'network_chart_enhanced'
+                  title: 'Network Activity'
+                  position:
+                    x1: "2%"
+                    y1: "52%"
+                    x2: "48%"
+                    y2: "92%"
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 4
+                  refresh_interval: 4000
+                  script:
+                    - |
+                      echo "Network Interfaces:"
+                      if command -v netstat >/dev/null; then
+                        netstat -i | head -5
+                      else
+                        ifconfig | head -8
+                      fi
+                      echo ""
+                      echo "Connection Activity:"
+                      for i in $(seq 1 5); do
+                        rx=$((RANDOM % 1000 + 100))
+                        tx=$((RANDOM % 800 + 50))
+                        echo "T$i: RX:${rx}KB TX:${tx}KB"
+                      done
+
+                - id: 'disk_chart_enhanced'
+                  title: 'Disk Activity'
+                  position:
+                    x1: "52%"
+                    y1: "52%"
+                    x2: "98%"
+                    y2: "92%"
+                  border: true
+                  border_color: 'yellow'
+                  tab_order: 5
+                  refresh_interval: 5000
+                  script:
+                    - |
+                      echo "Disk Usage:"
+                      df -h | head -6 | tail -5
+                      echo ""
+                      echo "I/O Activity:"
+                      if command -v iostat >/dev/null; then
+                        iostat 1 1 | tail -3 2>/dev/null || echo "iostat not available"
+                      else
+                        echo "Disk Activity Simulation:"
+                        for i in $(seq 1 4); do
+                          read_val=$((RANDOM % 100 + 10))
+                          write_val=$((RANDOM % 80 + 5))
+                          echo "Disk$i: R:${read_val}MB/s W:${write_val}MB/s"
+                        done
+                      fi
+
+            # Enhanced Log Monitoring
+            - id: 'log_monitoring'
+              title: 'System Logs and Events'
+              position:
+                x1: "0%"
+                y1: "52%"
+                x2: "100%"
+                y2: "100%"
+              border: true
+              border_color: 'bright_blue'
+              children:
+                - id: 'system_events'
+                  title: 'System Events'
+                  position:
+                    x1: "2%"
+                    y1: "8%"
+                    x2: "48%"
+                    y2: "92%"
+                  border: true
+                  border_color: 'blue'
+                  tab_order: 6
+                  refresh_interval: 10000
+                  script:
+                    - |
+                      echo "Recent System Events:"
+                      if command -v journalctl >/dev/null; then
+                        journalctl -n 8 --no-pager 2>/dev/null | tail -8
+                      elif [ -f /var/log/system.log ]; then
+                        tail -8 /var/log/system.log
+                      else
+                        echo "$(date): INFO System started"
+                        echo "$(date): INFO Network interface up"
+                        echo "$(date): WARN High memory usage"
+                        echo "$(date): INFO Backup completed"
+                        echo "$(date): INFO Service restarted"
+                      fi
+
+                - id: 'security_events'
+                  title: 'Security Log'
+                  position:
+                    x1: "52%"
+                    y1: "8%"
+                    x2: "98%"
+                    y2: "92%"
+                  border: true
+                  border_color: 'red'
+                  tab_order: 7
+                  refresh_interval: 15000
+                  script:
+                    - |
+                      echo "Security Events:"
+                      if [ -f /var/log/auth.log ]; then
+                        tail -8 /var/log/auth.log | head -5
+                      elif [ -f /var/log/secure ]; then
+                        tail -8 /var/log/secure
+                      else
+                        echo "$(date): INFO SSH connection from local"
+                        echo "$(date): INFO User login: $(whoami)"
+                        echo "$(date): INFO Firewall: Allow port 22"
+                        echo "$(date): INFO Security scan completed"
+                      fi
+
+        # Enhanced Footer
+        - id: 'footer_enhanced'
+          title: 'System Status Bar'
+          position:
+            x1: "0%"
+            y1: "94%"
+            x2: "100%"
+            y2: "100%"
+          border: true
+          border_color: 'bright_cyan'
+          bg_color: 'black'
+          fg_color: 'bright_cyan'
+          refresh_interval: 1000
+          script:
+            - |
+              LOAD=$(uptime | cut -d: -f4-)
+              if command -v free >/dev/null; then
+                MEM=$(free | grep Mem | head -1)
+              else
+                MEM="N/A"
+              fi
+              DISK=$(df / 2>/dev/null | tail -1 || echo "N/A")
+              echo "$(date '+%A, %B %d %Y - %H:%M:%S') | Load: ${LOAD:-N/A} | RAM: ${MEM} | Disk: ${DISK} | Host: $(hostname)"

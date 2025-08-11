@@ -2,7 +2,7 @@ use crate::model::common::*;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -11,10 +11,68 @@ use std::io::Write;
 
 use crate::{utils::*, AppContext, AppGraph};
 
+/// Flexible deserializer for script fields that handles:
+/// - Single string (split on newlines)
+/// - Array of strings
+/// - Mixed array with YAML literal blocks
+fn deserialize_script<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ScriptFormat {
+        Single(String),
+        Multiple(Vec<String>),
+        Mixed(Vec<serde_yaml::Value>),
+    }
+
+    let script_format = Option::<ScriptFormat>::deserialize(deserializer)?;
+    
+    match script_format {
+        None => Ok(None),
+        Some(ScriptFormat::Single(single)) => {
+            // Split single string on newlines, filter empty lines
+            let commands: Vec<String> = single
+                .lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
+                .collect();
+            Ok(Some(commands))
+        }
+        Some(ScriptFormat::Multiple(multiple)) => Ok(Some(multiple)),
+        Some(ScriptFormat::Mixed(mixed)) => {
+            // Handle mixed array with literal blocks and simple strings
+            let mut commands = Vec::new();
+            for value in mixed {
+                match value {
+                    serde_yaml::Value::String(s) => commands.push(s),
+                    serde_yaml::Value::Mapping(_) | serde_yaml::Value::Sequence(_) => {
+                        // Convert complex YAML structures to string representation
+                        if let Ok(yaml_str) = serde_yaml::to_string(&value) {
+                            // For literal blocks, extract the actual content
+                            let clean_str = yaml_str.trim_start_matches("---\n").trim().to_string();
+                            if !clean_str.is_empty() {
+                                commands.push(clean_str);
+                            }
+                        }
+                    }
+                    _ => {
+                        // For other types, convert to string
+                        commands.push(format!("{:?}", value));
+                    }
+                }
+            }
+            Ok(Some(commands))
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Choice {
     pub id: String,
     pub content: Option<String>,
+    #[serde(deserialize_with = "deserialize_script", default)]
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     pub redirect_output: Option<String>,
@@ -118,6 +176,7 @@ pub struct Panel {
     pub selected_menu_bg_color: Option<String>,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
+    #[serde(deserialize_with = "deserialize_script", default)]
     pub script: Option<Vec<String>>,
     pub thread: Option<bool>,
     #[serde(default)]

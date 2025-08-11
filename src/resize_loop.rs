@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 create_runnable!(
     ResizeLoop,
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
+    |_inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool { true },
     |inner: &mut RunnableImpl,
      app_context: AppContext,
-     messages: Vec<Message>|
+     _messages: Vec<Message>|
      -> (bool, AppContext) {
         let mut signals =
             Signals::new([SIGWINCH, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGCONT]).unwrap();

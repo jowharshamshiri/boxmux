@@ -32,8 +32,8 @@ pub enum JobStatus {
 #[derive(Debug)]
 pub struct ChoiceThreadManager {
     sender: Sender<Box<dyn FnOnce(Sender<Box<dyn Any + Send>>) + Send>>,
-    receiver: Arc<Mutex<Receiver<Box<dyn FnOnce(Sender<Box<dyn Any + Send>>) + Send>>>>,
-    result_sender: Sender<Box<dyn Any + Send>>,
+    _receiver: Arc<Mutex<Receiver<Box<dyn FnOnce(Sender<Box<dyn Any + Send>>) + Send>>>>,
+    _result_sender: Sender<Box<dyn Any + Send>>,
     result_receiver: Arc<Mutex<Receiver<Box<dyn Any + Send>>>>,
     queued_jobs: Arc<Mutex<HashMap<String, (String, String)>>>,
     executing_jobs: Arc<Mutex<HashMap<String, (String, String)>>>,
@@ -118,8 +118,8 @@ impl ChoiceThreadManager {
 
         ChoiceThreadManager {
             sender,
-            receiver,
-            result_sender,
+            _receiver: receiver,
+            _result_sender: result_sender,
             result_receiver,
             queued_jobs,
             executing_jobs,

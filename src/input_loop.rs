@@ -9,10 +9,10 @@ use crate::thread_manager::*;
 use uuid::Uuid;
 create_runnable!(
     InputLoop,
-    |inner: &mut RunnableImpl, app_context: AppContext, messages: Vec<Message>| -> bool { true },
+    |_inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool { true },
     |inner: &mut RunnableImpl,
      app_context: AppContext,
-     messages: Vec<Message>|
+     _messages: Vec<Message>|
      -> (bool, AppContext) {
         let mut should_continue = true;
 

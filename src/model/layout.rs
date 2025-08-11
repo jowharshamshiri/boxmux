@@ -54,8 +54,10 @@ impl Hash for Layout {
         self.id.hash(state);
         self.title.hash(state);
         self.refresh_interval.hash(state);
-        for panel in &self.children {
-            panel.hash(state);
+        if let Some(children) = &self.children {
+            for panel in children {
+                panel.hash(state);
+            }
         }
         self.fill.hash(state);
         self.fill_char.hash(state);

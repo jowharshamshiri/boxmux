@@ -15,7 +15,6 @@ use boxmux_lib::SocketFunction;
 use clap::{Arg, Command};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -47,14 +46,14 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                     create_runnable_with_dynamic_input!(
                         PanelRefreshLoop,
                         Box::new(vec_fn),
-                        |inner: &mut RunnableImpl,
-                         app_context: AppContext,
-                         messages: Vec<Message>,
-                         vec: Vec<String>|
+                        |_inner: &mut RunnableImpl,
+                         _app_context: AppContext,
+                         _messages: Vec<Message>,
+                         _vec: Vec<String>|
                          -> bool { true },
                         |inner: &mut RunnableImpl,
                          app_context: AppContext,
-                         messages: Vec<Message>,
+                         _messages: Vec<Message>,
                          vec: Vec<String>|
                          -> (bool, AppContext) {
                             let mut app_context_unwrapped = app_context.clone();
@@ -97,14 +96,14 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
             create_runnable_with_dynamic_input!(
                 PanelRefreshLoop,
                 Box::new(vec_fn),
-                |inner: &mut RunnableImpl,
-                 app_context: AppContext,
-                 messages: Vec<Message>,
-                 vec: Vec<String>|
+                |_inner: &mut RunnableImpl,
+                 _app_context: AppContext,
+                 _messages: Vec<Message>,
+                 _vec: Vec<String>|
                  -> bool { true },
                 |inner: &mut RunnableImpl,
                  app_context: AppContext,
-                 messages: Vec<Message>,
+                 _messages: Vec<Message>,
                  vec: Vec<String>|
                  -> (bool, AppContext) {
                     let mut app_context_unwrapped = app_context.clone();
@@ -495,51 +494,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = match load_app_from_yaml(yaml_path.to_str().unwrap()) {
         Ok(app) => app,
         Err(e) => {
-            eprintln!("Error loading YAML configuration file: {}", yaml_path.display());
-            eprintln!();
-            
-            // Check if it's a YAML parsing error
-            if let Some(yaml_error) = e.downcast_ref::<serde_yaml::Error>() {
-                eprintln!("YAML parsing error:");
-                eprintln!("  {}", yaml_error);
-                
-                // Try to provide more specific guidance
-                let error_msg = format!("{}", yaml_error);
-                if error_msg.contains("missing field") {
-                    eprintln!();
-                    eprintln!("Common fixes:");
-                    eprintln!("  • Make sure your YAML file starts with 'app:'");
-                    eprintln!("  • Check that all required fields are present");
-                    eprintln!("  • Ensure proper indentation (use spaces, not tabs)");
-                } else if error_msg.contains("invalid type") {
-                    eprintln!();
-                    eprintln!("Common fixes:");
-                    eprintln!("  • Check that field values match expected types");
-                    eprintln!("  • Strings should be quoted if they contain special characters");
-                    eprintln!("  • Arrays should use proper YAML list syntax");
-                } else if error_msg.contains("duplicate") {
-                    eprintln!();
-                    eprintln!("Common fixes:");
-                    eprintln!("  • Check for duplicate field names");
-                    eprintln!("  • Ensure all panel IDs are unique");
-                }
-            } else if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
-                eprintln!("File system error:");
-                eprintln!("  {}", io_error);
-                eprintln!();
-                eprintln!("Common fixes:");
-                eprintln!("  • Check that the file exists: {}", yaml_path.display());
-                eprintln!("  • Verify you have read permissions");
-                eprintln!("  • Make sure the file path is correct");
-            } else {
-                eprintln!("Configuration error:");
-                eprintln!("  {}", e);
-            }
-            
-            eprintln!();
-            eprintln!("For help with configuration syntax, see:");
-            eprintln!("  https://github.com/jowharshamshiri/boxmux/tree/main/docs");
-            
+            // The enhanced error handling is now built into load_app_from_yaml
+            // so we just need to display the detailed error message
+            eprintln!("{}", e);
             std::process::exit(1);
         }
     };
@@ -554,10 +511,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut manager = ThreadManager::new(app_context.clone());
 
-    let input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
-    let draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.clone()));
-    let resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.clone()));
-    let socket_service_uuid = manager.spawn_thread(SocketService::new(app_context.clone()));
+    let _input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
+    let _draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.clone()));
+    let _resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.clone()));
+    let _socket_service_uuid = manager.spawn_thread(SocketService::new(app_context.clone()));
 
     run_panel_threads(&mut manager, &app_context);
 
