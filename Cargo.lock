@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "boxmux"
-version = "0.113.102308"
+version = "0.114.102316"
 dependencies = [
  "RustJanus",
  "actix-web",

@@ -392,7 +392,8 @@ mod tests {
         assert!(result.is_err());
         
         if let Err(err) = result {
-            assert!(err.message.as_ref().unwrap().contains("Failed to process command"));
+            let details = err.data.and_then(|d| d.details).unwrap_or_default();
+            assert!(details.contains("Failed to process command"));
         } else {
             panic!("Expected JSONRPCError");
         }
@@ -490,7 +491,8 @@ mod tests {
 
         assert!(result.is_err());
         if let Err(err) = result {
-            assert!(err.message.as_ref().unwrap().contains("Missing required argument: panel_id"));
+            let details = err.data.and_then(|d| d.details).unwrap_or_default();
+            assert!(details.contains("Missing required argument: panel_id"));
         } else {
             panic!("Expected JSONRPCError for missing panel_id");
         }
@@ -616,9 +618,9 @@ mod tests {
             }
             Err(err) => {
                 // Expected if Panel deserialization fails with test JSON
-                assert!(err.message.as_ref().unwrap().contains("Invalid panel definition"));
+                let details = err.data.and_then(|d| d.details).unwrap_or_default();
+                assert!(details.contains("Invalid panel definition"));
             }
-            Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
 }
