@@ -13,9 +13,7 @@ pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;
 pub mod resize_loop;
-pub mod socket_handler;
-pub mod socket_server;
-pub mod socket_service;
+pub mod socket_loop;
 pub mod utils;
 pub mod validation;
 
@@ -27,6 +25,9 @@ pub mod integration_tests;
 
 #[cfg(test)]
 pub mod edge_case_tests;
+
+#[cfg(test)]
+pub mod socket_tests;
 
 pub use draw_loop::*;
 pub use input_loop::*;
