@@ -3,7 +3,6 @@ name = "boxmux"
 path = "src/main.rs"
 
 [dependencies]
-RustJanus = "0.31.47279"
 actix-web = "4.0"
 actix-web-prom = "0.6"
 anyhow = "1.0"
@@ -81,4 +80,4 @@ license = "MIT"
 name = "boxmux"
 readme = "README.md"
 repository = "https://github.com/jowharshamshiri/boxmux"
-version = "0.118.108407"
+version = "0.119.108424"

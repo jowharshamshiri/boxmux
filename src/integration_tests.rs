@@ -7,12 +7,8 @@
 mod tests {
     use crate::test_utils::*;
     use crate::model::common::SocketFunction;
-    use crate::socket_handler::BoxMuxSocketHandler;
     use crate::thread_manager::Message;
-    use rust_janus::protocol::JanusRequest;
     use std::sync::mpsc;
-    use std::collections::HashMap;
-    use serde_json::json;
 
     /// Test complete application lifecycle
     #[test]
@@ -78,45 +74,28 @@ mod tests {
         }
     }
 
-    /// Test error handling in socket workflow
+    /// Test socket function handling without RustJanus dependencies
     #[test]
-    fn test_socket_error_handling() {
-        let (tx, rx) = mpsc::channel();
-        let test_uuid = MockUtils::create_test_uuid();
-        let handler = BoxMuxSocketHandler::new(tx, test_uuid);
+    fn test_socket_function_handling() {
+        // Test SocketFunction processing directly
+        let socket_function = SocketFunction::ReplacePanelContent {
+            panel_id: "test_panel".to_string(),
+            success: true,
+            content: "test content".to_string(),
+        };
         
-        // Test with missing arguments
-        let mut args = HashMap::new();
-        args.insert("success".to_string(), json!(true));
-        args.insert("content".to_string(), json!("content"));
-        // Missing panel_id
+        let result = crate::model::common::run_socket_function(socket_function, &TestDataFactory::create_test_app_context());
+        assert!(result.is_ok());
         
-        let socket_cmd = JanusRequest::new(
-            "replace-panel-content".to_string(),
-            Some(args),
-            None,
-        );
-
-        // Simulate handler processing with missing argument
-        let message_sender_clone = handler.message_sender().clone();
-        let sender_uuid_clone = handler.sender_uuid();
-        
-        let result = (move |cmd: JanusRequest| {
-            let args = cmd.args.unwrap_or_default();
-            let _panel_id = args.get("panel_id")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| rust_janus::JSONRPCError::new(rust_janus::JSONRPCErrorCode::ValidationFailed, Some("Missing required argument: panel_id".to_string())))?;
-            
-            Ok::<serde_json::Value, rust_janus::JSONRPCError>(json!({"status": "success"}))
-        })(socket_cmd);
-
-        assert!(result.is_err());
-        if let Err(err) = result {
-            // The actual error details are in err.data.details, not err.message
-            let details = err.data.and_then(|d| d.details).unwrap_or_default();
-            assert!(details.contains("Missing required argument: panel_id"));
-        } else {
-            panic!("Expected ValidationError for missing panel_id");
+        let (_, messages) = result.unwrap();
+        assert_eq!(messages.len(), 1);
+        match &messages[0] {
+            Message::PanelOutputUpdate(panel_id, success, content) => {
+                assert_eq!(panel_id, "test_panel");
+                assert_eq!(*success, true);
+                assert_eq!(content, "test content");
+            }
+            _ => panic!("Expected PanelOutputUpdate message"),
         }
     }
 
@@ -136,9 +115,8 @@ mod tests {
     /// Test concurrent socket operations
     #[test]
     fn test_concurrent_socket_operations() {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel::<(uuid::Uuid, Message)>();
         let test_uuid = MockUtils::create_test_uuid();
-        let _handler = BoxMuxSocketHandler::new(tx.clone(), test_uuid);
         
         // Simulate multiple concurrent socket functions by directly sending messages
         let functions = vec![

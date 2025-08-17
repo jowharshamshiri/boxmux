@@ -5,7 +5,7 @@ extern crate clap;
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;
-use boxmux_lib::socket_service::SocketService;
+use boxmux_lib::socket_loop::SocketLoop;
 use boxmux_lib::thread_manager;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::FieldUpdate;
@@ -545,7 +545,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _input_loop_uuid = manager.spawn_thread(InputLoop::new(app_context.clone()));
     let _draw_loop_uuid = manager.spawn_thread(DrawLoop::new(app_context.clone()));
     let _resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.clone()));
-    let _socket_service_uuid = manager.spawn_thread(SocketService::new(app_context.clone()));
+    let _socket_loop_uuid = manager.spawn_thread(SocketLoop::new(app_context.clone()));
 
     run_panel_threads(&mut manager, &app_context);
 
