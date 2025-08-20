@@ -27,15 +27,19 @@ cargo test               # Run test suite
 
 ```yaml
 app:
+  variables:
+    APP_NAME: "My Interface"
   layouts:
     - id: 'main'
       root: true
-      title: 'My Interface'
+      title: '${APP_NAME}'
       children:
         - id: 'panel1'
           title: 'Panel Title'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           content: 'Hello, BoxMux!'
+          script:
+            - echo "User: $USER"
 ```
 
 ## Core
@@ -43,6 +47,7 @@ app:
 ### Essential References
 
 - [Configuration Guide](configuration.md) - YAML configuration reference with all properties
+- [Variable System](variables.md) - Template substitution and environment integration
 - [User Guide](user-guide.md) - Tutorials and examples for all use cases  
 - [API Reference](api.md) - Socket messaging and programmatic control documentation
 - [Troubleshooting](troubleshooting.md) - Common issues, debugging, and solutions
@@ -70,6 +75,7 @@ echo '{"RefreshPanel": {"panel_id": "monitor"}}' | nc -U /tmp/boxmux.sock
 - Unix Command Integration - Transform shell commands into dashboard components
 - Multi-threaded Execution - Commands run in isolated threads with clean separation
 - YAML Configuration - Define command pipelines and layouts declaratively
+- Variable System - Hierarchical variable substitution with environment integration
 - Real-time Updates - Configurable refresh intervals for command execution
 - Socket API - External control and data injection via Unix sockets
 

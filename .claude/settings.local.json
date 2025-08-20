@@ -8,7 +8,8 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(git checkout:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

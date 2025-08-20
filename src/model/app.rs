@@ -13,7 +13,101 @@ use std::collections::HashMap;
 use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 use crate::validation::SchemaValidator;
 use core::hash::Hash;
+use regex::Regex;
+use std::env;
 use std::hash::{DefaultHasher, Hasher};
+
+/// Variable context system implementing correct hierarchical precedence:
+/// Child Panel > Parent Panel > Layout > App Global > Environment > Default
+#[derive(Debug, Clone)]
+pub struct VariableContext {
+    app_vars: HashMap<String, String>,
+    layout_vars: HashMap<String, String>,
+}
+
+impl VariableContext {
+    pub fn new(app_vars: Option<&HashMap<String, String>>, layout_vars: Option<&HashMap<String, String>>) -> Self {
+        Self {
+            app_vars: app_vars.cloned().unwrap_or_default(),
+            layout_vars: layout_vars.cloned().unwrap_or_default(),
+        }
+    }
+
+    /// Resolve variable with correct precedence order:
+    /// Panel Hierarchy (child->parent) > Layout > App > Environment > Default
+    /// This allows YAML-defined variables to override environment for granular control
+    pub fn resolve_variable(&self, name: &str, default: &str, panel_hierarchy: &[&Panel]) -> String {
+        // Walk up panel hierarchy from most granular (child) to least granular (root parent)
+        for panel in panel_hierarchy.iter() {
+            if let Some(variables) = &panel.variables {
+                if let Some(panel_val) = variables.get(name) {
+                    return panel_val.clone();
+                }
+            }
+        }
+
+        // Layout-level variables
+        if let Some(layout_val) = self.layout_vars.get(name) {
+            return layout_val.clone();
+        }
+
+        // App-global variables
+        if let Some(app_val) = self.app_vars.get(name) {
+            return app_val.clone();
+        }
+
+        // Environment variables as fallback before defaults
+        if let Ok(env_val) = env::var(name) {
+            return env_val;
+        }
+
+        // Finally, use default value
+        default.to_string()
+    }
+
+    /// Apply variable substitution to a string with hierarchical context
+    pub fn substitute_in_string(&self, content: &str, panel_hierarchy: &[&Panel]) -> Result<String, Box<dyn std::error::Error>> {
+        let mut result = content.to_string();
+        
+        // Check for nested variables and fail gracefully with location info
+        if result.contains("${") {
+            let nested_pattern = Regex::new(r"\$\{[^}]*\$\{[^}]*\}")?;
+            if let Some(nested_match) = nested_pattern.find(&result) {
+                let problematic_text = &result[nested_match.start()..nested_match.end()];
+                return Err(format!(
+                    "Nested variable substitution is not supported. Found: '{}' - Use simple variables only.",
+                    problematic_text
+                ).into());
+            }
+        }
+        
+        // Pattern for variable substitution: ${VAR_NAME} or ${VAR_NAME:default_value}
+        // Updated to handle the case where default contains ${} more carefully
+        let var_pattern = Regex::new(r"\$\{([^}:]+)(?::([^}]*))?\}")?;
+        
+        result = var_pattern.replace_all(&result, |caps: &regex::Captures| {
+            let var_name = &caps[1];
+            let default_value = caps.get(2).map_or("", |m| m.as_str());
+            
+            // Additional check for malformed nested syntax
+            if default_value.contains("${") && !default_value.ends_with("}") {
+                return format!("error: malformed nested variable in default for '{}'", var_name);
+            }
+            
+            self.resolve_variable(var_name, default_value, panel_hierarchy)
+        }).to_string();
+        
+        // Pattern for simple environment variables: $VAR_NAME  
+        let env_pattern = Regex::new(r"\$([A-Z_][A-Z0-9_]*)")?;
+        
+        result = env_pattern.replace_all(&result, |caps: &regex::Captures| {
+            let var_name = &caps[1];
+            self.resolve_variable(var_name, &format!("${}", var_name), panel_hierarchy)
+        }).to_string();
+        
+        Ok(result)
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TemplateRoot {
@@ -27,6 +121,8 @@ pub struct App {
     pub libs: Option<Vec<String>>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
+    #[serde(default)]
+    pub variables: Option<HashMap<String, String>>,
     #[serde(skip)]
     app_graph: Option<AppGraph>,
     #[serde(skip)]
@@ -56,6 +152,7 @@ impl App {
             layouts: Vec::new(),
             libs: None,
             on_keypress: None,
+            variables: None,
             app_graph: None,
             adjusted_bounds: None,
         }
@@ -244,6 +341,7 @@ impl Clone for App {
             layouts: self.layouts.to_vec(),
             libs: self.libs.clone(),
             on_keypress: self.on_keypress.clone(),
+            variables: self.variables.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
         }
@@ -611,6 +709,7 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
         }
     }
 
+    // Parse YAML first to extract variable definitions
     let root_result: Result<TemplateRoot, _> = serde_yaml::from_str(&contents);
 
     let mut app = match root_result {
@@ -643,6 +742,9 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
             }
         }
     };
+
+    // Apply variable substitution AFTER parsing with hierarchical context
+    apply_variable_substitution(&mut app)?;
 
     // Validate the app configuration using SchemaValidator
     let mut validator = SchemaValidator::new();
@@ -695,6 +797,121 @@ fn create_rust_style_error_display(
     }
     
     result
+}
+
+/// Apply variable substitution to all fields in the parsed App structure
+fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    // Create variable context with app-level variables
+    let context = VariableContext::new(app.variables.as_ref(), None);
+    
+    // Apply substitution to all layouts
+    for layout in &mut app.layouts {
+        apply_layout_variable_substitution(layout, &context)?;
+    }
+    
+    Ok(())
+}
+
+/// Apply variable substitution to a layout and all its panels
+fn apply_layout_variable_substitution(layout: &mut Layout, context: &VariableContext) -> Result<(), Box<dyn std::error::Error>> {
+    // Use the same context for layout (layout variables not yet implemented)
+    let layout_context = context;
+    
+    // Apply to layout title
+    if let Some(ref mut title) = layout.title {
+        *title = layout_context.substitute_in_string(title, &[])
+            .map_err(|e| format!("Error in layout '{}' title: {}", layout.id, e))?;
+    }
+    
+    // Apply to all child panels
+    if let Some(ref mut children) = layout.children {
+        for child in children {
+            apply_panel_variable_substitution(child, &layout_context, &[])?;
+        }
+    }
+    
+    Ok(())
+}
+
+/// Apply variable substitution to a panel and its children with hierarchy context
+fn apply_panel_variable_substitution(
+    panel: &mut Panel, 
+    context: &VariableContext, 
+    parent_hierarchy: &[&Panel]
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Create a local variable context including this panel's variables
+    let local_context = if let Some(ref panel_vars) = panel.variables {
+        let mut combined_app_vars = context.app_vars.clone();
+        // Add panel variables to context for this panel and children
+        combined_app_vars.extend(panel_vars.clone());
+        VariableContext::new(Some(&combined_app_vars), Some(&context.layout_vars))
+    } else {
+        context.clone()
+    };
+    
+    // Build complete panel hierarchy for variable resolution
+    let full_hierarchy = parent_hierarchy.to_vec();
+    // Note: We can't add 'panel' to hierarchy due to borrowing issues
+    // Instead, we've merged panel variables into the context above
+    
+    // Apply substitution to panel fields with error context
+    if let Some(ref mut title) = panel.title {
+        *title = local_context.substitute_in_string(title, &full_hierarchy)
+            .map_err(|e| format!("Error in panel '{}' title: {}", panel.id, e))?;
+    }
+    
+    if let Some(ref mut content) = panel.content {
+        *content = local_context.substitute_in_string(content, &full_hierarchy)
+            .map_err(|e| format!("Error in panel '{}' content: {}", panel.id, e))?;
+    }
+    
+    if let Some(ref mut script) = panel.script {
+        for (i, script_line) in script.iter_mut().enumerate() {
+            *script_line = local_context.substitute_in_string(script_line, &full_hierarchy)
+                .map_err(|e| format!("Error in panel '{}' script line {}: {}", panel.id, i + 1, e))?;
+        }
+    }
+    
+    if let Some(ref mut redirect) = panel.redirect_output {
+        *redirect = local_context.substitute_in_string(redirect, &full_hierarchy)
+            .map_err(|e| format!("Error in panel '{}' redirect_output: {}", panel.id, e))?;
+    }
+    
+    // Apply to choices if present
+    if let Some(ref mut choices) = panel.choices {
+        for choice in choices {
+            if let Some(ref mut choice_content) = choice.content {
+                *choice_content = local_context.substitute_in_string(choice_content, &full_hierarchy)
+                    .map_err(|e| format!("Error in panel '{}' choice '{}' content: {}", panel.id, choice.id, e))?;
+            }
+            
+            if let Some(ref mut choice_script) = choice.script {
+                for (i, script_line) in choice_script.iter_mut().enumerate() {
+                    *script_line = local_context.substitute_in_string(script_line, &full_hierarchy)
+                        .map_err(|e| format!("Error in panel '{}' choice '{}' script line {}: {}", panel.id, choice.id, i + 1, e))?;
+                }
+            }
+        }
+    }
+    
+    // Recursively apply to child panels
+    if let Some(ref mut children) = panel.children {
+        for child in children {
+            // For children, we can't include 'panel' in hierarchy due to borrowing
+            // but the local_context already includes panel variables
+            apply_panel_variable_substitution(child, &local_context, &full_hierarchy)?;
+        }
+    }
+    
+    Ok(())
+}
+
+/// Legacy function kept for backward compatibility (now unused in main flow)
+pub fn substitute_variables(content: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // This function is deprecated in favor of the new hierarchical system
+    // but kept for any external dependencies
+    let context = VariableContext::new(None, None);
+    context.substitute_in_string(content, &[])
 }
 
 fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {

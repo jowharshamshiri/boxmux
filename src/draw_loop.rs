@@ -250,6 +250,40 @@ create_runnable!(
                             }
                         }
                     }
+                    Message::ScrollPanelPageUp() => {
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                // Page up scrolls by larger amount (10 units for page-based scrolling)
+                                found_panel.scroll_up(Some(10.0));
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::ScrollPanelPageDown() => {
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                // Page down scrolls by larger amount (10 units for page-based scrolling)
+                                found_panel.scroll_down(Some(10.0));
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
                     Message::RedrawPanel(panel_id) => {
                         if let Some(mut found_panel) = app_context_unwrapped
                             .app

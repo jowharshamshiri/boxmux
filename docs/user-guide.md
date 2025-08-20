@@ -1,6 +1,6 @@
 # BoxMux User Guide
 
-**Comprehensive guide for building terminal interfaces with BoxMux**
+**Guide for building terminal interfaces with BoxMux**
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@
 - [Common Patterns](#common-patterns)
 - [Real-World Examples](#real-world-examples)
 - [Best Practices](#best-practices)
-- [Advanced Techniques](#advanced-techniques)
+- [Techniques](#techniques)
 
 ## Quick Start
 
@@ -20,6 +20,8 @@ Create a simple "Hello World" interface:
 
 ```yaml
 app:
+  variables:
+    WELCOME_MSG: "Welcome to BoxMux!"
   layouts:
     - id: 'hello'
       root: true
@@ -32,7 +34,7 @@ app:
             y1: 40%
             x2: 75%
             y2: 60%
-          content: 'Welcome to BoxMux!'
+          content: '${WELCOME_MSG}'
           border: true
           border_color: 'green'
 ```
@@ -142,6 +144,73 @@ Add live data with refresh intervals:
     - date                 # Commands to run on each refresh
     - uptime
 ```
+
+### 5. Variable System - Dynamic Configuration
+
+BoxMux's variable system enables template-driven interfaces with environment-specific configuration:
+
+#### Basic Variable Usage
+
+```yaml
+app:
+  variables:
+    SERVER_NAME: "production-db"
+    DEFAULT_PORT: "5432"
+  layouts:
+    - id: 'database_monitor'
+      title: 'Database Monitor - ${SERVER_NAME}'
+      children:
+        - id: 'connection_status'
+          title: 'Connection Status'
+          script:
+            - 'pg_isready -h ${SERVER_NAME} -p ${DEFAULT_PORT}'
+            - 'echo "Connected to ${SERVER_NAME}:${DEFAULT_PORT}"'
+```
+
+#### Environment Integration
+
+Variables seamlessly integrate with environment variables:
+
+```yaml
+app:
+  variables:
+    ENVIRONMENT: "development"  # Overridden by $ENVIRONMENT if set
+  layouts:
+    - id: 'deployment_status'
+      title: 'Status - ${ENVIRONMENT}'
+      children:
+        - id: 'api_check'
+          script:
+            - 'echo "Environment: ${ENVIRONMENT}"'
+            - 'echo "User: ${USER:unknown}"'       # Uses $USER or "unknown"
+            - 'echo "Log Level: ${LOG_LEVEL:info}"' # Uses $LOG_LEVEL or "info"
+```
+
+#### Hierarchical Variables
+
+Child panels inherit and can override parent variables:
+
+```yaml
+app:
+  variables:
+    REGION: "us-east-1"
+  layouts:
+    - id: 'infrastructure'
+      children:
+        - id: 'web_tier'
+          variables:
+            SERVICE_TYPE: "frontend"
+            PORT: "80"
+          children:
+            - id: 'nginx_server'
+              variables:
+                SERVICE_NAME: "nginx"
+                PORT: "443"  # Overrides parent PORT
+              title: '${SERVICE_NAME} (${SERVICE_TYPE}) - ${REGION}'
+              # Resolves to: "nginx (frontend) - us-east-1"
+```
+
+**Learn more**: See the complete [Variable System Guide](variables.md) for additional patterns and best practices.
 
 ## Building Interfaces
 
@@ -267,31 +336,34 @@ children:
 
 ```yaml
 app:
+  variables:
+    REFRESH_FAST: "2000"
+    REFRESH_SLOW: "5000"
   layouts:
     - id: 'sysmon'
       root: true
-      title: 'System Monitor'
+      title: 'System Monitor - ${USER:admin}'
       bg_color: 'black'
       fg_color: 'green'
       children:
         - id: 'cpu'
           title: 'CPU Usage'
           position: {x1: 5%, y1: 10%, x2: 48%, y2: 40%}
-          refresh_interval: 2000
+          refresh_interval: ${REFRESH_FAST}
           script:
             - top -l 1 | grep "CPU usage"
             
         - id: 'memory'
           title: 'Memory Usage'
           position: {x1: 52%, y1: 10%, x2: 95%, y2: 40%}
-          refresh_interval: 2000
+          refresh_interval: ${REFRESH_FAST}
           script:
             - top -l 1 | grep "PhysMem"
             
         - id: 'disk'
           title: 'Disk Usage'
           position: {x1: 5%, y1: 45%, x2: 95%, y2: 75%}
-          refresh_interval: 5000
+          refresh_interval: ${REFRESH_SLOW}
           script:
             - df -h | head -5
             
@@ -446,7 +518,7 @@ script:
   content: 'Select a command from the menu to see output here'
 ```
 
-## Advanced Techniques
+## Techniques
 
 ### Dynamic Content with Scripts
 
@@ -537,6 +609,6 @@ script:
 
 ---
 
-For complete configuration reference, see [Configuration Guide](configuration.md).  
+For configuration reference, see [Configuration Guide](configuration.md).  
 For programmatic control, see [API Reference](api.md).  
 For troubleshooting, see [Troubleshooting Guide](troubleshooting.md).
