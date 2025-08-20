@@ -185,7 +185,7 @@ fn cleanup_terminal() {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("Boxmux")
-        .version("0.76.71205")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("jowharshamshiri@gmail.com")
         .about("A terminal multiplexer")
         .arg(
