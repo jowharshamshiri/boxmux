@@ -1,0 +1,8 @@
+# Development configuration overrides
+url: "http://localhost:4000"
+baseurl: ""
+
+# Development settings
+incremental: true
+livereload: true
+port: 4000

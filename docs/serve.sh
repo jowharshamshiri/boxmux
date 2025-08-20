@@ -37,4 +37,4 @@ bundle install
 # Serve the site
 echo "🌐 Serving site at http://localhost:4000"
 echo "🔄 Press Ctrl+C to stop"
-cd docs && bundle exec jekyll serve --livereload --open-url
+JEKYLL_ENV=development bundle exec jekyll serve --config _config.yml,_config_dev.yml --livereload --open-url --source .
