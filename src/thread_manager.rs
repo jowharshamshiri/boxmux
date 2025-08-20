@@ -21,6 +21,8 @@ pub enum Message {
     ScrollPanelUp(),
     ScrollPanelLeft(),
     ScrollPanelRight(),
+    ScrollPanelPageUp(),
+    ScrollPanelPageDown(),
     Resize,
     RedrawPanel(String),
     RedrawApp,
@@ -62,6 +64,8 @@ impl Hash for Message {
             Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
             Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
             Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
+            Message::ScrollPanelPageUp() => "scroll_panel_page_up".hash(state),
+            Message::ScrollPanelPageDown() => "scroll_panel_page_down".hash(state),
             Message::PanelOutputUpdate(panel_id, success, output) => {
                 "panel_output_update".hash(state);
                 panel_id.hash(state);
@@ -1712,11 +1716,15 @@ mod tests {
         let scroll_up = Message::ScrollPanelUp();
         let scroll_left = Message::ScrollPanelLeft();
         let scroll_right = Message::ScrollPanelRight();
+        let scroll_page_up = Message::ScrollPanelPageUp();
+        let scroll_page_down = Message::ScrollPanelPageDown();
         
         assert_eq!(scroll_down, Message::ScrollPanelDown());
         assert_eq!(scroll_up, Message::ScrollPanelUp());
         assert_eq!(scroll_left, Message::ScrollPanelLeft());
         assert_eq!(scroll_right, Message::ScrollPanelRight());
+        assert_eq!(scroll_page_up, Message::ScrollPanelPageUp());
+        assert_eq!(scroll_page_down, Message::ScrollPanelPageDown());
         
         assert_ne!(scroll_down, scroll_up);
         assert_ne!(scroll_left, scroll_right);

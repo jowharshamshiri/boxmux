@@ -25,6 +25,9 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Real-time Updates: Configurable refresh intervals for command execution
 - Interactive Elements: Navigate between commands and control execution
 - Socket Communication: External control and data injection via Unix sockets
+- Variable System: Hierarchical variable substitution with YAML-defined variables, environment inheritance, and template support
+- Configuration Validation: JSON Schema validation with detailed error reporting
+- Enhanced Scrolling: Scroll position preservation and page navigation
 - Process Management: Clean handling of long-running and periodic commands
 - Layout System: Organize command outputs in structured layouts
 - Data Visualization: Display command output as charts and logs
@@ -163,6 +166,84 @@ app:
                 - echo 'Selected option 1'
 ```
 
+## Variable System
+
+BoxMux includes hierarchical variable substitution for dynamic configuration and template-driven interfaces:
+
+### Variable Precedence
+
+Variables are resolved in this order (highest to lowest priority):
+1. **Panel-specific variables** (most granular control)
+2. **Parent panel variables** (inherited through hierarchy)
+3. **Layout-level variables** (layout scope)
+4. **Application-global variables** (app-wide scope)
+5. **Environment variables** (system fallback)
+6. **Default values** (built-in fallbacks)
+
+### Variable Syntax
+
+```yaml
+app:
+  variables:
+    SERVER_NAME: "production-server"
+    DEFAULT_USER: "admin"
+    
+  layouts:
+    - id: 'dashboard'
+      title: 'Dashboard for ${SERVER_NAME}'
+      children:
+        - id: 'status_panel'
+          variables:
+            PANEL_TITLE: "Server Status"
+          title: '${PANEL_TITLE}'
+          content: 'Monitoring: ${SERVER_NAME}'
+          script:
+            - echo "Checking ${SERVER_NAME} status..."
+            - ssh ${USER:${DEFAULT_USER}}@${SERVER_NAME} 'uptime'
+```
+
+### Variable Features
+
+- Hierarchical inheritance: Child panels inherit parent variables
+- Environment integration: Use existing environment variables as fallbacks
+- Default values: Provide fallbacks with `${VAR:default_value}` syntax
+- Multi-level substitution: Variables work in all fields (titles, content, scripts)
+- Template configurations: Create reusable configurations with variable placeholders
+
+### Real-world Example
+
+```yaml
+app:
+  variables:
+    ENVIRONMENT: "staging"
+    LOG_LEVEL: "info"
+    
+  layouts:
+    - id: 'monitoring'
+      title: 'Monitoring Dashboard - ${ENVIRONMENT}'
+      children:
+        - id: 'app_logs'
+          variables:
+            SERVICE_NAME: "web-api"
+          title: '${SERVICE_NAME} Logs'
+          script:
+            - tail -f /var/log/${SERVICE_NAME}/${ENVIRONMENT}.log
+            
+        - id: 'db_status'
+          variables:
+            SERVICE_NAME: "database"
+          title: '${SERVICE_NAME} Status'
+          script:
+            - echo "Checking ${SERVICE_NAME} on ${ENVIRONMENT}..."
+            - pg_isready -h ${DB_HOST:localhost} -p ${DB_PORT:5432}
+```
+
+This enables:
+- Environment-specific configurations without code duplication
+- Template-driven interfaces that adapt to different contexts
+- Maintainable configurations with centralized variable management
+- Flexible deployment across different environments and systems
+
 ## Socket Integration
 
 BoxMux supports real-time communication via Unix sockets:
@@ -204,6 +285,25 @@ echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmu
       content: 'View Logs'
       script:
         - tail -f /var/log/app.log
+```
+
+### Variable Substitution
+
+```yaml
+# Template with environment variables
+app:
+  variables:
+    APP_NAME: "My Application"
+  layouts:
+    - id: 'main'
+      title: '${APP_NAME} Dashboard'
+      children:
+        - id: 'info'
+          title: 'System Info'
+          script:
+            - echo "User: ${USER:unknown}"
+            - echo "Home: $HOME"
+            - echo "App: ${APP_NAME}"
 ```
 
 ### Data Visualization

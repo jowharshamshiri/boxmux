@@ -181,6 +181,8 @@ pub struct Panel {
     pub thread: Option<bool>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
+    #[serde(default)]
+    pub variables: Option<HashMap<String, String>>,
     pub horizontal_scroll: Option<f64>,
     pub vertical_scroll: Option<f64>,
     pub selected: Option<bool>,
@@ -328,6 +330,7 @@ impl Default for Panel {
             script: None,
             thread: Some(false),
             on_keypress: None,
+            variables: None,
             output: "".to_string(),
             save_in_file: None,
             horizontal_scroll: Some(0.0),
@@ -458,6 +461,7 @@ impl Clone for Panel {
             script: self.script.clone(),
             thread: self.thread,
             on_keypress: self.on_keypress.clone(),
+            variables: self.variables.clone(),
             output: self.output.clone(),
             save_in_file: self.save_in_file.clone(),
             horizontal_scroll: self.horizontal_scroll,
@@ -1238,6 +1242,10 @@ impl Panel {
     }
 
     pub fn update_content(&mut self, new_content: &str, append_content: bool, success: bool) {
+        // Preserve current scroll position
+        let preserved_horizontal_scroll = self.horizontal_scroll;
+        let preserved_vertical_scroll = self.vertical_scroll;
+        
         let mut formatted_content = new_content.to_string();
         if append_content {
             if let Some(self_content) = &self.content {
@@ -1254,6 +1262,10 @@ impl Panel {
         }
         self.content = Some(formatted_content);
         self.error_state = !success;
+        
+        // Restore scroll position after content update
+        self.horizontal_scroll = preserved_horizontal_scroll;
+        self.vertical_scroll = preserved_vertical_scroll;
 
         if self.save_in_file.is_some() {
             //include date
@@ -2486,6 +2498,123 @@ mod tests {
         assert!(content.contains("New content"));
         assert!(content.contains("Existing content"));
         assert!(content.contains("[")); // Timestamp format
+    }
+
+    /// Tests that Panel::update_content() preserves scroll position during content updates.
+    /// This test demonstrates the scroll position preservation feature.
+    #[test]
+    fn test_panel_update_content_preserves_scroll_position() {
+        let mut panel = Panel {
+            content: Some("Original content".to_string()),
+            horizontal_scroll: Some(25.0),
+            vertical_scroll: Some(75.0),
+            ..Default::default()
+        };
+        
+        // Update content and verify scroll position is preserved
+        panel.update_content("Updated content", false, true);
+        
+        assert_eq!(panel.content, Some("Updated content".to_string()));
+        assert_eq!(panel.horizontal_scroll, Some(25.0));
+        assert_eq!(panel.vertical_scroll, Some(75.0));
+        assert_eq!(panel.error_state, false);
+    }
+
+    /// Tests that Panel::update_content() preserves scroll position during append operations.
+    /// This test demonstrates scroll preservation with content appending.
+    #[test]
+    fn test_panel_update_content_append_preserves_scroll_position() {
+        let mut panel = Panel {
+            content: Some("Existing content".to_string()),
+            horizontal_scroll: Some(10.0),
+            vertical_scroll: Some(50.0),
+            ..Default::default()
+        };
+        
+        // Append content and verify scroll position is preserved
+        panel.update_content("New content", true, true);
+        
+        // Check scroll position preservation
+        assert_eq!(panel.horizontal_scroll, Some(10.0));
+        assert_eq!(panel.vertical_scroll, Some(50.0));
+        assert_eq!(panel.error_state, false);
+        
+        // Verify content was appended
+        let content = panel.content.unwrap();
+        assert!(content.contains("New content"));
+        assert!(content.contains("Existing content"));
+    }
+
+    /// Tests that Panel::update_content() preserves scroll position even when panel has no initial scroll values.
+    /// This test demonstrates scroll preservation with None values.
+    #[test]
+    fn test_panel_update_content_preserves_none_scroll_values() {
+        let mut panel = Panel {
+            content: Some("Original content".to_string()),
+            horizontal_scroll: None,
+            vertical_scroll: None,
+            ..Default::default()
+        };
+        
+        // Update content and verify None scroll values are preserved
+        panel.update_content("Updated content", false, true);
+        
+        assert_eq!(panel.content, Some("Updated content".to_string()));
+        assert_eq!(panel.horizontal_scroll, None);
+        assert_eq!(panel.vertical_scroll, None);
+    }
+
+    /// Tests that Panel scrolling supports larger amounts for page-based scrolling.
+    /// This test demonstrates the page scrolling feature with larger scroll amounts.
+    #[test]
+    fn test_panel_page_scrolling_large_amounts() {
+        let mut panel = Panel {
+            vertical_scroll: Some(50.0),
+            horizontal_scroll: Some(30.0),
+            ..Default::default()
+        };
+        
+        // Test page down (large scroll down)
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 60.0);
+        
+        // Test page up (large scroll up)
+        panel.scroll_up(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 50.0);
+        
+        // Test page scrolling doesn't exceed bounds
+        panel.vertical_scroll = Some(95.0);
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 100.0); // Capped at 100
+        
+        panel.vertical_scroll = Some(5.0);
+        panel.scroll_up(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 0.0); // Capped at 0
+    }
+
+    /// Tests that Panel page scrolling works correctly with boundary conditions.
+    /// This test demonstrates page scrolling boundary handling.
+    #[test]
+    fn test_panel_page_scrolling_boundaries() {
+        let mut panel = Panel::default();
+        
+        // Test page down from initial position (None -> Some)
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 10.0);
+        
+        // Test page up from initial position (None -> Some)
+        panel.vertical_scroll = None;
+        panel.scroll_up(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 0.0); // Can't go below 0
+        
+        // Test large page movements near boundaries
+        panel.vertical_scroll = Some(98.0);
+        panel.scroll_down(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 100.0); // Should cap at 100
+        
+        panel.vertical_scroll = Some(2.0);
+        panel.scroll_up(Some(10.0));
+        assert_eq!(panel.current_vertical_scroll(), 0.0); // Should cap at 0
     }
 
     // === Panel Selection Tests ===

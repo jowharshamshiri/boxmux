@@ -33,6 +33,15 @@
             }
           },
           "description": "Global key bindings mapping keys to command arrays"
+        },
+        "variables": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          },
+          "description": "Global variables for template substitution"
         }
       },
       "required": ["layouts"],
@@ -376,6 +385,15 @@
             }
           },
           "description": "Panel-specific key bindings"
+        },
+        "variables": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          },
+          "description": "Panel-local variables for template substitution"
         },
         "horizontal_scroll": {
           "type": "number",

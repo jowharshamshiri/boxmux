@@ -29,6 +29,18 @@ pub mod edge_case_tests;
 #[cfg(test)]
 pub mod socket_tests;
 
+#[cfg(test)]
+pub mod variable_tests;
+
+#[cfg(test)]
+pub mod integration_yaml_tests;
+
+#[cfg(test)]
+pub mod comprehensive_variable_tests;
+
+#[cfg(test)]
+pub mod hierarchical_variable_tests;
+
 pub use draw_loop::*;
 pub use input_loop::*;
 pub use model::app::*;

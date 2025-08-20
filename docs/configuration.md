@@ -12,6 +12,7 @@ This document provides a reference for BoxMux YAML configuration files.
 - [Choice Configuration](#choice-configuration)
 - [Color Reference](#color-reference)
 - [Script Configuration](#script-configuration)
+- [Variable System](#variable-system)
 - [Features](#features)
 - [Validation Rules](#validation-rules)
 - [Examples](#examples)
@@ -23,6 +24,7 @@ BoxMux configuration files use YAML format with the following top-level structur
 ```yaml
 app:
   libs:          # Optional: External script libraries
+  variables:     # Optional: Global variables for template substitution
   layouts:       # Required: Layout definitions
 ```
 
@@ -33,6 +35,7 @@ app:
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `libs` | `array[string]` | No | List of external script library files |
+| `variables` | `object` | No | Global variables for template substitution |
 | `layouts` | `array[Layout]` | Yes | List of layout definitions |
 
 ```yaml
@@ -40,8 +43,12 @@ app:
   libs:
     - lib/utils.sh
     - lib/network.sh
+  variables:
+    APP_NAME: "BoxMux Dashboard"
+    DEFAULT_USER: "admin"
   layouts:
     - id: 'main'
+      title: '${APP_NAME}'
       # ... layout configuration
 ```
 
@@ -113,6 +120,7 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `redirect_output` | `string` | No | - | Panel ID to redirect script output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 | `on_keypress` | `object` | No | - | Keyboard event handlers |
+| `variables` | `object` | No | - | Panel-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
 | `min_width` | `number` | No | - | Minimum width in characters |
@@ -371,6 +379,253 @@ overflow_behavior: 'fill'        # Fill with solid block
 overflow_behavior: 'cross_out'   # Cross out with X's
 overflow_behavior: 'removed'     # Hide the panel
 ```
+
+## Variable System
+
+BoxMux includes hierarchical variable substitution for dynamic configuration, template-driven interfaces, and environment-specific deployments.
+
+### Variable Syntax
+
+Variables use the following patterns:
+
+- `${VARIABLE}` - Standard variable substitution
+- `${VARIABLE:default_value}` - Variable with fallback default
+- `${VARIABLE:}` - Variable with empty default
+- `$SIMPLE_VAR` - Simple environment variable (legacy support)
+
+### Variable Precedence (Hierarchical Resolution)
+
+Variables are resolved in strict hierarchical order:
+
+1. **Panel-specific variables** (highest precedence, most granular)
+2. **Parent panel variables** (inherited through panel hierarchy) 
+3. **Layout-level variables** (layout scope)
+4. **Application-global variables** (app-wide scope)
+5. **Environment variables** (system fallback)
+6. **Default values** (built-in fallbacks, lowest precedence)
+
+This hierarchical approach allows child panels to override parent settings while providing sensible fallbacks.
+
+### Variable Declaration
+
+#### Application-level Variables
+
+Define global variables that apply across all layouts:
+
+```yaml
+app:
+  variables:
+    APP_NAME: "Production Dashboard"
+    SERVER_HOST: "prod-server.company.com"
+    LOG_LEVEL: "info"
+    DEFAULT_USER: "admin"
+```
+
+#### Panel-level Variables
+
+Define panel-specific variables that override global settings:
+
+```yaml
+- id: 'web_server_panel'
+  variables:
+    SERVICE_NAME: "nginx"
+    PORT: "80"
+    CONFIG_PATH: "/etc/nginx"
+  title: '${SERVICE_NAME} Server Status'
+  script:
+    - echo "Checking ${SERVICE_NAME} on port ${PORT}"
+    - systemctl status ${SERVICE_NAME}
+```
+
+### Variable Inheritance
+
+Child panels automatically inherit variables from their parents, creating a natural configuration hierarchy:
+
+```yaml
+app:
+  variables:
+    ENVIRONMENT: "production"
+    
+  layouts:
+    - id: 'monitoring'
+      children:
+        - id: 'parent_panel'
+          variables:
+            SERVICE_GROUP: "web-services"
+          children:
+            - id: 'child_panel'
+              variables:
+                SERVICE_NAME: "api-gateway"
+              title: '${SERVICE_NAME} in ${SERVICE_GROUP} (${ENVIRONMENT})'
+              # Resolves to: "api-gateway in web-services (production)"
+```
+
+### Variable Fields
+
+Variables work in all configuration fields:
+
+```yaml
+- id: 'dynamic_panel'
+  variables:
+    SERVICE: "database"
+    LOG_FILE: "/var/log/postgresql.log"
+  title: '${SERVICE} Monitor'           # Title substitution
+  content: 'Monitoring ${SERVICE}'      # Content substitution
+  script:                               # Script substitution
+    - echo "Starting ${SERVICE} check"
+    - tail -f ${LOG_FILE}
+  redirect_output: '${SERVICE}_output'  # Redirect target substitution
+  choices:
+    - id: 'restart'
+      content: 'Restart ${SERVICE}'     # Choice content substitution
+      script:
+        - systemctl restart ${SERVICE}  # Choice script substitution
+```
+
+### Advanced Examples
+
+#### Environment-specific Configuration
+
+```yaml
+app:
+  variables:
+    ENVIRONMENT: "staging"
+    DB_HOST: "staging-db.internal"
+    API_URL: "https://api-staging.company.com"
+    
+  layouts:
+    - id: 'deployment_dashboard'
+      title: 'Deployment Dashboard - ${ENVIRONMENT}'
+      children:
+        - id: 'database_panel'
+          variables:
+            SERVICE_NAME: "PostgreSQL"
+          title: '${SERVICE_NAME} Status'
+          script:
+            - echo "Connecting to ${DB_HOST}..."
+            - pg_isready -h ${DB_HOST}
+            
+        - id: 'api_panel'
+          variables:
+            SERVICE_NAME: "API Gateway"
+          title: '${SERVICE_NAME} Health'
+          script:
+            - curl -s ${API_URL}/health | jq .
+```
+
+#### Multi-service Monitoring
+
+```yaml
+app:
+  variables:
+    DEFAULT_USER: "monitor"
+    SSH_KEY: "~/.ssh/monitoring_key"
+    
+  layouts:
+    - id: 'infrastructure'
+      children:
+        - id: 'web_servers'
+          variables:
+            SERVER_TYPE: "web"
+          children:
+            - id: 'web1'
+              variables:
+                HOST: "web1.company.com"
+                SERVICE: "nginx"
+              title: '${SERVICE}@${HOST}'
+              script:
+                - ssh -i ${SSH_KEY} ${USER:${DEFAULT_USER}}@${HOST} 'systemctl status ${SERVICE}'
+                
+            - id: 'web2'
+              variables:
+                HOST: "web2.company.com" 
+                SERVICE: "apache2"
+              title: '${SERVICE}@${HOST}'
+              script:
+                - ssh -i ${SSH_KEY} ${USER:${DEFAULT_USER}}@${HOST} 'systemctl status ${SERVICE}'
+```
+
+#### Template-driven Deployment
+
+```yaml
+app:
+  variables:
+    DEPLOYMENT_ENV: "production"
+    NAMESPACE: "default"
+    
+  layouts:
+    - id: 'kubernetes_deploy'
+      title: 'K8s Deployment - ${DEPLOYMENT_ENV}'
+      children:
+        - id: 'frontend_deploy'
+          variables:
+            APP_NAME: "frontend"
+            REPLICAS: "3"
+            IMAGE_TAG: "v1.2.0"
+          title: 'Deploy ${APP_NAME}'
+          script:
+            - echo "Deploying ${APP_NAME} to ${DEPLOYMENT_ENV}"
+            - kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG} -n ${NAMESPACE}
+            - kubectl scale deployment/${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+```
+
+### Environment Variable Integration
+
+Seamlessly integrate with existing environment variables:
+
+```yaml
+# These variables will use environment values if set,
+# otherwise fall back to YAML-defined defaults
+app:
+  variables:
+    LOG_LEVEL: "info"  # Overridden by $LOG_LEVEL if set
+    
+  layouts:
+    - id: 'app_panel'
+      script:
+        - echo "Running with LOG_LEVEL=${LOG_LEVEL}"
+        - echo "User: ${USER:unknown}"          # Uses $USER or "unknown"
+        - echo "Home: ${HOME:/tmp}"             # Uses $HOME or "/tmp"
+```
+
+### Error Handling
+
+The variable system provides clear error messages for common issues:
+
+- **Nested variables**: `${USER:${DEFAULT}}` will show a descriptive error
+- **Malformed syntax**: Missing closing braces are detected and reported
+- **Circular references**: Prevented with clear error messages
+
+### Best Practices
+
+1. **Use hierarchical variables** for environment-specific configurations
+2. **Provide meaningful defaults** to prevent empty substitutions
+3. **Group related variables** at appropriate levels (app/layout/panel)
+4. **Use descriptive variable names** that indicate their scope and purpose
+5. **Leverage inheritance** to reduce configuration duplication
+
+### Example Usage
+
+```yaml
+app:
+  variables:
+    APP_NAME: "My Dashboard"
+    REFRESH_RATE: "1000"
+  layouts:
+    - id: 'main'
+      title: '${APP_NAME} v${VERSION:1.0}'
+      children:
+        - id: 'panel1'
+          variables:
+            LOCAL_VAR: "panel-specific"
+          script:
+            - echo "User: ${USER:unknown}"
+            - echo "App: ${APP_NAME}"
+            - echo "Local: ${LOCAL_VAR}"
+            - echo "Home: $HOME"
+```
+
+For detailed documentation, see [Variable System Guide](variables.md).
 
 ## Validation Rules
 

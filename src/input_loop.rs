@@ -53,6 +53,14 @@ create_runnable!(
                                 inner.send_message(Message::ScrollPanelRight());
                                 "Right".to_string()
                             }
+                            KeyCode::PageUp => {
+                                inner.send_message(Message::ScrollPanelPageUp());
+                                "PageUp".to_string()
+                            }
+                            KeyCode::PageDown => {
+                                inner.send_message(Message::ScrollPanelPageDown());
+                                "PageDown".to_string()
+                            }
                             KeyCode::Char(c) => {
                                 if modifiers.contains(KeyModifiers::CONTROL) {
                                     format!("Ctrl+{}", c)
@@ -67,8 +75,6 @@ create_runnable!(
                             KeyCode::Esc => "Esc".to_string(),
                             KeyCode::Home => "Home".to_string(),
                             KeyCode::End => "End".to_string(),
-                            KeyCode::PageUp => "PageUp".to_string(),
-                            KeyCode::PageDown => "PageDown".to_string(),
                             KeyCode::F(n) => format!("F{}", n),
                             KeyCode::Insert => "Insert".to_string(),
                             _ => return (true, app_context),

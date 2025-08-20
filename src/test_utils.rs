@@ -73,6 +73,7 @@ impl TestDataFactory {
             script: None,
             thread: None,
             on_keypress: None,
+            variables: None,
             horizontal_scroll: None,
             vertical_scroll: None,
             selected: None,
