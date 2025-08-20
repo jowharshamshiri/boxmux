@@ -597,6 +597,20 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
+    // First, perform JSON schema validation if schema files exist
+    let schema_dir = "schemas";
+    if std::path::Path::new(schema_dir).exists() {
+        let mut validator = SchemaValidator::new();
+        if let Err(schema_errors) = validator.validate_with_json_schema(&contents, schema_dir) {
+            let error_messages: Vec<String> = schema_errors
+                .into_iter()
+                .map(|e| format!("{}", e))
+                .collect();
+            let combined_message = error_messages.join("\n");
+            return Err(format!("JSON Schema validation failed:\n{}", combined_message).into());
+        }
+    }
+
     let root_result: Result<TemplateRoot, _> = serde_yaml::from_str(&contents);
 
     let mut app = match root_result {

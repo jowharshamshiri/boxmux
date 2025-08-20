@@ -1,0 +1,573 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BoxMux App Configuration Schema",
+  "description": "JSON Schema for validating BoxMux YAML application configurations",
+  "type": "object",
+  "properties": {
+    "app": {
+      "type": "object",
+      "properties": {
+        "layouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/layout"
+          },
+          "minItems": 1,
+          "description": "Array of layout definitions, at least one layout required"
+        },
+        "libs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional array of external script library files to include"
+        },
+        "on_keypress": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Global key bindings mapping keys to command arrays"
+        }
+      },
+      "required": ["layouts"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["app"],
+  "additionalProperties": false,
+  "definitions": {
+    "color_name": {
+      "type": "string",
+      "enum": [
+        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+        "bright_black", "bright_red", "bright_green", "bright_yellow", 
+        "bright_blue", "bright_magenta", "bright_cyan", "bright_white"
+      ]
+    },
+    "anchor_type": {
+      "type": "string",
+      "enum": [
+        "TopLeft", "TopRight", "BottomLeft", "BottomRight", "Center",
+        "CenterTop", "CenterBottom", "CenterLeft", "CenterRight"
+      ],
+      "default": "Center"
+    },
+    "position_value": {
+      "type": "string",
+      "pattern": "^\\d+(%|px)?$",
+      "description": "Position value as percentage (50%) or pixels (100px) or plain number"
+    },
+    "overflow_behavior": {
+      "type": "string",
+      "enum": ["scroll", "wrap", "truncate", "hidden"],
+      "description": "How to handle content that exceeds panel boundaries"
+    },
+    "title_position": {
+      "type": "string", 
+      "enum": ["left", "center", "right"],
+      "description": "Horizontal alignment of panel title"
+    },
+    "input_bounds": {
+      "type": "object",
+      "properties": {
+        "x1": {
+          "$ref": "#/definitions/position_value",
+          "description": "Left position"
+        },
+        "y1": {
+          "$ref": "#/definitions/position_value", 
+          "description": "Top position"
+        },
+        "x2": {
+          "$ref": "#/definitions/position_value",
+          "description": "Right position"
+        },
+        "y2": {
+          "$ref": "#/definitions/position_value",
+          "description": "Bottom position"
+        }
+      },
+      "required": ["x1", "y1", "x2", "y2"],
+      "additionalProperties": false
+    },
+    "choice": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for the choice"
+        },
+        "content": {
+          "type": "string",
+          "description": "Display text for the choice"
+        },
+        "script": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Single script command"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of script commands"
+            }
+          ],
+          "description": "Script to execute when choice is selected"
+        },
+        "thread": {
+          "type": "boolean",
+          "description": "Whether to run choice script in separate thread"
+        },
+        "redirect_output": {
+          "type": "string",
+          "description": "ID of panel to redirect choice output to"
+        },
+        "append_output": {
+          "type": "boolean",
+          "description": "Whether to append choice output or replace"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for the panel"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional display title for the panel"
+        },
+        "position": {
+          "$ref": "#/definitions/input_bounds",
+          "description": "Panel position and size bounds"
+        },
+        "anchor": {
+          "$ref": "#/definitions/anchor_type",
+          "description": "Anchor point for panel positioning"
+        },
+        "min_width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum panel width in characters"
+        },
+        "min_height": {
+          "type": "integer", 
+          "minimum": 1,
+          "description": "Minimum panel height in characters"
+        },
+        "max_width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum panel width in characters"
+        },
+        "max_height": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum panel height in characters"
+        },
+        "overflow_behavior": {
+          "$ref": "#/definitions/overflow_behavior",
+          "description": "How to handle content overflow"
+        },
+        "scroll": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether panel content is scrollable"
+        },
+        "refresh_interval": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "Refresh interval in milliseconds for auto-updating content"
+        },
+        "tab_order": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "integer", "minimum": 0}
+          ],
+          "description": "Tab order position for focus navigation"
+        },
+        "next_focus_id": {
+          "type": "string",
+          "description": "ID of next panel to focus when tabbing"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/panel"
+          },
+          "description": "Array of nested child panels"
+        },
+        "fill": {
+          "type": "boolean",
+          "description": "Whether to fill panel background"
+        },
+        "fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Character to use for filling background"
+        },
+        "selected_fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Fill character when panel is selected"
+        },
+        "border": {
+          "type": "boolean",
+          "description": "Whether to show border around panel"
+        },
+        "border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color"
+        },
+        "selected_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color when selected"
+        },
+        "bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color"
+        },
+        "selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color when selected"
+        },
+        "fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground/text color"
+        },
+        "selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when selected"
+        },
+        "title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color"
+        },
+        "title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color"
+        },
+        "selected_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when selected"
+        },
+        "selected_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when selected"
+        },
+        "title_position": {
+          "$ref": "#/definitions/title_position",
+          "description": "Horizontal alignment of title"
+        },
+        "error_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color in error state"
+        },
+        "error_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color in error state"
+        },
+        "error_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Text color in error state"
+        },
+        "error_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color in error state"
+        },
+        "error_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color in error state"
+        },
+        "error_selected_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected border color in error state"
+        },
+        "error_selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected background color in error state"
+        },
+        "error_selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected text color in error state"
+        },
+        "error_selected_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected title background color in error state"
+        },
+        "error_selected_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected title text color in error state"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/choice"
+          },
+          "description": "Array of interactive menu choices"
+        },
+        "menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color"
+        },
+        "menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color"
+        },
+        "selected_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected menu text color"
+        },
+        "selected_menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected menu background color"
+        },
+        "redirect_output": {
+          "type": "string",
+          "description": "ID of panel to redirect script output to"
+        },
+        "append_output": {
+          "type": "boolean",
+          "description": "Whether to append to existing content or replace"
+        },
+        "script": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Single script command or multi-line script"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of script commands to execute"
+            }
+          ],
+          "description": "Script commands to execute for panel content"
+        },
+        "thread": {
+          "type": "boolean",
+          "description": "Whether to run script in separate thread"
+        },
+        "on_keypress": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Panel-specific key bindings"
+        },
+        "horizontal_scroll": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Horizontal scroll position"
+        },
+        "vertical_scroll": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Vertical scroll position"
+        },
+        "selected": {
+          "type": "boolean",
+          "description": "Whether panel is currently selected"
+        },
+        "content": {
+          "type": "string",
+          "description": "Static text content to display in panel"
+        },
+        "save_in_file": {
+          "type": "string",
+          "description": "File path to save panel content to"
+        }
+      },
+      "required": ["id", "position"],
+      "additionalProperties": false
+    },
+    "layout": {
+      "type": "object", 
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for the layout"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional display title for the layout"
+        },
+        "refresh_interval": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "Refresh interval in milliseconds (minimum 100ms)"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/panel"
+          },
+          "description": "Array of child panels within this layout"
+        },
+        "fill": {
+          "type": "boolean",
+          "description": "Whether to fill the layout background"
+        },
+        "fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Character to use for filling background"
+        },
+        "selected_fill_char": {
+          "type": "string", 
+          "maxLength": 1,
+          "description": "Character to use when layout is selected"
+        },
+        "border": {
+          "type": "boolean",
+          "description": "Whether to show border around layout"
+        },
+        "border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color"
+        },
+        "selected_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color when selected"
+        },
+        "bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color"
+        },
+        "selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color when selected"
+        },
+        "fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground/text color"
+        },
+        "selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when selected"
+        },
+        "title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color"
+        },
+        "title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color"
+        },
+        "title_position": {
+          "$ref": "#/definitions/title_position",
+          "description": "Horizontal alignment of title"
+        },
+        "selected_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when selected"
+        },
+        "selected_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when selected"
+        },
+        "menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color"
+        },
+        "menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color"
+        },
+        "selected_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected menu text color"
+        },
+        "selected_menu_bg_color": {
+          "$ref": "#/definitions/color_name", 
+          "description": "Selected menu background color"
+        },
+        "error_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color in error state"
+        },
+        "error_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color in error state"
+        },
+        "error_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Text color in error state"
+        },
+        "error_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color in error state"
+        },
+        "error_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color in error state"
+        },
+        "error_selected_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected border color in error state"
+        },
+        "error_selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected background color in error state"
+        },
+        "error_selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected text color in error state"
+        },
+        "error_selected_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected title background color in error state"
+        },
+        "error_selected_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected title text color in error state"
+        },
+        "overflow_behavior": {
+          "$ref": "#/definitions/overflow_behavior",
+          "description": "How to handle content overflow"
+        },
+        "root": {
+          "type": "boolean",
+          "description": "Whether this is the root layout"
+        },
+        "on_keypress": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Layout-specific key bindings"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  }
+}
