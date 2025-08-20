@@ -1,3 +1,10 @@
+---
+layout: default
+title: Roadmap - BoxMux
+---
+
+<div class="doc-content">
+
 # BoxMux Development Roadmap
 
 ## Project Vision
@@ -115,3 +122,5 @@
 ---
 
 For the latest updates, see our [GitHub milestones](https://github.com/jowharshamshiri/boxmux/milestones) and [project boards](https://github.com/jowharshamshiri/boxmux/projects).
+
+</div>

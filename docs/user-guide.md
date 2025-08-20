@@ -1,3 +1,10 @@
+---
+layout: default
+title: User Guide - BoxMux
+---
+
+<div class="doc-content">
+
 # BoxMux User Guide
 
 **Guide for building terminal interfaces with BoxMux**
@@ -41,6 +48,10 @@ app:
 
 Run it:
 ```bash
+# If installed via cargo install
+boxmux hello.yaml
+
+# If built from source
 ./run_boxmux.sh hello.yaml
 ```
 
@@ -612,3 +623,5 @@ script:
 For configuration reference, see [Configuration Guide](configuration.md).  
 For programmatic control, see [API Reference](api.md).  
 For troubleshooting, see [Troubleshooting Guide](troubleshooting.md).
+
+</div>
