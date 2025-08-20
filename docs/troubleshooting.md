@@ -3,8 +3,6 @@ layout: default
 title: Troubleshooting Guide - BoxMux
 ---
 
-<div class="doc-content">
-
 # Troubleshooting Guide
 
 This guide helps you diagnose and resolve common issues with BoxMux.
@@ -229,5 +227,3 @@ pkill -f boxmux
 # Or use Ctrl+C in terminal
 # Or close terminal window
 ```
-
-</div>

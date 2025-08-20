@@ -43,6 +43,8 @@ social:
 # Build settings
 markdown: kramdown
 highlighter: rouge
+source: .
+destination: _site
 kramdown:
   syntax_highlighter: rouge
   syntax_highlighter_opts:
@@ -52,22 +54,11 @@ kramdown:
     block:
       line_numbers: true
 
-# Collections
-collections:
-  docs:
-    output: true
-    permalink: /:collection/:name/
-
 # Defaults
 defaults:
   - scope:
       path: ""
       type: "pages"
-    values:
-      layout: "default"
-  - scope:
-      path: "docs"
-      type: "docs"
     values:
       layout: "default"
 
@@ -105,3 +96,10 @@ exclude:
   - target/
   - .gitignore
   - .git/
+  - serve.sh
+  - _config_dev.yml
+
+# Include files that start with underscore
+include:
+  - _layouts
+  - _includes

@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <title>Configuration Reference - BoxMux</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Configuration Reference - BoxMux | BoxMux</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Configuration Reference - BoxMux" />
+<meta name="author" content="Bahram Joharshamshiri" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards." />
+<meta property="og:description" content="A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards." />
+<link rel="canonical" href="http://localhost:4000/configuration.html" />
+<meta property="og:url" content="http://localhost:4000/configuration.html" />
+<meta property="og:site_name" content="BoxMux" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Configuration Reference - BoxMux" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","author":{"@type":"Person","name":"Bahram Joharshamshiri"},"description":"A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.","headline":"Configuration Reference - BoxMux","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/assets/images/boxmux-logo.png"},"name":"Bahram Joharshamshiri"},"url":"http://localhost:4000/configuration.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-brand">
+          <a href="/">
+            <span>BoxMux</span>
+          </a>
+        </div>
+        <div class="nav-menu">
+          <a href="/" class="nav-link">Home</a>
+          <a href="/user-guide" class="nav-link">Get Started</a>
+          <a href="/configuration" class="nav-link">Configuration</a>
+          <a href="/api" class="nav-link">API Reference</a>
+          <a href="/variables" class="nav-link">Variables</a>
+          <a href="/troubleshooting" class="nav-link">Help</a>
+          <a href="https://github.com/jowharshamshiri/boxmux" class="nav-link github-link" target="_blank">
+            GitHub
+          </a>
+        </div>
+        <div class="nav-toggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      
+        <div class="doc-content">
+          <h1 id="configuration-reference">Configuration Reference</h1>
+
+<p>This document provides a reference for BoxMux YAML configuration files.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ul>
+  <li><a href="#file-structure">File Structure</a></li>
+  <li><a href="#application-configuration">Application Configuration</a></li>
+  <li><a href="#layout-configuration">Layout Configuration</a></li>
+  <li><a href="#panel-configuration">Panel Configuration</a></li>
+  <li><a href="#position-configuration">Position Configuration</a></li>
+  <li><a href="#choice-configuration">Choice Configuration</a></li>
+  <li><a href="#color-reference">Color Reference</a></li>
+  <li><a href="#script-configuration">Script Configuration</a></li>
+  <li><a href="#variable-system">Variable System</a></li>
+  <li><a href="#features">Features</a></li>
+  <li><a href="#validation-rules">Validation Rules</a></li>
+  <li><a href="#examples">Examples</a></li>
+</ul>
+
+<h2 id="file-structure">File Structure</h2>
+
+<p>BoxMux configuration files use YAML format with the following top-level structure:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">libs</span><span class="pi">:</span>          <span class="c1"># Optional: External script libraries</span>
+  <span class="na">variables</span><span class="pi">:</span>     <span class="c1"># Optional: Global variables for template substitution</span>
+  <span class="na">layouts</span><span class="pi">:</span>       <span class="c1"># Required: Layout definitions</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="application-configuration">Application Configuration</h2>
+
+<h3 id="root-application-app">Root Application (<code class="language-plaintext highlighter-rouge">app</code>)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">libs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[string]</code></td>
+      <td>No</td>
+      <td>List of external script library files</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">variables</code></td>
+      <td><code class="language-plaintext highlighter-rouge">object</code></td>
+      <td>No</td>
+      <td>Global variables for template substitution</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">layouts</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Layout]</code></td>
+      <td>Yes</td>
+      <td>List of layout definitions</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">libs</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">lib/utils.sh</span>
+    <span class="pi">-</span> <span class="s">lib/network.sh</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">APP_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">BoxMux</span><span class="nv"> </span><span class="s">Dashboard"</span>
+    <span class="na">DEFAULT_USER</span><span class="pi">:</span> <span class="s2">"</span><span class="s">admin"</span>
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${APP_NAME}'</span>
+      <span class="c1"># ... layout configuration</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="layout-configuration">Layout Configuration</h2>
+
+<p>Layouts define the overall structure and appearance of your interface.</p>
+
+<h3 id="layout-properties">Layout Properties</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Required</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>-</td>
+      <td>Unique identifier for the layout</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">root</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Whether this is the root/main layout</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Layout title (shown in terminal title bar)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Foreground/text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Title text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Title background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Selected element text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Selected element background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_title_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Selected title text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_title_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Selected title background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">border_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Border color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_border_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"yellow"</code></td>
+      <td>Selected border color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">menu_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Menu item text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">menu_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Menu item background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_menu_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"black"</code></td>
+      <td>Selected menu item text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_menu_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"white"</code></td>
+      <td>Selected menu item background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fill_char</code></td>
+      <td><code class="language-plaintext highlighter-rouge">char</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">' '</code></td>
+      <td>Character used to fill empty space</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">children</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Panel]</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">[]</code></td>
+      <td>List of child panels</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="example-layout">Example Layout</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dashboard'</span>
+      <span class="na">root</span><span class="pi">:</span> <span class="kc">true</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">My</span><span class="nv"> </span><span class="s">Dashboard'</span>
+      <span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
+      <span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">white'</span>
+      <span class="na">title_fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">yellow'</span>
+      <span class="na">title_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">blue'</span>
+      <span class="na">selected_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">blue'</span>
+      <span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">green'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">header'</span>
+          <span class="c1"># ... panel configuration</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="panel-configuration">Panel Configuration</h2>
+
+<p>Panels are the building blocks of your interface. They can contain content, menus, or other panels.</p>
+
+<h3 id="panel-properties">Panel Properties</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Required</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>-</td>
+      <td>Unique identifier for the panel</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Panel title shown in title bar</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">position</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Position</code></td>
+      <td>Yes</td>
+      <td>-</td>
+      <td>Panel position and size</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">content</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Static text content</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">border</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Whether to show border</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tab_order</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Tab navigation order (numeric string)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">next_focus_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>ID of next panel for custom navigation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">refresh_interval</code></td>
+      <td><code class="language-plaintext highlighter-rouge">number</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Auto-refresh interval in milliseconds</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">script</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[string]</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Shell commands to execute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">choices</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Choice]</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Interactive menu choices</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">redirect_output</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Panel ID to redirect script output to</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">append_output</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Whether to append or replace output</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">on_keypress</code></td>
+      <td><code class="language-plaintext highlighter-rouge">object</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Keyboard event handlers</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">variables</code></td>
+      <td><code class="language-plaintext highlighter-rouge">object</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Panel-local variables for template substitution</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">overflow_behavior</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">"scroll"</code></td>
+      <td>How to handle overflow: “scroll”, “fill”, “cross_out”, “removed”</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">scroll</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Enable scrolling for content</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">min_width</code></td>
+      <td><code class="language-plaintext highlighter-rouge">number</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Minimum width in characters</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">min_height</code></td>
+      <td><code class="language-plaintext highlighter-rouge">number</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Minimum height in characters</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">max_width</code></td>
+      <td><code class="language-plaintext highlighter-rouge">number</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Maximum width in characters</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">max_height</code></td>
+      <td><code class="language-plaintext highlighter-rouge">number</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Maximum height in characters</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">children</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Panel]</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">[]</code></td>
+      <td>List of child panels</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="styling-properties">Styling Properties</h3>
+
+<p>All layout-level styling properties can be overridden at the panel level:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Title text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Title background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Selected background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Selected text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_title_fg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Selected title text color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_title_bg_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Selected title background color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">border_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Border color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_border_color</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Inherited</td>
+      <td>Selected border color</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fill_char</code></td>
+      <td><code class="language-plaintext highlighter-rouge">char</code></td>
+      <td>Inherited</td>
+      <td>Fill character</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">selected_fill_char</code></td>
+      <td><code class="language-plaintext highlighter-rouge">char</code></td>
+      <td>Inherited</td>
+      <td>Selected fill character</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="position-configuration">Position Configuration</h2>
+
+<p>Positions define where panels appear on screen using percentage-based coordinates.</p>
+
+<h3 id="position-properties">Position Properties</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">x1</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>Left edge (percentage or absolute)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">y1</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>Top edge (percentage or absolute)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">x2</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>Right edge (percentage or absolute)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">y2</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>Bottom edge (percentage or absolute)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="position-formats">Position Formats</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+</pre></td><td class="rouge-code"><pre><span class="c1"># Percentage-based (recommended)</span>
+<span class="na">position</span><span class="pi">:</span>
+  <span class="na">x1</span><span class="pi">:</span> <span class="s">10%</span>      <span class="c1"># 10% from left edge</span>
+  <span class="na">y1</span><span class="pi">:</span> <span class="s">20%</span>      <span class="c1"># 20% from top edge</span>
+  <span class="na">x2</span><span class="pi">:</span> <span class="s">90%</span>      <span class="c1"># 90% from left edge (width = 80%)</span>
+  <span class="na">y2</span><span class="pi">:</span> <span class="s">80%</span>      <span class="c1"># 80% from top edge (height = 60%)</span>
+
+<span class="c1"># Absolute positioning (not recommended)</span>
+<span class="na">position</span><span class="pi">:</span>
+  <span class="na">x1</span><span class="pi">:</span> <span class="m">10</span>       <span class="c1"># 10 characters from left</span>
+  <span class="na">y1</span><span class="pi">:</span> <span class="m">5</span>        <span class="c1"># 5 lines from top</span>
+  <span class="na">x2</span><span class="pi">:</span> <span class="m">80</span>       <span class="c1"># 80 characters from left</span>
+  <span class="na">y2</span><span class="pi">:</span> <span class="m">24</span>       <span class="c1"># 24 lines from top</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="position-examples">Position Examples</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+</pre></td><td class="rouge-code"><pre><span class="c1"># Full screen</span>
+<span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+
+<span class="c1"># Top half</span>
+<span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">50%</span> <span class="pi">}</span>
+
+<span class="c1"># Bottom half</span>
+<span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+
+<span class="c1"># Left sidebar</span>
+<span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">20%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+
+<span class="c1"># Centered box</span>
+<span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">25%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">25%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">75%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">75%</span> <span class="pi">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="choice-configuration">Choice Configuration</h2>
+
+<p>Choices create interactive menu items within panels.</p>
+
+<h3 id="choice-properties">Choice Properties</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Type</th>
+      <th>Required</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>-</td>
+      <td>Unique identifier for the choice</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">content</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>Yes</td>
+      <td>-</td>
+      <td>Text displayed in the menu</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">script</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[string]</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Commands to execute when selected</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">thread</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Whether to run script in background thread</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">redirect_output</code></td>
+      <td><code class="language-plaintext highlighter-rouge">string</code></td>
+      <td>No</td>
+      <td>-</td>
+      <td>Panel ID to send output to</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">append_output</code></td>
+      <td><code class="language-plaintext highlighter-rouge">boolean</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Whether to append or replace output</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="choice-example">Choice Example</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+</pre></td><td class="rouge-code"><pre><span class="na">choices</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">deploy'</span>
+    <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Deploy</span><span class="nv"> </span><span class="s">Application'</span>
+    <span class="na">script</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">echo 'Starting deployment...'</span>
+      <span class="pi">-</span> <span class="s">./deploy.sh</span>
+      <span class="pi">-</span> <span class="s">echo 'Deployment complete!'</span>
+    <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">status'</span>
+    <span class="na">append_output</span><span class="pi">:</span> <span class="kc">true</span>
+    
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">status'</span>
+    <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Check</span><span class="nv"> </span><span class="s">Status'</span>
+    <span class="na">script</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">systemctl status myapp</span>
+    <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">output'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="color-reference">Color Reference</h2>
+
+<p>BoxMux supports the following color names:</p>
+
+<h3 id="basic-colors">Basic Colors</h3>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">black</code></li>
+  <li><code class="language-plaintext highlighter-rouge">red</code></li>
+  <li><code class="language-plaintext highlighter-rouge">green</code></li>
+  <li><code class="language-plaintext highlighter-rouge">yellow</code></li>
+  <li><code class="language-plaintext highlighter-rouge">blue</code></li>
+  <li><code class="language-plaintext highlighter-rouge">magenta</code></li>
+  <li><code class="language-plaintext highlighter-rouge">cyan</code></li>
+  <li><code class="language-plaintext highlighter-rouge">white</code></li>
+</ul>
+
+<h3 id="bright-colors">Bright Colors</h3>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">bright_black</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_red</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_green</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_yellow</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_blue</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_magenta</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_cyan</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bright_white</code></li>
+</ul>
+
+<h3 id="special-colors">Special Colors</h3>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">reset</code> - Reset to default</li>
+  <li><code class="language-plaintext highlighter-rouge">default</code> - Use default color</li>
+</ul>
+
+<h3 id="color-usage-examples">Color Usage Examples</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+</pre></td><td class="rouge-code"><pre><span class="c1"># Basic usage</span>
+<span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
+<span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">white'</span>
+
+<span class="c1"># Bright colors for emphasis</span>
+<span class="na">title_fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_yellow'</span>
+<span class="na">selected_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_blue'</span>
+
+<span class="c1"># Mixed color scheme</span>
+<span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
+<span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">green'</span>
+<span class="na">title_fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_white'</span>
+<span class="na">title_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">blue'</span>
+<span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">cyan'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="script-configuration">Script Configuration</h2>
+
+<p>Scripts define commands that panels can execute.</p>
+
+<h3 id="script-properties">Script Properties</h3>
+
+<p>Scripts are defined as arrays of shell commands:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+</pre></td><td class="rouge-code"><pre><span class="na">script</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">echo 'Hello World'</span>
+  <span class="pi">-</span> <span class="s">date</span>
+  <span class="pi">-</span> <span class="s">ls -la</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="script-features">Script Features</h3>
+
+<ul>
+  <li><strong>Multi-line commands</strong>: Use YAML block syntax for complex commands</li>
+  <li><strong>Environment variables</strong>: Access environment variables in scripts</li>
+  <li><strong>Pipes and redirection</strong>: Use shell features within commands</li>
+  <li><strong>Background execution</strong>: Use <code class="language-plaintext highlighter-rouge">thread: true</code> for long-running scripts</li>
+</ul>
+
+<h3 id="script-examples">Script Examples</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+</pre></td><td class="rouge-code"><pre><span class="c1"># Simple commands</span>
+<span class="na">script</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">echo 'Current time:'</span>
+  <span class="pi">-</span> <span class="s">date</span>
+
+<span class="c1"># Multi-line command</span>
+<span class="na">script</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="pi">&gt;</span>
+    <span class="s">echo "System info:"</span>
+    <span class="s">uname -a</span>
+    <span class="s">df -h</span>
+
+<span class="c1"># Complex pipeline</span>
+<span class="na">script</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">ps aux | grep -v grep | grep nginx | wc -l</span>
+
+<span class="c1"># Background script</span>
+<span class="na">script</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">tail -f /var/log/syslog</span>
+<span class="na">thread</span><span class="pi">:</span> <span class="kc">true</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="features">Features</h2>
+
+<h3 id="keyboard-event-handlers">Keyboard Event Handlers</h3>
+
+<p>Define custom keyboard shortcuts:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+</pre></td><td class="rouge-code"><pre><span class="na">on_keypress</span><span class="pi">:</span>
+  <span class="na">r</span><span class="pi">:</span>                    <span class="c1"># Press 'r' key</span>
+    <span class="pi">-</span> <span class="s">echo 'Refreshing...'</span>
+    <span class="pi">-</span> <span class="s">date</span>
+  <span class="na">q</span><span class="pi">:</span>                    <span class="c1"># Press 'q' key</span>
+    <span class="pi">-</span> <span class="s">exit</span>
+  <span class="s1">'</span><span class="s">ctrl+c'</span><span class="err">:</span>            <span class="c1"># Ctrl+C combination</span>
+    <span class="pi">-</span> <span class="s">echo 'Interrupted'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="title-positioning">Title Positioning</h3>
+
+<p>Control where titles appear:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+</pre></td><td class="rouge-code"><pre><span class="na">title_position</span><span class="pi">:</span> <span class="s1">'</span><span class="s">start'</span>    <span class="c1"># Left-aligned</span>
+<span class="na">title_position</span><span class="pi">:</span> <span class="s1">'</span><span class="s">center'</span>   <span class="c1"># Centered</span>
+<span class="na">title_position</span><span class="pi">:</span> <span class="s1">'</span><span class="s">end'</span>      <span class="c1"># Right-aligned</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="anchoring">Anchoring</h3>
+
+<p>Control how panels are anchored:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+</pre></td><td class="rouge-code"><pre><span class="na">anchor</span><span class="pi">:</span> <span class="s1">'</span><span class="s">TopLeft'</span>      <span class="c1"># Default</span>
+<span class="na">anchor</span><span class="pi">:</span> <span class="s1">'</span><span class="s">TopRight'</span>
+<span class="na">anchor</span><span class="pi">:</span> <span class="s1">'</span><span class="s">BottomLeft'</span>
+<span class="na">anchor</span><span class="pi">:</span> <span class="s1">'</span><span class="s">BottomRight'</span>
+<span class="na">anchor</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Center'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="overflow-behavior">Overflow Behavior</h3>
+
+<p>Control how content overflow is handled:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+</pre></td><td class="rouge-code"><pre><span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">scroll'</span>      <span class="c1"># Default: enable scrolling</span>
+<span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">fill'</span>        <span class="c1"># Fill with solid block</span>
+<span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">cross_out'</span>   <span class="c1"># Cross out with X's</span>
+<span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">removed'</span>     <span class="c1"># Hide the panel</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="variable-system">Variable System</h2>
+
+<p>BoxMux includes hierarchical variable substitution for dynamic configuration, template-driven interfaces, and environment-specific deployments.</p>
+
+<h3 id="variable-syntax">Variable Syntax</h3>
+
+<p>Variables use the following patterns:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">${VARIABLE}</code> - Standard variable substitution</li>
+  <li><code class="language-plaintext highlighter-rouge">${VARIABLE:default_value}</code> - Variable with fallback default</li>
+  <li><code class="language-plaintext highlighter-rouge">${VARIABLE:}</code> - Variable with empty default</li>
+  <li><code class="language-plaintext highlighter-rouge">$SIMPLE_VAR</code> - Simple environment variable (legacy support)</li>
+</ul>
+
+<h3 id="variable-precedence-hierarchical-resolution">Variable Precedence (Hierarchical Resolution)</h3>
+
+<p>Variables are resolved in strict hierarchical order:</p>
+
+<ol>
+  <li><strong>Panel-specific variables</strong> (highest precedence, most granular)</li>
+  <li><strong>Parent panel variables</strong> (inherited through panel hierarchy)</li>
+  <li><strong>Layout-level variables</strong> (layout scope)</li>
+  <li><strong>Application-global variables</strong> (app-wide scope)</li>
+  <li><strong>Environment variables</strong> (system fallback)</li>
+  <li><strong>Default values</strong> (built-in fallbacks, lowest precedence)</li>
+</ol>
+
+<p>This hierarchical approach allows child panels to override parent settings while providing sensible fallbacks.</p>
+
+<h3 id="variable-declaration">Variable Declaration</h3>
+
+<h4 id="application-level-variables">Application-level Variables</h4>
+
+<p>Define global variables that apply across all layouts:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">APP_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Production</span><span class="nv"> </span><span class="s">Dashboard"</span>
+    <span class="na">SERVER_HOST</span><span class="pi">:</span> <span class="s2">"</span><span class="s">prod-server.company.com"</span>
+    <span class="na">LOG_LEVEL</span><span class="pi">:</span> <span class="s2">"</span><span class="s">info"</span>
+    <span class="na">DEFAULT_USER</span><span class="pi">:</span> <span class="s2">"</span><span class="s">admin"</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h4 id="panel-level-variables">Panel-level Variables</h4>
+
+<p>Define panel-specific variables that override global settings:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web_server_panel'</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">nginx"</span>
+    <span class="na">PORT</span><span class="pi">:</span> <span class="s2">"</span><span class="s">80"</span>
+    <span class="na">CONFIG_PATH</span><span class="pi">:</span> <span class="s2">"</span><span class="s">/etc/nginx"</span>
+  <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Server</span><span class="nv"> </span><span class="s">Status'</span>
+  <span class="na">script</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">echo "Checking ${SERVICE_NAME} on port ${PORT}"</span>
+    <span class="pi">-</span> <span class="s">systemctl status ${SERVICE_NAME}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="variable-inheritance">Variable Inheritance</h3>
+
+<p>Child panels automatically inherit variables from their parents, creating a natural configuration hierarchy:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">ENVIRONMENT</span><span class="pi">:</span> <span class="s2">"</span><span class="s">production"</span>
+    
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">monitoring'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">parent_panel'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">SERVICE_GROUP</span><span class="pi">:</span> <span class="s2">"</span><span class="s">web-services"</span>
+          <span class="na">children</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">child_panel'</span>
+              <span class="na">variables</span><span class="pi">:</span>
+                <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">api-gateway"</span>
+              <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">${SERVICE_GROUP}</span><span class="nv"> </span><span class="s">(${ENVIRONMENT})'</span>
+              <span class="c1"># Resolves to: "api-gateway in web-services (production)"</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="variable-fields">Variable Fields</h3>
+
+<p>Variables work in all configuration fields:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dynamic_panel'</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">SERVICE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">database"</span>
+    <span class="na">LOG_FILE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">/var/log/postgresql.log"</span>
+  <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE}</span><span class="nv"> </span><span class="s">Monitor'</span>           <span class="c1"># Title substitution</span>
+  <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Monitoring</span><span class="nv"> </span><span class="s">${SERVICE}'</span>      <span class="c1"># Content substitution</span>
+  <span class="na">script</span><span class="pi">:</span>                               <span class="c1"># Script substitution</span>
+    <span class="pi">-</span> <span class="s">echo "Starting ${SERVICE} check"</span>
+    <span class="pi">-</span> <span class="s">tail -f ${LOG_FILE}</span>
+  <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE}_output'</span>  <span class="c1"># Redirect target substitution</span>
+  <span class="na">choices</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">restart'</span>
+      <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Restart</span><span class="nv"> </span><span class="s">${SERVICE}'</span>     <span class="c1"># Choice content substitution</span>
+      <span class="na">script</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="s">systemctl restart ${SERVICE}</span>  <span class="c1"># Choice script substitution</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="advanced-examples">Advanced Examples</h3>
+
+<h4 id="environment-specific-configuration">Environment-specific Configuration</h4>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">ENVIRONMENT</span><span class="pi">:</span> <span class="s2">"</span><span class="s">staging"</span>
+    <span class="na">DB_HOST</span><span class="pi">:</span> <span class="s2">"</span><span class="s">staging-db.internal"</span>
+    <span class="na">API_URL</span><span class="pi">:</span> <span class="s2">"</span><span class="s">https://api-staging.company.com"</span>
+    
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">deployment_dashboard'</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Deployment</span><span class="nv"> </span><span class="s">Dashboard</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">${ENVIRONMENT}'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">database_panel'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">PostgreSQL"</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Status'</span>
+          <span class="na">script</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="s">echo "Connecting to ${DB_HOST}..."</span>
+            <span class="pi">-</span> <span class="s">pg_isready -h ${DB_HOST}</span>
+            
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">api_panel'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">API</span><span class="nv"> </span><span class="s">Gateway"</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Health'</span>
+          <span class="na">script</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="s">curl -s ${API_URL}/health | jq .</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h4 id="multi-service-monitoring">Multi-service Monitoring</h4>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">DEFAULT_USER</span><span class="pi">:</span> <span class="s2">"</span><span class="s">monitor"</span>
+    <span class="na">SSH_KEY</span><span class="pi">:</span> <span class="s2">"</span><span class="s">~/.ssh/monitoring_key"</span>
+    
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">infrastructure'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web_servers'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">SERVER_TYPE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">web"</span>
+          <span class="na">children</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web1'</span>
+              <span class="na">variables</span><span class="pi">:</span>
+                <span class="na">HOST</span><span class="pi">:</span> <span class="s2">"</span><span class="s">web1.company.com"</span>
+                <span class="na">SERVICE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">nginx"</span>
+              <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE}@${HOST}'</span>
+              <span class="na">script</span><span class="pi">:</span>
+                <span class="pi">-</span> <span class="s">ssh -i ${SSH_KEY} ${USER:${DEFAULT_USER}}@${HOST} 'systemctl status ${SERVICE}'</span>
+                
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web2'</span>
+              <span class="na">variables</span><span class="pi">:</span>
+                <span class="na">HOST</span><span class="pi">:</span> <span class="s2">"</span><span class="s">web2.company.com"</span> 
+                <span class="na">SERVICE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">apache2"</span>
+              <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE}@${HOST}'</span>
+              <span class="na">script</span><span class="pi">:</span>
+                <span class="pi">-</span> <span class="s">ssh -i ${SSH_KEY} ${USER:${DEFAULT_USER}}@${HOST} 'systemctl status ${SERVICE}'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h4 id="template-driven-deployment">Template-driven Deployment</h4>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">DEPLOYMENT_ENV</span><span class="pi">:</span> <span class="s2">"</span><span class="s">production"</span>
+    <span class="na">NAMESPACE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">default"</span>
+    
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">kubernetes_deploy'</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">K8s</span><span class="nv"> </span><span class="s">Deployment</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">${DEPLOYMENT_ENV}'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">frontend_deploy'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">APP_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">frontend"</span>
+            <span class="na">REPLICAS</span><span class="pi">:</span> <span class="s2">"</span><span class="s">3"</span>
+            <span class="na">IMAGE_TAG</span><span class="pi">:</span> <span class="s2">"</span><span class="s">v1.2.0"</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Deploy</span><span class="nv"> </span><span class="s">${APP_NAME}'</span>
+          <span class="na">script</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="s">echo "Deploying ${APP_NAME} to ${DEPLOYMENT_ENV}"</span>
+            <span class="pi">-</span> <span class="s">kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG} -n ${NAMESPACE}</span>
+            <span class="pi">-</span> <span class="s">kubectl scale deployment/${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="environment-variable-integration">Environment Variable Integration</h3>
+
+<p>Seamlessly integrate with existing environment variables:</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+</pre></td><td class="rouge-code"><pre><span class="c1"># These variables will use environment values if set,</span>
+<span class="c1"># otherwise fall back to YAML-defined defaults</span>
+<span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">LOG_LEVEL</span><span class="pi">:</span> <span class="s2">"</span><span class="s">info"</span>  <span class="c1"># Overridden by $LOG_LEVEL if set</span>
+    
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">app_panel'</span>
+      <span class="na">script</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="s">echo "Running with LOG_LEVEL=${LOG_LEVEL}"</span>
+        <span class="pi">-</span> <span class="s">echo "User</span><span class="err">:</span> <span class="s">${USER:unknown}"</span>          <span class="c1"># Uses $USER or "unknown"</span>
+        <span class="pi">-</span> <span class="s">echo "Home</span><span class="err">:</span> <span class="s">${HOME:/tmp}"</span>             <span class="c1"># Uses $HOME or "/tmp"</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="error-handling">Error Handling</h3>
+
+<p>The variable system provides clear error messages for common issues:</p>
+
+<ul>
+  <li><strong>Nested variables</strong>: <code class="language-plaintext highlighter-rouge">${USER:${DEFAULT}}</code> will show a descriptive error</li>
+  <li><strong>Malformed syntax</strong>: Missing closing braces are detected and reported</li>
+  <li><strong>Circular references</strong>: Prevented with clear error messages</li>
+</ul>
+
+<h3 id="best-practices">Best Practices</h3>
+
+<ol>
+  <li><strong>Use hierarchical variables</strong> for environment-specific configurations</li>
+  <li><strong>Provide meaningful defaults</strong> to prevent empty substitutions</li>
+  <li><strong>Group related variables</strong> at appropriate levels (app/layout/panel)</li>
+  <li><strong>Use descriptive variable names</strong> that indicate their scope and purpose</li>
+  <li><strong>Leverage inheritance</strong> to reduce configuration duplication</li>
+</ol>
+
+<h3 id="example-usage">Example Usage</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">variables</span><span class="pi">:</span>
+    <span class="na">APP_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">My</span><span class="nv"> </span><span class="s">Dashboard"</span>
+    <span class="na">REFRESH_RATE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">1000"</span>
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${APP_NAME}</span><span class="nv"> </span><span class="s">v${VERSION:1.0}'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">panel1'</span>
+          <span class="na">variables</span><span class="pi">:</span>
+            <span class="na">LOCAL_VAR</span><span class="pi">:</span> <span class="s2">"</span><span class="s">panel-specific"</span>
+          <span class="na">script</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="s">echo "User</span><span class="err">:</span> <span class="s">${USER:unknown}"</span>
+            <span class="pi">-</span> <span class="s">echo "App</span><span class="err">:</span> <span class="s">${APP_NAME}"</span>
+            <span class="pi">-</span> <span class="s">echo "Local</span><span class="err">:</span> <span class="s">${LOCAL_VAR}"</span>
+            <span class="pi">-</span> <span class="s">echo "Home</span><span class="err">:</span> <span class="s">$HOME"</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p>For detailed documentation, see <a href="variables.md">Variable System Guide</a>.</p>
+
+<h2 id="validation-rules">Validation Rules</h2>
+
+<h3 id="required-fields">Required Fields</h3>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">app.layouts</code> must contain at least one layout</li>
+  <li>Each layout must have a unique <code class="language-plaintext highlighter-rouge">id</code></li>
+  <li>Each panel must have a unique <code class="language-plaintext highlighter-rouge">id</code> within its layout</li>
+  <li>Each panel must have a <code class="language-plaintext highlighter-rouge">position</code></li>
+  <li>Each choice must have a unique <code class="language-plaintext highlighter-rouge">id</code> and <code class="language-plaintext highlighter-rouge">content</code></li>
+</ul>
+
+<h3 id="id-naming-rules">ID Naming Rules</h3>
+
+<ul>
+  <li>IDs must be strings</li>
+  <li>IDs should be unique within their scope</li>
+  <li>IDs should be descriptive and meaningful</li>
+  <li>Avoid special characters and spaces</li>
+</ul>
+
+<h3 id="position-validation">Position Validation</h3>
+
+<ul>
+  <li>All position values must be valid percentages or numbers</li>
+  <li><code class="language-plaintext highlighter-rouge">x1</code> must be less than <code class="language-plaintext highlighter-rouge">x2</code></li>
+  <li><code class="language-plaintext highlighter-rouge">y1</code> must be less than <code class="language-plaintext highlighter-rouge">y2</code></li>
+  <li>Positions should not create zero-width or zero-height panels</li>
+</ul>
+
+<h3 id="color-validation">Color Validation</h3>
+
+<ul>
+  <li>All color values must be valid color names</li>
+  <li>Colors are case-sensitive</li>
+  <li>Invalid colors will fall back to defaults</li>
+</ul>
+
+<h2 id="examples">Examples</h2>
+
+<h3 id="configuration-example">Configuration Example</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">libs</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">lib/system.sh</span>
+    <span class="pi">-</span> <span class="s">lib/network.sh</span>
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>
+      <span class="na">root</span><span class="pi">:</span> <span class="kc">true</span>
+      <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">System</span><span class="nv"> </span><span class="s">Dashboard'</span>
+      <span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
+      <span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">white'</span>
+      <span class="na">title_fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_yellow'</span>
+      <span class="na">title_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">blue'</span>
+      <span class="na">selected_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_blue'</span>
+      <span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">green'</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">header'</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">System</span><span class="nv"> </span><span class="s">Status'</span>
+          <span class="na">position</span><span class="pi">:</span>
+            <span class="na">x1</span><span class="pi">:</span> <span class="s">0%</span>
+            <span class="na">y1</span><span class="pi">:</span> <span class="s">0%</span>
+            <span class="na">x2</span><span class="pi">:</span> <span class="s">100%</span>
+            <span class="na">y2</span><span class="pi">:</span> <span class="s">15%</span>
+          <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">System</span><span class="nv"> </span><span class="s">Dashboard</span><span class="nv"> </span><span class="s">v1.0'</span>
+          <span class="na">border</span><span class="pi">:</span> <span class="kc">true</span>
+          
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">sidebar'</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Navigation'</span>
+          <span class="na">position</span><span class="pi">:</span>
+            <span class="na">x1</span><span class="pi">:</span> <span class="s">0%</span>
+            <span class="na">y1</span><span class="pi">:</span> <span class="s">15%</span>
+            <span class="na">x2</span><span class="pi">:</span> <span class="s">25%</span>
+            <span class="na">y2</span><span class="pi">:</span> <span class="s">85%</span>
+          <span class="na">tab_order</span><span class="pi">:</span> <span class="s1">'</span><span class="s">1'</span>
+          <span class="na">choices</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">cpu'</span>
+              <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">CPU</span><span class="nv"> </span><span class="s">Usage'</span>
+              <span class="na">script</span><span class="pi">:</span>
+                <span class="pi">-</span> <span class="s">top -l 1 | grep "CPU usage"</span>
+              <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main_content'</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">memory'</span>
+              <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Memory</span><span class="nv"> </span><span class="s">Usage'</span>
+              <span class="na">script</span><span class="pi">:</span>
+                <span class="pi">-</span> <span class="s">top -l 1 | grep "PhysMem"</span>
+              <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main_content'</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">disk'</span>
+              <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Disk</span><span class="nv"> </span><span class="s">Usage'</span>
+              <span class="na">script</span><span class="pi">:</span>
+                <span class="pi">-</span> <span class="s">df -h</span>
+              <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main_content'</span>
+              
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main_content'</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Output'</span>
+          <span class="na">position</span><span class="pi">:</span>
+            <span class="na">x1</span><span class="pi">:</span> <span class="s">25%</span>
+            <span class="na">y1</span><span class="pi">:</span> <span class="s">15%</span>
+            <span class="na">x2</span><span class="pi">:</span> <span class="s">100%</span>
+            <span class="na">y2</span><span class="pi">:</span> <span class="s">85%</span>
+          <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Select</span><span class="nv"> </span><span class="s">an</span><span class="nv"> </span><span class="s">option</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">menu'</span>
+          <span class="na">scroll</span><span class="pi">:</span> <span class="kc">true</span>
+          
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">footer'</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Status'</span>
+          <span class="na">position</span><span class="pi">:</span>
+            <span class="na">x1</span><span class="pi">:</span> <span class="s">0%</span>
+            <span class="na">y1</span><span class="pi">:</span> <span class="s">85%</span>
+            <span class="na">x2</span><span class="pi">:</span> <span class="s">100%</span>
+            <span class="na">y2</span><span class="pi">:</span> <span class="s">100%</span>
+          <span class="na">refresh_interval</span><span class="pi">:</span> <span class="m">1000</span>
+          <span class="na">script</span><span class="pi">:</span>
+            <span class="pi">-</span> <span class="s">date</span>
+          <span class="na">border</span><span class="pi">:</span> <span class="kc">false</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="minimal-configuration-example">Minimal Configuration Example</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+</pre></td><td class="rouge-code"><pre><span class="na">app</span><span class="pi">:</span>
+  <span class="na">layouts</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">simple'</span>
+      <span class="na">root</span><span class="pi">:</span> <span class="kc">true</span>
+      <span class="na">children</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">content'</span>
+          <span class="na">position</span><span class="pi">:</span>
+            <span class="na">x1</span><span class="pi">:</span> <span class="s">10%</span>
+            <span class="na">y1</span><span class="pi">:</span> <span class="s">10%</span>
+            <span class="na">x2</span><span class="pi">:</span> <span class="s">90%</span>
+            <span class="na">y2</span><span class="pi">:</span> <span class="s">90%</span>
+          <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Hello,</span><span class="nv"> </span><span class="s">World!'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="best-practices-1">Best Practices</h2>
+
+<ol>
+  <li><strong>Use meaningful IDs</strong>: Choose descriptive names for layouts, panels, and choices</li>
+  <li><strong>Plan your layout</strong>: Sketch your interface before writing YAML</li>
+  <li><strong>Test incrementally</strong>: Start with simple configurations and add complexity</li>
+  <li><strong>Use consistent styling</strong>: Define colors at the layout level when possible</li>
+  <li><strong>Optimize refresh intervals</strong>: Balance real-time updates with performance</li>
+  <li><strong>Handle errors gracefully</strong>: Consider what happens when scripts fail</li>
+  <li><strong>Document your configuration</strong>: Use YAML comments to explain complex sections</li>
+</ol>
+
+<h2 id="common-patterns">Common Patterns</h2>
+
+<h3 id="dashboard-layout">Dashboard Layout</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+</pre></td><td class="rouge-code"><pre><span class="c1"># Header + Sidebar + Main + Footer</span>
+<span class="na">children</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">header'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">10%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">sidebar'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">10%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">20%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">90%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">20%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">10%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">90%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">footer'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">90%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="grid-layout">Grid Layout</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+</pre></td><td class="rouge-code"><pre><span class="c1"># 2x2 grid</span>
+<span class="na">children</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">top_left'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">50%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">top_right'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">50%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bottom_left'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">0%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+  <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bottom_right'</span>
+    <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">50%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">100%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">100%</span> <span class="pi">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="modaldialog-pattern">Modal/Dialog Pattern</h3>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+</pre></td><td class="rouge-code"><pre><span class="c1"># Centered modal</span>
+<span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">modal'</span>
+  <span class="na">position</span><span class="pi">:</span> <span class="pi">{</span> <span class="nv">x1</span><span class="pi">:</span> <span class="nv">25%</span><span class="pi">,</span> <span class="nv">y1</span><span class="pi">:</span> <span class="nv">25%</span><span class="pi">,</span> <span class="nv">x2</span><span class="pi">:</span> <span class="nv">75%</span><span class="pi">,</span> <span class="nv">y2</span><span class="pi">:</span> <span class="nv">75%</span> <span class="pi">}</span>
+  <span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">white'</span>
+  <span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
+  <span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">red'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p>For more examples and tutorials, see the <a href="examples.md">Examples</a> document.</p>
+
+        </div>
+      
+    </main>
+
+    <footer class="footer">
+      <div class="footer-container">
+        <div class="footer-section">
+          <h4>BoxMux</h4>
+          <p>A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.</p>
+          <div class="social-links">
+            <a href="https://github.com/jowharshamshiri/boxmux" target="_blank">
+              GitHub
+            </a>
+            <a href="https://crates.io/crates/boxmux" target="_blank">
+              crates.io
+            </a>
+          </div>
+        </div>
+        <div class="footer-section">
+          <h4>Documentation</h4>
+          <ul>
+            <li><a href="/user-guide">Getting Started</a></li>
+            <li><a href="/configuration">Configuration Guide</a></li>
+            <li><a href="/api">API Reference</a></li>
+            <li><a href="/variables">Variable System</a></li>
+          </ul>
+        </div>
+        <div class="footer-section">
+          <h4>Community</h4>
+          <ul>
+            <li><a href="https://github.com/jowharshamshiri/boxmux/issues" target="_blank">Report Issues</a></li>
+            <li><a href="https://github.com/jowharshamshiri/boxmux/discussions" target="_blank">Discussions</a></li>
+            <li><a href="/roadmap">Roadmap</a></li>
+          </ul>
+        </div>
+        <div class="footer-section">
+          <h4>Installation</h4>
+          <div class="install-snippet">
+            <code>cargo install boxmux</code>
+            <button class="copy-btn" onclick="copyToClipboard('cargo install boxmux')">
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2025 BoxMux. Licensed under MIT License.</p>
+      </div>
+    </footer>
+
+    <script>
+      // Mobile menu toggle
+      const navToggle = document.querySelector('.nav-toggle');
+      const navMenu = document.querySelector('.nav-menu');
+      
+      navToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+      });
+
+      // Copy to clipboard
+      function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = event.target.closest('.copy-btn');
+          btn.textContent = 'Copied';
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+          }, 2000);
+        });
+      }
+
+      // Smooth scrolling for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          document.querySelector(this.getAttribute('href')).scrollIntoView({
+            behavior: 'smooth'
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

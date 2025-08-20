@@ -3,10 +3,12 @@ layout: default
 title: BoxMux - YAML-driven Terminal UI Framework
 ---
 
-<section class="hero">
-  <div class="hero-content">
-    <h1>BoxMux</h1>
-    <p class="subtitle">A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.</p>
+<section class="feature-cards">
+  <div class="container">
+    <div class="section-header">
+      <h1>BoxMux</h1>
+      <p>A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.</p>
+    
     <div class="hero-buttons">
       <a href="{{ "/user-guide" | relative_url }}" class="btn btn-primary">
         Get Started
@@ -15,11 +17,8 @@ title: BoxMux - YAML-driven Terminal UI Framework
         View on GitHub
       </a>
     </div>
-  </div>
-</section>
-
-<section class="feature-cards">
-  <div class="container">
+    </div>
+    
     <div class="section-header">
       <h2>Documentation</h2>
       <p>Set up your development environment and learn the fundamental concepts.</p>
