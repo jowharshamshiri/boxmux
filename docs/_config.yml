@@ -3,7 +3,7 @@
 title: BoxMux
 description: A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.
 url: https://boxmux.com
-baseurl: /boxmux
+baseurl: /
 
 # GitHub Pages settings
 remote_theme: pages-themes/cayman@v0.2.0
