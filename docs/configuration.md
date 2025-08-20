@@ -1,3 +1,10 @@
+---
+layout: default
+title: Configuration Reference - BoxMux
+---
+
+<div class="doc-content">
+
 # Configuration Reference
 
 This document provides a reference for BoxMux YAML configuration files.
@@ -806,3 +813,5 @@ children:
 ```
 
 For more examples and tutorials, see the [Examples](examples.md) document.
+
+</div>

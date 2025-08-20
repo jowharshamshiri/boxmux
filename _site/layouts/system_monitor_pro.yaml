@@ -1,0 +1,302 @@
+app:
+  layouts:
+    - id: 'system_monitor_pro'
+      root: true
+      title: 'System Monitor Pro'
+      # High-contrast monitoring theme
+      bg_color: 'black'
+      fg_color: 'bright_white'
+      selected_fg_color: 'black'
+      selected_bg_color: 'bright_red'
+      border_color: 'bright_red'
+      selected_border_color: 'bright_yellow'
+      title_fg_color: 'bright_red'
+      title_bg_color: 'black'
+      children:
+        # System header
+        - id: 'system_header'
+          title: 'System Monitor Pro - Real-Time Monitoring'
+          position:
+            x1: "0%"
+            y1: "0%"
+            x2: "100%"
+            y2: "6%"
+          border: true
+          border_color: 'bright_red'
+          bg_color: 'black'
+          fg_color: 'bright_red'
+          refresh_interval: 1000
+          script:
+            - "echo 'SYSTEM: $(uname -n) | UPTIME: $(uptime | cut -d, -f1 | cut -d' ' -f4-) | LOAD: $(uptime | cut -d: -f4- | cut -d, -f1) | TIME: $(date \"+%H:%M:%S\")'"
+
+        # CPU monitoring
+        - id: 'cpu_monitor'
+          title: 'CPU Performance'
+          position:
+            x1: "1%"
+            y1: "8%"
+            x2: "33%"
+            y2: "35%"
+          border: true
+          border_color: 'yellow'
+          bg_color: 'black'
+          fg_color: 'bright_yellow'
+          refresh_interval: 2000
+          script:
+            - "echo 'CPU PERFORMANCE'"
+            - "echo '=============='"
+            - "echo ''"
+            - "if command -v top >/dev/null 2>&1; then"
+            - "  if [[ \"$(uname)\" == \"Darwin\" ]]; then"
+            - "    top -l1 -n0 | grep 'CPU usage' | head -1"
+            - "    echo 'Load averages: '$(uptime | cut -d: -f4-)"
+            - "  else"
+            - "    top -bn1 | grep '%Cpu' | head -1"
+            - "    echo 'Load averages: '$(uptime | cut -d: -f4-)"
+            - "  fi"
+            - "else"
+            - "  echo 'Load averages: '$(uptime | cut -d: -f4-)"
+            - "fi"
+            - "echo ''"
+            - "echo 'CPU Core count: '$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 'Unknown')"
+            - "echo 'Architecture: '$(uname -m)"
+            - "echo ''"
+            - "echo 'Top CPU processes:'"
+            - "ps aux --sort=-%cpu | head -6 | tail -5 | awk '{printf \"%-15s %s%%\\n\", $11, $3}'"
+
+        # Memory monitoring
+        - id: 'memory_monitor'
+          title: 'Memory Usage'
+          position:
+            x1: "35%"
+            y1: "8%"
+            x2: "67%"
+            y2: "35%"
+          border: true
+          border_color: 'green'
+          bg_color: 'black'
+          fg_color: 'bright_green'
+          refresh_interval: 2000
+          script:
+            - "echo 'MEMORY USAGE'"
+            - "echo '============'"
+            - "echo ''"
+            - "if command -v free >/dev/null 2>&1; then"
+            - "  free -h"
+            - "  echo ''"
+            - "  free | awk 'NR==2{printf \"Memory Usage: %.1f%%\\n\", $3/$2*100}'"
+            - "else"
+            - "  vm_stat | head -8"
+            - "  echo ''"
+            - "  echo 'Memory pressure: '$(memory_pressure 2>/dev/null || echo 'N/A')"
+            - "fi"
+            - "echo ''"
+            - "echo 'Top Memory processes:'"
+            - "ps aux --sort=-%mem | head -6 | tail -5 | awk '{printf \"%-15s %s%%\\n\", $11, $4}'"
+
+        # Disk I/O monitoring
+        - id: 'disk_monitor'
+          title: 'Storage & I/O'
+          position:
+            x1: "69%"
+            y1: "8%"
+            x2: "99%"
+            y2: "35%"
+          border: true
+          border_color: 'blue'
+          bg_color: 'black'
+          fg_color: 'bright_blue'
+          refresh_interval: 3000
+          script:
+            - "echo 'STORAGE & I/O'"
+            - "echo '============'"
+            - "echo ''"
+            - "echo 'Disk Usage:'"
+            - "df -h | head -6 | tail -5"
+            - "echo ''"
+            - "echo 'I/O Statistics:'"
+            - "if command -v iostat >/dev/null 2>&1; then"
+            - "  iostat -x 1 1 2>/dev/null | tail -3"
+            - "elif command -v iotop >/dev/null 2>&1; then"
+            - "  echo 'Use: sudo iotop for I/O monitoring'"
+            - "else"
+            - "  echo 'I/O monitoring tools not available'"
+            - "  echo 'Disk space alerts:'"
+            - "  df -h | awk '$5 > 80 {print $1 \" is \" $5 \" full\"}'"
+            - "fi"
+
+        # Network monitoring
+        - id: 'network_monitor'
+          title: 'Network Activity'
+          position:
+            x1: "1%"
+            y1: "37%"
+            x2: "50%"
+            y2: "65%"
+          border: true
+          border_color: 'cyan'
+          bg_color: 'black'
+          fg_color: 'bright_cyan'
+          refresh_interval: 2000
+          script:
+            - "echo 'NETWORK ACTIVITY'"
+            - "echo '==============='"
+            - "echo ''"
+            - "echo 'Network Interfaces:'"
+            - "if command -v ip >/dev/null 2>&1; then"
+            - "  ip addr show | grep -E '^[0-9]|inet ' | head -8"
+            - "else"
+            - "  ifconfig | grep -E '^[a-z]|inet ' | head -8"
+            - "fi"
+            - "echo ''"
+            - "echo 'Active Connections:'"
+            - "if command -v ss >/dev/null 2>&1; then"
+            - "  ss -tuln | wc -l | xargs echo 'Listening ports:'"
+            - "  ss -tu | grep ESTAB | wc -l | xargs echo 'Established connections:'"
+            - "else"
+            - "  netstat -tln 2>/dev/null | wc -l | xargs echo 'Listening ports:'"
+            - "  netstat -tn 2>/dev/null | grep ESTABLISHED | wc -l | xargs echo 'Established connections:'"
+            - "fi"
+            - "echo ''"
+            - "echo 'Network Statistics:'"
+            - "if command -v vnstat >/dev/null 2>&1; then"
+            - "  vnstat -i eth0 --oneline 2>/dev/null | head -1"
+            - "else"
+            - "  echo 'Install vnstat for detailed network statistics'"
+            - "fi"
+
+        # Process monitoring
+        - id: 'process_monitor'
+          title: 'Process Monitor'
+          position:
+            x1: "52%"
+            y1: "37%"
+            x2: "99%"
+            y2: "65%"
+          border: true
+          border_color: 'magenta'
+          bg_color: 'black'
+          fg_color: 'bright_magenta'
+          refresh_interval: 3000
+          script:
+            - "echo 'PROCESS MONITOR'"
+            - "echo '=============='"
+            - "echo ''"
+            - "echo 'Process Summary:'"
+            - "echo 'Total processes: '$(ps aux | wc -l)"
+            - "echo 'Running processes: '$(ps aux | awk '$8 ~ /R/ {count++} END {print count+0}')"
+            - "echo 'Sleeping processes: '$(ps aux | awk '$8 ~ /S/ {count++} END {print count+0}')"
+            - "echo ''"
+            - "echo 'Resource Heavy Processes:'"
+            - "echo 'By CPU:'$(ps aux --sort=-%cpu | head -4 | tail -3 | awk '{print $11}' | tr '\\n' ', ')"
+            - "echo 'By Memory:'$(ps aux --sort=-%mem | head -4 | tail -3 | awk '{print $11}' | tr '\\n' ', ')"
+            - "echo ''"
+            - "echo 'System Processes:'"
+            - "ps aux | grep -E '(systemd|kernel|kthread)' | wc -l | xargs echo 'System/kernel processes:'"
+            - "ps aux | grep -v root | wc -l | xargs echo 'User processes:'"
+
+        # System alerts and controls
+        - id: 'system_controls'
+          title: 'System Controls'
+          position:
+            x1: "1%"
+            y1: "67%"
+            x2: "33%"
+            y2: "95%"
+          tab_order: 1
+          border: true
+          border_color: 'bright_yellow'
+          choices:
+            - id: 'system_health'
+              content: 'Health Check'
+              script:
+                - "echo 'SYSTEM HEALTH CHECK'"
+                - "echo '=================='"
+                - "echo ''"
+                - "echo 'System Status: CHECKING...'"
+                - "echo ''"
+                - "# Check critical thresholds"
+                - "cpu_usage=$(uptime | cut -d: -f4 | cut -d, -f1 | tr -d ' ')"
+                - "echo 'Load Average: '$cpu_usage"
+                - "if command -v free >/dev/null 2>&1; then"
+                - "  mem_usage=$(free | awk 'NR==2{printf \"%.0f\", $3/$2*100}')"
+                - "  echo 'Memory Usage: '$mem_usage'%'"
+                - "  if [ $mem_usage -gt 90 ]; then echo 'WARNING: High memory usage'; fi"
+                - "fi"
+                - "echo ''"
+                - "disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')"
+                - "echo 'Root Disk Usage: '$disk_usage'%'"
+                - "if [ $disk_usage -gt 90 ]; then echo 'WARNING: Disk nearly full'; fi"
+                - "echo ''"
+                - "echo 'Service Status:'"
+                - "if command -v systemctl >/dev/null 2>&1; then"
+                - "  systemctl is-active sshd 2>/dev/null | xargs echo 'SSH:'"
+                - "  systemctl is-active NetworkManager 2>/dev/null | xargs echo 'Network:'"
+                - "else"
+                - "  echo 'Service monitoring not available'"
+                - "fi"
+              redirect_output: 'alerts_panel'
+            - id: 'performance_profile'
+              content: 'Performance'
+              script:
+                - "echo 'PERFORMANCE PROFILE'"
+                - "echo '=================='"
+                - "echo ''"
+                - "echo 'CPU Information:'"
+                - "if [ -f /proc/cpuinfo ]; then"
+                - "  grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ //'"
+                - "  grep 'cpu MHz' /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ //' | xargs echo 'Frequency:'"
+                - "elif command -v sysctl >/dev/null 2>&1; then"
+                - "  sysctl -n machdep.cpu.brand_string 2>/dev/null || echo 'CPU info not available'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Memory Information:'"
+                - "if command -v free >/dev/null 2>&1; then"
+                - "  free -h | grep Mem | awk '{print \"Total: \" $2 \", Available: \" $7}'"
+                - "else"
+                - "  echo 'Total: '$(sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024/1024/1024) \"GB\"}' || echo 'N/A')"
+                - "fi"
+                - "echo ''"
+                - "echo 'Performance Metrics:'"
+                - "echo 'Boot time: '$(uptime -s 2>/dev/null || echo 'N/A')"
+                - "echo 'Kernel: '$(uname -r)"
+                - "echo 'Architecture: '$(uname -m)"
+              redirect_output: 'alerts_panel'
+            - id: 'log_analysis'
+              content: 'Log Analysis'
+              script:
+                - "echo 'SYSTEM LOG ANALYSIS'"
+                - "echo '=================='"
+                - "echo ''"
+                - "echo 'Recent Critical Events:'"
+                - "if command -v journalctl >/dev/null 2>&1; then"
+                - "  journalctl -p err -n 5 --no-pager 2>/dev/null"
+                - "elif [ -f /var/log/syslog ]; then"
+                - "  tail -10 /var/log/syslog | grep -i 'error\\|fail\\|critical' | tail -5"
+                - "elif [ -f /var/log/system.log ]; then"
+                - "  tail -10 /var/log/system.log | grep -i 'error\\|fail\\|critical' | tail -5"
+                - "else"
+                - "  echo 'System logs not accessible'"
+                - "fi"
+                - "echo ''"
+                - "echo 'Authentication Events:'"
+                - "if [ -f /var/log/auth.log ]; then"
+                - "  tail -5 /var/log/auth.log 2>/dev/null | grep -v 'session opened\\|session closed' | tail -3"
+                - "else"
+                - "  echo 'Auth logs not accessible'"
+                - "fi"
+              redirect_output: 'alerts_panel'
+
+        # Alerts and notifications
+        - id: 'alerts_panel'
+          title: 'System Alerts & Notifications'
+          position:
+            x1: "35%"
+            y1: "67%"
+            x2: "99%"
+            y2: "95%"
+          border: true
+          border_color: 'red'
+          bg_color: 'black'
+          fg_color: 'bright_red'
+          content: "System monitoring active\\n\\nSelect a control option to view detailed information\\n\\nMonitored metrics:\\n- CPU usage and load\\n- Memory consumption\\n- Disk space and I/O\\n- Network activity\\n- Process monitoring\\n- System health\\n\\nAlerts will appear here when thresholds are exceeded"

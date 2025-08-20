@@ -1,0 +1,149 @@
+<section class="hero">
+  <div class="hero-content">
+    <h1>BoxMux</h1>
+    <p class="subtitle">A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.</p>
+    <div class="hero-buttons">
+      <a href="/user-guide" class="btn btn-primary">
+        Get Started
+      </a>
+      <a href="https://github.com/jowharshamshiri/boxmux" class="btn btn-secondary" target="_blank">
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="feature-cards">
+  <div class="container">
+    <div class="section-header">
+      <h2>Documentation</h2>
+      <p>Set up your development environment and learn the fundamental concepts.</p>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="feature-card setup-card">
+        <h3>Setup and installation</h3>
+        <p>Installation and basic configuration.</p>
+        <a href="/user-guide" class="card-link">
+          Get started
+        </a>
+      </div>
+      
+      <div class="feature-card api-card">
+        <h3>API reference</h3>
+        <p>Socket API documentation and function reference.</p>
+        <a href="/api" class="card-link">
+          API docs
+        </a>
+      </div>
+      
+      <div class="feature-card gallery-card">
+        <h3>Configuration reference</h3>
+        <p>YAML configuration options and examples.</p>
+        <a href="/configuration" class="card-link">
+          Browse configs
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="quick-start">
+  <div class="container">
+    <div class="section-header">
+      <h2>Quick Installation</h2>
+    </div>
+    
+    <div class="install-steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Install BoxMux</h3>
+        <div class="code-block">
+          cargo install boxmux
+          <button class="copy-btn" onclick="copyToClipboard('cargo install boxmux')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Create your first interface</h3>
+        <div class="code-block">
+          # Create hello.yaml<br />
+          boxmux hello.yaml
+          <button class="copy-btn" onclick="copyToClipboard('boxmux hello.yaml')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Start building</h3>
+        <div class="code-block">
+          # Try example configs<br />
+          boxmux examples/dashboard.yaml
+          <button class="copy-btn" onclick="copyToClipboard('boxmux examples/dashboard.yaml')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feature-cards">
+  <div class="container">
+    <div class="section-header">
+      <h2>Key Features</h2>
+      <p>Core functionality for building terminal interfaces.</p>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="feature-card">
+        <h3>YAML Configuration</h3>
+        <p>Define interface structure using YAML configuration files.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Real-time Updates</h3>
+        <p>Configurable refresh intervals and live data streaming.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Interactive Elements</h3>
+        <p>Keyboard navigation, menu selection, and custom keybindings.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Socket API</h3>
+        <p>External control and data injection via Unix sockets.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Variable System</h3>
+        <p>Hierarchical variable substitution with environment integration.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Cross-platform</h3>
+        <p>Works on macOS, Linux, and other Unix-like systems.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target.closest('.copy-btn');
+    const icon = btn.querySelector('i');
+    icon.className = 'fas fa-check';
+    setTimeout(() => {
+      icon.className = 'fas fa-copy';
+    }, 2000);
+  });
+}
+</script>
+

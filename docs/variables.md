@@ -1,3 +1,10 @@
+---
+layout: default
+title: Variable System Guide - BoxMux
+---
+
+<div class="doc-content">
+
 # BoxMux Variable System Guide
 
 The BoxMux Variable System enables dynamic configuration, template-driven interfaces, and environment-specific deployments through hierarchical variable resolution.
@@ -554,3 +561,5 @@ Add debug output to understand variable resolution:
 ```
 
 This will help you understand how variables are being resolved in your specific configuration.
+
+</div>

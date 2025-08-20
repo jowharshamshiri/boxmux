@@ -1,3 +1,10 @@
+---
+layout: default
+title: API Reference - BoxMux
+---
+
+<div class="doc-content">
+
 # BoxMux API Reference
 
 This document describes the BoxMux API for programmatic control via socket messaging and external integrations.
@@ -752,3 +759,5 @@ except Exception as e:
 5. **Validation**: Validate panel IDs and parameters before sending
 6. **Logging**: Log API calls for debugging
 7. **Timeouts**: Set appropriate timeouts for socket operations
+
+</div>

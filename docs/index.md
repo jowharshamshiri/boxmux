@@ -1,116 +1,153 @@
-# BoxMux
-
-**Automate tasks and put automation into terminal dashboards with minimal effort using YAML configuration.**
-
-## Quick Start Guide
-
-### Installation & First Interface
-
-```bash
-# Clone and build
-git clone https://github.com/jowharshamshiri/boxmux.git && cd boxmux
-cargo build --release && chmod +x run_boxmux.sh
-
-# Run example
-./run_boxmux.sh layouts/dashboard.yaml
-```
-
-### Essential Commands
-
-```bash
-cargo build --release    # Production build
-cargo test               # Run test suite  
-./run_boxmux.sh <config> # Run with configuration
-```
-
-### Basic Configuration Template
-
-```yaml
-app:
-  variables:
-    APP_NAME: "My Interface"
-  layouts:
-    - id: 'main'
-      root: true
-      title: '${APP_NAME}'
-      children:
-        - id: 'panel1'
-          title: 'Panel Title'
-          position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
-          content: 'Hello, BoxMux!'
-          script:
-            - echo "User: $USER"
-```
-
-## Core
-
-### Essential References
-
-- [Configuration Guide](configuration.md) - YAML configuration reference with all properties
-- [Variable System](variables.md) - Template substitution and environment integration
-- [User Guide](user-guide.md) - Tutorials and examples for all use cases  
-- [API Reference](api.md) - Socket messaging and programmatic control documentation
-- [Troubleshooting](troubleshooting.md) - Common issues, debugging, and solutions
-
-### Development Resources
-
-- [Contributing](../CONTRIBUTING.md) - Development setup and contribution guidelines
-- [Roadmap](roadmap.md) - Current status and planned features
-- [Architecture](../internal/architectural_record.md) - Technical architecture decisions
-
-## Socket API Quick Reference
-
-```bash
-# Update panel content
-echo '{"UpdatePanel": {"panel_id": "status", "content": "Online"}}' | nc -U /tmp/boxmux.sock
-
-# Refresh panel
-echo '{"RefreshPanel": {"panel_id": "monitor"}}' | nc -U /tmp/boxmux.sock
-```
-
-## Key Features
-
-### Core Capabilities
-
-- Unix Command Integration - Transform shell commands into dashboard components
-- Multi-threaded Execution - Commands run in isolated threads with clean separation
-- YAML Configuration - Define command pipelines and layouts declaratively
-- Variable System - Hierarchical variable substitution with environment integration
-- Real-time Updates - Configurable refresh intervals for command execution
-- Socket API - External control and data injection via Unix sockets
-
-### Use Cases
-
-- System Administration - Combine `ps`, `netstat`, `df` commands into dashboards
-- Development Tools - Orchestrate build, test, and deployment scripts
-- DevOps - Run monitoring commands with structured output and alerting
-- Data Analysis - Execute `awk`, `grep`, `sort` pipelines with visual organization
-
-## Learning Path
-
-### New Users
-
-1. [User Guide](user-guide.md) - Tutorials and examples
-2. [Configuration Guide](configuration.md) - YAML configuration
-3. [Troubleshooting](troubleshooting.md) - Common issues and solutions
-
-### Developers  
-
-1. [API Reference](api.md) - Socket programming and external control
-2. [Contributing](../CONTRIBUTING.md) - Development setup and guidelines
-3. [Architecture](../internal/architectural_record.md) - Technical design decisions
-
-## Project Information
-
-- Current Version: 0.76.71205 (Production Ready)
-- License: MIT License - See [LICENSE](../LICENSE)
-- Repository: [GitHub](https://github.com/jowharshamshiri/boxmux)
-- Minimum Requirements: Rust 1.70.0, Unix-like system
-
-## Support and Contributing
-
-- Issues: [GitHub Issues](https://github.com/jowharshamshiri/boxmux/issues) for bugs and feature requests
-- Contributing: See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines  
-- Discussions: [GitHub Discussions](https://github.com/jowharshamshiri/boxmux/discussions) for questions and ideas
-
 ---
+layout: default
+title: BoxMux - YAML-driven Terminal UI Framework
+---
+
+<section class="hero">
+  <div class="hero-content">
+    <h1>BoxMux</h1>
+    <p class="subtitle">A YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.</p>
+    <div class="hero-buttons">
+      <a href="{{ "/user-guide" | relative_url }}" class="btn btn-primary">
+        Get Started
+      </a>
+      <a href="https://github.com/jowharshamshiri/boxmux" class="btn btn-secondary" target="_blank">
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="feature-cards">
+  <div class="container">
+    <div class="section-header">
+      <h2>Documentation</h2>
+      <p>Set up your development environment and learn the fundamental concepts.</p>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="feature-card setup-card">
+        <h3>Setup and installation</h3>
+        <p>Installation and basic configuration.</p>
+        <a href="{{ "/user-guide" | relative_url }}" class="card-link">
+          Get started
+        </a>
+      </div>
+      
+      <div class="feature-card api-card">
+        <h3>API reference</h3>
+        <p>Socket API documentation and function reference.</p>
+        <a href="{{ "/api" | relative_url }}" class="card-link">
+          API docs
+        </a>
+      </div>
+      
+      <div class="feature-card gallery-card">
+        <h3>Configuration reference</h3>
+        <p>YAML configuration options and examples.</p>
+        <a href="{{ "/configuration" | relative_url }}" class="card-link">
+          Browse configs
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="quick-start">
+  <div class="container">
+    <div class="section-header">
+      <h2>Quick Installation</h2>
+    </div>
+    
+    <div class="install-steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Install BoxMux</h3>
+        <div class="code-block">
+          cargo install boxmux
+          <button class="copy-btn" onclick="copyToClipboard('cargo install boxmux')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Create your first interface</h3>
+        <div class="code-block">
+          # Create hello.yaml<br>
+          boxmux hello.yaml
+          <button class="copy-btn" onclick="copyToClipboard('boxmux hello.yaml')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Start building</h3>
+        <div class="code-block">
+          # Try example configs<br>
+          boxmux examples/dashboard.yaml
+          <button class="copy-btn" onclick="copyToClipboard('boxmux examples/dashboard.yaml')">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feature-cards">
+  <div class="container">
+    <div class="section-header">
+      <h2>Key Features</h2>
+      <p>Core functionality for building terminal interfaces.</p>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="feature-card">
+        <h3>YAML Configuration</h3>
+        <p>Define interface structure using YAML configuration files.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Real-time Updates</h3>
+        <p>Configurable refresh intervals and live data streaming.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Interactive Elements</h3>
+        <p>Keyboard navigation, menu selection, and custom keybindings.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Socket API</h3>
+        <p>External control and data injection via Unix sockets.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Variable System</h3>
+        <p>Hierarchical variable substitution with environment integration.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Cross-platform</h3>
+        <p>Works on macOS, Linux, and other Unix-like systems.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target.closest('.copy-btn');
+    const icon = btn.querySelector('i');
+    icon.className = 'fas fa-check';
+    setTimeout(() => {
+      icon.className = 'fas fa-copy';
+    }, 2000);
+  });
+}
+</script>

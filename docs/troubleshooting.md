@@ -1,3 +1,10 @@
+---
+layout: default
+title: Troubleshooting Guide - BoxMux
+---
+
+<div class="doc-content">
+
 # Troubleshooting Guide
 
 This guide helps you diagnose and resolve common issues with BoxMux.
@@ -39,7 +46,8 @@ cargo build
 **Solution**:
 
 - Verify file path: `ls -la layouts/dashboard.yaml`
-- Use absolute path: `./run_boxmux.sh /full/path/to/config.yaml`
+- Use absolute path if installed via cargo: `boxmux /full/path/to/config.yaml`
+- Use absolute path if built from source: `./run_boxmux.sh /full/path/to/config.yaml`
 - Check file permissions: `chmod 644 layouts/dashboard.yaml`
 
 #### YAML Syntax Errors
@@ -221,3 +229,5 @@ pkill -f boxmux
 # Or use Ctrl+C in terminal
 # Or close terminal window
 ```
+
+</div>
