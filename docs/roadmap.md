@@ -16,38 +16,44 @@ title: Roadmap - BoxMux
 
 ## Current Status: v0.76.71205 (Production Ready)
 
+BoxMux is a mature terminal UI framework with 79 implemented features (92% complete).
+
 ### ✅ Completed Core Features
-- **YAML Configuration System** - Complete declarative interface definition
+- **YAML Configuration System** - Declarative interface definition with JSON schema validation
 - **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
 - **Socket-based API** - External control via Unix domain sockets
-- **Rich Component Library** - Panels, menus, charts, real-time updates
+- **Rich Component Library** - Panels, menus, charts, tables, real-time updates
+- **Streaming Output** - Live streaming from long-running commands with auto-scroll
+- **Data Visualization** - Charts and tables with sorting, filtering, pagination
+- **Plugin System** - Dynamic component loading with security validation
 - **Cross-platform Support** - Verified on macOS, Linux, Unix systems
 - **Performance Optimization** - Sub-millisecond input handling, efficient rendering
-- **Comprehensive Documentation** - User guides, API reference, examples
 
-### Recent Achievements (v0.76)
-- ✅ Enhanced error handling and debugging capabilities
-- ✅ Crossterm migration for improved cross-platform compatibility
-- ✅ Security updates for all dependencies
-- ✅ Test coverage improvements (90%+)
-- ✅ Critical rendering bug fixes
+### Recently Completed Features
+- **Streaming Script Output**: Live streaming output from long-running commands with real-time updates
+- **Auto-Scroll to Bottom**: Panels automatically scroll to show latest content for logs and streaming output  
+- **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
+- **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
+- **Plugin System**: Dynamic component loading with security validation
+- **Clipboard Integration**: Ctrl+C copies focused panel content to clipboard
+- **Configuration Schema Validation**: JSON Schema validation for YAML configurations
 
 ## Planned Enhancements
 
 ### 🎯 Next Release (v0.8) - Enhanced Capabilities
 **Focus**: Advanced features and developer experience improvements
 
-#### High Priority Features
-- [ ] **Enhanced Charting System**
-  - Built-in chart types (bar, line, scatter, pie charts)
-  - Real-time data streaming support  
-  - ASCII art chart rendering engine
-  - Integration with popular data sources (CSV, JSON, APIs)
+#### Remaining Features
+- [ ] **Performance Profiling**
+  - Built-in performance monitoring and optimization tools
+  - Runtime metrics collection and display
 
-- [ ] **Configuration Validation**
-  - Schema-based YAML validation with detailed error messages
-  - Configuration auto-completion and suggestions
-  - Live validation during editing
+- [ ] **Advanced Process Control**  
+  - Visual process indicators and status monitoring
+  - Signal handling for background scripts
+
+- [ ] **Automatic Layout System**
+  - Grid and flex layouts built on percentage-based positioning
   - Better error reporting with line numbers and context
 
 - [ ] **Plugin Architecture**

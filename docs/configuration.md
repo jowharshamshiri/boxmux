@@ -136,7 +136,8 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `variables` | `object` | No | - | Panel-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
-| `streaming` | `boolean` | No | `false` | Enable real-time streaming output |
+| `streaming` | `boolean` | No | `false` | Enable real-time streaming output from long-running commands |
+| `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
 | `clipboard_enabled` | `boolean` | No | `false` | Enable Ctrl+C clipboard copying |
 | `performance_monitoring` | `boolean` | No | `false` | Enable performance monitoring |
 | `scroll_config` | `object` | No | - | Enhanced scrolling configuration |

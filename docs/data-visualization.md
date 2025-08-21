@@ -5,7 +5,7 @@ title: Data Visualization - BoxMux
 
 # Data Visualization
 
-BoxMux provides data visualization through charts and tables with features for displaying, sorting, and filtering structured data.
+BoxMux provides data visualization through charts and tables with features for displaying, sorting, and filtering structured data, including real-time streaming updates.
 
 ## Table of Contents
 
