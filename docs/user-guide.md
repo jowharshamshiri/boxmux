@@ -344,11 +344,11 @@ children:
 
 ## Data Visualization
 
-BoxMux provides data visualization through charts and tables with advanced features.
+BoxMux provides data visualization through charts and tables.
 
 ### Chart System
 
-BoxMux includes a complete Unicode-based charting system:
+BoxMux includes a Unicode-based charting system:
 - **Chart Types**: Bar charts, line charts, histograms
 - **Smart Layout**: Responsive chart sizing and alignment
 - **Real-time Data**: Live data integration with configurable refresh
@@ -369,7 +369,7 @@ BoxMux includes a complete Unicode-based charting system:
 
 ### Table System
 
-Advanced table features for structured data:
+Table features for structured data:
 - **Data Formats**: CSV and JSON parsing
 - **Sorting**: Text and numeric sorting with direction control
 - **Filtering**: Exact match and case-insensitive search
@@ -393,7 +393,7 @@ Advanced table features for structured data:
     - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s\n", $11, $3, $4, $2}' | sort -rn -k2 -t, | head -15
 ```
 
-**Learn more**: See the complete [Data Visualization Guide](data-visualization.md) for chart types, table features, and advanced examples.
+**Learn more**: See the [Data Visualization Guide](data-visualization.md) for chart types, table features, and examples.
 
 ## Plugin System
 
@@ -422,7 +422,7 @@ The plugin system supports:
     - 'process_spawn'
 ```
 
-**Learn more**: See the complete [Plugin System Guide](plugin-system.md) for development, security model, and advanced examples.
+**Learn more**: See the [Plugin System Guide](plugin-system.md) for development, security model, and examples.
 
 ## Real-World Examples
 
@@ -705,14 +705,14 @@ script:
 
 ## Advanced Features
 
-BoxMux includes advanced features for sophisticated applications:
+BoxMux includes additional features:
 - **Streaming Script Output**: Real-time output from long-running commands
 - **Clipboard Integration**: Ctrl+C copies panel content with visual feedback
 - **Enhanced Scrolling**: Position preservation, page navigation, visual indicators
 - **Performance Monitoring**: Built-in benchmarking and performance tracking
 - **Schema Validation**: JSON Schema validation with detailed error reporting
 
-**Learn more**: See the complete [Advanced Features Guide](advanced-features.md) for streaming, clipboard, scrolling, and performance features.
+**Learn more**: See the [Advanced Features Guide](advanced-features.md) for streaming, clipboard, scrolling, and performance features.
 
 ---
 
