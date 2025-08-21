@@ -20,6 +20,10 @@ This document provides a reference for BoxMux YAML configuration files.
 - [Chart Configuration](#chart-configuration)
 - [Table Configuration](#table-configuration)
 - [Plugin Configuration](#plugin-configuration)
+- [Streaming Configuration](#streaming-configuration)
+- [Clipboard Configuration](#clipboard-configuration)
+- [Scrolling Configuration](#scrolling-configuration)
+- [Performance Configuration](#performance-configuration)
 - [Variable System](#variable-system)
 - [Schema Validation](#schema-validation)
 - [Features](#features)
@@ -132,6 +136,10 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `variables` | `object` | No | - | Panel-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
+| `streaming` | `boolean` | No | `false` | Enable real-time streaming output |
+| `clipboard_enabled` | `boolean` | No | `false` | Enable Ctrl+C clipboard copying |
+| `performance_monitoring` | `boolean` | No | `false` | Enable performance monitoring |
+| `scroll_config` | `object` | No | - | Enhanced scrolling configuration |
 | `min_width` | `number` | No | - | Minimum width in characters |
 | `min_height` | `number` | No | - | Minimum height in characters |
 | `max_width` | `number` | No | - | Maximum width in characters |
@@ -998,6 +1006,107 @@ children:
   bg_color: 'white'
   fg_color: 'black'
   border_color: 'red'
+```
+
+## Streaming Configuration
+
+Configure real-time streaming output for long-running commands:
+
+```yaml
+# Basic streaming configuration
+- id: 'live_logs'
+  title: 'Live System Logs'
+  streaming: true
+  script:
+    - tail -f /var/log/system.log
+  refresh_interval: 100  # Fast refresh for smooth streaming
+
+# Advanced streaming with buffer management
+- id: 'build_output'
+  title: 'Build Process'
+  streaming: true
+  stream_config:
+    buffer_size: 10000      # Maximum lines to buffer
+    auto_scroll: true       # Auto-scroll to new content
+    line_buffered: true     # Process output line by line
+  script:
+    - cargo build --verbose
+```
+
+## Clipboard Configuration
+
+Enable clipboard integration for copying panel content:
+
+```yaml
+# Enable clipboard for specific panel
+- id: 'results_panel'
+  title: 'Command Results'
+  clipboard_enabled: true
+  script:
+    - ps aux | head -20
+
+# Global clipboard configuration
+app:
+  clipboard_config:
+    enabled: true
+    copy_keybind: 'ctrl+c'     # Keyboard shortcut
+    visual_feedback: true       # Show visual confirmation
+    max_copy_size: 1048576     # Maximum bytes to copy (1MB)
+```
+
+## Scrolling Configuration
+
+Advanced scrolling features with position preservation and navigation:
+
+```yaml
+# Enhanced scrolling panel
+- id: 'scrollable_content'
+  title: 'Large Output'
+  scroll: true
+  scroll_config:
+    preserve_position: true     # Maintain position during refresh
+    show_indicators: true       # Show scroll position indicators
+    page_size: 10              # Lines per page scroll
+    smooth_scrolling: true     # Enable smooth scrolling
+    auto_scroll_new: false     # Don't auto-scroll to new content
+    scroll_buffer_size: 2000   # Maximum lines to keep
+  script:
+    - ps aux | head -100
+
+# Minimal scrolling setup
+- id: 'simple_scroll'
+  scroll: true
+  script:
+    - find / -name '*.log' 2>/dev/null
+```
+
+## Performance Configuration
+
+Configure performance monitoring and optimization:
+
+```yaml
+# Performance monitoring panel
+- id: 'performance'
+  title: 'System Performance'
+  performance_monitoring: true
+  perf_config:
+    collect_metrics: true       # Collect performance metrics
+    show_benchmarks: true      # Display benchmark results
+    memory_tracking: true      # Track memory usage
+    cpu_profiling: false       # CPU profiling (development only)
+  script:
+    - |  
+      echo "Performance Metrics:"
+      echo "Memory: $(ps -o rss= -p $$) KB"
+      echo "CPU: $(ps -o %cpu= -p $$)%"
+
+# Global performance settings
+app:
+  performance:
+    enable_benchmarks: true
+    benchmark_threshold_ms: 1000  # Warn if operations exceed 1s
+    memory_limit_mb: 512         # Memory limit for BoxMux
+    max_refresh_rate: 10         # Maximum refreshes per second
 ```
 
 For more examples and tutorials, see the [Examples](examples.md) document.
