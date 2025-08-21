@@ -195,6 +195,8 @@ pub struct Panel {
     pub plugin_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
+    pub streaming: Option<bool>,
+    pub auto_scroll_bottom: Option<bool>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -278,6 +280,8 @@ impl Hash for Panel {
         if let Some(ref config) = self.table_config {
             serde_json::to_string(config).unwrap_or_default().hash(state);
         }
+        self.streaming.hash(state);
+        self.auto_scroll_bottom.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -285,6 +289,7 @@ impl Hash for Panel {
             vs.to_bits().hash(state);
         }
         self.selected.hash(state);
+        self.streaming.hash(state);
         self.parent_id.hash(state);
         self.parent_layout_id.hash(state);
         self.error_state.hash(state);
@@ -358,6 +363,8 @@ impl Default for Panel {
             plugin_config: None,
             table_data: None,
             table_config: None,
+            streaming: None,
+            auto_scroll_bottom: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -433,6 +440,8 @@ impl PartialEq for Panel {
             && self.plugin_config == other.plugin_config
             && self.table_data == other.table_data
             && self.table_config == other.table_config
+            && self.streaming == other.streaming
+            && self.auto_scroll_bottom == other.auto_scroll_bottom
             && self.error_state == other.error_state
     }
 }
@@ -501,6 +510,8 @@ impl Clone for Panel {
             plugin_config: self.plugin_config.clone(),
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
+            streaming: self.streaming,
+            auto_scroll_bottom: self.auto_scroll_bottom,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -1300,9 +1311,16 @@ impl Panel {
         self.content = Some(formatted_content);
         self.error_state = !success;
         
-        // Restore scroll position after content update
-        self.horizontal_scroll = preserved_horizontal_scroll;
-        self.vertical_scroll = preserved_vertical_scroll;
+        // Handle auto-scroll to bottom or restore scroll position
+        if self.auto_scroll_bottom == Some(true) {
+            // Auto-scroll to bottom - set vertical scroll to maximum
+            self.vertical_scroll = Some(100.0);
+            self.horizontal_scroll = preserved_horizontal_scroll;
+        } else {
+            // Restore scroll position after content update
+            self.horizontal_scroll = preserved_horizontal_scroll;
+            self.vertical_scroll = preserved_vertical_scroll;
+        }
 
         if self.save_in_file.is_some() {
             //include date
@@ -2458,6 +2476,20 @@ impl Updatable for Panel {
                         serde_json::from_value::<Option<bool>>(update.new_value.clone())
                     {
                         self.selected = new_selected;
+                    }
+                }
+                "streaming" => {
+                    if let Ok(new_streaming) =
+                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
+                    {
+                        self.streaming = new_streaming;
+                    }
+                }
+                "auto_scroll_bottom" => {
+                    if let Ok(new_auto_scroll_bottom) =
+                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
+                    {
+                        self.auto_scroll_bottom = new_auto_scroll_bottom;
                     }
                 }
                 "content" => {
