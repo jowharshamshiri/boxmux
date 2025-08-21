@@ -586,6 +586,7 @@ impl AppGraph {
 pub struct AppContext {
     pub app: App,
     pub config: Config,
+    pub plugin_registry: std::sync::Arc<std::sync::Mutex<crate::plugin::PluginRegistry>>,
 }
 
 impl Updatable for AppContext {
@@ -641,7 +642,11 @@ impl PartialEq for AppContext {
 impl AppContext {
     pub fn new(app: App, config: Config) -> Self {
         // App is already validated in load_app_from_yaml
-        AppContext { app, config }
+        AppContext { 
+            app, 
+            config,
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+        }
     }
 }
 
@@ -650,6 +655,7 @@ impl Clone for AppContext {
         AppContext {
             app: self.app.clone(),
             config: self.config.clone(),
+            plugin_registry: self.plugin_registry.clone(),
         }
     }
 }
@@ -658,6 +664,7 @@ impl Hash for AppContext {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.app.hash(state);
         self.config.hash(state);
+        // Note: plugin_registry contains Mutex which doesn't implement Hash
     }
 }
 

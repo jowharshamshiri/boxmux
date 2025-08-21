@@ -1,0 +1,51 @@
+app:
+  layouts:
+    - id: 'main'
+      root: true
+      title: 'Plugin System Demo'
+      bg_color: 'black'
+      children:
+        - id: 'custom_component'
+          title: 'Custom Plugin Component'
+          position: {x1: 10%, y1: 10%, x2: 90%, y2: 50%}
+          border: true
+          border_color: 'magenta'
+          fg_color: 'white'
+          plugin_component: 'custom_chart'
+          plugin_config:
+            title: 'Network Traffic'
+            refresh_rate: 1000
+            data_source: 'metrics/network'
+            chart_style: 'realtime'
+
+        - id: 'plugin_status'
+          title: 'Plugin Status'
+          position: {x1: 10%, y1: 55%, x2: 45%, y2: 90%}
+          border: true
+          border_color: 'cyan'
+          fg_color: 'green'
+          content: |
+            Plugin System Status:
+            ✓ Plugin Registry: Active
+            ✓ Security Manager: Enabled
+            ✓ Components Loaded: 1
+            
+            Available Components:
+            - custom_chart (v1.0.0)
+
+        - id: 'security_info'
+          title: 'Security Settings'
+          position: {x1: 50%, y1: 55%, x2: 90%, y2: 90%}
+          border: true
+          border_color: 'yellow'
+          fg_color: 'white'
+          content: |
+            Plugin Security:
+            - Sandboxing: Enabled
+            - Allowed Paths: /tmp, /var/log
+            - Allowed Hosts: localhost
+            - Allowed Commands: echo, date
+            
+            Permissions Required:
+            - FileSystem: /tmp access
+            - Network: localhost only

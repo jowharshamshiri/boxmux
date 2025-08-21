@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(git checkout:*)",
       "Bash(mkdir:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(/dev/null)"
     ],
     "deny": []
   }

@@ -163,9 +163,48 @@ pub fn draw_panel(
             fill_panel(value, border, &bg_color, fill_char, buffer);
 
             let mut content = panel.content.as_deref();
-            // check output is not null or empty
+            let mut chart_content = None;
+            let mut plugin_content = None;
+            let mut table_content = None;
+            
+            // Generate plugin content if panel has plugin configuration
+            if let Some(generated_plugin) = panel.generate_plugin_content(app_context, value) {
+                plugin_content = Some(generated_plugin);
+                content = plugin_content.as_deref();
+            }
+            
+            // Generate chart content if panel has chart configuration (charts override plugins)
+            if let Some(generated_chart) = panel.generate_chart_content(value) {
+                chart_content = Some(generated_chart);
+                content = chart_content.as_deref();
+            }
+            
+            // Generate table content if panel has table configuration (tables override charts)
+            if let Some(generated_table) = panel.generate_table_content(value) {
+                table_content = Some(generated_table);
+                content = table_content.as_deref();
+            }
+            
+            // check output is not null or empty - output overrides everything
             if !panel.output.is_empty() {
                 content = Some(&panel.output);
+            }
+
+            // Automatic scrollbar logic for focusable panels
+            let mut overflow_behavior = panel.calc_overflow_behavior(app_context, app_graph);
+            
+            // If panel is focusable (has next_focus_id) and content might overflow, enable scrolling
+            if panel.next_focus_id.is_some() {
+                if let Some(content_str) = content {
+                    let (content_width, content_height) = content_size(content_str);
+                    let viewable_width = value.width().saturating_sub(4);
+                    let viewable_height = value.height().saturating_sub(4);
+                    
+                    // Check if content would overflow
+                    if content_width > viewable_width || content_height > viewable_height {
+                        overflow_behavior = "scroll".to_string();
+                    }
+                }
             }
 
             render_panel(
@@ -184,7 +223,7 @@ pub fn draw_panel(
                 &panel.calc_selected_menu_bg_color(app_context, app_graph),
                 content,
                 &fg_color,
-                &panel.calc_overflow_behavior(app_context, app_graph),
+                &overflow_behavior,
                 Some(&panel.calc_border(app_context, app_graph)),
                 panel.current_horizontal_scroll(),
                 panel.current_vertical_scroll(),
@@ -419,8 +458,10 @@ pub fn draw_horizontal_line_with_title(
     // If there is no title and no border, do nothing
 }
 
-static H_SCROLL_CHAR: &str = "|";
-static V_SCROLL_CHAR: &str = "-";
+static H_SCROLL_CHAR: &str = "■";
+static V_SCROLL_CHAR: &str = "█";
+static H_SCROLL_TRACK: &str = "─";
+static V_SCROLL_TRACK: &str = "│";
 
 pub fn render_panel(
     bounds: &Bounds,
@@ -633,8 +674,21 @@ pub fn render_panel(
                 );
             }
 
-            // Drawing the scroll nobs within the borders
+            // Drawing scroll indicators with track and position
             if max_content_height > viewable_height {
+                // Draw vertical scroll track
+                for y in (bounds.top() + 1)..bounds.bottom() {
+                    print_with_color_and_background_at(
+                        y,
+                        bounds.right(),
+                        "bright_black",
+                        bg_color,
+                        V_SCROLL_TRACK,
+                        buffer,
+                    );
+                }
+                
+                // Draw vertical scroll position indicator
                 let scrollbar_position = if viewable_height > 1 {
                     ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
                         as usize
@@ -652,6 +706,19 @@ pub fn render_panel(
             }
 
             if max_content_width > viewable_width {
+                // Draw horizontal scroll track
+                for x in (bounds.left() + 1)..bounds.right() {
+                    print_with_color_and_background_at(
+                        bounds.bottom(),
+                        x,
+                        "bright_black",
+                        bg_color,
+                        H_SCROLL_TRACK,
+                        buffer,
+                    );
+                }
+                
+                // Draw horizontal scroll position indicator
                 let scrollbar_position = if viewable_width > 2 {
                     ((horizontal_scroll / 100.0) * (viewable_width.saturating_sub(2)) as f64)
                         .floor() as usize
@@ -667,6 +734,8 @@ pub fn render_panel(
                     buffer,
                 );
             }
+
+            // Scroll position percentage indicator removed - visual scrollbars provide sufficient feedback
 
             scrollbars_drawn = true;
         } else if !_overflowing {

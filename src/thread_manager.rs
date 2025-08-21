@@ -23,6 +23,9 @@ pub enum Message {
     ScrollPanelRight(),
     ScrollPanelPageUp(),
     ScrollPanelPageDown(),
+    ScrollPanelPageLeft(),
+    ScrollPanelPageRight(),
+    CopyFocusedPanelContent(),
     Resize,
     RedrawPanel(String),
     RedrawApp,
@@ -66,6 +69,9 @@ impl Hash for Message {
             Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
             Message::ScrollPanelPageUp() => "scroll_panel_page_up".hash(state),
             Message::ScrollPanelPageDown() => "scroll_panel_page_down".hash(state),
+            Message::ScrollPanelPageLeft() => "scroll_panel_page_left".hash(state),
+            Message::ScrollPanelPageRight() => "scroll_panel_page_right".hash(state),
+            Message::CopyFocusedPanelContent() => "copy_focused_panel_content".hash(state),
             Message::PanelOutputUpdate(panel_id, success, output) => {
                 "panel_output_update".hash(state);
                 panel_id.hash(state);

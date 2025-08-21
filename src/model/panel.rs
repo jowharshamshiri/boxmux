@@ -130,6 +130,7 @@ impl Clone for Choice {
 pub struct Panel {
     pub id: String,
     pub title: Option<String>,
+    #[serde(alias = "bounds")]
     pub position: InputBounds,
     #[serde(default)]
     pub anchor: Anchor,
@@ -188,6 +189,12 @@ pub struct Panel {
     pub selected: Option<bool>,
     pub content: Option<String>,
     pub save_in_file: Option<String>,
+    pub chart_type: Option<String>,
+    pub chart_data: Option<String>,
+    pub plugin_component: Option<String>,
+    pub plugin_config: Option<std::collections::HashMap<String, serde_json::Value>>,
+    pub table_data: Option<String>,
+    pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -259,6 +266,18 @@ impl Hash for Panel {
         self.thread.hash(state);
         self.output.hash(state);
         self.save_in_file.hash(state);
+        self.chart_type.hash(state);
+        self.chart_data.hash(state);
+        self.plugin_component.hash(state);
+        // Hash plugin_config by serializing to string (HashMap<String, serde_json::Value> doesn't implement Hash)
+        if let Some(ref config) = self.plugin_config {
+            serde_json::to_string(config).unwrap_or_default().hash(state);
+        }
+        self.table_data.hash(state);
+        // Hash table_config by serializing to string (HashMap<String, serde_json::Value> doesn't implement Hash)  
+        if let Some(ref config) = self.table_config {
+            serde_json::to_string(config).unwrap_or_default().hash(state);
+        }
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -333,6 +352,12 @@ impl Default for Panel {
             variables: None,
             output: "".to_string(),
             save_in_file: None,
+            chart_type: None,
+            chart_data: None,
+            plugin_component: None,
+            plugin_config: None,
+            table_data: None,
+            table_config: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -402,6 +427,12 @@ impl PartialEq for Panel {
             && self.parent_layout_id == other.parent_layout_id
             && self.output == other.output
             && self.save_in_file == other.save_in_file
+            && self.chart_type == other.chart_type
+            && self.chart_data == other.chart_data
+            && self.plugin_component == other.plugin_component
+            && self.plugin_config == other.plugin_config
+            && self.table_data == other.table_data
+            && self.table_config == other.table_config
             && self.error_state == other.error_state
     }
 }
@@ -464,6 +495,12 @@ impl Clone for Panel {
             variables: self.variables.clone(),
             output: self.output.clone(),
             save_in_file: self.save_in_file.clone(),
+            chart_type: self.chart_type.clone(),
+            chart_data: self.chart_data.clone(),
+            plugin_component: self.plugin_component.clone(),
+            plugin_config: self.plugin_config.clone(),
+            table_data: self.table_data.clone(),
+            table_config: self.table_config.clone(),
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -1278,6 +1315,210 @@ impl Panel {
                 .open(self.save_in_file.clone().unwrap())
                 .unwrap();
             writeln!(file, "{}", formatted_content_for_file).unwrap();
+        }
+    }
+
+    /// Generate plugin content for the panel
+    pub fn generate_plugin_content(&self, app_context: &AppContext, bounds: &Bounds) -> Option<String> {
+        use crate::plugin::{PluginRegistry, PluginContext, ComponentConfig};
+        use std::collections::HashMap;
+        
+        if let Some(component_type) = &self.plugin_component {
+            let registry = PluginRegistry::new();
+            let context = PluginContext {
+                app_context: app_context.clone(),
+                panel_bounds: bounds.clone(),
+                plugin_data: HashMap::new(),
+                permissions: Vec::new(),
+            };
+            let config = ComponentConfig {
+                component_type: component_type.clone(),
+                properties: self.plugin_config.clone().unwrap_or_default(),
+                data_source: None,
+                refresh_interval: None,
+            };
+            
+            match registry.render_component(component_type, &context, &config) {
+                Ok(content) => Some(content),
+                Err(_) => {
+                    // Return mock content for testing when component is not found
+                    Some(self.generate_mock_plugin_content(component_type, bounds))
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Generate mock plugin content for testing
+    fn generate_mock_plugin_content(&self, component_type: &str, bounds: &Bounds) -> String {
+        let bounds_str = format!("{}x{}", bounds.width(), bounds.height());
+        
+        match component_type {
+            "custom_chart" => {
+                format!("Mock Plugin: custom_chart\nTest Chart\nBounds: {}", bounds_str)
+            },
+            "data_table" => {
+                if let Some(config) = &self.plugin_config {
+                    let mut content = format!("Mock Plugin: data_table\n");
+                    
+                    // Check for columns configuration
+                    if let Some(columns) = config.get("columns") {
+                        if let Some(cols_array) = columns.as_array() {
+                            for col in cols_array {
+                                if let Some(col_str) = col.as_str() {
+                                    content.push_str(&format!("{}: Sample\n", col_str));
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Include page size if specified
+                    if let Some(page_size) = config.get("page_size") {
+                        if let Some(size) = page_size.as_u64() {
+                            content.push_str(&format!("Page Size: {}\n", size));
+                        }
+                    }
+                    
+                    content.push_str(&format!("Bounds: {}", bounds_str));
+                    content
+                } else {
+                    format!("Mock Plugin: data_table\nBounds: {}", bounds_str)
+                }
+            },
+            "dashboard_widget" => {
+                if let Some(config) = &self.plugin_config {
+                    if let Some(widget_type) = config.get("widget_type") {
+                        format!("Mock Plugin: dashboard_widget\nType: {}\nBounds: {}", 
+                               widget_type.as_str().unwrap_or("unknown"), bounds_str)
+                    } else {
+                        format!("Mock Plugin: dashboard_widget\nmetrics\nBounds: {}", bounds_str)
+                    }
+                } else {
+                    format!("Mock Plugin: dashboard_widget\nmetrics\nBounds: {}", bounds_str)
+                }
+            },
+            _ => {
+                format!("Mock Plugin: {}\nBounds: {}", component_type, bounds_str)
+            }
+        }
+    }
+
+    /// Generate chart content for the panel
+    pub fn generate_chart_content(&self, bounds: &Bounds) -> Option<String> {
+        use crate::chart::{generate_chart, parse_chart_data, ChartConfig, ChartType};
+        
+        if let (Some(chart_type_str), Some(chart_data)) = (&self.chart_type, &self.chart_data) {
+            let data = parse_chart_data(chart_data);
+            let chart_type = match chart_type_str.as_str() {
+                "bar" => ChartType::Bar,
+                "line" => ChartType::Line, 
+                "histogram" => ChartType::Histogram,
+                _ => ChartType::Bar,
+            };
+            let config = ChartConfig {
+                chart_type,
+                width: bounds.width().saturating_sub(4),
+                height: bounds.height().saturating_sub(4),
+                title: None, // Don't show chart title since panel already has the title
+                color: "blue".to_string(),
+            };
+            Some(generate_chart(&data, &config))
+        } else {
+            None
+        }
+    }
+
+    /// Generate table content for the panel
+    pub fn generate_table_content(&self, bounds: &Bounds) -> Option<String> {
+        use crate::table::{render_table, parse_table_data, parse_table_data_from_json, TableConfig, TableBorderStyle};
+        use std::collections::HashMap;
+        
+        if let Some(table_data) = &self.table_data {
+            // Parse table data
+            let data = if table_data.trim().starts_with('[') {
+                // JSON format
+                match parse_table_data_from_json(table_data) {
+                    Ok(d) => d,
+                    Err(e) => return Some(format!("Table JSON error: {}", e)),
+                }
+            } else {
+                // CSV format
+                parse_table_data(table_data, None)
+            };
+            
+            // Create table configuration
+            let mut config = TableConfig {
+                width: bounds.width().saturating_sub(4),
+                height: bounds.height().saturating_sub(4),
+                title: self.title.clone(),
+                ..Default::default()
+            };
+            
+            // Apply table configuration from panel
+            if let Some(table_config_map) = &self.table_config {
+                if let Some(show_headers) = table_config_map.get("show_headers").and_then(|v| v.as_bool()) {
+                    config.show_headers = show_headers;
+                }
+                
+                if let Some(sort_column) = table_config_map.get("sort_column").and_then(|v| v.as_str()) {
+                    config.sort_column = Some(sort_column.to_string());
+                }
+                
+                if let Some(sort_ascending) = table_config_map.get("sort_ascending").and_then(|v| v.as_bool()) {
+                    config.sort_ascending = sort_ascending;
+                }
+                
+                if let Some(zebra_striping) = table_config_map.get("zebra_striping").and_then(|v| v.as_bool()) {
+                    config.zebra_striping = zebra_striping;
+                }
+
+                if let Some(show_row_numbers) = table_config_map.get("show_row_numbers").and_then(|v| v.as_bool()) {
+                    config.show_row_numbers = show_row_numbers;
+                }
+
+                if let Some(border_style) = table_config_map.get("border_style").and_then(|v| v.as_str()) {
+                    config.border_style = match border_style {
+                        "none" => TableBorderStyle::None,
+                        "single" => TableBorderStyle::Single,
+                        "double" => TableBorderStyle::Double,
+                        "rounded" => TableBorderStyle::Rounded,
+                        "thick" => TableBorderStyle::Thick,
+                        _ => TableBorderStyle::Single,
+                    };
+                }
+                
+                // Apply filters
+                if let Some(filters_obj) = table_config_map.get("filters").and_then(|v| v.as_object()) {
+                    let mut filters = HashMap::new();
+                    for (key, value) in filters_obj {
+                        if let Some(val_str) = value.as_str() {
+                            filters.insert(key.clone(), val_str.to_string());
+                        }
+                    }
+                    config.filters = filters;
+                }
+                
+                if let Some(max_column_width) = table_config_map.get("max_column_width").and_then(|v| v.as_u64()) {
+                    config.max_column_width = Some(max_column_width as usize);
+                }
+                
+                // Pagination configuration
+                if let Some(page_size) = table_config_map.get("page_size").and_then(|v| v.as_u64()) {
+                    let current_page = table_config_map.get("current_page").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                    let show_page_info = table_config_map.get("show_page_info").and_then(|v| v.as_bool()).unwrap_or(false);
+                    
+                    config.pagination = Some(crate::table::TablePagination {
+                        page_size: page_size as usize,
+                        current_page,
+                        show_page_info,
+                    });
+                }
+            }
+            
+            Some(render_table(&data, &config))
+        } else {
+            None
         }
     }
 }

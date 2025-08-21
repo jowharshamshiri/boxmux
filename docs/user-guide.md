@@ -13,6 +13,8 @@ title: User Guide - BoxMux
 - [Core Concepts](#core-concepts)
 - [Building Interfaces](#building-interfaces)
 - [Common Patterns](#common-patterns)
+- [Data Visualization](#data-visualization)
+- [Plugin System](#plugin-system)
 - [Real-World Examples](#real-world-examples)
 - [Best Practices](#best-practices)
 - [Techniques](#techniques)
@@ -338,6 +340,139 @@ children:
   - id: 'bottom_right'
     position: {x1: 50%, y1: 50%, x2: 100%, y2: 100%}
 ```
+
+## Data Visualization
+
+BoxMux provides powerful data visualization capabilities through charts and tables.
+
+### Chart Panels
+
+Create Unicode-based charts for data visualization:
+
+```yaml
+# Live CPU usage chart
+- id: 'cpu_chart'
+  title: 'CPU Usage Over Time'
+  chart_config:
+    chart_type: 'line'
+    width: 50
+    height: 15
+    title: 'CPU %'
+  refresh_interval: 2000
+  script:
+    - top -l 1 | grep "CPU usage" | awk '{print $3}' | sed 's/%//'
+
+# Memory usage bar chart  
+- id: 'memory_chart'
+  title: 'Memory Usage'
+  chart_config:
+    chart_type: 'bar'
+    width: 40
+    height: 10
+  chart_data: |
+    Used,67
+    Free,33
+    Cached,45
+    Buffer,12
+```
+
+### Table Panels
+
+Display structured data with sorting and filtering:
+
+```yaml
+# Process monitoring table
+- id: 'process_table'
+  title: 'Top Processes'
+  table_config:
+    headers: ['Process', 'CPU %', 'Memory', 'PID']
+    sortable: true
+    filterable: true
+    page_size: 10
+    zebra_striping: true
+    show_row_numbers: true
+    border_style: 'double'
+  refresh_interval: 5000
+  script:
+    - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s\n", $11, $3, $4, $2}' | sort -rn -k2 -t, | head -15
+
+# Configuration table with static data
+- id: 'config_table'
+  title: 'System Configuration'
+  table_config:
+    headers: ['Setting', 'Value', 'Description']
+    border_style: 'rounded'
+  table_data: |
+    [
+      {"Setting": "Hostname", "Value": "$(hostname)", "Description": "System hostname"},
+      {"Setting": "Uptime", "Value": "$(uptime -p)", "Description": "System uptime"},
+      {"Setting": "Load", "Value": "$(uptime | awk -F'load average:' '{print $2}')", "Description": "System load average"}
+    ]
+```
+
+### Chart Types
+
+BoxMux supports multiple chart types:
+
+- **Line Charts**: Time-series data, trends
+- **Bar Charts**: Categorical comparisons
+- **Histograms**: Distribution visualization  
+- **Advanced charting**: Future enhancements planned
+
+## Plugin System
+
+BoxMux includes a plugin system for extending functionality with custom components.
+
+### Plugin Basics
+
+Create dynamic components with security validation:
+
+```yaml
+# Custom data visualization plugin
+- id: 'custom_viz'
+  title: 'Custom Metrics'
+  plugin_type: 'metrics_visualizer'
+  plugin_config:
+    metric_source: '/var/log/metrics.json'
+    visualization_type: 'heatmap'
+    refresh_rate: 1000
+  security_permissions:
+    - 'filesystem_read'
+    - 'process_spawn'
+
+# External API monitoring plugin  
+- id: 'api_status'
+  title: 'API Health'
+  plugin_type: 'http_monitor'
+  plugin_config:
+    endpoints:
+      - name: 'Main API'
+        url: 'https://api.example.com/health'
+        timeout: 5000
+      - name: 'Database'
+        url: 'https://db.example.com/status'
+        timeout: 3000
+  security_permissions:
+    - 'network_access'
+```
+
+### Plugin Security
+
+The plugin system includes comprehensive security validation:
+
+- **Permission-based access control**: Plugins declare required permissions
+- **Sandbox execution**: Plugins run in isolated environments
+- **Resource limits**: CPU, memory, and file system access controls
+- **Validation**: Plugin manifests are validated before loading
+
+### Plugin Development
+
+Plugins are external libraries that BoxMux loads dynamically:
+
+1. **Create plugin manifest** (TOML format)
+2. **Implement plugin interface** (Rust shared library)  
+3. **Define security permissions** in manifest
+4. **Reference in BoxMux configuration**
 
 ## Real-World Examples
 

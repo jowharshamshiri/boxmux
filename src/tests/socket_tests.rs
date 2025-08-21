@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod tests {
     use crate::model::common::SocketFunction;
-    use crate::test_utils::TestDataFactory;
+    use crate::tests::test_utils::TestDataFactory;
 
     /// Test basic socket connection and message sending
     #[test]

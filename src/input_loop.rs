@@ -1,7 +1,7 @@
 use crate::{handle_keypress, AppContext, FieldUpdate};
 use crate::{run_script, thread_manager::Runnable};
 use std::sync::mpsc;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, poll, read};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, poll, read};
 use std::time::Duration;
 
 use crate::thread_manager::*;
@@ -21,6 +21,27 @@ create_runnable!(
         if poll(Duration::from_millis(10)).unwrap() {
             if let Ok(event) = read() {
                 let key_str = match event {
+                    Event::Mouse(MouseEvent { kind, column: _, row: _, modifiers: _ }) => {
+                        match kind {
+                            MouseEventKind::ScrollUp => {
+                                inner.send_message(Message::ScrollPanelUp());
+                                "ScrollUp".to_string()
+                            }
+                            MouseEventKind::ScrollDown => {
+                                inner.send_message(Message::ScrollPanelDown());
+                                "ScrollDown".to_string()
+                            }
+                            MouseEventKind::ScrollLeft => {
+                                inner.send_message(Message::ScrollPanelLeft());
+                                "ScrollLeft".to_string()
+                            }
+                            MouseEventKind::ScrollRight => {
+                                inner.send_message(Message::ScrollPanelRight());
+                                "ScrollRight".to_string()
+                            }
+                            _ => return (true, app_context), // Ignore other mouse events for now
+                        }
+                    }
                     Event::Key(KeyEvent { code, modifiers, .. }) => {
                         match code {
                             KeyCode::Char('q') => {
@@ -54,16 +75,32 @@ create_runnable!(
                                 "Right".to_string()
                             }
                             KeyCode::PageUp => {
-                                inner.send_message(Message::ScrollPanelPageUp());
-                                "PageUp".to_string()
+                                if modifiers.contains(KeyModifiers::SHIFT) {
+                                    inner.send_message(Message::ScrollPanelPageLeft());
+                                    "Shift+PageUp".to_string()
+                                } else {
+                                    inner.send_message(Message::ScrollPanelPageUp());
+                                    "PageUp".to_string()
+                                }
                             }
                             KeyCode::PageDown => {
-                                inner.send_message(Message::ScrollPanelPageDown());
-                                "PageDown".to_string()
+                                if modifiers.contains(KeyModifiers::SHIFT) {
+                                    inner.send_message(Message::ScrollPanelPageRight());
+                                    "Shift+PageDown".to_string()
+                                } else {
+                                    inner.send_message(Message::ScrollPanelPageDown());
+                                    "PageDown".to_string()
+                                }
                             }
                             KeyCode::Char(c) => {
                                 if modifiers.contains(KeyModifiers::CONTROL) {
-                                    format!("Ctrl+{}", c)
+                                    match c {
+                                        'c' => {
+                                            inner.send_message(Message::CopyFocusedPanelContent());
+                                            "Ctrl+c".to_string()
+                                        }
+                                        _ => format!("Ctrl+{}", c)
+                                    }
                                 } else if modifiers.contains(KeyModifiers::ALT) {
                                     format!("Alt+{}", c)
                                 } else {

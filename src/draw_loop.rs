@@ -284,6 +284,62 @@ create_runnable!(
                             }
                         }
                     }
+                    Message::ScrollPanelPageLeft() => {
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                // Page left scrolls by larger amount (10 units for page-based scrolling)
+                                found_panel.scroll_left(Some(10.0));
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::ScrollPanelPageRight() => {
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                // Page right scrolls by larger amount (10 units for page-based scrolling)
+                                found_panel.scroll_right(Some(10.0));
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::CopyFocusedPanelContent() => {
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id(&selected_id);
+                            if let Some(found_panel) = panel {
+                                // Get panel content to copy
+                                let content_to_copy = get_panel_content_for_clipboard(found_panel);
+                                
+                                // Copy to clipboard
+                                if copy_to_clipboard(&content_to_copy).is_ok() {
+                                    // Trigger visual flash for the panel
+                                    trigger_panel_flash(&selected_id);
+                                    inner.send_message(Message::RedrawPanel(selected_id));
+                                }
+                            }
+                        }
+                    }
                     Message::RedrawPanel(panel_id) => {
                         if let Some(mut found_panel) = app_context_unwrapped
                             .app
@@ -650,4 +706,97 @@ pub fn update_panel_content(
             inner.send_message(Message::RedrawPanel(panel_id.to_string()));
         }
     }
+}
+
+/// Extract panel content for clipboard copy
+pub fn get_panel_content_for_clipboard(panel: &Panel) -> String {
+    // Priority order: output > content > default message
+    if !panel.output.is_empty() {
+        panel.output.clone()
+    } else if let Some(content) = &panel.content {
+        content.clone()
+    } else {
+        format!("Panel '{}': No content", panel.id)
+    }
+}
+
+/// Copy text to system clipboard
+pub fn copy_to_clipboard(content: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+    
+    // Platform-specific clipboard commands
+    #[cfg(target_os = "macos")]
+    {
+        let mut child = Command::new("pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()?;
+        
+        if let Some(stdin) = child.stdin.take() {
+            use std::io::Write;
+            let mut stdin = stdin;
+            stdin.write_all(content.as_bytes())?;
+        }
+        
+        child.wait()?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Try xclip first, then xsel as fallback
+        let result = Command::new("xclip")
+            .arg("-selection")
+            .arg("clipboard")
+            .stdin(std::process::Stdio::piped())
+            .spawn();
+            
+        match result {
+            Ok(mut child) => {
+                if let Some(stdin) = child.stdin.take() {
+                    use std::io::Write;
+                    let mut stdin = stdin;
+                    stdin.write_all(content.as_bytes())?;
+                }
+                child.wait()?;
+            }
+            Err(_) => {
+                // Fallback to xsel
+                let mut child = Command::new("xsel")
+                    .arg("--clipboard")
+                    .arg("--input")
+                    .stdin(std::process::Stdio::piped())
+                    .spawn()?;
+                    
+                if let Some(stdin) = child.stdin.take() {
+                    use std::io::Write;
+                    let mut stdin = stdin;
+                    stdin.write_all(content.as_bytes())?;
+                }
+                child.wait()?;
+            }
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        let mut child = Command::new("clip")
+            .stdin(std::process::Stdio::piped())
+            .spawn()?;
+            
+        if let Some(stdin) = child.stdin.take() {
+            use std::io::Write;
+            let mut stdin = stdin;
+            stdin.write_all(content.as_bytes())?;
+        }
+        
+        child.wait()?;
+    }
+    
+    Ok(())
+}
+
+/// Trigger visual flash for panel (stub implementation)
+fn trigger_panel_flash(_panel_id: &str) {
+    // TODO: Implement visual flash with color inversion
+    // This would require storing flash state and modifying panel rendering
+    // For now, the redraw provides visual feedback
 }

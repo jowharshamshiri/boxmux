@@ -13,7 +13,7 @@
             "$ref": "#/definitions/layout"
           },
           "minItems": 1,
-          "description": "Array of layout definitions, at least one layout required"
+          "description": "Array of layout definitions"
         },
         "libs": {
           "type": "array",
@@ -164,6 +164,10 @@
         "position": {
           "$ref": "#/definitions/input_bounds",
           "description": "Panel position and size bounds"
+        },
+        "bounds": {
+          "$ref": "#/definitions/input_bounds",
+          "description": "Panel position and size bounds (alias for position)"
         },
         "anchor": {
           "$ref": "#/definitions/anchor_type",
@@ -416,9 +420,40 @@
         "save_in_file": {
           "type": "string",
           "description": "File path to save panel content to"
+        },
+        "chart_type": {
+          "type": "string",
+          "enum": ["bar", "line", "histogram"],
+          "description": "Type of chart to render from chart_data"
+        },
+        "chart_data": {
+          "type": "string",
+          "description": "Chart data in CSV format (label,value or label:value or label value)"
+        },
+        "plugin_component": {
+          "type": "string",
+          "description": "Plugin component type to render in this panel"
+        },
+        "plugin_config": {
+          "type": "object",
+          "description": "Configuration object passed to plugin component",
+          "additionalProperties": true
+        },
+        "table_data": {
+          "type": "string",
+          "description": "Table data in CSV or JSON format"
+        },
+        "table_config": {
+          "type": "object",
+          "description": "Configuration for table rendering and behavior",
+          "additionalProperties": true
         }
       },
-      "required": ["id", "position"],
+      "required": ["id"],
+      "anyOf": [
+        {"required": ["position"]},
+        {"required": ["bounds"]}
+      ],
       "additionalProperties": false
     },
     "layout": {
@@ -585,6 +620,128 @@
         }
       },
       "required": ["id"],
+      "additionalProperties": false
+    },
+    "layout_without_id": {
+      "type": "object", 
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Optional display title for the layout"
+        },
+        "refresh_interval": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "Refresh interval in milliseconds (minimum 100ms)"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/panel"
+          },
+          "description": "Array of child panels within this layout"
+        },
+        "fill": {
+          "type": "boolean",
+          "description": "Whether to fill the layout background"
+        },
+        "fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Character to use for filling background"
+        },
+        "selected_fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Character to use when layout is selected"
+        },
+        "overflow_behavior": {
+          "type": "string",
+          "enum": ["scroll", "hidden", "fill", "cross_out"],
+          "description": "How to handle content overflow"
+        },
+        "bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color"
+        },
+        "selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Background color when selected"
+        },
+        "fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground/text color"
+        },
+        "selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when selected"
+        },
+        "title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color"
+        },
+        "title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color"
+        },
+        "title_position": {
+          "$ref": "#/definitions/title_position",
+          "description": "Horizontal alignment of title"
+        },
+        "selected_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when selected"
+        },
+        "selected_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when selected"
+        },
+        "menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color"
+        },
+        "menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color"
+        },
+        "selected_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Selected menu text color"
+        },
+        "selected_menu_bg_color": {
+          "$ref": "#/definitions/color_name", 
+          "description": "Selected menu background color"
+        },
+        "border": {
+          "type": "boolean",
+          "description": "Whether to draw border around layout"
+        },
+        "border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color"
+        },
+        "on_keypress": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Layout-specific key bindings"
+        },
+        "variables": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          },
+          "description": "Layout-local variables for template substitution"
+        }
+      },
       "additionalProperties": false
     }
   }
