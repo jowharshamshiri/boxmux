@@ -447,6 +447,14 @@
           "type": "object",
           "description": "Configuration for table rendering and behavior",
           "additionalProperties": true
+        },
+        "streaming": {
+          "type": "boolean",
+          "description": "Enable real-time streaming output from long-running commands"
+        },
+        "auto_scroll_bottom": {
+          "type": "boolean",
+          "description": "Automatically scroll to bottom when new content arrives"
         }
       },
       "required": ["id"],

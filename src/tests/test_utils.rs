@@ -85,6 +85,8 @@ impl TestDataFactory {
             plugin_config: None,
             table_data: None,
             table_config: None,
+            streaming: None,
+            auto_scroll_bottom: None,
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,

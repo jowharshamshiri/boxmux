@@ -1,0 +1,135 @@
+app:
+  layouts:
+    - id: 'streaming_demo'
+      root: true
+      title: 'Streaming Output Demo'
+      bg_color: 'black'
+      fg_color: 'white'
+      title_fg_color: 'bright_yellow'
+      title_bg_color: 'blue'
+      children:
+        # Header with instructions
+        - id: 'header'
+          title: 'Streaming Demo Instructions'
+          position:
+            x1: 5%
+            y1: 5%
+            x2: 95%
+            y2: 15%
+          content: 'This demo shows real-time streaming output. Watch panels update live as commands produce output.'
+          border: true
+          border_color: 'cyan'
+          
+        # Live counter with streaming
+        - id: 'live_counter'
+          title: 'Live Counter (streaming)'
+          position:
+            x1: 5%
+            y1: 20%
+            x2: 48%
+            y2: 50%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 100
+          script:
+            - |
+              for i in {1..30}; do
+                echo "Count: $i at $(date '+%H:%M:%S')"
+                echo "Random: $RANDOM"
+                sleep 1
+              done
+          border: true
+          border_color: 'green'
+          scroll: true
+          
+        # Log stream with streaming
+        - id: 'log_stream'
+          title: 'Live Log Stream'
+          position:
+            x1: 52%
+            y1: 20%
+            x2: 95%
+            y2: 50%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 100
+          script:
+            - |
+              # Create and tail a test log
+              LOGFILE="/tmp/boxmux_test.log"
+              
+              # Start background log generator
+              (
+                for i in {1..50}; do
+                  echo "$(date) - Log entry $i: Random $RANDOM" >> "$LOGFILE"
+                  sleep 0.5
+                done
+              ) &
+              
+              # Stream the log
+              touch "$LOGFILE"
+              tail -f "$LOGFILE"
+          border: true
+          border_color: 'yellow'
+          scroll: true
+          
+        # Network monitoring with streaming
+        - id: 'network_monitor'
+          title: 'Network Activity (streaming)'
+          position:
+            x1: 5%
+            y1: 55%
+            x2: 48%
+            y2: 85%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 2000
+          script:
+            - |
+              for i in {1..10}; do
+                echo "Network Check $i at $(date '+%H:%M:%S')"
+                netstat -i | head -3
+                echo "Active connections: $(netstat -an | grep ESTABLISHED | wc -l)"
+                echo "---"
+                sleep 2
+              done
+          border: true
+          border_color: 'magenta'
+          scroll: true
+          
+        # Process monitor with streaming
+        - id: 'process_monitor'
+          title: 'Top Processes (streaming)'
+          position:
+            x1: 52%
+            y1: 55%
+            x2: 95%
+            y2: 85%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 3000
+          script:
+            - |
+              for i in {1..8}; do
+                echo "Process Update $i at $(date '+%H:%M:%S')"
+                ps aux | head -8
+                echo "---"
+                sleep 3
+              done
+          border: true
+          border_color: 'cyan'
+          scroll: true
+          
+        # Status bar
+        - id: 'status'
+          title: 'Demo Status'
+          position:
+            x1: 5%
+            y1: 90%
+            x2: 95%
+            y2: 95%
+          refresh_interval: 1000
+          script:
+            - echo "Demo running since $(date) - Streaming panels show real-time output"
+          border: false
+          fg_color: 'bright_white'

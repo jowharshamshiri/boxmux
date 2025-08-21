@@ -1,0 +1,203 @@
+app:
+  variables:
+    LOG_PATH: "/tmp/boxmux_demo"
+  layouts:
+    - id: 'log_streaming'
+      root: true
+      title: 'Live Log Streaming Demo'
+      bg_color: 'black'
+      fg_color: 'white'
+      title_fg_color: 'bright_cyan'
+      title_bg_color: 'blue'
+      children:
+        # Multi-source log aggregator
+        - id: 'aggregated_logs'
+          title: 'Aggregated Log Stream'
+          position:
+            x1: 5%
+            y1: 10%
+            x2: 60%
+            y2: 70%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 100
+          script:
+            - |
+              # Create demo log directory
+              mkdir -p ${LOG_PATH}
+              
+              # Start multiple log generators in background
+              (
+                # Application logs
+                for i in {1..100}; do
+                  echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] App: Processing request $i" >> ${LOG_PATH}/app.log
+                  sleep 0.8
+                done
+              ) &
+              
+              (
+                # Error logs  
+                for i in {1..30}; do
+                  echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] Database: Connection timeout on attempt $i" >> ${LOG_PATH}/error.log
+                  sleep 3
+                done
+              ) &
+              
+              (
+                # Access logs with simpler random selection
+                for i in {1..200}; do
+                  # Simple random selection without arrays
+                  case $((RANDOM % 4)) in
+                    0) ip="192.168.1.100" ;;
+                    1) ip="10.0.0.50" ;;
+                    2) ip="172.16.0.10" ;;
+                    *) ip="203.0.113.5" ;;
+                  esac
+                  
+                  case $((RANDOM % 4)) in
+                    0) method="GET" ;;
+                    1) method="POST" ;;
+                    2) method="PUT" ;;
+                    *) method="DELETE" ;;
+                  esac
+                  
+                  case $((RANDOM % 4)) in
+                    0) code="200" ;;
+                    1) code="404" ;;
+                    2) code="500" ;;
+                    *) code="301" ;;
+                  esac
+                  
+                  echo "$(date '+%Y-%m-%d %H:%M:%S') $ip - $method /api/data HTTP/1.1 $code" >> ${LOG_PATH}/access.log
+                  sleep 0.5
+                done
+              ) &
+              
+              # Wait for log files to be created
+              sleep 1
+              
+              # Stream aggregated logs with color coding
+              tail -f ${LOG_PATH}/*.log | while read line; do
+                if [[ "$line" == *"ERROR"* ]]; then
+                  echo "🔴 $line"
+                elif [[ "$line" == *"INFO"* ]]; then
+                  echo "🟢 $line"
+                elif [[ "$line" == *"HTTP"* ]]; then
+                  echo "🔵 $line"
+                else
+                  echo "⚪ $line"
+                fi
+              done
+          border: true
+          border_color: 'green'
+          scroll: true
+          
+        # Error log monitor
+        - id: 'error_monitor'
+          title: 'Error Stream (Live)'
+          position:
+            x1: 65%
+            y1: 10%
+            x2: 95%
+            y2: 40%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 200
+          script:
+            - |
+              # Monitor for errors with immediate streaming
+              echo "Monitoring for errors..."
+              
+              # Generate realistic error scenarios
+              while true; do
+                if [ $((RANDOM % 10)) -lt 3 ]; then  # 30% chance of error
+                  # Simple random error selection without arrays
+                  case $((RANDOM % 7)) in
+                    0) error="Database connection failed" ;;
+                    1) error="Memory limit exceeded" ;;
+                    2) error="Authentication timeout" ;;
+                    3) error="File not found" ;;
+                    4) error="Permission denied" ;;
+                    5) error="Network unreachable" ;;
+                    *) error="Service unavailable" ;;
+                  esac
+                  
+                  severity=$((RANDOM % 3))
+                  
+                  case $severity in
+                    0) level="WARNING" ;;
+                    1) level="ERROR" ;;
+                    2) level="CRITICAL" ;;
+                  esac
+                  
+                  echo "$(date '+%H:%M:%S') [$level] $error (code: $((1000 + RANDOM % 9000)))"
+                fi
+                sleep 2
+              done
+          border: true
+          border_color: 'red'
+          scroll: true
+          
+        # Performance metrics stream
+        - id: 'perf_stream'
+          title: 'Performance Metrics'
+          position:
+            x1: 65%
+            y1: 45%
+            x2: 95%
+            y2: 70%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 300
+          script:
+            - |
+              echo "Live Performance Data"
+              echo "===================="
+              
+              start_time=$(date +%s)
+              
+              while true; do
+                current_time=$(date +%s)
+                uptime_seconds=$((current_time - start_time))
+                
+                # Generate realistic metrics
+                cpu_usage=$((20 + RANDOM % 60))
+                memory_usage=$((30 + RANDOM % 50))
+                disk_io=$((RANDOM % 1000))
+                network_io=$((RANDOM % 5000))
+                active_connections=$((10 + RANDOM % 50))
+                
+                echo "Timestamp: $(date '+%H:%M:%S')"
+                echo "Uptime: ${uptime_seconds}s"
+                echo "CPU: ${cpu_usage}%"
+                echo "Memory: ${memory_usage}%"
+                echo "Disk I/O: ${disk_io} KB/s"
+                echo "Network: ${network_io} KB/s"
+                echo "Connections: $active_connections"
+                echo "---"
+                
+                sleep 2
+              done
+          border: true
+          border_color: 'yellow'
+          
+        # Status and controls
+        - id: 'stream_status'
+          title: 'Streaming Status'
+          position:
+            x1: 5%
+            y1: 75%
+            x2: 95%
+            y2: 90%
+          refresh_interval: 1000
+          script:
+            - |
+              echo "📊 Streaming Demo Status:"
+              echo "• Log files: ${LOG_PATH}/*.log"
+              echo "• Update interval: 100ms"
+              echo "• Demo started: $(date)"
+              echo "• Active streams: 4 panels"
+              echo ""
+              echo "💡 Tip: All panels show live streaming output without waiting for command completion"
+          border: true
+          border_color: 'cyan'

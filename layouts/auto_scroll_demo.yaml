@@ -1,0 +1,65 @@
+app:
+  layouts:
+    - id: "main"
+      root: true
+      children:
+        - id: "static_panel"
+          title: "Static Content (No Auto-Scroll)"
+          position:
+            x1: "0%"
+            y1: "0%"
+            x2: "50%"
+            y2: "50%"
+          content: |
+            Line 1
+            Line 2
+            Line 3
+            Line 4
+            Line 5
+            Line 6
+            Line 7
+            Line 8
+            Line 9
+            Line 10
+            Line 11
+            Line 12
+            Line 13
+            Line 14
+            Line 15
+            This content does not auto-scroll.
+            Use arrow keys to scroll manually.
+          border: true
+          
+        - id: "auto_scroll_panel"
+          title: "Auto-Scroll Logs (auto_scroll_bottom: true)"
+          position:
+            x1: "50%"
+            y1: "0%"
+            x2: "100%"
+            y2: "50%"
+          auto_scroll_bottom: true
+          refresh_interval: 2000
+          script:
+            - "date '+%H:%M:%S - Log entry'"
+            - "echo 'Processing...'"
+            - "echo 'Status: Running'"
+            - "echo '---'"
+          border: true
+          
+        - id: "streaming_auto_scroll"
+          title: "Streaming + Auto-Scroll"
+          position:
+            x1: "0%"
+            y1: "50%"
+            x2: "100%"
+            y2: "100%"
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 1000
+          script:
+            - |
+              for i in {1..20}; do
+                echo "$(date '+%H:%M:%S') - Streaming line $i"
+                sleep 0.5
+              done
+          border: true

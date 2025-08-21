@@ -1,0 +1,139 @@
+app:
+  layouts:
+    - id: 'build_streaming'
+      root: true
+      title: 'Build Process Streaming Demo'
+      bg_color: 'black'
+      fg_color: 'white'
+      title_fg_color: 'bright_green'
+      title_bg_color: 'blue'
+      children:
+        # Build output panel - shows build progress with fast refresh
+        - id: 'build_output'
+          title: 'Build Process (Fast Refresh)'
+          position:
+            x1: 5%
+            y1: 10%
+            x2: 70%
+            y2: 80%
+          refresh_interval: 2000
+          script:
+            - |
+              echo "Build Status at $(date '+%H:%M:%S')"
+              echo "============================="
+              
+              for i in {1..20}; do
+                echo "Build step $i of 20"
+                echo "Compiling component $i..."
+                sleep 1
+                echo "✓ Component $i completed"
+                echo "---"
+              done
+              
+              echo "Build completed successfully!"
+          border: true
+          border_color: 'green'
+          scroll: true
+          
+        # Build stats panel - shows real-time build metrics
+        - id: 'build_stats'
+          title: 'Build Metrics'
+          position:
+            x1: 75%
+            y1: 10%
+            x2: 95%
+            y2: 50%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 500
+          script:
+            - |
+              echo "Build Statistics"
+              echo "==============="
+              start_time=$(date +%s)
+              
+              for i in {1..120}; do
+                current_time=$(date +%s)
+                elapsed=$((current_time - start_time))
+                
+                # Simulate build progress
+                progress=$((i * 100 / 120))
+                
+                echo "Progress: ${progress}%"
+                echo "Elapsed: ${elapsed}s"
+                echo "CPU Usage: $((50 + RANDOM % 40))%"
+                echo "Memory: $((200 + RANDOM % 300))MB"
+                echo "Temp Files: $((i * 5))"
+                echo "Warnings: $((RANDOM % 3))"
+                echo "Errors: 0"
+                echo ""
+                echo "Current Phase:"
+                
+                if [ $i -lt 20 ]; then
+                  echo "Dependencies"
+                elif [ $i -lt 80 ]; then
+                  echo "Compilation"
+                elif [ $i -lt 100 ]; then
+                  echo "Testing"
+                else
+                  echo "Packaging"
+                fi
+                
+                echo "$(date '+%H:%M:%S')"
+                
+                sleep 2
+                clear
+              done
+          border: true
+          border_color: 'yellow'
+          
+        # Command log - shows build commands as they execute
+        - id: 'command_log'
+          title: 'Build Commands'
+          position:
+            x1: 75%
+            y1: 55%
+            x2: 95%
+            y2: 80%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 100
+          script:
+            - |
+              commands=(
+                "cargo clean"
+                "cargo check"
+                "cargo build --release"
+                "cargo test --lib"
+                "cargo test --integration"
+                "cargo doc --no-deps"
+                "cargo package"
+              )
+              
+              for cmd in "${commands[@]}"; do
+                echo "$ $cmd"
+                echo "Running..."
+                
+                # Simulate command execution time
+                sleep $((2 + RANDOM % 5))
+                
+                echo "✓ Completed"
+                echo ""
+              done
+              
+              echo "All commands executed successfully"
+          border: true
+          border_color: 'cyan'
+          scroll: true
+          
+        # Footer with instructions
+        - id: 'instructions'
+          title: 'Demo Instructions'
+          position:
+            x1: 5%
+            y1: 85%
+            x2: 95%
+            y2: 95%
+          content: 'This demo simulates a real build process with streaming output. Watch all panels update in real-time as the build progresses. Press Ctrl+C to copy panel content.'
+          border: true
+          border_color: 'white'

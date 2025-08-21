@@ -11,6 +11,18 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 
 ---
 
+### 🔄 Streaming Output Demos
+**Files**: `streaming_demo.yaml`, `streaming_build_demo.yaml`, `streaming_logs_demo.yaml`, `simple_streaming_test.yaml`  
+**Target Audience**: Developers, system administrators, anyone working with long-running commands  
+
+**Features**:
+- **Real-time Streaming**: Live output from long-running commands without waiting for completion
+- **Build Process Monitoring**: Simulated build processes with live progress updates
+- **Log Aggregation**: Multiple log sources with color-coded real-time streaming
+- **System Monitoring**: Live system metrics and process information
+
+**Key Innovation**: Uses `streaming: true` panel configuration for real-time output display
+
 ### 🚀 DevOps Control Center
 **File**: `devops_control_center.yaml`  
 **Target Audience**: System administrators, DevOps engineers, infrastructure monitoring  

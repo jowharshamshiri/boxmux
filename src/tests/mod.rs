@@ -43,6 +43,7 @@ pub mod layout_validation_tests;
 
 #[cfg(test)]
 pub mod automatic_scrollbar_tests;
+pub mod auto_scroll_tests;
 
 #[cfg(test)]
 pub mod streaming_script_tests;
