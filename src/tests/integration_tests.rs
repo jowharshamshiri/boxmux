@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::*;
+    use crate::tests::test_utils::*;
     use crate::model::common::SocketFunction;
     use crate::thread_manager::Message;
     use std::sync::mpsc;

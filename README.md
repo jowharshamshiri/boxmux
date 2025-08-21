@@ -28,9 +28,11 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Variable System: Hierarchical variable substitution with YAML-defined variables, environment inheritance, and template support
 - Configuration Validation: JSON Schema validation with detailed error reporting
 - Enhanced Scrolling: Scroll position preservation and page navigation
+- Plugin System: Dynamic component loading with security validation
+- Enhanced Charting: Unicode-based charts (bar, line, histogram)
+- Data Visualization: Table panels with CSV/JSON parsing, sorting, filtering, pagination
 - Process Management: Clean handling of long-running and periodic commands
 - Layout System: Organize command outputs in structured layouts
-- Data Visualization: Display command output as charts and logs
 - Cross-platform: Works with standard Unix tooling
 
 ## Use Cases
@@ -143,7 +145,9 @@ boxmux my-interface.yaml
 
 - Content Panels: Display static or dynamic text
 - Interactive Menus: Navigate and select options
-- Chart Panels: Visualize data with ASCII charts
+- Chart Panels: Unicode-based visualizations (bar, line, histogram)
+- Table Panels: Structured data with sorting, filtering, pagination
+- Plugin Panels: Dynamic components with security validation
 - Log Panels: Monitor log files and streams
 - Input Panels: Handle user input and commands
 
@@ -329,12 +333,31 @@ app:
 ### Data Visualization
 
 ```yaml
-# Chart with live data
+# Unicode-based chart
 - id: 'metrics_chart'
   title: 'Performance Metrics'
-  refresh_interval: 5000
-  script:
-    - gnuplot -e "set terminal dumb; plot '/tmp/metrics.dat' with lines"
+  chart_config:
+    chart_type: 'line'
+    width: 40
+    height: 10
+  chart_data: |
+    1,10
+    2,15
+    3,8
+    4,20
+
+# Table with sorting and filtering
+- id: 'data_table'
+  title: 'System Data'
+  table_config:
+    headers: ['Process', 'CPU', 'Memory']
+    sortable: true
+    filterable: true
+    page_size: 10
+  table_data: |
+    nginx,2.5,45MB
+    mysql,15.2,312MB
+    redis,0.8,28MB
 ```
 
 ## Development

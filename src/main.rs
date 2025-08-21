@@ -177,8 +177,9 @@ fn setup_signal_handler() {
 
 /// Cleanup terminal state - restore normal mode
 fn cleanup_terminal() {
-    use crossterm::{execute, terminal};
+    use crossterm::{execute, terminal, event};
     let mut stdout = std::io::stdout();
+    let _ = execute!(stdout, event::DisableMouseCapture);
     let _ = execute!(stdout, terminal::LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
 }
@@ -532,10 +533,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_context = AppContext::new(app, config);
 
     //create alternate screen in terminal and clear it
-    use crossterm::{execute, terminal};
+    use crossterm::{execute, terminal, event};
     let mut _stdout = std::io::stdout();
     execute!(_stdout, terminal::EnterAlternateScreen)?;
     execute!(_stdout, terminal::Clear(terminal::ClearType::All))?;
+    terminal::enable_raw_mode()?;
+    execute!(_stdout, event::EnableMouseCapture)?;
 
     // Setup signal handler for proper terminal cleanup on exit
     setup_signal_handler();
@@ -552,6 +555,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     manager.run();
 
     //restore normal terminal state
+    execute!(_stdout, event::DisableMouseCapture)?;
     execute!(_stdout, terminal::LeaveAlternateScreen)?;
     terminal::disable_raw_mode()?;
 

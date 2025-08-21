@@ -17,7 +17,11 @@ This document provides a reference for BoxMux YAML configuration files.
 - [Choice Configuration](#choice-configuration)
 - [Color Reference](#color-reference)
 - [Script Configuration](#script-configuration)
+- [Chart Configuration](#chart-configuration)
+- [Table Configuration](#table-configuration)
+- [Plugin Configuration](#plugin-configuration)
 - [Variable System](#variable-system)
+- [Schema Validation](#schema-validation)
 - [Features](#features)
 - [Validation Rules](#validation-rules)
 - [Examples](#examples)
@@ -333,6 +337,192 @@ script:
 script:
   - tail -f /var/log/syslog
 thread: true
+```
+
+## Chart Configuration
+
+Charts visualize data using Unicode-based rendering.
+
+### Chart Properties
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `chart_type` | `string` | Yes | - | Chart type: 'bar', 'line', 'histogram' |
+| `width` | `number` | No | 40 | Chart width in characters |
+| `height` | `number` | No | 10 | Chart height in lines |
+| `title` | `string` | No | - | Chart title |
+| `x_label` | `string` | No | - | X-axis label |
+| `y_label` | `string` | No | - | Y-axis label |
+
+### Chart Data Format
+
+Charts accept data in CSV format:
+
+```yaml
+chart_data: |
+  1,10
+  2,15
+  3,8
+  4,20
+  5,25
+```
+
+### Chart Examples
+
+```yaml
+# Bar chart
+- id: 'cpu_chart'
+  title: 'CPU Usage'
+  chart_config:
+    chart_type: 'bar'
+    width: 50
+    height: 15
+    title: 'CPU Usage Over Time'
+  chart_data: |
+    Mon,45
+    Tue,67
+    Wed,23
+    Thu,89
+    Fri,56
+
+# Line chart with live data
+- id: 'memory_trend'
+  title: 'Memory Trend'
+  refresh_interval: 2000
+  chart_config:
+    chart_type: 'line'
+    width: 60
+    height: 12
+  script:
+    - free | awk 'NR==2{printf "%.1f\n", $3/$2 * 100.0}'
+```
+
+## Table Configuration
+
+Tables display structured data with sorting, filtering, and pagination.
+
+### Table Properties
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `headers` | `array[string]` | No | - | Column headers |
+| `sortable` | `boolean` | No | false | Enable column sorting |
+| `filterable` | `boolean` | No | false | Enable row filtering |
+| `page_size` | `number` | No | 10 | Rows per page |
+| `show_row_numbers` | `boolean` | No | false | Display row numbers |
+| `zebra_striping` | `boolean` | No | false | Alternating row colors |
+| `border_style` | `string` | No | 'single' | Border style: 'none', 'single', 'double', 'rounded', 'thick' |
+
+### Table Data Format
+
+Tables accept CSV or JSON data:
+
+```yaml
+# CSV format
+table_data: |
+  nginx,2.5,45MB
+  mysql,15.2,312MB
+  redis,0.8,28MB
+
+# JSON format
+table_data: |
+  [
+    {"process": "nginx", "cpu": 2.5, "memory": "45MB"},
+    {"process": "mysql", "cpu": 15.2, "memory": "312MB"},
+    {"process": "redis", "cpu": 0.8, "memory": "28MB"}
+  ]
+```
+
+### Table Examples
+
+```yaml
+# Process monitoring table
+- id: 'process_table'
+  title: 'System Processes'
+  table_config:
+    headers: ['Process', 'CPU %', 'Memory']
+    sortable: true
+    filterable: true
+    page_size: 15
+    zebra_striping: true
+    border_style: 'double'
+  refresh_interval: 5000
+  script:
+    - ps aux --no-headers | awk '{printf "%s,%.1f,%s\n", $11, $3, $4}' | head -20
+
+# Static data table
+- id: 'config_table'
+  title: 'Configuration'
+  table_config:
+    headers: ['Setting', 'Value', 'Description']
+    show_row_numbers: true
+  table_data: |
+    refresh_rate,1000ms,Panel refresh interval
+    socket_path,/tmp/boxmux.sock,Unix socket location
+    log_level,info,Application log level
+```
+
+## Plugin Configuration
+
+Plugins enable dynamic component loading with security validation.
+
+### Plugin Properties
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `plugin_type` | `string` | Yes | - | Plugin type identifier |
+| `plugin_config` | `object` | No | {} | Plugin-specific configuration |
+| `security_permissions` | `array[string]` | No | [] | Required permissions |
+
+### Plugin Examples
+
+```yaml
+# Custom visualization plugin
+- id: 'custom_viz'
+  title: 'Custom Visualization'
+  plugin_type: 'data_visualizer'
+  plugin_config:
+    data_source: '/tmp/metrics.json'
+    visualization_type: 'heatmap'
+  security_permissions:
+    - 'filesystem_read'
+
+# External API plugin
+- id: 'api_monitor'
+  title: 'API Status'
+  plugin_type: 'http_monitor'
+  plugin_config:
+    endpoints:
+      - 'https://api.example.com/health'
+      - 'https://api.example.com/status'
+  security_permissions:
+    - 'network_access'
+```
+
+## Schema Validation
+
+BoxMux includes JSON Schema validation for configuration files.
+
+### Validation Features
+
+- Automatic validation on configuration load
+- Detailed error messages with line/column information
+- Schema validation for all configuration sections
+- Type checking and required field validation
+
+### Validation Example
+
+When loading invalid configuration:
+
+```bash
+$ boxmux invalid-config.yaml
+Error: Configuration validation failed
+  --> invalid-config.yaml:15:3
+   |
+15 |   position: "invalid"
+   |   ^^^^^^^^ expected object with x1, y1, x2, y2 properties
+   |
+   = help: position must be an object with percentage-based coordinates
 ```
 
 ## Features

@@ -1,0 +1,117 @@
+app:
+  layouts:
+    - id: 'main'
+      root: true
+      children:
+        - id: "csv_table"
+          title: "CSV Data Table"
+          position:
+            x1: 2%
+            y1: 5%
+            x2: 48%
+            y2: 45%
+          border_color: blue
+          table_data: |
+            Name,Age,Department,Salary,Status
+            Alice Johnson,28,Engineering,75000,Active
+            Bob Smith,34,Marketing,65000,Active
+            Carol Williams,29,Engineering,78000,Active
+            David Brown,42,Sales,72000,Inactive
+            Eve Davis,31,Engineering,80000,Active
+            Frank Miller,38,Marketing,68000,Active
+            Grace Wilson,26,Sales,62000,Active
+            Henry Clark,45,Engineering,85000,Active
+          table_config:
+            show_headers: true
+            sort_column: "Salary"
+            sort_ascending: false
+            border_style: "double"
+            zebra_striping: true
+            show_row_numbers: false
+
+        - id: "json_table"
+          title: "JSON Data Table (Filtered)"
+          position:
+            x1: 52%
+            y1: 5%
+            x2: 98%
+            y2: 45%
+          border_color: green
+          table_data: |
+            [
+              {"product": "Laptop Pro", "price": 1299, "stock": 15, "category": "Electronics"},
+              {"product": "Office Chair", "price": 299, "stock": 8, "category": "Furniture"},
+              {"product": "Mechanical Keyboard", "price": 149, "stock": 25, "category": "Electronics"},
+              {"product": "Standing Desk", "price": 599, "stock": 5, "category": "Furniture"},
+              {"product": "Wireless Mouse", "price": 79, "stock": 30, "category": "Electronics"},
+              {"product": "Monitor 27\"", "price": 399, "stock": 12, "category": "Electronics"},
+              {"product": "Desk Lamp", "price": 89, "stock": 18, "category": "Furniture"}
+            ]
+          table_config:
+            show_headers: true
+            sort_column: "price"
+            sort_ascending: true
+            border_style: "single"
+            filters:
+              category: "Electronics"
+            show_row_numbers: true
+            zebra_striping: false
+
+        - id: "paginated_table"
+          title: "Paginated Table View"
+          position:
+            x1: 2%
+            y1: 50%
+            x2: 48%
+            y2: 95%
+          border_color: cyan
+          table_data: |
+            ID,Item,Description,Price,Quantity
+            1,Widget A,Basic widget for general use,12.99,150
+            2,Widget B,Advanced widget with features,24.99,89
+            3,Gadget X,Portable gadget for mobile use,45.00,67
+            4,Tool Y,Professional tool for experts,78.50,34
+            5,Device Z,Smart device with AI,199.99,23
+            6,Component 1,Essential component part,8.75,200
+            7,Component 2,Premium component upgrade,15.25,120
+            8,Accessory A,Useful accessory item,6.50,300
+            9,Accessory B,Deluxe accessory package,18.75,95
+            10,Service Plan,Extended warranty service,49.99,50
+            11,Support Kit,Technical support package,29.99,75
+            12,Upgrade Pack,Feature upgrade bundle,39.99,60
+          table_config:
+            show_headers: true
+            sort_column: "Price"
+            sort_ascending: false
+            border_style: "rounded"
+            page_size: 5
+            current_page: 0
+            show_page_info: true
+            show_row_numbers: true
+
+        - id: "custom_table"
+          title: "Custom Border Style Table"
+          position:
+            x1: 52%
+            y1: 50%
+            x2: 98%
+            y2: 95%
+          border_color: yellow
+          table_data: |
+            Server,CPU,Memory,Disk,Status
+            web-01,45%,67%,23%,Healthy
+            web-02,78%,82%,45%,Warning
+            db-01,34%,56%,78%,Critical
+            cache-01,23%,34%,12%,Healthy
+            api-01,56%,45%,34%,Healthy
+            worker-01,89%,91%,67%,Critical
+          table_config:
+            show_headers: true
+            sort_column: "CPU"
+            sort_ascending: false
+            border_style: "thick"
+            zebra_striping: true
+            max_column_width: 12
+            show_row_numbers: false
+            filters:
+              Status: "Critical"

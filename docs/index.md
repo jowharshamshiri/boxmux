@@ -131,6 +131,21 @@ title: BoxMux - YAML-driven Terminal UI Framework
       </div>
       
       <div class="feature-card">
+        <h3>Plugin System</h3>
+        <p>Dynamic component loading with security validation.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Data Visualization</h3>
+        <p>Unicode charts and table panels with sorting, filtering, pagination.</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Schema Validation</h3>
+        <p>JSON Schema validation for YAML configurations.</p>
+      </div>
+      
+      <div class="feature-card">
         <h3>Cross-platform</h3>
         <p>Works on macOS, Linux, and other Unix-like systems.</p>
       </div>

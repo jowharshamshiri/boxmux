@@ -79,6 +79,12 @@ impl TestDataFactory {
             selected: None,
             content: Some("Test content".to_string()),
             save_in_file: None,
+            chart_type: None,
+            chart_data: None,
+            plugin_component: None,
+            plugin_config: None,
+            table_data: None,
+            table_config: None,
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,
@@ -194,6 +200,7 @@ impl TestDataFactory {
         AppContext {
             app: Self::create_test_app(),
             config: Config::default(),
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
         }
     }
 

@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::*;
+    use crate::tests::test_utils::*;
     use crate::model::app::App;
     use crate::model::layout::Layout;
     use crate::model::panel::Panel;
@@ -174,7 +174,7 @@ mod tests {
         
         // Simulate multiple threads accessing app simultaneously
         for i in 0..10 {
-            let app_clone = Arc::clone(&app);
+            let app_clone: Arc<std::sync::Mutex<App>> = Arc::clone(&app);
             let handle = thread::spawn(move || {
                 let _app_guard = app_clone.lock().unwrap();
                 // Simulate some work with the app

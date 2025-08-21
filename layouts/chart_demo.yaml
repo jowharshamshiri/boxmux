@@ -1,0 +1,74 @@
+app:
+  layouts:
+    - id: 'main'
+      root: true
+      title: 'Chart Demo'
+      bg_color: 'black'
+      children:
+        - id: 'bar_chart'
+          title: 'Sales Data (Bar Chart)'
+          position: {x1: 5%, y1: 5%, x2: 48%, y2: 45%}
+          border: true
+          border_color: 'cyan'
+          fg_color: 'green'
+          chart_type: 'bar'
+          tab_order: 1
+          chart_data: |
+            Q1,150
+            Q2,230
+            Q3,180
+            Q4,270
+
+        - id: 'line_chart'
+          title: 'Growth Trend (Line Chart)'
+          position: {x1: 52%, y1: 5%, x2: 95%, y2: 45%}
+          border: true
+          border_color: 'cyan'
+          fg_color: 'yellow'
+          chart_type: 'line'
+          tab_order: 2
+          chart_data: |
+            Jan,10
+            Feb,15
+            Mar,8
+            Apr,25
+            May,30
+            Jun,22
+
+        - id: 'histogram'
+          title: 'Distribution (Histogram)'
+          position: {x1: 5%, y1: 50%, x2: 48%, y2: 90%}
+          border: true
+          border_color: 'cyan'
+          fg_color: 'blue'
+          chart_type: 'histogram'
+          tab_order: 3
+          chart_data: |
+            Val1,5
+            Val2,12
+            Val3,8
+            Val4,15
+            Val5,20
+            Val6,3
+            Val7,10
+            Val8,18
+
+        - id: 'line_detail'
+          title: 'CPU Trend (Line Detail)'
+          position: {x1: 52%, y1: 50%, x2: 95%, y2: 90%}
+          border: true
+          border_color: 'cyan'
+          fg_color: 'red'
+          chart_type: 'line'
+          tab_order: 4
+          chart_data: |
+            1,20
+            2,35
+            3,28
+            4,45
+            5,60
+            6,38
+            7,52
+            8,25
+            9,40
+            10,55
