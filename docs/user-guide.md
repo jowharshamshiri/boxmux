@@ -15,6 +15,7 @@ title: User Guide - BoxMux
 - [Common Patterns](#common-patterns)
 - [Data Visualization](#data-visualization)
 - [Plugin System](#plugin-system)
+- [Advanced Features](#advanced-features)
 - [Real-World Examples](#real-world-examples)
 - [Best Practices](#best-practices)
 - [Techniques](#techniques)
@@ -343,45 +344,40 @@ children:
 
 ## Data Visualization
 
-BoxMux provides powerful data visualization capabilities through charts and tables.
+BoxMux provides data visualization through charts and tables with advanced features.
 
-### Chart Panels
+### Chart System
 
-Create Unicode-based charts for data visualization:
+BoxMux includes a complete Unicode-based charting system:
+- **Chart Types**: Bar charts, line charts, histograms
+- **Smart Layout**: Responsive chart sizing and alignment
+- **Real-time Data**: Live data integration with configurable refresh
 
 ```yaml
-# Live CPU usage chart
+# Live CPU usage chart with smart layout
 - id: 'cpu_chart'
   title: 'CPU Usage Over Time'
   chart_config:
     chart_type: 'line'
     width: 50
     height: 15
-    title: 'CPU %'
+    title: 'CPU Usage Trend'
   refresh_interval: 2000
   script:
     - top -l 1 | grep "CPU usage" | awk '{print $3}' | sed 's/%//'
-
-# Memory usage bar chart  
-- id: 'memory_chart'
-  title: 'Memory Usage'
-  chart_config:
-    chart_type: 'bar'
-    width: 40
-    height: 10
-  chart_data: |
-    Used,67
-    Free,33
-    Cached,45
-    Buffer,12
 ```
 
-### Table Panels
+### Table System
 
-Display structured data with sorting and filtering:
+Advanced table features for structured data:
+- **Data Formats**: CSV and JSON parsing
+- **Sorting**: Text and numeric sorting with direction control
+- **Filtering**: Exact match and case-insensitive search
+- **Pagination**: Configurable page sizes with navigation
+- **Visual Enhancement**: Zebra striping, row numbers, multiple border styles
 
 ```yaml
-# Process monitoring table
+# Advanced process table with all features
 - id: 'process_table'
   title: 'Top Processes'
   table_config:
@@ -395,37 +391,22 @@ Display structured data with sorting and filtering:
   refresh_interval: 5000
   script:
     - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s\n", $11, $3, $4, $2}' | sort -rn -k2 -t, | head -15
-
-# Configuration table with static data
-- id: 'config_table'
-  title: 'System Configuration'
-  table_config:
-    headers: ['Setting', 'Value', 'Description']
-    border_style: 'rounded'
-  table_data: |
-    [
-      {"Setting": "Hostname", "Value": "$(hostname)", "Description": "System hostname"},
-      {"Setting": "Uptime", "Value": "$(uptime -p)", "Description": "System uptime"},
-      {"Setting": "Load", "Value": "$(uptime | awk -F'load average:' '{print $2}')", "Description": "System load average"}
-    ]
 ```
 
-### Chart Types
-
-BoxMux supports multiple chart types:
-
-- **Line Charts**: Time-series data, trends
-- **Bar Charts**: Categorical comparisons
-- **Histograms**: Distribution visualization  
-- **Advanced charting**: Future enhancements planned
+**Learn more**: See the complete [Data Visualization Guide](data-visualization.md) for chart types, table features, and advanced examples.
 
 ## Plugin System
 
-BoxMux includes a plugin system for extending functionality with custom components.
+BoxMux includes a plugin system for extending functionality with dynamic component loading and security validation.
 
-### Plugin Basics
+### Plugin Overview
 
-Create dynamic components with security validation:
+The plugin system supports:
+- **Dynamic Component Loading**: Load custom components at runtime using `libloading`
+- **Security Validation**: Permission-based access control with manifest validation
+- **Fallback System**: Graceful fallback to mock implementations for development/testing
+
+### Basic Plugin Usage
 
 ```yaml
 # Custom data visualization plugin
@@ -439,40 +420,9 @@ Create dynamic components with security validation:
   security_permissions:
     - 'filesystem_read'
     - 'process_spawn'
-
-# External API monitoring plugin  
-- id: 'api_status'
-  title: 'API Health'
-  plugin_type: 'http_monitor'
-  plugin_config:
-    endpoints:
-      - name: 'Main API'
-        url: 'https://api.example.com/health'
-        timeout: 5000
-      - name: 'Database'
-        url: 'https://db.example.com/status'
-        timeout: 3000
-  security_permissions:
-    - 'network_access'
 ```
 
-### Plugin Security
-
-The plugin system includes comprehensive security validation:
-
-- **Permission-based access control**: Plugins declare required permissions
-- **Sandbox execution**: Plugins run in isolated environments
-- **Resource limits**: CPU, memory, and file system access controls
-- **Validation**: Plugin manifests are validated before loading
-
-### Plugin Development
-
-Plugins are external libraries that BoxMux loads dynamically:
-
-1. **Create plugin manifest** (TOML format)
-2. **Implement plugin interface** (Rust shared library)  
-3. **Define security permissions** in manifest
-4. **Reference in BoxMux configuration**
+**Learn more**: See the complete [Plugin System Guide](plugin-system.md) for development, security model, and advanced examples.
 
 ## Real-World Examples
 
@@ -753,6 +703,22 @@ script:
 
 ---
 
+## Advanced Features
+
+BoxMux includes advanced features for sophisticated applications:
+- **Streaming Script Output**: Real-time output from long-running commands
+- **Clipboard Integration**: Ctrl+C copies panel content with visual feedback
+- **Enhanced Scrolling**: Position preservation, page navigation, visual indicators
+- **Performance Monitoring**: Built-in benchmarking and performance tracking
+- **Schema Validation**: JSON Schema validation with detailed error reporting
+
+**Learn more**: See the complete [Advanced Features Guide](advanced-features.md) for streaming, clipboard, scrolling, and performance features.
+
+---
+
 For configuration reference, see [Configuration Guide](configuration.md).  
+For data visualization details, see [Data Visualization Guide](data-visualization.md).  
+For plugin development, see [Plugin System Guide](plugin-system.md).  
+For advanced features, see [Advanced Features Guide](advanced-features.md).  
 For programmatic control, see [API Reference](api.md).  
 For troubleshooting, see [Troubleshooting Guide](troubleshooting.md).
