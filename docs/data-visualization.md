@@ -120,7 +120,7 @@ Charts can display live data from scripts:
 
 ## Table System
 
-BoxMux provides a comprehensive table system for displaying structured data with advanced features.
+BoxMux provides a table system for displaying structured data.
 
 ### Table Features
 

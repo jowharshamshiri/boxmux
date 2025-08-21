@@ -36,13 +36,14 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Choice/Menu System: Interactive menu components with selection and navigation
 - Focus Management: Tab order and focus navigation between panels
 - Error State Styling: Visual error indication with specialized colors
-- Scrolling Support: Enhanced scrolling with position preservation, page navigation, and visual indicators
+- Scrolling Support: Scrolling with position preservation, page navigation, visual indicators, and auto-scroll functionality
 
-**Scripting and Automation (Complete)**
+**Scripting and Automation**
 - Script Execution: Execute shell scripts in panels with output capture and error handling
 - Threaded Execution: Panel scripts run in dedicated threads with refresh intervals
 - Output Redirection: Redirect script output to different panels (replace or append)
-- Streaming Script Output: Live streaming output from long-running commands with real-time updates
+- Streaming Script Output: Display command output line-by-line as generated
+- Auto-Scroll to Bottom: Set vertical scroll to bottom when content updates
 - Library Support: Include external script libraries for reusable functionality
 - File Output: Save panel content to files for persistence
 
@@ -77,11 +78,12 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 ## Use Cases
 
 - System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
-- DevOps Tools: Orchestrate deployment scripts with real-time feedback
-- Log Analysis: Run `tail`, `grep`, `awk` commands with structured output
-- Network Monitoring: Execute `netstat`, `ss`, `ping` with visual organization
+- DevOps Tools: Orchestrate deployment scripts with streaming output
+- Log Analysis: Monitor logs with `tail -f` commands and auto-scroll
+- Network Monitoring: Execute `netstat`, `ss`, `ping` with live updates
 - Database Operations: Run queries and maintenance scripts with progress tracking
-- Development Workflows: Combine build, test, and deployment commands
+- Development Workflows: Build, test, and deployment commands with streaming output
+- CI/CD Monitoring: Watch build processes with output display
 
 ## Quick Start
 
@@ -147,6 +149,25 @@ app:
             x1: 10%
             y1: 20%
             x2: 90%
+            y2: 60%
+          content: 'Basic panel example'
+          border: true
+          
+        - id: 'streaming_logs'
+          title: 'Live System Logs'
+          position:
+            x1: 10%
+            y1: 65%
+            x2: 90%
+            y2: 90%
+          streaming: true
+          auto_scroll_bottom: true
+          refresh_interval: 1000
+          script:
+            - 'echo "$(date): System status check"'
+            - 'echo "$(date): Monitoring active processes"'
+            - 'echo "$(date): All systems operational"'
+          border: true
             y2: 80%
           content: 'Hello, BoxMux!'
           border: true
@@ -444,12 +465,12 @@ Contributions welcome. Please read our [Contributing Guidelines](CONTRIBUTING.md
 ### Development Setup
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
+2. Create a feature branch: `git checkout -b feature/new-feature`
 3. Make your changes
 4. Add tests for new functionality
 5. Run tests: `cargo test`
-6. Commit your changes: `git commit -m 'Add amazing feature'`
-7. Push to the branch: `git push origin feature/amazing-feature`
+6. Commit your changes: `git commit -m 'Add new feature'`
+7. Push to the branch: `git push origin feature/new-feature`
 8. Open a Pull Request
 
 ## Performance

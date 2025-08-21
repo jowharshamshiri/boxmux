@@ -5,7 +5,7 @@ title: Advanced Features - BoxMux
 
 # Advanced Features
 
-BoxMux includes advanced features for sophisticated terminal UI applications including streaming output, clipboard integration, enhanced scrolling, and performance monitoring.
+BoxMux includes streaming output, clipboard integration, scrolling, and performance monitoring.
 
 ## Table of Contents
 
