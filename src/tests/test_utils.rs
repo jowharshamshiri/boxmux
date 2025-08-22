@@ -86,6 +86,8 @@ impl TestDataFactory {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
+            streaming_state: None,
+            streaming_buffer: Vec::new(),
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,

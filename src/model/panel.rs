@@ -197,6 +197,10 @@ pub struct Panel {
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
     #[serde(skip)]
+    pub streaming_state: Option<crate::streaming_executor::OutputLine>,
+    #[serde(skip)]
+    pub streaming_buffer: Vec<String>,
+    #[serde(skip)]
     pub output: String,
     #[serde(skip)]
     pub parent_id: Option<String>,
@@ -361,6 +365,8 @@ impl Default for Panel {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
+            streaming_state: None,
+            streaming_buffer: Vec::new(),
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -506,6 +512,8 @@ impl Clone for Panel {
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
+            streaming_state: None,
+            streaming_buffer: Vec::new(),
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -535,6 +543,25 @@ impl Panel {
 
     pub fn set_output(&mut self, output: &str) {
         self.output = output.to_string();
+    }
+
+    pub fn append_streaming_output(&mut self, line: &str) {
+        self.streaming_buffer.push(line.to_string());
+        // Update combined output
+        self.output = self.streaming_buffer.join("\n");
+    }
+
+    pub fn clear_streaming_buffer(&mut self) {
+        self.streaming_buffer.clear();
+        self.output.clear();
+    }
+
+    pub fn get_streaming_content(&self) -> String {
+        self.streaming_buffer.join("\n")
+    }
+
+    pub fn has_streaming_content(&self) -> bool {
+        !self.streaming_buffer.is_empty()
     }
 
     pub fn get_parent_clone(&self, app_graph: &AppGraph) -> Option<Panel> {
