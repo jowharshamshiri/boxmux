@@ -1,6 +1,6 @@
 use crate::model::app::AppContext;
 use crate::{FieldUpdate, Panel, Updatable};
-use crate::streaming_executor::{StreamingExecutor, OutputLine};
+use crate::streaming_executor::StreamingExecutor;
 use bincode;
 use log::{error};
 use std::collections::hash_map::DefaultHasher;
@@ -42,6 +42,7 @@ pub enum Message {
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16), // x, y coordinates
     ExternalMessage(String),
+    StreamingStatusUpdate(String, crate::streaming_messages::StreamingStatusUpdate), // panel_id, status_update
     AddPanel(String, Panel),
     RemovePanel(String),
 }
@@ -109,6 +110,14 @@ impl Hash for Message {
             Message::ExternalMessage(msg) => {
                 "external_message".hash(state);
                 msg.hash(state);
+            }
+            Message::StreamingStatusUpdate(panel_id, status_update) => {
+                "streaming_status_update".hash(state);
+                panel_id.hash(state);
+                // Hash key fields of status_update
+                status_update.panel_id.hash(state);
+                status_update.task_id.hash(state);
+                status_update.line_count.hash(state);
             }
             Message::Start => "start".hash(state),
             Message::StopPanelRefresh(panel_id) => {

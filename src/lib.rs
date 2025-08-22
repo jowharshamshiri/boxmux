@@ -24,6 +24,7 @@ pub mod validation;
 pub mod chart;
 pub mod plugin;
 pub mod table;
+pub mod rate_limiter;
 
 #[cfg(test)]
 pub mod tests;
@@ -45,6 +46,7 @@ pub use streaming_messages::*;
 pub use streaming_panel_manager::*;
 pub use table::*;
 pub use unified_thread_pool::*;
+pub use rate_limiter::*;
 
 #[macro_use]
 pub extern crate lazy_static;

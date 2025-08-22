@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
-use uuid::Uuid;
 use log::{debug, warn};
 
 use crate::streaming_messages::StreamingOutput;
-use crate::model::panel::Panel;
-use crate::model::app::AppContext;
 use crate::thread_manager::Message;
 
 /// Manages real-time panel updates with efficient rendering and debouncing

@@ -128,33 +128,22 @@ mod tests {
         }
     }
 
-    /// Test script execution edge cases
+    /// Test streaming script execution edge cases
     #[test]
-    fn test_script_edge_cases() {
-        // Test empty script
-        let result = run_script(None, &vec![]);
-        // Behavior depends on implementation, but shouldn't crash
+    fn test_streaming_script_edge_cases() {
+        use crate::streaming_executor::StreamingExecutor;
+        use std::time::Duration;
         
-        // Test script with empty commands
-        let empty_commands = vec!["".to_string(), "   ".to_string()];
-        let result = run_script(None, &empty_commands);
-        // Should handle gracefully
-        
-        // Test script with very long command
-        let long_command = "echo ".to_string() + &"x".repeat(100000);
-        let result = run_script(None, &vec![long_command]);
-        // Should either succeed or fail gracefully
-        
-        // Test script with special characters
+        // Test script with special characters - these should execute safely
         let special_commands = vec![
-            "echo '$(dangerous command)'".to_string(),
-            "echo '&& rm -rf /'".to_string(),
-            "echo '|'".to_string(),
-            "echo ';'".to_string(),
+            "echo 'test $(echo safe)'",
+            "echo 'pipe test' | cat",
+            "echo 'semicolon'; echo 'test'",
         ];
         
         for cmd in special_commands {
-            let result = run_script(None, &vec![cmd.clone()]);
+            let mut executor = StreamingExecutor::new();
+            let result = executor.spawn_streaming(cmd, None);
             // Should execute safely or fail gracefully
             match result {
                 Ok(_) => {}, // Fine if it executes
@@ -310,26 +299,30 @@ mod tests {
         assert!(result.y2 >= result.y1);
     }
 
-    /// Test error propagation
+    /// Test streaming error propagation
     #[test]
-    fn test_error_propagation() {
-        // Test what happens when script execution fails
-        let failing_script = vec!["false".to_string()]; // Command that returns error code
-        let result = run_script(None, &failing_script);
+    fn test_streaming_error_propagation() {
+        use crate::streaming_executor::StreamingExecutor;
         
-        // Should either succeed (if implementation ignores exit codes) or fail gracefully
+        // Test what happens when streaming script execution fails
+        let mut executor = StreamingExecutor::new();
+        let result = executor.spawn_streaming("false", None); // Command that returns error code
+        
+        // Should handle gracefully
         match result {
-            Ok(_) => {}, // Implementation might ignore exit codes
-            Err(e) => {
-                // Should be a reasonable error message
-                let error_msg = format!("{}", e);
-                assert!(!error_msg.is_empty());
+            Ok((mut child, _receiver)) => {
+                // Should exit with non-zero status
+                let status = child.wait().unwrap();
+                assert!(!status.success());
+            }
+            Err(_) => {
+                // Also acceptable if spawn fails
             }
         }
         
         // Test with non-existent command
-        let nonexistent_script = vec!["this_command_definitely_does_not_exist_12345".to_string()];
-        let result = run_script(None, &nonexistent_script);
+        let mut executor2 = StreamingExecutor::new();
+        let result = executor2.spawn_streaming("this_command_definitely_does_not_exist_12345", None);
         
         // Should fail gracefully
         assert!(result.is_err());

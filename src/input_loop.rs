@@ -1,6 +1,6 @@
 use crate::{handle_keypress, AppContext, FieldUpdate};
 use crate::{thread_manager::Runnable};
-use crate::streaming_executor::{StreamingExecutor, OutputLine};
+use crate::streaming_executor::StreamingExecutor;
 use std::sync::mpsc;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, poll, read};
 use std::time::Duration;

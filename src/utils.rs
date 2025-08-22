@@ -4,7 +4,6 @@ use crate::{
 };
 use regex::Regex;
 use std::io::{self, Write};
-use std::process::{Command};
 use std::str;
 use std::{collections::HashMap};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -475,49 +474,6 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
     None
 }
 
-#[deprecated(note = "Use StreamingExecutor for streaming script execution instead")]
-pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
-    // Create the script content in-memory
-    let mut script_content = String::new();
-    if let Some(paths) = libs_paths {
-        for lib in paths {
-            script_content.push_str(&format!("source {}\n", lib));
-        }
-    }
-
-    // Add the script commands to the script content
-    for command in script {
-        script_content.push_str(&format!("{}\n", command));
-    }
-
-    // Execute the script and capture stdout and stderr
-    let output = Command::new("bash").arg("-c").arg(script_content).output(); // Captures both stdout and stderr
-
-    match output {
-        Ok(output) => {
-            // Combine stdout and stderr
-            let mut combined_output = format!(
-                "{}{}",
-                str::from_utf8(&output.stdout).unwrap_or(""),
-                str::from_utf8(&output.stderr).unwrap_or("")
-            );
-
-            combined_output = strip_ansi_codes(&combined_output);
-
-            if output.status.success() {
-                Ok(combined_output)
-            } else {
-                let error_message = if combined_output.trim().is_empty() {
-                    format!("Script execution failed with exit code: {}", output.status.code().unwrap_or(-1))
-                } else {
-                    combined_output
-                };
-                Err(io::Error::new(io::ErrorKind::Other, error_message))
-            }
-        }
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
-    }
-}
 
 pub fn normalize_key_str(key_str: &str) -> String {
     key_str.to_lowercase().replace(' ', "")
@@ -1142,51 +1098,6 @@ mod tests {
         assert_eq!(result, None);
     }
 
-    /// Tests that run_script() executes simple bash commands successfully.
-    /// This test demonstrates the script execution feature.
-    #[test]
-    fn test_run_script_simple() {
-        let script = vec!["echo 'Hello World'".to_string()];
-        let result = run_script(None, &script);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().trim(), "Hello World");
-    }
-
-    /// Tests that run_script() executes multiple commands in sequence.
-    /// This test demonstrates the multi-command script execution feature.
-    #[test]
-    fn test_run_script_multiple_commands() {
-        let script = vec![
-            "echo 'First'".to_string(),
-            "echo 'Second'".to_string(),
-        ];
-        let result = run_script(None, &script);
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        assert!(output.contains("First"));
-        assert!(output.contains("Second"));
-    }
-
-    /// Tests that run_script() handles command failures properly.
-    /// This test demonstrates the error handling feature in script execution.
-    #[test]
-    fn test_run_script_failure() {
-        let script = vec!["false".to_string()]; // Command that always fails
-        let result = run_script(None, &script);
-        assert!(result.is_err());
-    }
-
-    /// Tests that run_script() includes library paths in the script.
-    /// This test demonstrates the library inclusion feature.
-    #[test]
-    fn test_run_script_with_libs() {
-        let libs = vec!["/nonexistent/lib1.sh".to_string()];
-        let script = vec!["echo 'test'".to_string()];
-        let result = run_script(Some(libs), &script);
-        // The script should still work even if the lib doesn't exist
-        // because we're just sourcing it and then running echo
-        assert!(result.is_ok() || result.is_err()); // Either way is acceptable
-    }
 
     /// Tests that normalize_key_str() removes spaces and converts to lowercase.
     /// This test demonstrates the key normalization feature.
@@ -1314,18 +1225,6 @@ mod tests {
         assert!(duration.as_secs() < 30, "ANSI stripping performance regression: {:?}", duration);
     }
 
-    #[test]
-    fn benchmark_run_script_performance() {
-        let start = std::time::Instant::now();
-        for _ in 0..100 {
-            let _ = run_script(None, &vec!["echo test".to_string()]);
-        }
-        let duration = start.elapsed();
-        
-        // Should complete 100 script executions in under 10 seconds (relaxed for different environments)
-        println!("Script execution 100 operations: {:?}", duration);
-        assert!(duration.as_secs() < 10, "Script execution performance regression: {:?}", duration);
-    }
 
     #[test]
     fn benchmark_handle_keypress_performance() {

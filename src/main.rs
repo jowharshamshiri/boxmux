@@ -24,9 +24,7 @@ use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 use uuid::Uuid;
 
 use boxmux_lib::model::app::*;
-use boxmux_lib::utils::*;
-use boxmux_lib::streaming_executor::{StreamingExecutor, OutputLine};
-use boxmux_lib::streaming_messages::{StreamingOutput, StreamingComplete};
+use boxmux_lib::streaming_executor::StreamingExecutor;
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());

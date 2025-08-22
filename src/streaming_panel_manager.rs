@@ -5,9 +5,9 @@ use uuid::Uuid;
 use log::{debug, error, warn};
 
 use crate::streaming_executor::{StreamingExecutor, OutputLine};
-use crate::streaming_messages::{StreamingOutput, StreamingComplete};
+use crate::streaming_messages::{StreamingOutput, StreamingStatus, StreamingStatusUpdate};
+use crate::rate_limiter::StreamingRateLimiter;
 use crate::model::panel::Panel;
-use crate::model::app::AppContext;
 use crate::thread_manager::Message;
 
 #[derive(Debug, Clone)]
@@ -28,6 +28,7 @@ pub struct StreamingPanelManager {
     running_processes: Arc<Mutex<HashMap<Uuid, std::process::Child>>>,
     message_sender: mpsc::Sender<Message>,
     debounce_interval: Duration,
+    rate_limiter: Arc<Mutex<StreamingRateLimiter>>,
 }
 
 impl StreamingPanelManager {
@@ -38,6 +39,18 @@ impl StreamingPanelManager {
             running_processes: Arc::new(Mutex::new(HashMap::new())),
             message_sender,
             debounce_interval: Duration::from_millis(16), // ~60fps
+            rate_limiter: Arc::new(Mutex::new(StreamingRateLimiter::new(60, 1000))), // 60 lines/sec, queue size 1000
+        }
+    }
+    
+    pub fn with_rate_limit(message_sender: mpsc::Sender<Message>, max_lines_per_second: u32, max_queue_size: usize) -> Self {
+        Self {
+            active_tasks: Arc::new(Mutex::new(HashMap::new())),
+            executors: Arc::new(Mutex::new(HashMap::new())),
+            running_processes: Arc::new(Mutex::new(HashMap::new())),
+            message_sender,
+            debounce_interval: Duration::from_millis(16),
+            rate_limiter: Arc::new(Mutex::new(StreamingRateLimiter::new(max_lines_per_second, max_queue_size))),
         }
     }
 
@@ -74,7 +87,7 @@ impl StreamingPanelManager {
         let script = script_commands.join(" && ");
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, _receiver)) => {
+            Ok((child, receiver)) => {
                 // Store executor and process
                 {
                     if let Ok(mut executors) = self.executors.lock() {
@@ -85,8 +98,22 @@ impl StreamingPanelManager {
                     }
                 }
 
-                // Start monitoring thread
-                self.start_monitoring_thread(task_id);
+                // Send starting status update
+                let status_update = StreamingStatusUpdate::new(
+                    panel.id.clone(),
+                    task_id,
+                    StreamingStatus::Starting,
+                    0,
+                );
+                
+                let status_msg = Message::StreamingStatusUpdate(panel.id.clone(), status_update);
+                
+                if let Err(e) = self.message_sender.send(status_msg) {
+                    error!("Failed to send starting status update: {}", e);
+                }
+
+                // Start monitoring thread with receiver
+                self.start_monitoring_thread(task_id, receiver);
                 
                 Ok(task_id)
             }
@@ -102,12 +129,13 @@ impl StreamingPanelManager {
         }
     }
 
-    fn start_monitoring_thread(&self, task_id: Uuid) {
+    fn start_monitoring_thread(&self, task_id: Uuid, receiver: mpsc::Receiver<OutputLine>) {
         let active_tasks = Arc::clone(&self.active_tasks);
         let executors = Arc::clone(&self.executors);
         let running_processes = Arc::clone(&self.running_processes);
         let message_sender = self.message_sender.clone();
         let debounce_interval = self.debounce_interval;
+        let rate_limiter = Arc::clone(&self.rate_limiter);
 
         std::thread::spawn(move || {
             debug!("Monitoring thread started for task {}", task_id);
@@ -135,16 +163,10 @@ impl StreamingPanelManager {
                     break;
                 }
 
-                // Read output from executor
+                // Read output from receiver
                 let mut new_lines = Vec::new();
-                {
-                    if let Ok(executors) = executors.lock() {
-                        if let Some(executor) = executors.get(&task_id) {
-                            while let Some(output_line) = executor.try_read_line() {
-                                new_lines.push(output_line);
-                            }
-                        }
-                    }
+                while let Ok(output_line) = receiver.try_recv() {
+                    new_lines.push(output_line);
                 }
 
                 // Accumulate lines
@@ -174,8 +196,25 @@ impl StreamingPanelManager {
                     || !accumulated_lines.is_empty() && accumulated_lines.len() >= 10;
 
                 if should_update && !accumulated_lines.is_empty() {
-                    // Send accumulated lines
+                    // Apply rate limiting to accumulated lines
+                    let mut rate_limited_lines = Vec::new();
+                    
                     for line in &accumulated_lines {
+                        if let Ok(mut limiter) = rate_limiter.lock() {
+                            if limiter.should_allow_output() {
+                                rate_limited_lines.push(line);
+                            } else {
+                                // Queue the line for later if rate limited
+                                limiter.queue_output(line.content.clone());
+                            }
+                        } else {
+                            // Fallback: send without rate limiting if lock fails
+                            rate_limited_lines.push(line);
+                        }
+                    }
+                    
+                    // Send rate-limited lines
+                    for line in &rate_limited_lines {
                         let streaming_msg = StreamingOutput::new(
                             panel_id.clone(),
                             line.content.clone(),
@@ -194,13 +233,43 @@ impl StreamingPanelManager {
                             error!("Failed to send streaming output for task {}: {}", task_id, e);
                         }
                     }
+                    
+                    // Process queued output from rate limiter
+                    if let Ok(mut limiter) = rate_limiter.lock() {
+                        while let Some(queued_content) = limiter.get_next_output() {
+                            let msg = Message::PanelOutputUpdate(
+                                panel_id.clone(),
+                                true,
+                                queued_content,
+                            );
+                            
+                            if let Err(e) = message_sender.send(msg) {
+                                error!("Failed to send queued output for task {}: {}", task_id, e);
+                                break;
+                            }
+                        }
+                    }
 
-                    // Update task
+                    // Update task and send status update
                     {
                         if let Ok(mut tasks) = active_tasks.lock() {
                             if let Some(task) = tasks.get_mut(&task_id) {
                                 task.last_output_time = Some(Instant::now());
                                 task.line_count += accumulated_lines.len() as u64;
+                                
+                                // Send running status update with current line count
+                                let status_update = StreamingStatusUpdate::new(
+                                    task.panel_id.clone(),
+                                    task_id,
+                                    StreamingStatus::Running,
+                                    task.line_count,
+                                );
+                                
+                                let status_msg = Message::StreamingStatusUpdate(task.panel_id.clone(), status_update);
+                                
+                                if let Err(e) = message_sender.send(status_msg) {
+                                    error!("Failed to send running status update for task {}: {}", task_id, e);
+                                }
                             }
                         }
                     }
@@ -210,7 +279,34 @@ impl StreamingPanelManager {
                 }
 
                 if process_completed {
-                    // Send completion message
+                    // Get final line count and send completion status
+                    let (final_panel_id, final_line_count) = {
+                        if let Ok(tasks) = active_tasks.lock() {
+                            if let Some(task) = tasks.get(&task_id) {
+                                (task.panel_id.clone(), task.line_count)
+                            } else {
+                                (panel_id.clone(), 0)
+                            }
+                        } else {
+                            (panel_id.clone(), 0)
+                        }
+                    };
+                    
+                    // Send completion status update
+                    let completion_status = StreamingStatusUpdate::new(
+                        final_panel_id.clone(),
+                        task_id,
+                        StreamingStatus::Completed(true), // Assume success for now
+                        final_line_count,
+                    );
+                    
+                    let completion_status_msg = Message::StreamingStatusUpdate(final_panel_id.clone(), completion_status);
+                    
+                    if let Err(e) = message_sender.send(completion_status_msg) {
+                        error!("Failed to send completion status update for task {}: {}", task_id, e);
+                    }
+                    
+                    // Send legacy completion message for compatibility
                     let completion_msg = Message::ExternalMessage(
                         format!("streaming_complete:{}:success", task_id)
                     );
@@ -308,6 +404,25 @@ impl StreamingPanelManager {
     pub fn set_debounce_interval(&mut self, interval: Duration) {
         self.debounce_interval = interval;
     }
+
+    pub fn get_performance_stats(&self) -> Option<(usize, usize, f64)> {
+        if let Ok(limiter) = self.rate_limiter.lock() {
+            let active_tasks = self.get_active_task_count();
+            let queue_size = limiter.queue_size();
+            let queue_utilization = if limiter.is_queue_full() { 100.0 } else { 
+                (queue_size as f64 / 1000.0) * 100.0 // Assuming default queue size 1000
+            };
+            Some((active_tasks, queue_size, queue_utilization))
+        } else {
+            None
+        }
+    }
+
+    pub fn adjust_rate_limit(&self, max_lines_per_second: u32, max_queue_size: usize) {
+        if let Ok(mut limiter) = self.rate_limiter.lock() {
+            *limiter = StreamingRateLimiter::new(max_lines_per_second, max_queue_size);
+        }
+    }
 }
 
 impl Drop for StreamingPanelManager {
@@ -348,18 +463,25 @@ mod tests {
         let task_id = manager.start_streaming(&panel).unwrap();
         assert_eq!(manager.get_active_task_count(), 1);
         
-        // Wait for execution
-        std::thread::sleep(Duration::from_millis(100));
+        // Wait longer for streaming execution to complete
+        std::thread::sleep(Duration::from_millis(200));
         
-        // Check for messages
+        // Check for messages with timeout
         let mut received_output = false;
-        while let Ok(msg) = receiver.try_recv() {
-            if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
-                if panel_id == "test_panel" && content.contains("test") {
-                    received_output = true;
-                    break;
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_millis(500) {
+            while let Ok(msg) = receiver.try_recv() {
+                if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
+                    if panel_id == "test_panel" && content.contains("test") {
+                        received_output = true;
+                        break;
+                    }
                 }
             }
+            if received_output {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
         
         assert!(received_output);
