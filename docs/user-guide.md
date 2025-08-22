@@ -48,6 +48,7 @@ app:
 ```
 
 Run it:
+
 ```bash
 # If installed via cargo install
 boxmux hello.yaml
@@ -231,6 +232,7 @@ app:
 #### 1. Plan Your Layout
 
 Before writing YAML, sketch your interface:
+
 ```
 ┌─────────────────────────────┐
 │           Header            │
@@ -349,6 +351,7 @@ BoxMux provides data visualization through charts and tables.
 ### Chart System
 
 BoxMux includes a Unicode-based charting system:
+
 - **Chart Types**: Bar charts, line charts, histograms
 - **Smart Layout**: Responsive chart sizing and alignment
 - **Real-time Data**: Live data integration with configurable refresh
@@ -370,6 +373,7 @@ BoxMux includes a Unicode-based charting system:
 ### Table System
 
 Table features for structured data:
+
 - **Data Formats**: CSV and JSON parsing
 - **Sorting**: Text and numeric sorting with direction control
 - **Filtering**: Exact match and case-insensitive search
@@ -402,6 +406,7 @@ BoxMux includes a plugin system for extending functionality with dynamic compone
 ### Plugin Overview
 
 The plugin system supports:
+
 - **Dynamic Component Loading**: Load custom components at runtime using `libloading`
 - **Security Validation**: Permission-based access control with manifest validation
 - **Fallback System**: Graceful fallback to mock implementations for development/testing
@@ -706,13 +711,13 @@ script:
 ## Advanced Features
 
 BoxMux includes additional features:
-- **Streaming Script Output**: Real-time output from long-running commands
+
 - **Clipboard Integration**: Ctrl+C copies panel content with visual feedback
 - **Enhanced Scrolling**: Position preservation, page navigation, visual indicators
 - **Performance Monitoring**: Built-in benchmarking and performance tracking
 - **Schema Validation**: JSON Schema validation with detailed error reporting
 
-**Learn more**: See the [Advanced Features Guide](advanced-features.md) for streaming, clipboard, scrolling, and performance features.
+**Learn more**: See the [Advanced Features Guide](advanced-features.md) for clipboard, scrolling, and performance features.
 
 ---
 

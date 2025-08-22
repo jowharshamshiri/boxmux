@@ -37,6 +37,8 @@ pub enum Message {
     StartPanelRefresh(String),
     SwitchActiveLayout(String),
     KeyPress(String),
+    ExecuteHotKeyChoice(String),
+    MouseClick(u16, u16), // x, y coordinates
     ExternalMessage(String),
     AddPanel(String, Panel),
     RemovePanel(String),
@@ -91,6 +93,15 @@ impl Hash for Message {
             Message::KeyPress(pressed_key) => {
                 "key_press".hash(state);
                 pressed_key.hash(state);
+            }
+            Message::ExecuteHotKeyChoice(choice_id) => {
+                "execute_hot_key_choice".hash(state);
+                choice_id.hash(state);
+            }
+            Message::MouseClick(x, y) => {
+                "mouse_click".hash(state);
+                x.hash(state);
+                y.hash(state);
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {

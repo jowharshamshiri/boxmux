@@ -1,0 +1,79 @@
+app:
+  # F0081: Hot Key Actions - Global keyboard shortcuts to trigger choice actions
+  hot_keys:
+    "Ctrl+d": "deploy"
+    "F2": "build"  
+    "F3": "test"
+    "Ctrl+r": "restart"
+    
+  layouts:
+    - id: "main"
+      title: "Hot Keys Demo"
+      root: true
+      children:
+        - id: "control_panel"
+          title: "Control Panel"
+          position:
+            x1: "0"
+            y1: "0"
+            x2: "40"
+            y2: "100"
+          border: true
+          choices:
+            # F0081: These choices can be triggered by hot keys
+            - id: "deploy"
+              content: "Deploy Application (Ctrl+d)"
+              script: ["echo 'Starting deployment...'; sleep 1; echo 'Deploying to server...'; sleep 1; echo 'Deployment complete!'"]
+              thread: true
+              redirect_output: "output_log"  # Output goes to log panel
+              
+            - id: "build"
+              content: "Build Project (F2)" 
+              script: ["echo 'Starting build...'; sleep 2; echo 'Compiling...'; sleep 1; echo 'Build finished!'"]
+              thread: true
+              redirect_output: "output_log"
+              
+            - id: "test"
+              content: "Run Tests (F3)"
+              script: ["echo 'Running tests...'; sleep 1; echo 'Test 1: PASS'; sleep 1; echo 'Test 2: PASS'; echo 'All tests passed!'"]
+              thread: true
+              redirect_output: "output_log"
+              
+            - id: "restart"
+              content: "Restart Service (Ctrl+r)"
+              script: ["echo 'Stopping service...'; sleep 1; echo 'Starting service...'; sleep 1; echo 'Service restarted!'"]
+              thread: true
+              redirect_output: "output_log"
+
+        - id: "output_log"
+          title: "Output Log"
+          position:
+            x1: "40"
+            y1: "0"  
+            x2: "100"
+            y2: "70"
+          border: true
+          content: "Press Ctrl+d, F2, F3, or Ctrl+r to trigger commands\nOutput will appear here"
+          auto_scroll_bottom: true  # Auto-scroll to see new output
+          
+        - id: "status_panel"
+          title: "Instructions"
+          position:
+            x1: "40"
+            y1: "70"
+            x2: "100" 
+            y2: "100"
+          border: true
+          content: |
+            FEATURES DEMONSTRATED:
+            
+            F0081 - Hot Key Actions:
+            • Ctrl+d = Deploy Application
+            • F2 = Build Project  
+            • F3 = Run Tests
+            • Ctrl+r = Restart Service
+            
+            Hot keys trigger choice actions directly without menu navigation.
+            Output redirects to the Output Log panel.
+            
+            Try pressing the hot keys to see instant command execution!

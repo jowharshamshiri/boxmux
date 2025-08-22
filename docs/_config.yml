@@ -74,7 +74,7 @@ features:
     description: "Define your entire interface using simple, readable YAML configuration"
     icon: "📝"
   - title: "Real-time Updates"
-    description: "Built-in refresh intervals and live data streaming"
+    description: "Built-in refresh intervals and live data updates"
     icon: "⚡"
   - title: "Interactive"
     description: "Keyboard navigation, menu selection, and custom keybindings"

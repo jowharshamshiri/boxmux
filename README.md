@@ -20,6 +20,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 ### Key Features
 
 **Core Framework (Complete)**
+
 - YAML Configuration Loading: Load app configuration from YAML files with validation
 - Multi-Layout System: Support multiple layouts with root/active switching
 - Panel Hierarchy: Nested panel structure with parent-child relationships and bounds calculation
@@ -30,6 +31,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Configuration Validation: JSON Schema validation with error reporting
 
 **UI Components and Styling (Complete)**
+
 - Panel Positioning: Flexible panel positioning with percentage/absolute bounds
 - Borders and Styling: Panel borders with customizable colors and 16 ANSI color palette
 - Text Rendering: Multi-line text content display with wrapping and positioning
@@ -39,15 +41,16 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Scrolling Support: Scrolling with position preservation, page navigation, visual indicators, and auto-scroll functionality
 
 **Scripting and Automation**
+
 - Script Execution: Execute shell scripts in panels with output capture and error handling
 - Threaded Execution: Panel scripts run in dedicated threads with refresh intervals
 - Output Redirection: Redirect script output to different panels (replace or append)
-- Streaming Script Output: Display command output line-by-line as generated
 - Auto-Scroll to Bottom: Set vertical scroll to bottom when content updates
 - Library Support: Include external script libraries for reusable functionality
 - File Output: Save panel content to files for persistence
 
 **Socket API and Remote Control (Complete)**
+
 - Unix Socket Server: Manual Unix socket server implementation for remote control
 - Panel Content Updates: Update panel content via socket commands
 - Panel Script Updates: Replace panel scripts dynamically
@@ -57,6 +60,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Socket Error Handling: Proper error responses for invalid requests
 
 **Data Visualization (Complete)**
+
 - Enhanced Charting: Unicode-based charts (bar, line, histogram) with smart layout engine
 - Chart Layout System: Responsive chart sizing and improved alignment
 - Table Panels: Structured data display with CSV/JSON parsing
@@ -64,6 +68,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Table Styling: Zebra striping, row numbers, column width management
 
 **Advanced Features (Complete)**
+
 - Variable System: Hierarchical variable substitution with proper precedence (env > child > parent > layout > app > default)
 - Plugin System: Dynamic component loading with security validation and manifest parsing
 - Configuration Schema Validation: JSON Schema validation integrated into YAML loading
@@ -71,6 +76,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Performance Benchmarking: Built-in performance monitoring with regression detection
 
 **Cross-platform Compatibility**
+
 - Works on macOS, Linux, and other Unix-like systems
 - Platform-specific clipboard integration (macOS/Linux/Windows)
 - Cross-platform command compatibility and terminal handling
@@ -78,11 +84,11 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 ## Use Cases
 
 - System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
-- DevOps Tools: Orchestrate deployment scripts with streaming output
+- DevOps Tools: Orchestrate deployment scripts with real-time output
 - Log Analysis: Monitor logs with `tail -f` commands and auto-scroll
 - Network Monitoring: Execute `netstat`, `ss`, `ping` with live updates
 - Database Operations: Run queries and maintenance scripts with progress tracking
-- Development Workflows: Build, test, and deployment commands with streaming output
+- Development Workflows: Build, test, and deployment commands with real-time output
 - CI/CD Monitoring: Watch build processes with output display
 
 ## Quick Start
@@ -153,14 +159,13 @@ app:
           content: 'Basic panel example'
           border: true
           
-        - id: 'streaming_logs'
+        - id: 'system_logs'
           title: 'Live System Logs'
           position:
             x1: 10%
             y1: 65%
             x2: 90%
             y2: 90%
-          streaming: true
           auto_scroll_bottom: true
           refresh_interval: 1000
           script:
@@ -208,7 +213,6 @@ boxmux my-interface.yaml
 - **Chart Panels**: Unicode-based visualizations (bar, line, histogram) with smart responsive layout
 - **Table Panels**: Structured data with CSV/JSON parsing, sorting, filtering, pagination
 - **Plugin Panels**: Dynamic components with security validation and manifest loading
-- **Streaming Panels**: Real-time output from long-running commands
 - **Variable Panels**: Template-driven content with hierarchical variable substitution
 
 ### Interface Features
@@ -259,6 +263,7 @@ BoxMux includes hierarchical variable substitution for dynamic configuration and
 ### Variable Precedence
 
 Variables are resolved in this order (highest to lowest priority):
+
 1. **Panel-specific variables** (most granular control)
 2. **Parent panel variables** (inherited through hierarchy)
 3. **Layout-level variables** (layout scope)
@@ -325,6 +330,7 @@ app:
 ```
 
 This enables:
+
 - Environment-specific configurations without code duplication
 - Template-driven interfaces that adapt to different contexts
 - Maintainable configurations with centralized variable management
@@ -482,7 +488,6 @@ BoxMux performance characteristics (validated with 402 passing tests):
 - **Efficient Threading**: Multi-threaded architecture with clean message passing
 - **Responsive**: Sub-millisecond input handling with performance benchmarking
 - **Scalable**: Handles complex layouts with nested panel hierarchies
-- **Real-time**: Streaming script output with live data updates
 
 ### Performance Benchmarks
 

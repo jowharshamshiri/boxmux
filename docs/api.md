@@ -5,7 +5,7 @@ title: API Reference - BoxMux
 
 # BoxMux API Reference
 
-This document describes the BoxMux API for programmatic control via socket messaging, external integrations, and streaming panel management.
+This document describes the BoxMux API for programmatic control via socket messaging, external integrations, and panel management.
 
 ## Table of Contents
 

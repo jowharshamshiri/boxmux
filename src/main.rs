@@ -63,46 +63,17 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            // Check if streaming is enabled for this panel
-                            if panel.streaming == Some(true) {
-                                // Use streaming execution
-                                match run_script_streaming(libs.as_ref(), panel.script.clone().unwrap().as_ref()) {
-                                    Ok(stream) => {
-                                        // Collect all streaming output
-                                        let mut output = String::new();
-                                        for line in stream {
-                                            if !output.is_empty() {
-                                                output.push('\n');
-                                            }
-                                            output.push_str(&line);
-                                            // Send incremental updates for real-time display
-                                            inner.send_message(Message::PanelOutputUpdate(
-                                                panel.id.clone(),
-                                                true,
-                                                output.clone(),
-                                            ));
-                                        }
-                                    }
-                                    Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel.id.clone(),
-                                        false,
-                                        e.to_string(),
-                                    )),
-                                }
-                            } else {
-                                // Use regular non-streaming execution
-                                match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                    Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel.id.clone(),
-                                        true,
-                                        output,
-                                    )),
-                                    Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel.id.clone(),
-                                        false,
-                                        e.to_string(),
-                                    )),
-                                }
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    true,
+                                    output,
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel.id.clone(),
+                                    false,
+                                    e.to_string(),
+                                )),
                             }
                             std::thread::sleep(std::time::Duration::from_millis(
                                 panel.calc_refresh_interval(&app_context, &app_graph),
@@ -153,46 +124,17 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            // Check if streaming is enabled for this panel
-                            if panel.streaming == Some(true) {
-                                // Use streaming execution
-                                match run_script_streaming(libs.as_ref(), panel.script.clone().unwrap().as_ref()) {
-                                    Ok(stream) => {
-                                        // Collect all streaming output
-                                        let mut output = String::new();
-                                        for line in stream {
-                                            if !output.is_empty() {
-                                                output.push('\n');
-                                            }
-                                            output.push_str(&line);
-                                            // Send incremental updates for real-time display
-                                            inner.send_message(Message::PanelOutputUpdate(
-                                                panel_id.clone(),
-                                                true,
-                                                output.clone(),
-                                            ));
-                                        }
-                                    }
-                                    Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel_id.clone(),
-                                        false,
-                                        e.to_string(),
-                                    )),
-                                }
-                            } else {
-                                // Use regular non-streaming execution
-                                match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                    Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel_id.clone(),
-                                        true,
-                                        output,
-                                    )),
-                                    Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                        panel_id.clone(),
-                                        false,
-                                        e.to_string(),
-                                    )),
-                                }
+                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    true,
+                                    output,
+                                )),
+                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                                    panel_id.clone(),
+                                    false,
+                                    e.to_string(),
+                                )),
                             }
 
                             *last_execution_time = Instant::now();

@@ -46,20 +46,19 @@ app:
             - "echo '---'"
           border: true
           
-        - id: "streaming_auto_scroll"
-          title: "Streaming + Auto-Scroll"
+        - id: "auto_scroll"
+          title: "Auto-Scroll with Script"
           position:
             x1: "0%"
             y1: "50%"
             x2: "100%"
             y2: "100%"
-          streaming: true
           auto_scroll_bottom: true
           refresh_interval: 1000
           script:
             - |
               for i in {1..20}; do
-                echo "$(date '+%H:%M:%S') - Streaming line $i"
+                echo "$(date '+%H:%M:%S') - line $i"
                 sleep 0.5
               done
           border: true

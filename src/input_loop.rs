@@ -21,7 +21,7 @@ create_runnable!(
         if poll(Duration::from_millis(10)).unwrap() {
             if let Ok(event) = read() {
                 let key_str = match event {
-                    Event::Mouse(MouseEvent { kind, column: _, row: _, modifiers: _ }) => {
+                    Event::Mouse(MouseEvent { kind, column, row, modifiers: _ }) => {
                         match kind {
                             MouseEventKind::ScrollUp => {
                                 inner.send_message(Message::ScrollPanelUp());
@@ -39,7 +39,12 @@ create_runnable!(
                                 inner.send_message(Message::ScrollPanelRight());
                                 "ScrollRight".to_string()
                             }
-                            _ => return (true, app_context), // Ignore other mouse events for now
+                            MouseEventKind::Down(_button) => {
+                                // F0091: Handle mouse clicks
+                                inner.send_message(Message::MouseClick(column, row));
+                                format!("MouseClick({}, {})", column, row)
+                            }
+                            _ => return (true, app_context), // Ignore other mouse events
                         }
                     }
                     Event::Key(KeyEvent { code, modifiers, .. }) => {
@@ -120,6 +125,13 @@ create_runnable!(
                     _ => return (true, app_context),
                 };
 
+                // F0081: Hot Key Actions - Direct choice execution
+                if let Some(hot_keys) = &app_context.app.hot_keys {
+                    if let Some(choice_id) = hot_keys.get(&key_str) {
+                        inner.send_message(Message::ExecuteHotKeyChoice(choice_id.clone()));
+                    }
+                }
+                
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         let libs = app_context.app.libs.clone();

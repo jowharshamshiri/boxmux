@@ -195,7 +195,6 @@ pub struct Panel {
     pub plugin_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
-    pub streaming: Option<bool>,
     pub auto_scroll_bottom: Option<bool>,
     #[serde(skip)]
     pub output: String,
@@ -280,7 +279,6 @@ impl Hash for Panel {
         if let Some(ref config) = self.table_config {
             serde_json::to_string(config).unwrap_or_default().hash(state);
         }
-        self.streaming.hash(state);
         self.auto_scroll_bottom.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
@@ -289,7 +287,6 @@ impl Hash for Panel {
             vs.to_bits().hash(state);
         }
         self.selected.hash(state);
-        self.streaming.hash(state);
         self.parent_id.hash(state);
         self.parent_layout_id.hash(state);
         self.error_state.hash(state);
@@ -363,7 +360,6 @@ impl Default for Panel {
             plugin_config: None,
             table_data: None,
             table_config: None,
-            streaming: None,
             auto_scroll_bottom: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
@@ -440,7 +436,6 @@ impl PartialEq for Panel {
             && self.plugin_config == other.plugin_config
             && self.table_data == other.table_data
             && self.table_config == other.table_config
-            && self.streaming == other.streaming
             && self.auto_scroll_bottom == other.auto_scroll_bottom
             && self.error_state == other.error_state
     }
@@ -510,7 +505,6 @@ impl Clone for Panel {
             plugin_config: self.plugin_config.clone(),
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
-            streaming: self.streaming,
             auto_scroll_bottom: self.auto_scroll_bottom,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
@@ -1131,13 +1125,46 @@ impl Panel {
     }
 
     pub fn is_selectable(&self) -> bool {
-        self.tab_order.is_some() 
+        // Panel is selectable if it has explicit tab order OR has scrollable content
+        let has_tab_order = self.tab_order.is_some() 
             && self.tab_order.as_ref().unwrap() != "none"
-            && !self.tab_order.as_ref().unwrap().is_empty()
+            && !self.tab_order.as_ref().unwrap().is_empty();
+        
+        has_tab_order || self.has_scrollable_content()
     }
 
     pub fn is_selected(&self) -> bool {
         self.selected.unwrap_or(false)
+    }
+
+    pub fn has_scrollable_content(&self) -> bool {
+        // Check if panel has content that could overflow and require scrolling
+        let content = if !self.output.is_empty() {
+            Some(self.output.as_str())
+        } else {
+            self.content.as_deref()
+        };
+        
+        if let Some(content_str) = content {
+            // Empty content is not scrollable
+            if content_str.trim().is_empty() {
+                return false;
+            }
+            
+            let bounds = self.bounds();
+            let viewable_width = bounds.width().saturating_sub(4); // Account for borders and padding
+            let viewable_height = bounds.height().saturating_sub(4);
+            
+            // Use the same content_size logic as draw_utils.rs
+            let lines: Vec<&str> = content_str.split('\n').collect();
+            let content_height = lines.len();
+            let content_width = lines.iter().map(|line| line.len()).max().unwrap_or(0);
+            
+            // Content overflows if it's larger than viewable area
+            content_width > viewable_width || content_height > viewable_height
+        } else {
+            false
+        }
     }
 
     pub fn scroll_down(&mut self, amount: Option<f64>) {
@@ -2478,13 +2505,6 @@ impl Updatable for Panel {
                         self.selected = new_selected;
                     }
                 }
-                "streaming" => {
-                    if let Ok(new_streaming) =
-                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
-                    {
-                        self.streaming = new_streaming;
-                    }
-                }
                 "auto_scroll_bottom" => {
                     if let Ok(new_auto_scroll_bottom) =
                         serde_json::from_value::<Option<bool>>(update.new_value.clone())
@@ -3182,6 +3202,47 @@ mod tests {
         assert_eq!(panel.title, Some("".to_string()));
         assert_eq!(panel.content, Some("".to_string()));
         assert!(!panel.is_selectable()); // Empty tab_order should not be selectable
+    }
+
+    #[test]
+    fn test_panel_scrollable_content_selectability() {
+        // Test that panels with scrollable content become selectable even without tab_order
+        let mut panel = Panel {
+            id: "test_scrollable".to_string(),
+            content: Some("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nVery long line that would exceed normal panel width to trigger horizontal scrolling".to_string()),
+            position: InputBounds {
+                x1: "0".to_string(),
+                y1: "0".to_string(), 
+                x2: "20".to_string(),  // Small width to trigger overflow
+                y2: "5".to_string(),   // Small height to trigger overflow
+            },
+            anchor: Anchor::TopLeft,
+            tab_order: None, // No explicit tab order
+            ..Default::default()
+        };
+        
+        assert!(panel.has_scrollable_content(), "Panel with large content should have scrollable content");
+        assert!(panel.is_selectable(), "Panel with scrollable content should be selectable even without tab_order");
+
+        // Test that empty content is not scrollable
+        panel.content = Some("".to_string());
+        assert!(!panel.has_scrollable_content(), "Panel with empty content should not have scrollable content");
+        assert!(!panel.is_selectable(), "Panel with empty content should not be selectable without tab_order");
+
+        // Test that normal sized content is not scrollable
+        panel.content = Some("Short".to_string());
+        panel.position = InputBounds {
+            x1: "0".to_string(),
+            y1: "0".to_string(),
+            x2: "100".to_string(),  // Large enough to fit content
+            y2: "50".to_string(),   // Large enough to fit content
+        };
+        assert!(!panel.has_scrollable_content(), "Panel with content that fits should not have scrollable content");
+        assert!(!panel.is_selectable(), "Panel with non-scrollable content should not be selectable without tab_order");
+
+        // But with tab_order it should still be selectable
+        panel.tab_order = Some("1".to_string());
+        assert!(panel.is_selectable(), "Panel with tab_order should always be selectable");
     }
 
     // === Panel with Choices Tests ===

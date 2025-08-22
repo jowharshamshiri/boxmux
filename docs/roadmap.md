@@ -23,15 +23,14 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
 - **Socket-based API** - External control via Unix domain sockets
 - **Rich Component Library** - Panels, menus, charts, tables, real-time updates
-- **Streaming Output** - Live streaming from long-running commands with auto-scroll
+- **Auto-Scroll Output** - Auto-scroll for command output with scroll-to-bottom
 - **Data Visualization** - Charts and tables with sorting, filtering, pagination
 - **Plugin System** - Dynamic component loading with security validation
 - **Cross-platform Support** - Verified on macOS, Linux, Unix systems
 - **Performance Optimization** - Sub-millisecond input handling, efficient rendering
 
 ### Recently Completed Features
-- **Streaming Script Output**: Live streaming output from long-running commands with real-time updates
-- **Auto-Scroll to Bottom**: Panels automatically scroll to show latest content for logs and streaming output  
+- **Auto-Scroll to Bottom**: Panels automatically scroll to show latest content for logs and command output  
 - **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
 - **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
 - **Plugin System**: Dynamic component loading with security validation

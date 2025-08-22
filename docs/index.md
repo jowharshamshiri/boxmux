@@ -7,7 +7,7 @@ title: BoxMux - YAML-driven Terminal UI Framework
   <div class="container">
     <div class="section-header">
       <h1>BoxMux</h1>
-      <p>YAML-driven terminal UI framework - Terminal applications and dashboards with data visualization, plugin system, streaming output, and socket API.</p>
+      <p>YAML-driven terminal UI framework - Terminal applications and dashboards with data visualization, plugin system, and socket API.</p>
 
     <div class="hero-buttons">
       <a href="{{ "/user-guide" | relative_url }}" class="btn btn-primary">
@@ -62,14 +62,6 @@ title: BoxMux - YAML-driven Terminal UI Framework
         <p>Dynamic component loading and plugin development.</p>
         <a href="{{ "/plugin-system" | relative_url }}" class="card-link">
           Plugin guide
-        </a>
-      </div>
-      
-      <div class="feature-card">
-        <h3>Advanced Features</h3>
-        <p>Streaming output, clipboard integration, scrolling, and performance monitoring.</p>
-        <a href="{{ "/advanced-features" | relative_url }}" class="card-link">
-          Advanced guide
         </a>
       </div>
     </div>
@@ -141,7 +133,7 @@ title: BoxMux - YAML-driven Terminal UI Framework
       
       <div class="feature-card">
         <h3>Scripting & Automation</h3>
-        <p>Multi-threaded script execution, output redirection, streaming output, and external library support.</p>
+        <p>Multi-threaded script execution, output redirection, and external library support.</p>
       </div>
       
       <div class="feature-card">

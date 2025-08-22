@@ -34,6 +34,15 @@
           },
           "description": "Global key bindings mapping keys to command arrays"
         },
+        "hot_keys": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "string"
+            }
+          },
+          "description": "Global hot key shortcuts mapping keys to choice IDs for direct execution"
+        },
         "variables": {
           "type": "object",
           "patternProperties": {
@@ -447,10 +456,6 @@
           "type": "object",
           "description": "Configuration for table rendering and behavior",
           "additionalProperties": true
-        },
-        "streaming": {
-          "type": "boolean",
-          "description": "Enable real-time streaming output from long-running commands"
         },
         "auto_scroll_bottom": {
           "type": "boolean",

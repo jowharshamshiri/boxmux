@@ -85,7 +85,6 @@ impl TestDataFactory {
             plugin_config: None,
             table_data: None,
             table_config: None,
-            streaming: None,
             auto_scroll_bottom: None,
             output: String::new(),
             parent_id: None,
@@ -162,6 +161,7 @@ impl TestDataFactory {
         app.layouts = vec![layout];
         app.libs = None;
         app.on_keypress = None;
+        app.hot_keys = None;
         app
     }
 

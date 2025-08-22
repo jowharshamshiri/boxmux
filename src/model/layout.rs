@@ -351,6 +351,55 @@ impl Layout {
         }
     }
 
+    pub fn find_panel_with_choice(&self, choice_id: &str) -> Option<&Panel> {
+        fn find_in_panels<'a>(panels: &'a [Panel], choice_id: &str) -> Option<&'a Panel> {
+            for panel in panels {
+                if let Some(choices) = &panel.choices {
+                    if choices.iter().any(|c| c.id == choice_id) {
+                        return Some(panel);
+                    }
+                }
+                if let Some(ref children) = panel.children {
+                    if let Some(found) = find_in_panels(children, choice_id) {
+                        return Some(found);
+                    }
+                }
+            }
+            None
+        }
+
+        if let Some(ref children) = self.children {
+            find_in_panels(children, choice_id)
+        } else {
+            None
+        }
+    }
+
+    pub fn find_panel_at_coordinates(&self, x: u16, y: u16) -> Option<&Panel> {
+        fn find_in_panels_at_coords<'a>(panels: &'a [Panel], x: u16, y: u16) -> Option<&'a Panel> {
+            for panel in panels {
+                let bounds = panel.bounds();
+                if x >= bounds.x1 as u16 && x <= bounds.x2 as u16 && 
+                   y >= bounds.y1 as u16 && y <= bounds.y2 as u16 {
+                    // Check children first (they might overlay)
+                    if let Some(ref children) = panel.children {
+                        if let Some(child_panel) = find_in_panels_at_coords(children, x, y) {
+                            return Some(child_panel);
+                        }
+                    }
+                    return Some(panel);
+                }
+            }
+            None
+        }
+
+        if let Some(ref children) = self.children {
+            find_in_panels_at_coords(children, x, y)
+        } else {
+            None
+        }
+    }
+
     fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 

@@ -1,0 +1,145 @@
+app:
+  layouts:
+    - id: "mouse_demo"
+      title: "Mouse Click Support Demo (F0091)"
+      root: true
+      children:
+        - id: "header"
+          title: "F0091 - Mouse Click Support Demo"
+          position:
+            x1: "0"
+            y1: "0"
+            x2: "100"
+            y2: "15"
+          content: |
+            Mouse Click Support Features:
+            
+            1. Click on selectable panels (tab_order defined) → Selects panel
+            2. Click on menu items in choice panels → Executes the choice (same as Enter)
+            3. Click on any element with keypress enter defined → Triggers enter action
+            
+            Try clicking on panels and menu items below to see the features in action!
+          border: true
+          border_color: 'bright_cyan'
+
+        # Selectable panels for testing panel selection
+        - id: "panel_selector_left"
+          title: "Click to Select - Panel 1"
+          position:
+            x1: "0"
+            y1: "15"
+            x2: "33"
+            y2: "50"
+          tab_order: "1"  # Makes this panel selectable
+          content: |
+            This panel is SELECTABLE!
+            
+            Click anywhere on this panel to select it.
+            
+            Notice how the selection changes when you click different panels.
+          border: true
+          border_color: 'green'
+          selected_border_color: 'bright_green'
+
+        - id: "panel_selector_middle"
+          title: "Click to Select - Panel 2"
+          position:
+            x1: "33"
+            y1: "15"
+            x2: "66"
+            y2: "50"
+          tab_order: "2"  # Makes this panel selectable
+          content: |
+            This panel is also SELECTABLE!
+            
+            Click here to select this panel instead.
+            
+            Selected panels have different border colors.
+          border: true
+          border_color: 'yellow'
+          selected_border_color: 'bright_yellow'
+
+        - id: "panel_selector_right"
+          title: "Click to Select - Panel 3"
+          position:
+            x1: "66"
+            y1: "15"
+            x2: "100"
+            y2: "50"
+          tab_order: "3"  # Makes this panel selectable
+          content: |
+            Third selectable panel!
+            
+            Mouse clicks provide intuitive selection.
+            
+            Much faster than Tab navigation!
+          border: true
+          border_color: 'cyan'
+          selected_border_color: 'bright_cyan'
+
+        # Menu panel with clickable choices
+        - id: "clickable_menu"
+          title: "Clickable Menu - Click on Choices"
+          position:
+            x1: "0"
+            y1: "50"
+            x2: "50"
+            y2: "100"
+          tab_order: "4"
+          choices:
+            - id: "hello_choice"
+              content: "Click Me: Say Hello"
+              script: ["echo 'Hello from mouse click!'"]
+              redirect_output: "output_panel"
+
+            - id: "time_choice" 
+              content: "Click Me: Show Time"
+              script: ["echo 'Current time:'; date '+%H:%M:%S on %Y-%m-%d'"]
+              redirect_output: "output_panel"
+
+            - id: "system_choice"
+              content: "Click Me: System Info"
+              script: ["echo 'System Information:'; echo 'OS: '$(uname -s); echo 'Architecture: '$(uname -m); echo 'Hostname: '$(hostname)"]
+              redirect_output: "output_panel" 
+              thread: true
+
+            - id: "count_choice"
+              content: "Click Me: Count to 5"
+              script: ["for i in 1 2 3 4 5; do echo \"Count: $i\"; sleep 0.5; done; echo 'Counting complete!'"]
+              redirect_output: "output_panel"
+              thread: true
+
+            - id: "clear_choice"
+              content: "Click Me: Clear Output"
+              script: ["echo 'Output cleared!'"]
+              redirect_output: "output_panel"
+
+          border: true
+          border_color: 'magenta'
+          selected_border_color: 'bright_magenta'
+
+        # Output panel to show results
+        - id: "output_panel"
+          title: "Output (Click Results Appear Here)"
+          position:
+            x1: "50"
+            y1: "50"
+            x2: "100"
+            y2: "100"
+          tab_order: "5"
+          content: |
+            Output Panel - Results from clicked choices appear here
+            
+            Click on menu items in the left panel to see:
+            • Immediate execution of choices (no Enter key needed)
+            • Threaded execution for non-blocking operations
+            
+            This demonstrates F0091 Mouse Click Support working with:
+            • Background threading
+            
+            Click away!
+          scroll: true
+          auto_scroll_bottom: true
+          border: true
+          border_color: 'blue'
+          selected_border_color: 'bright_blue'
