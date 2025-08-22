@@ -8,6 +8,7 @@ use crate::streaming_executor::StreamingExecutor;
 use crate::model::app::AppContext;
 use crate::model::panel::Panel;
 use crate::thread_manager::Message;
+use crate::streaming_messages::{StreamingOutput, StreamingComplete};
 
 #[derive(Debug, Clone)]
 pub enum Task {
@@ -289,7 +290,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, _receiver)) => {
+            Ok((child, _receiver, _command_executed)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {
@@ -323,17 +324,33 @@ impl UnifiedThreadPool {
                                 output_lines.push(line.content);
                             }
                             
-                            // Send final output to panel
-                            let final_output = output_lines.join("\n");
-                            let msg = Message::PanelOutputUpdate(
-                                panel_id.to_string(),
-                                true,
-                                final_output,
-                            );
-                            
-                            if let Err(e) = message_sender.send(msg) {
-                                error!("Failed to send panel output update: {}", e);
+                            // Send streaming output lines
+                            for (seq, line) in output_lines.iter().enumerate() {
+                                let streaming_output = StreamingOutput::new(
+                                    panel_id.to_string(),
+                                    line.clone(),
+                                    seq as u64,
+                                    false, // not stderr
+                                );
+                                let msg = Message::StreamingOutput(streaming_output);
+                                if let Err(e) = message_sender.send(msg) {
+                                    error!("Failed to send streaming output: {}", e);
+                                }
                             }
+                            
+                            // Send streaming completion
+                            let streaming_complete = StreamingComplete::new(
+                                panel_id.to_string(),
+                                task_id,
+                                status.code(),
+                                output_lines.len() as u64,
+                            );
+                            let completion_msg = Message::StreamingComplete(streaming_complete);
+                            if let Err(e) = message_sender.send(completion_msg) {
+                                error!("Failed to send streaming completion: {}", e);
+                            }
+                            
+                            // Panel refresh completion - no choice_id needed
                             
                             break;
                         }
@@ -364,7 +381,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, _receiver)) => {
+            Ok((child, _receiver, _command_executed)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {

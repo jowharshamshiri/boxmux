@@ -202,7 +202,7 @@ mod tests {
         
         // Test simple streaming script execution
         let mut executor = StreamingExecutor::new();
-        let (mut child, receiver) = executor.spawn_streaming("echo test", None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming("echo test", None).unwrap();
         
         // Collect output
         let mut output = String::new();

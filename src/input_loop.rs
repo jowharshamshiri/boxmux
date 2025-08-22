@@ -149,7 +149,7 @@ create_runnable!(
                         };
                         
                         match executor.spawn_streaming(&combined_command, None) {
-                            Ok((mut child, receiver)) => {
+                            Ok((mut child, receiver, _command_executed)) => {
                                 // For global app actions, we collect output but don't display it
                                 // to avoid interfering with the current UI state
                                 let mut _output_buffer = String::new();
@@ -193,7 +193,7 @@ create_runnable!(
                         };
                         
                         match executor.spawn_streaming(&combined_command, None) {
-                            Ok((mut child, receiver)) => {
+                            Ok((mut child, receiver, _command_executed)) => {
                                 // For layout actions, collect output but don't display
                                 // as these are typically control/navigation commands
                                 let mut _output_buffer = String::new();

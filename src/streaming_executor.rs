@@ -45,8 +45,9 @@ impl StreamingExecutor {
         }
     }
 
-    pub fn spawn_streaming(&mut self, command: &str, working_dir: Option<&str>) -> Result<(Child, Receiver<OutputLine>), Box<dyn std::error::Error>> {
+    pub fn spawn_streaming(&mut self, command: &str, working_dir: Option<&str>) -> Result<(Child, Receiver<OutputLine>, String), Box<dyn std::error::Error>> {
         debug!("Starting streaming execution: {}", command);
+        let command_copy = command.to_string();
         
         // Create a new channel for this specific streaming task
         let (sender, receiver) = mpsc::channel();
@@ -180,7 +181,7 @@ impl StreamingExecutor {
             }
         });
 
-        Ok((child, receiver))
+        Ok((child, receiver, command_copy))
     }
 
     pub fn read_line(&self, timeout: Option<Duration>) -> Option<OutputLine> {
@@ -228,7 +229,7 @@ mod tests {
     #[test]
     fn test_simple_command_streaming() {
         let mut executor = StreamingExecutor::new();
-        let (mut child, receiver) = executor.spawn_streaming("echo 'test line'", None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming("echo 'test line'", None).unwrap();
         
         let mut output_lines = Vec::new();
         let start = Instant::now();
@@ -260,7 +261,7 @@ mod tests {
             "printf 'line1\\nline2\\nline3\\n'"
         };
         
-        let (mut child, receiver) = executor.spawn_streaming(command, None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming(command, None).unwrap();
         
         let mut output_lines = Vec::new();
         let start = Instant::now();
@@ -294,7 +295,7 @@ mod tests {
     #[test]
     fn test_sequence_numbering() {
         let mut executor = StreamingExecutor::new();
-        let (mut child, receiver) = executor.spawn_streaming("echo 'test'", None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming("echo 'test'", None).unwrap();
         
         let mut sequences = Vec::new();
         let start = Instant::now();
@@ -328,7 +329,7 @@ mod tests {
             "echo 'error message' >&2"
         };
         
-        let (mut child, receiver) = executor.spawn_streaming(command, None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming(command, None).unwrap();
         
         let mut stderr_lines = Vec::new();
         let start = Instant::now();
