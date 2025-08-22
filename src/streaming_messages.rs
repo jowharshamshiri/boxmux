@@ -1,4 +1,8 @@
-use std::time::SystemTime;
+use std::time::{SystemTime, Instant};
+#[cfg(test)]
+use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
@@ -340,5 +344,205 @@ mod tests {
         let error_msg = complete.format_error_message();
         let expected = "Command failed (process error)\nCommand: echo 'test'\nContext: Process spawn failed";
         assert_eq!(error_msg, expected);
+    }
+}
+
+/// Token bucket implementation for rate limiting streaming messages
+#[derive(Debug, Clone)]
+pub struct TokenBucket {
+    capacity: u32,
+    tokens: Arc<Mutex<u32>>,
+    refill_rate: u32, // tokens per second
+    last_refill: Arc<Mutex<Instant>>,
+}
+
+impl TokenBucket {
+    pub fn new(capacity: u32, refill_rate: u32) -> Self {
+        Self {
+            capacity,
+            tokens: Arc::new(Mutex::new(capacity)),
+            refill_rate,
+            last_refill: Arc::new(Mutex::new(Instant::now())),
+        }
+    }
+
+    /// Try to consume tokens, returns true if successful
+    pub fn try_consume(&self, tokens_needed: u32) -> bool {
+        self.refill_tokens();
+        
+        let mut tokens = self.tokens.lock().unwrap();
+        if *tokens >= tokens_needed {
+            *tokens -= tokens_needed;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Refill tokens based on elapsed time
+    fn refill_tokens(&self) {
+        let now = Instant::now();
+        let mut last_refill = self.last_refill.lock().unwrap();
+        let mut tokens = self.tokens.lock().unwrap();
+        
+        let elapsed = now.duration_since(*last_refill);
+        let tokens_to_add = (elapsed.as_secs_f64() * self.refill_rate as f64) as u32;
+        
+        if tokens_to_add > 0 {
+            *tokens = (*tokens + tokens_to_add).min(self.capacity);
+            *last_refill = now;
+        }
+    }
+
+    /// Check available tokens without consuming
+    pub fn available_tokens(&self) -> u32 {
+        self.refill_tokens();
+        *self.tokens.lock().unwrap()
+    }
+}
+
+/// Rate limiter for streaming messages with per-panel token buckets
+#[derive(Debug)]
+pub struct StreamingRateLimiter {
+    panel_buckets: Arc<Mutex<HashMap<String, TokenBucket>>>,
+    default_capacity: u32,
+    default_refill_rate: u32,
+}
+
+impl StreamingRateLimiter {
+    /// Create new rate limiter with default settings
+    pub fn new(default_capacity: u32, default_refill_rate: u32) -> Self {
+        Self {
+            panel_buckets: Arc::new(Mutex::new(HashMap::new())),
+            default_capacity,
+            default_refill_rate,
+        }
+    }
+
+    /// Create with standard settings (100 messages capacity, 50 messages/sec refill)
+    pub fn standard() -> Self {
+        Self::new(100, 50)
+    }
+
+    /// Create with high-throughput settings (500 messages capacity, 200 messages/sec refill)
+    pub fn high_throughput() -> Self {
+        Self::new(500, 200)
+    }
+
+    /// Check if streaming output can be sent
+    pub fn allow_streaming_output(&self, panel_id: &str) -> bool {
+        self.get_or_create_bucket(panel_id).try_consume(1)
+    }
+
+    /// Check if streaming complete can be sent (uses fewer tokens)
+    pub fn allow_streaming_complete(&self, panel_id: &str) -> bool {
+        self.get_or_create_bucket(panel_id).try_consume(1)
+    }
+
+    /// Check if batch output can be sent (uses more tokens based on batch size)
+    pub fn allow_batch_output(&self, panel_id: &str, batch_size: u32) -> bool {
+        self.get_or_create_bucket(panel_id).try_consume(batch_size.max(1))
+    }
+
+    /// Get current token count for a panel
+    pub fn get_available_tokens(&self, panel_id: &str) -> u32 {
+        self.get_or_create_bucket(panel_id).available_tokens()
+    }
+
+    /// Get or create token bucket for panel
+    fn get_or_create_bucket(&self, panel_id: &str) -> TokenBucket {
+        let mut buckets = self.panel_buckets.lock().unwrap();
+        buckets.entry(panel_id.to_string())
+            .or_insert_with(|| TokenBucket::new(self.default_capacity, self.default_refill_rate))
+            .clone()
+    }
+
+    /// Reset rate limiter (for testing)
+    pub fn reset(&self) {
+        let mut buckets = self.panel_buckets.lock().unwrap();
+        buckets.clear();
+    }
+}
+
+#[cfg(test)]
+mod rate_limiting_tests {
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn test_token_bucket_basic_consumption() {
+        let bucket = TokenBucket::new(10, 5);
+        
+        // Should be able to consume initial tokens
+        assert!(bucket.try_consume(5));
+        assert_eq!(bucket.available_tokens(), 5);
+        
+        // Should be able to consume remaining tokens
+        assert!(bucket.try_consume(5));
+        assert_eq!(bucket.available_tokens(), 0);
+        
+        // Should fail when no tokens left
+        assert!(!bucket.try_consume(1));
+    }
+
+    #[test]
+    fn test_token_bucket_refill() {
+        let bucket = TokenBucket::new(10, 10); // 10 tokens/sec refill
+        
+        // Consume all tokens
+        assert!(bucket.try_consume(10));
+        assert_eq!(bucket.available_tokens(), 0);
+        
+        // Wait for refill (allow some tolerance for timing)
+        thread::sleep(Duration::from_millis(200));
+        
+        // Should have some tokens refilled
+        let available = bucket.available_tokens();
+        assert!(available > 0 && available <= 10);
+    }
+
+    #[test]
+    fn test_streaming_rate_limiter_per_panel() {
+        let limiter = StreamingRateLimiter::new(5, 10);
+        
+        // Different panels should have independent limits
+        assert!(limiter.allow_streaming_output("panel1"));
+        assert!(limiter.allow_streaming_output("panel2"));
+        
+        // Exhaust panel1 tokens
+        for _ in 0..4 {
+            assert!(limiter.allow_streaming_output("panel1"));
+        }
+        assert!(!limiter.allow_streaming_output("panel1"));
+        
+        // Panel2 should still work
+        assert!(limiter.allow_streaming_output("panel2"));
+    }
+
+    #[test]
+    fn test_streaming_rate_limiter_batch_consumption() {
+        let limiter = StreamingRateLimiter::new(10, 5);
+        
+        // Large batch should consume multiple tokens
+        assert!(limiter.allow_batch_output("panel1", 5));
+        assert_eq!(limiter.get_available_tokens("panel1"), 5);
+        
+        // Should not allow batch larger than remaining tokens
+        assert!(!limiter.allow_batch_output("panel1", 10));
+        
+        // Should allow smaller batch
+        assert!(limiter.allow_batch_output("panel1", 3));
+    }
+
+    #[test]
+    fn test_rate_limiter_standard_settings() {
+        let limiter = StreamingRateLimiter::standard();
+        
+        // Should start with full capacity
+        assert_eq!(limiter.get_available_tokens("test_panel"), 100);
+        
+        // Should allow normal streaming operations
+        assert!(limiter.allow_streaming_output("test_panel"));
+        assert!(limiter.allow_streaming_complete("test_panel"));
     }
 }

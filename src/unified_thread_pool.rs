@@ -8,7 +8,7 @@ use crate::streaming_executor::StreamingExecutor;
 use crate::model::app::AppContext;
 use crate::model::panel::Panel;
 use crate::thread_manager::Message;
-use crate::streaming_messages::{StreamingOutput, StreamingComplete};
+use crate::streaming_messages::{StreamingOutput, StreamingComplete, StreamingRateLimiter};
 
 #[derive(Debug, Clone)]
 pub enum Task {
@@ -44,6 +44,7 @@ pub struct UnifiedThreadPool {
     message_sender: mpsc::Sender<Message>,
     shutdown_flag: Arc<Mutex<bool>>,
     max_concurrent_tasks: usize,
+    rate_limiter: Arc<StreamingRateLimiter>,
 }
 
 impl UnifiedThreadPool {
@@ -52,6 +53,7 @@ impl UnifiedThreadPool {
         let active_tasks = Arc::new(Mutex::new(HashMap::new()));
         let running_processes = Arc::new(Mutex::new(HashMap::new()));
         let shutdown_flag = Arc::new(Mutex::new(false));
+        let rate_limiter = Arc::new(StreamingRateLimiter::standard());
         
         let mut worker_handles = Vec::new();
         
@@ -61,6 +63,7 @@ impl UnifiedThreadPool {
             let processes_clone = Arc::clone(&running_processes);
             let sender_clone = message_sender.clone();
             let shutdown_clone = Arc::clone(&shutdown_flag);
+            let limiter_clone = Arc::clone(&rate_limiter);
             
             let handle = thread::spawn(move || {
                 Self::worker_loop(
@@ -70,6 +73,7 @@ impl UnifiedThreadPool {
                     processes_clone,
                     sender_clone,
                     shutdown_clone,
+                    limiter_clone,
                 );
             });
             
@@ -84,6 +88,7 @@ impl UnifiedThreadPool {
             message_sender,
             shutdown_flag,
             max_concurrent_tasks: max_concurrent,
+            rate_limiter,
         }
     }
 
@@ -184,6 +189,7 @@ impl UnifiedThreadPool {
         running_processes: Arc<Mutex<HashMap<Uuid, std::process::Child>>>,
         message_sender: mpsc::Sender<Message>,
         shutdown_flag: Arc<Mutex<bool>>,
+        rate_limiter: Arc<StreamingRateLimiter>,
     ) {
         debug!("Worker {} started", worker_id);
         
@@ -227,7 +233,7 @@ impl UnifiedThreadPool {
                 debug!("Worker {} executing task {}", worker_id, task_info.id);
                 
                 // Execute the task
-                Self::execute_task(&task_info, &running_processes, &message_sender);
+                Self::execute_task(&task_info, &running_processes, &message_sender, &rate_limiter);
                 
                 // Update task timing and reschedule if periodic
                 task_info.last_execution = Some(Instant::now());
@@ -264,13 +270,14 @@ impl UnifiedThreadPool {
         task_info: &TaskInfo,
         running_processes: &Arc<Mutex<HashMap<Uuid, std::process::Child>>>,
         message_sender: &mpsc::Sender<Message>,
+        rate_limiter: &StreamingRateLimiter,
     ) {
         match &task_info.task {
             Task::PanelRefresh { panel_id, script_commands, .. } => {
-                Self::execute_panel_refresh(task_info.id, panel_id, script_commands, running_processes, message_sender);
+                Self::execute_panel_refresh(task_info.id, panel_id, script_commands, running_processes, message_sender, rate_limiter);
             }
             Task::ChoiceExecution { choice_id, script_commands, redirect_output_to, .. } => {
-                Self::execute_choice_script(task_info.id, choice_id, script_commands, redirect_output_to, running_processes, message_sender);
+                Self::execute_choice_script(task_info.id, choice_id, script_commands, redirect_output_to, running_processes, message_sender, rate_limiter);
             }
         }
     }
@@ -281,12 +288,13 @@ impl UnifiedThreadPool {
         script_commands: &[String],
         running_processes: &Arc<Mutex<HashMap<Uuid, std::process::Child>>>,
         message_sender: &mpsc::Sender<Message>,
+        rate_limiter: &StreamingRateLimiter,
     ) {
         if script_commands.is_empty() {
             return;
         }
         
-        let script = script_commands.join(" && ");
+        let script = script_commands.join("\n");
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
@@ -324,30 +332,38 @@ impl UnifiedThreadPool {
                                 output_lines.push(line.content);
                             }
                             
-                            // Send streaming output lines
+                            // Send streaming output lines with rate limiting
                             for (seq, line) in output_lines.iter().enumerate() {
-                                let streaming_output = StreamingOutput::new(
-                                    panel_id.to_string(),
-                                    line.clone(),
-                                    seq as u64,
-                                    false, // not stderr
-                                );
-                                let msg = Message::StreamingOutput(streaming_output);
-                                if let Err(e) = message_sender.send(msg) {
-                                    error!("Failed to send streaming output: {}", e);
+                                if rate_limiter.allow_streaming_output(panel_id) {
+                                    let streaming_output = StreamingOutput::new(
+                                        panel_id.to_string(),
+                                        line.clone(),
+                                        seq as u64,
+                                        false, // not stderr
+                                    );
+                                    let msg = Message::StreamingOutput(streaming_output);
+                                    if let Err(e) = message_sender.send(msg) {
+                                        error!("Failed to send streaming output: {}", e);
+                                    }
+                                } else {
+                                    debug!("Rate limit exceeded for panel {}, dropping output line", panel_id);
                                 }
                             }
                             
-                            // Send streaming completion
-                            let streaming_complete = StreamingComplete::new(
-                                panel_id.to_string(),
-                                task_id,
-                                status.code(),
-                                output_lines.len() as u64,
-                            );
-                            let completion_msg = Message::StreamingComplete(streaming_complete);
-                            if let Err(e) = message_sender.send(completion_msg) {
-                                error!("Failed to send streaming completion: {}", e);
+                            // Send streaming completion with rate limiting
+                            if rate_limiter.allow_streaming_complete(panel_id) {
+                                let streaming_complete = StreamingComplete::new(
+                                    panel_id.to_string(),
+                                    task_id,
+                                    status.code(),
+                                    output_lines.len() as u64,
+                                );
+                                let completion_msg = Message::StreamingComplete(streaming_complete);
+                                if let Err(e) = message_sender.send(completion_msg) {
+                                    error!("Failed to send streaming completion: {}", e);
+                                }
+                            } else {
+                                debug!("Rate limit exceeded for panel {}, dropping completion message", panel_id);
                             }
                             
                             // Panel refresh completion - no choice_id needed
@@ -372,12 +388,13 @@ impl UnifiedThreadPool {
         redirect_output_to: &Option<String>,
         running_processes: &Arc<Mutex<HashMap<Uuid, std::process::Child>>>,
         message_sender: &mpsc::Sender<Message>,
+        rate_limiter: &StreamingRateLimiter,
     ) {
         if script_commands.is_empty() {
             return;
         }
         
-        let script = script_commands.join(" && ");
+        let script = script_commands.join("\n");
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
@@ -406,17 +423,24 @@ impl UnifiedThreadPool {
                         if let Some(line) = executor.try_read_line() {
                             output_lines.push(line.content);
                             
-                            // Send incremental updates if redirecting output
+                            // Send incremental updates if redirecting output with rate limiting
                             if let Some(target_panel_id) = redirect_output_to {
-                                let incremental_output = output_lines.join("\n");
-                                let msg = Message::PanelOutputUpdate(
-                                    target_panel_id.clone(),
-                                    true,
-                                    incremental_output.clone(),
-                                );
-                                
-                                if let Err(e) = message_sender.send(msg) {
-                                    error!("Failed to send incremental output update: {}", e);
+                                if rate_limiter.allow_batch_output(target_panel_id, output_lines.len() as u32) {
+                                    for (seq, line) in output_lines.iter().enumerate() {
+                                        let streaming_output = StreamingOutput::new(
+                                            target_panel_id.clone(),
+                                            line.clone(),
+                                            seq as u64,
+                                            false, // Assume stdout for now
+                                        );
+                                        let msg = Message::StreamingOutput(streaming_output);
+                                        
+                                        if let Err(e) = message_sender.send(msg) {
+                                            error!("Failed to send streaming output: {}", e);
+                                        }
+                                    }
+                                } else {
+                                    debug!("Rate limit exceeded for choice output to panel {}, dropping {} lines", target_panel_id, output_lines.len());
                                 }
                             }
                         }
@@ -430,17 +454,22 @@ impl UnifiedThreadPool {
                             }
                             
                             // Send completion message
-                            let final_output = output_lines.join("\n");
                             
                             if let Some(target_panel_id) = redirect_output_to {
-                                let msg = Message::PanelOutputUpdate(
-                                    target_panel_id.clone(),
-                                    true,
-                                    final_output.clone(),
-                                );
-                                
-                                if let Err(e) = message_sender.send(msg) {
-                                    error!("Failed to send final output update: {}", e);
+                                if rate_limiter.allow_streaming_complete(target_panel_id) {
+                                    let streaming_complete = StreamingComplete::new(
+                                        target_panel_id.clone(),
+                                        task_id,
+                                        status.code(),
+                                        output_lines.len() as u64,
+                                    );
+                                    let msg = Message::StreamingComplete(streaming_complete);
+                                    
+                                    if let Err(e) = message_sender.send(msg) {
+                                        error!("Failed to send streaming complete: {}", e);
+                                    }
+                                } else {
+                                    debug!("Rate limit exceeded for choice completion to panel {}", target_panel_id);
                                 }
                             }
                             

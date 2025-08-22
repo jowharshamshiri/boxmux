@@ -72,12 +72,12 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             
                             let mut executor = StreamingExecutor::new();
                             let combined_command = if let Some(ref libs) = libs {
-                                let mut full_script = libs.join(" && ");
-                                full_script.push_str(" && ");
-                                full_script.push_str(&script_commands.join(" && "));
+                                let mut full_script = libs.join("\n");
+                                full_script.push('\n');
+                                full_script.push_str(&script_commands.join("\n"));
                                 full_script
                             } else {
-                                script_commands.join(" && ")
+                                script_commands.join("\n")
                             };
                             
                             match executor.spawn_streaming(&combined_command, None) {
@@ -86,7 +86,9 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     let panel_id_clone = panel_id.clone();
                                     std::thread::spawn(move || {
                                         let mut output_buffer = String::new();
+                                        let mut lines_received = 0;
                                         while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                            lines_received += 1;
                                             output_buffer.push_str(&line.content);
                                             if !line.content.ends_with('\n') {
                                                 output_buffer.push('\n');
@@ -107,13 +109,14 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                         // Wait for process completion
                                         match child.wait() {
                                             Ok(status) => {
+                                                // Always report non-zero exit codes as errors, but output was already sent
                                                 if !status.success() {
                                                     if let Some(ref sender) = sender {
                                                         let streaming_complete = StreamingComplete::with_error_details(
                                                             panel_id_clone,
                                                             uuid::Uuid::new_v4(), // task_id
                                                             status.code(),
-                                                            0, // total_lines
+                                                            lines_received, // total_lines actually received
                                                             Some(command_executed.clone()), // command that failed
                                                             None, // TODO: capture stderr 
                                                             Some("Panel script execution failed".to_string()), // error context
@@ -209,12 +212,12 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             
                             let mut executor = StreamingExecutor::new();
                             let combined_command = if let Some(ref libs) = libs {
-                                let mut full_script = libs.join(" && ");
-                                full_script.push_str(" && ");
-                                full_script.push_str(&script_commands.join(" && "));
+                                let mut full_script = libs.join("\n");
+                                full_script.push('\n');
+                                full_script.push_str(&script_commands.join("\n"));
                                 full_script
                             } else {
-                                script_commands.join(" && ")
+                                script_commands.join("\n")
                             };
                             
                             match executor.spawn_streaming(&combined_command, None) {
@@ -223,7 +226,9 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     let panel_id_for_thread = panel_id_clone.clone();
                                     std::thread::spawn(move || {
                                         let mut output_buffer = String::new();
+                                        let mut lines_received = 0;
                                         while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                            lines_received += 1;
                                             output_buffer.push_str(&line.content);
                                             if !line.content.ends_with('\n') {
                                                 output_buffer.push('\n');
@@ -244,13 +249,14 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                         // Wait for process completion
                                         match child.wait() {
                                             Ok(status) => {
+                                                // Always report non-zero exit codes as errors, but output was already sent
                                                 if !status.success() {
                                                     if let Some(ref sender) = sender {
                                                         let streaming_complete = StreamingComplete::with_error_details(
                                                             panel_id_for_thread,
                                                             uuid::Uuid::new_v4(), // task_id
                                                             status.code(),
-                                                            0, // total_lines
+                                                            lines_received, // total_lines actually received
                                                             Some(command_executed.clone()), // command that failed
                                                             None, // TODO: capture stderr 
                                                             Some("Non-threaded panel script execution failed".to_string()), // error context

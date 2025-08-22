@@ -9,8 +9,10 @@ use crate::{
     draw_utils::{get_bg_color, get_fg_color},
     screen_bounds, screen_height, screen_width,
     utils::input_bounds_to_bounds,
+    streaming_messages::StreamingComplete,
     AppContext, AppGraph, Layout, Message, Panel,
 };
+use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
@@ -114,7 +116,16 @@ pub fn run_socket_function(
             success,
             content,
         } => {
-            messages.push(Message::PanelOutputUpdate(panel_id, success, content));
+            let task_id = Uuid::new_v4();
+            let line_count = content.lines().count() as u64;
+            let exit_code = if success { Some(0) } else { Some(1) };
+            let streaming_complete = StreamingComplete::new(
+                panel_id,
+                task_id,
+                exit_code,
+                line_count,
+            );
+            messages.push(Message::StreamingComplete(streaming_complete));
         }
         SocketFunction::ReplacePanelScript { panel_id, script } => {
             messages.push(Message::PanelScriptUpdate(panel_id, script));
@@ -1268,12 +1279,12 @@ mod tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
-            crate::Message::PanelOutputUpdate(panel_id, success, content) => {
-                assert_eq!(panel_id, "test_panel");
-                assert_eq!(*success, true);
-                assert_eq!(content, "Test content");
+            crate::Message::StreamingComplete(streaming_complete) => {
+                assert_eq!(streaming_complete.panel_id, "test_panel");
+                assert_eq!(streaming_complete.success, true);
+                assert_eq!(streaming_complete.total_lines, 1); // "Test content" has 1 line
             }
-            _ => panic!("Expected PanelOutputUpdate message"),
+            _ => panic!("Expected StreamingComplete message"),
         }
     }
 

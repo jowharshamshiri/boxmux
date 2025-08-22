@@ -46,7 +46,7 @@ pub use streaming_messages::*;
 pub use streaming_panel_manager::*;
 pub use table::*;
 pub use unified_thread_pool::*;
-pub use rate_limiter::*;
+// Rate limiting is available through streaming_messages::*
 
 #[macro_use]
 pub extern crate lazy_static;
