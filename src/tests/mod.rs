@@ -56,3 +56,6 @@ pub mod mouse_click_tests;
 
 #[cfg(test)]
 pub mod streaming_performance_tests;
+
+#[cfg(test)]
+pub mod streaming_integration_tests;

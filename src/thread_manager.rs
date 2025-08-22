@@ -43,6 +43,8 @@ pub enum Message {
     MouseClick(u16, u16), // x, y coordinates
     ExternalMessage(String),
     StreamingStatusUpdate(String, crate::streaming_messages::StreamingStatusUpdate), // panel_id, status_update
+    StreamingOutput(crate::streaming_messages::StreamingOutput),
+    StreamingComplete(crate::streaming_messages::StreamingComplete),
     AddPanel(String, Panel),
     RemovePanel(String),
 }
@@ -118,6 +120,20 @@ impl Hash for Message {
                 status_update.panel_id.hash(state);
                 status_update.task_id.hash(state);
                 status_update.line_count.hash(state);
+            }
+            Message::StreamingOutput(streaming_output) => {
+                "streaming_output".hash(state);
+                streaming_output.panel_id.hash(state);
+                streaming_output.line_content.hash(state);
+                streaming_output.sequence.hash(state);
+                streaming_output.is_stderr.hash(state);
+            }
+            Message::StreamingComplete(streaming_complete) => {
+                "streaming_complete".hash(state);
+                streaming_complete.panel_id.hash(state);
+                streaming_complete.task_id.hash(state);
+                streaming_complete.success.hash(state);
+                streaming_complete.total_lines.hash(state);
             }
             Message::Start => "start".hash(state),
             Message::StopPanelRefresh(panel_id) => {
@@ -286,6 +302,7 @@ impl Runnable for RunnableImpl {
             match message {
                 Message::Terminate => {
                     self.running_state = RunnableState::Terminated;
+                    log::trace!("Thread received terminate message, stopping");
                 }
                 Message::Pause => {
                     self.running_state = RunnableState::Paused;
@@ -365,7 +382,15 @@ impl Runnable for RunnableImpl {
     }
 
     fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-        todo!()
+        // Basic implementation: check for updates and process messages
+        let (updated_app_context, messages) = self.receive_updates();
+        self.process(updated_app_context, messages);
+        
+        // Sleep briefly to avoid busy waiting
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        
+        // Continue running unless terminated
+        Ok(!matches!(self.running_state, RunnableState::Terminated))
     }
 }
 
@@ -392,7 +417,7 @@ impl ThreadManager {
     }
 
     pub fn stop(&self) {
-        self.send_message_to_all_threads((Uuid::new_v4(), Message::Exit));
+        self.send_message_to_all_threads((Uuid::new_v4(), Message::Terminate));
     }
 
     pub fn pause(&self) {
@@ -490,15 +515,16 @@ impl ThreadManager {
         let handle = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                let continue_running = true;
+                let mut continue_running = true;
                 while continue_running {
                     let result = runnable.run();
                     if let Err(e) = result {
                         error!("Runnable encountered an error: {}", e);
-                    } else if let Ok(continue_running) = result {
+                        continue_running = false;
+                    } else if let Ok(should_continue) = result {
+                        continue_running = should_continue;
                         if !continue_running {
                             log::trace!("Stopping thread as directed by run method");
-                            break;
                         }
                     }
                 }
@@ -826,7 +852,7 @@ pub fn run_script_in_thread(
             };
             
             match executor.spawn_streaming(&combined_command, None) {
-                Ok((mut child, receiver)) => {
+                Ok((mut child, receiver, _command_executed)) => {
                     let mut output_buffer = String::new();
                     
                     // Collect streaming output
@@ -853,7 +879,7 @@ pub fn run_script_in_thread(
                     inner.send_message(Message::PanelOutputUpdate(
                         choice.id.clone(),
                         false,
-                        format!("Failed to start streaming: {}", e),
+                        format!("Failed to start streaming command '{}': {}", combined_command, e),
                     ))
                 }
             }
@@ -992,81 +1018,8 @@ pub fn run_script_in_thread(
 //     use crate::App;
 
 //     use super::*;
-//     use std::sync::mpsc::TryRecvError;
 
-//     #[test]
-//     fn test_message_delivery() {
-//         let app_context = AppContext::new(App::new());
-//         let mut manager = ThreadManager::new(app_context.clone());
-//         let uuid1 = manager.spawn_thread(TestRunnableOne::new(app_context.clone()));
-//         let uuid2 = manager.spawn_thread(TestRunnableTwo::new(app_context.clone()));
-//         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
-
-//         let data = AppContext::new(App::new());
-//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
-//         manager.send_app_context_update_to_thread(data.clone(), uuid2);
-//         manager.send_app_context_update_to_thread(data.clone(), uuid3);
-
-//         manager.send_message_to_all_threads((uuid1, Message::NextPanel("Panel1".to_string())));
-
-//         // Run the manager's loop in a separate thread to allow message handling
-//         let manager = manager;
-//         // let manager_clone = Arc::clone(&manager);
-
-//         let handle = thread::spawn(move || {
-//             manager_clone.run();
-//         });
-
-//         // Give the threads some time to process the messages
-//         thread::sleep(std::time::Duration::from_secs(1));
-
-//         // Ensure that each runnable received the message
-//         let runnables = manager.runnables.clone();
-//         for (_, runnable) in runnables.iter() {
-//             let mut runnable = runnable.lock().unwrap();
-//             let (_, messages) = runnable.receive_updates();
-//             assert!(messages.iter().any(|msg| matches!(msg, Message::NextPanel(panel_id) if panel_id == "Panel1")));
-//         }
-//         manager.stop();
-//         handle.join().unwrap();
-//     }
-
-//     #[test]
-//     fn test_state_update_propagation() {
-//         let app_context = AppContext::new(App::new());
-//         let mut manager = ThreadManager::new(app_context.clone());
-//         let uuid1 = manager.spawn_thread(TestRunnableOne::new(app_context.clone()));
-//         let uuid2 = manager.spawn_thread(TestRunnableTwo::new(app_context.clone()));
-//         let uuid3 = manager.spawn_thread(TestRunnableThree::new(app_context.clone()));
-
-//         let data = AppContext::new(App::new());
-//         manager.send_app_context_update_to_thread(data.clone(), uuid1);
-
-//         // Run the manager's loop in a separate thread to allow app_context handling
-//         let manager = Arc::new(manager);
-//         let manager_clone = Arc::clone(&manager);
-
-//         let handle = thread::spawn(move || {
-//             manager_clone.run();
-//         });
-
-//         // Give the threads some time to process the app_context update
-//         thread::sleep(std::time::Duration::from_secs(1));
-
-//         // Ensure that the app_context was propagated to all runnables
-//         let runnables = manager.runnables.clone();
-//         for (_, runnable) in runnables.iter() {
-//             let mut runnable = runnable.lock().unwrap();
-//             let (app_context, _) = runnable.receive_updates();
-//             assert_eq!(app_context, data);
-//         }
-//         manager.stop();
-//         handle.join().unwrap();
-//     }
-
-//     #[test]
-//     fn test_concurrent_message_handling() {
-//         let app_context = AppContext::new(App::new());
+    /// Tests basic ThreadManager functionality for system loops
 //         let mut manager = ThreadManager::new(app_context.clone());
 //         let uuid1 = manager.spawn_thread(TestRunnableOne::new(app_context.clone()));
 //         let uuid2 = manager.spawn_thread(TestRunnableTwo::new(app_context.clone()));

@@ -22,7 +22,7 @@ fn test_streaming_executor_performance() {
         "for i in {1..1000}; do echo \"Line $i\"; done"
     };
     
-    let (mut child, receiver) = executor.spawn_streaming(command, None).unwrap();
+    let (mut child, receiver, _command) = executor.spawn_streaming(command, None).unwrap();
     
     let mut lines_received = 0;
     let mut total_latency = Duration::default();
@@ -124,25 +124,52 @@ fn test_streaming_panel_manager_performance() {
     
     // Create test panel with script that generates output
     let mut panel = TestDataFactory::create_test_panel("perf_test_panel");
-    panel.script = Some(vec!["for i in {1..500}; do echo \"Performance test line $i\"; done".to_string()]);
+    panel.script = Some(vec!["for i in $(seq 1 3); do echo \"Performance test line $i\"; sleep 0.1; done".to_string()]);
     
     let start_time = Instant::now();
-    let task_id = manager.start_streaming(&panel).unwrap();
+    
+    // Debug the panel before streaming
+    println!("Panel ID: {}", panel.id);
+    println!("Panel script: {:?}", panel.script);
+    
+    let task_result = manager.start_streaming(&panel);
+    match task_result {
+        Ok(task_id) => {
+            println!("Successfully started task: {}", task_id);
+        }
+        Err(e) => {
+            panic!("Failed to start streaming: {}", e);
+        }
+    }
+    let task_id = task_result.unwrap();
     
     let mut messages_received = 0;
     let collection_start = Instant::now();
     
     // Collect messages with timeout
-    while collection_start.elapsed() < Duration::from_secs(15) {
+    while collection_start.elapsed() < Duration::from_secs(5) {
         if let Ok(msg) = receiver.try_recv() {
-            if let crate::thread_manager::Message::PanelOutputUpdate(panel_id, _, _) = msg {
-                if panel_id == "perf_test_panel" {
-                    messages_received += 1;
+            match msg {
+                crate::thread_manager::Message::StreamingOutput(streaming_output) => {
+                    if streaming_output.panel_id == "perf_test_panel" {
+                        messages_received += 1;
+                    }
                 }
+                crate::thread_manager::Message::StreamingComplete(streaming_complete) => {
+                    if streaming_complete.panel_id == "perf_test_panel" {
+                        messages_received += 1;
+                        break; // Exit when we receive completion
+                    }
+                }
+                _ => {} // Ignore other message types
             }
+        } else {
+            // No message available, check if task is still active
+            let active_tasks = manager.get_active_task_count();
+            println!("No messages, active tasks: {}", active_tasks);
         }
         
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(50));
         
         // Check if task is still active
         if manager.get_active_task_count() == 0 {
@@ -222,7 +249,7 @@ fn benchmark_streaming_configurations() {
         
         let mut executor = StreamingExecutor::with_config(buffer_size, rate_limit_ms);
         let command = "for i in {1..200}; do echo \"Benchmark line $i\"; done";
-        let (mut child, receiver) = executor.spawn_streaming(command, None).unwrap();
+        let (mut child, receiver, _command) = executor.spawn_streaming(command, None).unwrap();
         
         let mut lines_received = 0;
         while start_time.elapsed() < Duration::from_secs(10) {

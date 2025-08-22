@@ -379,7 +379,39 @@ create_runnable!(
                         apply_buffer(&mut new_buffer, screen);
                         *buffer = new_buffer;
                     }
+                    Message::StreamingOutput(streaming_output) => {
+                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+                        let panel = app_context_unwrapped.app.get_panel_by_id(&streaming_output.panel_id).unwrap();
+                        update_panel_content(
+                            inner,
+                            &mut app_context_unwrapped_cloned,
+                            &streaming_output.panel_id,
+                            true, // streaming output is always considered successful
+                            panel.append_output.unwrap_or(false),
+                            &streaming_output.line_content,
+                        );
+                    }
+                    Message::StreamingComplete(streaming_complete) => {
+                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
+                        let panel = app_context_unwrapped.app.get_panel_by_id(&streaming_complete.panel_id).unwrap();
+                        // Only update if there's specific completion content needed
+                        // Most completion handling is done by the streaming system
+                        if !streaming_complete.success {
+                            // Handle error state with enhanced error message
+                            let error_message = streaming_complete.format_error_message();
+                            update_panel_content(
+                                inner,
+                                &mut app_context_unwrapped_cloned,
+                                &streaming_complete.panel_id,
+                                false,
+                                panel.append_output.unwrap_or(false),
+                                &error_message,
+                            );
+                        }
+                    }
                     Message::PanelOutputUpdate(panel_id, success, output) => {
+                        // Legacy message - deprecated in favor of streaming messages
+                        log::warn!("Received deprecated PanelOutputUpdate - should use StreamingOutput/StreamingComplete");
                         let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                         let panel = app_context_unwrapped.app.get_panel_by_id(panel_id).unwrap();
                         update_panel_content(
@@ -446,7 +478,7 @@ create_runnable!(
                                                 };
                                                 
                                                 match executor.spawn_streaming(&combined_command, None) {
-                                                    Ok((mut child, receiver)) => {
+                                                    Ok((mut child, receiver, _command_executed)) => {
                                                         let mut output_buffer = String::new();
                                                         
                                                         // Collect streaming output
@@ -466,7 +498,7 @@ create_runnable!(
                                                         sender.send(Ok(ChoiceResult::new(success, output_buffer))).unwrap();
                                                     }
                                                     Err(e) => {
-                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e)))).unwrap();
+                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming command '{}': {}", combined_command, e)))).unwrap();
                                                     }
                                                 }
                                             };
@@ -487,7 +519,7 @@ create_runnable!(
                                             };
                                             
                                             match executor.spawn_streaming(&combined_command, None) {
-                                                Ok((mut child, receiver)) => {
+                                                Ok((mut child, receiver, _command_executed)) => {
                                                     let mut output_buffer = String::new();
                                                     
                                                     // Collect streaming output
@@ -513,7 +545,7 @@ create_runnable!(
                                                     }
                                                 }
                                                 Err(e) => {
-                                                    log::error!("Hot key choice {} failed to start streaming: {}", choice_id, e);
+                                                    log::error!("Hot key choice {} failed to start streaming command '{}': {}", choice_id, combined_command, e);
                                                 }
                                             }
                                         }
@@ -568,7 +600,7 @@ create_runnable!(
                                             };
                                             
                                             match executor.spawn_streaming(&combined_command, None) {
-                                                Ok((mut child, receiver)) => {
+                                                Ok((mut child, receiver, _command_executed)) => {
                                                     let mut output_buffer = String::new();
                                                     
                                                     // Collect streaming output
@@ -591,7 +623,7 @@ create_runnable!(
                                                 }
                                                 Err(e) => {
                                                     sender
-                                                        .send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e))))
+                                                        .send(Ok(ChoiceResult::new(false, format!("Failed to start streaming command '{}': {}", combined_command, e))))
                                                         .unwrap();
                                                 }
                                             }
@@ -659,7 +691,7 @@ create_runnable!(
                                     let append_mode = panel.append_output.unwrap_or(false);
                                     
                                     match executor.spawn_streaming(&combined_command, None) {
-                                        Ok((mut child, receiver)) => {
+                                        Ok((mut child, receiver, _command_executed)) => {
                                             let mut output_buffer = String::new();
                                             
                                             // Stream output incrementally to target panel
@@ -711,7 +743,7 @@ create_runnable!(
                                             }
                                         }
                                         Err(e) => {
-                                            let error_msg = format!("Failed to start streaming: {}", e);
+                                            let error_msg = format!("Failed to start streaming command '{}': {}", combined_command, e);
                                             update_panel_content(
                                                 inner,
                                                 &mut app_context_for_keypress,
@@ -771,7 +803,7 @@ create_runnable!(
                                             
                                             // Always use threaded execution for mouse clicks to keep UI responsive
                                             let script_clone = script.clone();
-                                            let choice_id_clone = clicked_choice.id.clone();
+                                            let _choice_id_clone = clicked_choice.id.clone();
                                             let panel_id_clone = clicked_panel.id.clone();
                                             let libs_clone = libs.clone();
                                             
@@ -788,7 +820,7 @@ create_runnable!(
                                                 };
                                                 
                                                 match executor.spawn_streaming(&combined_command, None) {
-                                                    Ok((mut child, receiver)) => {
+                                                    Ok((mut child, receiver, _command_executed)) => {
                                                         let mut output_buffer = String::new();
                                                         
                                                         // Collect streaming output
@@ -808,7 +840,7 @@ create_runnable!(
                                                         sender.send(Ok(ChoiceResult::new(success, output_buffer))).unwrap();
                                                     }
                                                     Err(e) => {
-                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e)))).unwrap();
+                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming command '{}': {}", combined_command, e)))).unwrap();
                                                     }
                                                 }
                                             };

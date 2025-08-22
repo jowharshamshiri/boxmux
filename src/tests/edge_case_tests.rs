@@ -310,7 +310,7 @@ mod tests {
         
         // Should handle gracefully
         match result {
-            Ok((mut child, _receiver)) => {
+            Ok((mut child, _receiver, _command)) => {
                 // Should exit with non-zero status
                 let status = child.wait().unwrap();
                 assert!(!status.success());
@@ -324,8 +324,13 @@ mod tests {
         let mut executor2 = StreamingExecutor::new();
         let result = executor2.spawn_streaming("this_command_definitely_does_not_exist_12345", None);
         
-        // Should fail gracefully
-        assert!(result.is_err());
+        // Should succeed spawning but process will fail with non-zero exit (shell handles invalid commands)
+        assert!(result.is_ok());
+        if let Ok((mut child, _receiver, _command)) = result {
+            // Wait for process to complete and check exit status
+            let status = child.wait().unwrap();
+            assert!(!status.success()); // Should exit with error code
+        }
     }
 
     /// Test unicode and internationalization

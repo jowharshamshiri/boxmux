@@ -5,7 +5,7 @@ use uuid::Uuid;
 use log::{debug, error, warn};
 
 use crate::streaming_executor::{StreamingExecutor, OutputLine};
-use crate::streaming_messages::{StreamingOutput, StreamingStatus, StreamingStatusUpdate};
+use crate::streaming_messages::{StreamingOutput, StreamingStatus, StreamingStatusUpdate, StreamingComplete};
 use crate::rate_limiter::StreamingRateLimiter;
 use crate::model::panel::Panel;
 use crate::thread_manager::Message;
@@ -87,7 +87,7 @@ impl StreamingPanelManager {
         let script = script_commands.join(" && ");
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, receiver)) => {
+            Ok((child, receiver, _command_executed)) => {
                 // Store executor and process
                 {
                     if let Ok(mut executors) = self.executors.lock() {
@@ -172,21 +172,21 @@ impl StreamingPanelManager {
                 // Accumulate lines
                 accumulated_lines.extend(new_lines);
 
-                // Check if process completed
-                let process_completed = {
+                // Check if process completed and capture exit status
+                let (process_completed, exit_status) = {
                     if let Ok(mut processes) = running_processes.lock() {
                         if let Some(child) = processes.get_mut(&task_id) {
                             if let Ok(Some(status)) = child.try_wait() {
                                 debug!("Process for task {} completed with status: {:?}", task_id, status);
-                                true
+                                (true, Some(status))
                             } else {
-                                false
+                                (false, None)
                             }
                         } else {
-                            true // Process not found, consider completed
+                            (true, None) // Process not found, consider completed without status
                         }
                     } else {
-                        true
+                        (true, None)
                     }
                 };
 
@@ -222,12 +222,8 @@ impl StreamingPanelManager {
                             line.is_stderr,
                         );
                         
-                        // Convert to panel output update message
-                        let msg = Message::PanelOutputUpdate(
-                            panel_id.clone(),
-                            true,
-                            line.content.clone(),
-                        );
+                        // Send streaming output message
+                        let msg = Message::StreamingOutput(streaming_msg);
                         
                         if let Err(e) = message_sender.send(msg) {
                             error!("Failed to send streaming output for task {}: {}", task_id, e);
@@ -237,11 +233,13 @@ impl StreamingPanelManager {
                     // Process queued output from rate limiter
                     if let Ok(mut limiter) = rate_limiter.lock() {
                         while let Some(queued_content) = limiter.get_next_output() {
-                            let msg = Message::PanelOutputUpdate(
+                            let streaming_msg = StreamingOutput::new(
                                 panel_id.clone(),
-                                true,
                                 queued_content,
+                                0, // sequence number for queued content
+                                false, // not stderr
                             );
+                            let msg = Message::StreamingOutput(streaming_msg);
                             
                             if let Err(e) = message_sender.send(msg) {
                                 error!("Failed to send queued output for task {}: {}", task_id, e);
@@ -292,11 +290,12 @@ impl StreamingPanelManager {
                         }
                     };
                     
-                    // Send completion status update
+                    // Send completion status update with actual success status
+                    let success = exit_status.as_ref().map_or(false, |status| status.success());
                     let completion_status = StreamingStatusUpdate::new(
                         final_panel_id.clone(),
                         task_id,
-                        StreamingStatus::Completed(true), // Assume success for now
+                        StreamingStatus::Completed(success),
                         final_line_count,
                     );
                     
@@ -306,10 +305,39 @@ impl StreamingPanelManager {
                         error!("Failed to send completion status update for task {}: {}", task_id, e);
                     }
                     
-                    // Send legacy completion message for compatibility
-                    let completion_msg = Message::ExternalMessage(
-                        format!("streaming_complete:{}:success", task_id)
-                    );
+                    // Send streaming completion message with proper exit code and command info
+                    let exit_code = exit_status.as_ref().and_then(|status| status.code());
+                    let command_info = {
+                        if let Ok(tasks) = active_tasks.lock() {
+                            if let Some(task) = tasks.get(&task_id) {
+                                Some(task.script_commands.join(" && "))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    };
+                    
+                    let streaming_complete = if success {
+                        StreamingComplete::new(
+                            final_panel_id.clone(),
+                            task_id,
+                            exit_code,
+                            final_line_count,
+                        )
+                    } else {
+                        StreamingComplete::with_error_details(
+                            final_panel_id.clone(),
+                            task_id,
+                            exit_code,
+                            final_line_count,
+                            command_info,
+                            None, // TODO: capture stderr
+                            Some("Streaming panel script execution failed".to_string()),
+                        )
+                    };
+                    let completion_msg = Message::StreamingComplete(streaming_complete);
                     
                     if let Err(e) = message_sender.send(completion_msg) {
                         error!("Failed to send completion message for task {}: {}", task_id, e);
@@ -471,8 +499,8 @@ mod tests {
         let start = Instant::now();
         while start.elapsed() < Duration::from_millis(500) {
             while let Ok(msg) = receiver.try_recv() {
-                if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
-                    if panel_id == "test_panel" && content.contains("test") {
+                if let Message::StreamingOutput(streaming_output) = msg {
+                    if streaming_output.panel_id == "test_panel" && streaming_output.line_content.contains("test") {
                         received_output = true;
                         break;
                     }
