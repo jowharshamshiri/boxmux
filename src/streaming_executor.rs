@@ -18,6 +18,8 @@ pub struct StreamingExecutor {
     sender: Sender<OutputLine>,
     receiver: Receiver<OutputLine>,
     sequence_counter: u64,
+    buffer_size: usize,
+    rate_limit_interval: Duration,
 }
 
 impl StreamingExecutor {
@@ -27,6 +29,19 @@ impl StreamingExecutor {
             sender,
             receiver,
             sequence_counter: 0,
+            buffer_size: 10,  // Buffer up to 10 lines before flushing
+            rate_limit_interval: Duration::from_millis(16), // ~60fps rate limiting
+        }
+    }
+
+    pub fn with_config(buffer_size: usize, rate_limit_ms: u64) -> Self {
+        let (sender, receiver) = mpsc::channel();
+        Self {
+            sender,
+            receiver,
+            sequence_counter: 0,
+            buffer_size,
+            rate_limit_interval: Duration::from_millis(rate_limit_ms),
         }
     }
 
@@ -63,10 +78,15 @@ impl StreamingExecutor {
 
         let sender_clone = sender.clone();
         let mut seq_counter = self.sequence_counter;
+        let buffer_size = self.buffer_size;
+        let rate_limit_interval = self.rate_limit_interval;
         
-        // Spawn thread for stdout
+        // Spawn thread for stdout with buffering and rate limiting
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
+            let mut line_buffer = Vec::new();
+            let mut last_flush = Instant::now();
+            
             for line in reader.lines() {
                 match line {
                     Ok(content) => {
@@ -77,9 +97,20 @@ impl StreamingExecutor {
                             timestamp: Instant::now(),
                             is_stderr: false,
                         };
-                        if sender_clone.send(output_line).is_err() {
-                            warn!("Failed to send stdout line - receiver dropped");
-                            break;
+                        line_buffer.push(output_line);
+                        
+                        // Flush buffer if size limit reached or rate limit interval passed
+                        let should_flush = line_buffer.len() >= buffer_size || 
+                                         last_flush.elapsed() >= rate_limit_interval;
+                        
+                        if should_flush {
+                            for buffered_line in line_buffer.drain(..) {
+                                if sender_clone.send(buffered_line).is_err() {
+                                    warn!("Failed to send stdout line - receiver dropped");
+                                    return;
+                                }
+                            }
+                            last_flush = Instant::now();
                         }
                     }
                     Err(e) => {
@@ -88,14 +119,26 @@ impl StreamingExecutor {
                     }
                 }
             }
+            
+            // Flush remaining buffer on exit
+            for buffered_line in line_buffer.drain(..) {
+                if sender_clone.send(buffered_line).is_err() {
+                    break;
+                }
+            }
         });
 
         let sender_clone = self.sender.clone();
         let mut seq_counter = self.sequence_counter;
+        let buffer_size = self.buffer_size;
+        let rate_limit_interval = self.rate_limit_interval;
         
-        // Spawn thread for stderr
+        // Spawn thread for stderr with buffering and rate limiting
         thread::spawn(move || {
             let reader = BufReader::new(stderr);
+            let mut line_buffer = Vec::new();
+            let mut last_flush = Instant::now();
+            
             for line in reader.lines() {
                 match line {
                     Ok(content) => {
@@ -106,15 +149,33 @@ impl StreamingExecutor {
                             timestamp: Instant::now(),
                             is_stderr: true,
                         };
-                        if sender_clone.send(output_line).is_err() {
-                            warn!("Failed to send stderr line - receiver dropped");
-                            break;
+                        line_buffer.push(output_line);
+                        
+                        // Flush buffer if size limit reached or rate limit interval passed
+                        let should_flush = line_buffer.len() >= buffer_size || 
+                                         last_flush.elapsed() >= rate_limit_interval;
+                        
+                        if should_flush {
+                            for buffered_line in line_buffer.drain(..) {
+                                if sender_clone.send(buffered_line).is_err() {
+                                    warn!("Failed to send stderr line - receiver dropped");
+                                    return;
+                                }
+                            }
+                            last_flush = Instant::now();
                         }
                     }
                     Err(e) => {
                         error!("Error reading stderr: {}", e);
                         break;
                     }
+                }
+            }
+            
+            // Flush remaining buffer on exit
+            for buffered_line in line_buffer.drain(..) {
+                if sender_clone.send(buffered_line).is_err() {
+                    break;
                 }
             }
         });
@@ -211,9 +272,10 @@ mod tests {
             
             if let Some(status) = executor.get_exit_status(&mut child) {
                 if status.success() {
-                    // Wait a bit more for remaining output
-                    thread::sleep(Duration::from_millis(50));
-                    while let Some(line) = executor.try_read_line() {
+                    // Wait longer for remaining output to arrive
+                    thread::sleep(Duration::from_millis(100));
+                    // Drain all remaining messages from receiver
+                    while let Ok(line) = receiver.try_recv() {
                         output_lines.push(line);
                     }
                     break;

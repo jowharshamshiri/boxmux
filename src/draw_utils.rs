@@ -212,7 +212,7 @@ pub fn draw_panel(
                 &border_color,
                 &bg_color,
                 &parent_bg_color,
-                panel.title.as_deref(),
+                panel.get_enhanced_title().as_deref(),
                 &title_fg_color,
                 &title_bg_color,
                 &panel.calc_title_position(app_context, app_graph),

@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +28,24 @@ pub struct OutputBatch {
     pub timestamp: SystemTime,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum StreamingStatus {
+    Starting,
+    Running,
+    RateLimited,
+    Completed(bool), // success flag
+    Failed(String),  // error message
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StreamingStatusUpdate {
+    pub panel_id: String,
+    pub task_id: Uuid,
+    pub status: StreamingStatus,
+    pub line_count: u64,
+    pub timestamp: SystemTime,
+}
+
 impl StreamingOutput {
     pub fn new(
         panel_id: String, 
@@ -41,6 +59,23 @@ impl StreamingOutput {
             sequence,
             timestamp: SystemTime::now(),
             is_stderr,
+        }
+    }
+}
+
+impl StreamingStatusUpdate {
+    pub fn new(
+        panel_id: String,
+        task_id: Uuid,
+        status: StreamingStatus,
+        line_count: u64,
+    ) -> Self {
+        Self {
+            panel_id,
+            task_id,
+            status,
+            line_count,
+            timestamp: SystemTime::now(),
         }
     }
 }

@@ -201,6 +201,12 @@ pub struct Panel {
     #[serde(skip)]
     pub streaming_buffer: Vec<String>,
     #[serde(skip)]
+    pub streaming_line_count: Option<u64>,
+    #[serde(skip)]
+    pub streaming_task_id: Option<uuid::Uuid>,
+    #[serde(skip)]
+    pub streaming_status: Option<crate::streaming_messages::StreamingStatus>,
+    #[serde(skip)]
     pub output: String,
     #[serde(skip)]
     pub parent_id: Option<String>,
@@ -367,6 +373,9 @@ impl Default for Panel {
             auto_scroll_bottom: None,
             streaming_state: None,
             streaming_buffer: Vec::new(),
+            streaming_line_count: None,
+            streaming_task_id: None,
+            streaming_status: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -514,6 +523,9 @@ impl Clone for Panel {
             auto_scroll_bottom: self.auto_scroll_bottom,
             streaming_state: None,
             streaming_buffer: Vec::new(),
+            streaming_line_count: None,
+            streaming_task_id: None,
+            streaming_status: None,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -1236,6 +1248,48 @@ impl Panel {
 
     pub fn current_horizontal_scroll(&self) -> f64 {
         self.horizontal_scroll.unwrap_or(0.0)
+    }
+
+    pub fn update_streaming_status(&mut self, status: crate::streaming_messages::StreamingStatus, task_id: Option<uuid::Uuid>, line_count: Option<u64>) {
+        self.streaming_status = Some(status);
+        if let Some(id) = task_id {
+            self.streaming_task_id = Some(id);
+        }
+        if let Some(count) = line_count {
+            self.streaming_line_count = Some(count);
+        }
+    }
+
+    pub fn get_streaming_indicator(&self) -> Option<String> {
+        use crate::streaming_messages::StreamingStatus;
+        
+        match &self.streaming_status {
+            Some(StreamingStatus::Starting) => Some("⠋".to_string()),
+            Some(StreamingStatus::Running) => {
+                let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                let idx = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default().as_millis() / 200) as usize % spinner_chars.len();
+                Some(spinner_chars[idx].to_string())
+            },
+            Some(StreamingStatus::RateLimited) => Some("⚠".to_string()),
+            Some(StreamingStatus::Completed(true)) => Some("✓".to_string()),
+            Some(StreamingStatus::Completed(false)) => Some("✗".to_string()),
+            Some(StreamingStatus::Failed(_)) => Some("✗".to_string()),
+            None => None,
+        }
+    }
+
+    pub fn get_enhanced_title(&self) -> Option<String> {
+        let base_title = self.title.clone().unwrap_or_default();
+        let indicator = self.get_streaming_indicator();
+        let line_count = self.streaming_line_count;
+
+        match (indicator, line_count) {
+            (Some(ind), Some(count)) => Some(format!("{} {} ({} lines)", base_title, ind, count)),
+            (Some(ind), None) => Some(format!("{} {}", base_title, ind)),
+            (None, Some(count)) => Some(format!("{} ({} lines)", base_title, count)),
+            (None, None) => if base_title.is_empty() { None } else { Some(base_title) },
+        }
     }
 
     fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {

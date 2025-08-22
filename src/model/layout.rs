@@ -400,6 +400,28 @@ impl Layout {
         }
     }
 
+    pub fn find_panel_mut(&mut self, panel_id: &str) -> Option<&mut Panel> {
+        fn find_in_panels_mut<'a>(panels: &'a mut [Panel], target_id: &str) -> Option<&'a mut Panel> {
+            for panel in panels {
+                if panel.id == target_id {
+                    return Some(panel);
+                }
+                if let Some(ref mut children) = panel.children {
+                    if let Some(found) = find_in_panels_mut(children, target_id) {
+                        return Some(found);
+                    }
+                }
+            }
+            None
+        }
+
+        if let Some(ref mut children) = self.children {
+            find_in_panels_mut(children, panel_id)
+        } else {
+            None
+        }
+    }
+
     fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 

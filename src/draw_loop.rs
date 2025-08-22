@@ -5,7 +5,7 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress,
     AppContext, Panel, ScreenBuffer,
 };
-use crate::streaming_executor::{StreamingExecutor, OutputLine};
+use crate::streaming_executor::StreamingExecutor;
 use crate::{thread_manager::*, FieldUpdate};
 use crossbeam_channel::Sender;
 use std::io::stdout;
@@ -396,6 +396,25 @@ create_runnable!(
                     Message::ExternalMessage(_) => {
                         // This should no longer be used - socket handler converts messages directly
                         log::warn!("Received deprecated ExternalMessage - should be converted by socket handler");
+                    }
+                    Message::StreamingStatusUpdate(panel_id, status_update) => {
+                        log::trace!("Received streaming status update for panel {}: {:?}", panel_id, status_update);
+                        
+                        // Find the panel and update its streaming status
+                        if let Some(active_layout) = app_context_unwrapped.app.get_active_layout_mut() {
+                            if let Some(panel) = active_layout.find_panel_mut(&panel_id) {
+                                panel.update_streaming_status(
+                                    status_update.status.clone(),
+                                    Some(status_update.task_id),
+                                    Some(status_update.line_count),
+                                );
+                                
+                                // Redraw the panel to show updated status
+                                inner.send_message(Message::RedrawPanel(panel_id.clone()));
+                            } else {
+                                log::warn!("Panel {} not found for streaming status update", panel_id);
+                            }
+                        }
                     }
                     Message::ExecuteHotKeyChoice(choice_id) => {
                         log::trace!("Executing hot key choice: {}", choice_id);

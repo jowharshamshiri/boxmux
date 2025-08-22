@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 use log::{debug, error, warn, info};
-use crate::streaming_executor::{StreamingExecutor, OutputLine};
+use crate::streaming_executor::StreamingExecutor;
 use crate::model::app::AppContext;
 use crate::model::panel::Panel;
 use crate::thread_manager::Message;
@@ -289,7 +289,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((mut child, _receiver)) => {
+            Ok((child, _receiver)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {
@@ -298,7 +298,7 @@ impl UnifiedThreadPool {
                 }
                 
                 // Retrieve child for execution monitoring
-                let mut child = {
+                let child = {
                     if let Ok(mut processes) = running_processes.lock() {
                         processes.remove(&task_id)
                     } else {
@@ -364,7 +364,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((mut child, _receiver)) => {
+            Ok((child, _receiver)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {
@@ -373,7 +373,7 @@ impl UnifiedThreadPool {
                 }
                 
                 // Retrieve child for execution monitoring
-                let mut child = {
+                let child = {
                     if let Ok(mut processes) = running_processes.lock() {
                         processes.remove(&task_id)
                     } else {

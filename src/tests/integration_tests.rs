@@ -194,21 +194,25 @@ mod tests {
         }
     }
 
-    /// Test script execution integration
+    /// Test streaming script execution integration
     #[test]
-    fn test_script_execution_integration() {
-        use crate::utils::run_script;
+    fn test_streaming_script_execution_integration() {
+        use crate::streaming_executor::StreamingExecutor;
+        use std::time::Duration;
         
-        // Test simple script execution
-        let result = run_script(None, &vec!["echo test".to_string()]);
-        assert!(result.is_ok());
-        let output = result.unwrap();
+        // Test simple streaming script execution
+        let mut executor = StreamingExecutor::new();
+        let (mut child, receiver) = executor.spawn_streaming("echo test", None).unwrap();
+        
+        // Collect output
+        let mut output = String::new();
+        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+            output.push_str(&line.content);
+        }
+        
+        let status = child.wait().unwrap();
+        assert!(status.success());
         assert!(output.contains("test"));
-        
-        // Test script with libraries (if any provided)
-        let lib_paths = Some(vec!["/usr/bin".to_string()]);
-        let result = run_script(lib_paths, &vec!["echo integration_test".to_string()]);
-        assert!(result.is_ok());
     }
 
     /// Test ANSI code handling integration
