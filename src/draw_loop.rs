@@ -469,12 +469,12 @@ create_runnable!(
                                                 // Use streaming execution for choice scripts
                                                 let mut executor = StreamingExecutor::new();
                                                 let combined_command = if let Some(ref libs) = libs_clone {
-                                                    let mut full_script = libs.join(" && ");
-                                                    full_script.push_str(" && ");
-                                                    full_script.push_str(&script_clone.join(" && "));
+                                                    let mut full_script = libs.join("\n");
+                                                    full_script.push('\n');
+                                                    full_script.push_str(&script_clone.join("\n"));
                                                     full_script
                                                 } else {
-                                                    script_clone.join(" && ")
+                                                    script_clone.join("\n")
                                                 };
                                                 
                                                 match executor.spawn_streaming(&combined_command, None) {
@@ -510,12 +510,12 @@ create_runnable!(
                                             // Execute immediately with streaming
                                             let mut executor = StreamingExecutor::new();
                                             let combined_command = if let Some(ref libs) = libs {
-                                                let mut full_script = libs.join(" && ");
-                                                full_script.push_str(" && ");
-                                                full_script.push_str(&script.join(" && "));
+                                                let mut full_script = libs.join("\n");
+                                                full_script.push('\n');
+                                                full_script.push_str(&script.join("\n"));
                                                 full_script
                                             } else {
-                                                script.join(" && ")
+                                                script.join("\n")
                                             };
                                             
                                             match executor.spawn_streaming(&combined_command, None) {
@@ -591,12 +591,12 @@ create_runnable!(
                                             // Use streaming execution for choice scripts
                                             let mut executor = StreamingExecutor::new();
                                             let combined_command = if let Some(ref libs) = libs_clone {
-                                                let mut full_script = libs.join(" && ");
-                                                full_script.push_str(" && ");
-                                                full_script.push_str(&script_clone_unwrapped.join(" && "));
+                                                let mut full_script = libs.join("\n");
+                                                full_script.push('\n');
+                                                full_script.push_str(&script_clone_unwrapped.join("\n"));
                                                 full_script
                                             } else {
-                                                script_clone_unwrapped.join(" && ")
+                                                script_clone_unwrapped.join("\n")
                                             };
                                             
                                             match executor.spawn_streaming(&combined_command, None) {
@@ -675,12 +675,12 @@ create_runnable!(
                                     // Use streaming execution for keypress actions with redirect_output support
                                     let mut executor = StreamingExecutor::new();
                                     let combined_command = if let Some(ref libs) = libs {
-                                        let mut full_script = libs.join(" && ");
-                                        full_script.push_str(" && ");
-                                        full_script.push_str(&actions_unwrapped.join(" && "));
+                                        let mut full_script = libs.join("\n");
+                                        full_script.push('\n');
+                                        full_script.push_str(&actions_unwrapped.join("\n"));
                                         full_script
                                     } else {
-                                        actions_unwrapped.join(" && ")
+                                        actions_unwrapped.join("\n")
                                     };
                                     
                                     let target_panel_id = if panel.redirect_output.is_some() {
@@ -811,12 +811,12 @@ create_runnable!(
                                                 // Use streaming execution for mouse click choice scripts
                                                 let mut executor = StreamingExecutor::new();
                                                 let combined_command = if let Some(ref libs) = libs_clone {
-                                                    let mut full_script = libs.join(" && ");
-                                                    full_script.push_str(" && ");
-                                                    full_script.push_str(&script_clone.join(" && "));
+                                                    let mut full_script = libs.join("\n");
+                                                    full_script.push('\n');
+                                                    full_script.push_str(&script_clone.join("\n"));
                                                     full_script
                                                 } else {
-                                                    script_clone.join(" && ")
+                                                    script_clone.join("\n")
                                                 };
                                                 
                                                 match executor.spawn_streaming(&combined_command, None) {

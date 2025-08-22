@@ -1,6 +1,7 @@
 use crate::model::app::AppContext;
 use crate::{FieldUpdate, Panel, Updatable};
 use crate::streaming_executor::StreamingExecutor;
+use crate::streaming_messages::StreamingComplete;
 use bincode;
 use log::{error};
 use std::collections::hash_map::DefaultHasher;
@@ -300,9 +301,9 @@ impl Runnable for RunnableImpl {
         // Process any messages that need handling
         for message in messages {
             match message {
-                Message::Terminate => {
+                Message::Terminate | Message::Exit => {
                     self.running_state = RunnableState::Terminated;
-                    log::trace!("Thread received terminate message, stopping");
+                    log::trace!("Thread received terminate/exit message, stopping");
                 }
                 Message::Pause => {
                     self.running_state = RunnableState::Paused;
@@ -591,13 +592,18 @@ impl ThreadManager {
     }
 
     pub fn remove_thread(&mut self, uuid: Uuid) {
+        // Send exit message first
+        let msg = (Uuid::new_v4(), Message::Exit);
+        self.send_message_to_thread(msg, uuid);
+        
+        // Wait for thread to finish
         if let Some(handle) = self.threads.remove(&uuid) {
             if let Err(e) = handle.join() {
                 error!("Failed to join thread: {:?}", e);
             }
         }
-        let msg = (Uuid::new_v4(), Message::Exit);
-        self.send_message_to_thread(msg, uuid);
+        
+        // Clean up senders
         self.app_context_senders.remove(&uuid);
         self.message_senders.remove(&uuid);
     }
@@ -843,12 +849,12 @@ pub fn run_script_in_thread(
             let mut executor = StreamingExecutor::new();
             let script_commands = choice.script.clone().unwrap();
             let combined_command = if let Some(ref libs) = libs {
-                let mut full_script = libs.join(" && ");
-                full_script.push_str(" && ");
-                full_script.push_str(&script_commands.join(" && "));
+                let mut full_script = libs.join("\n");
+                full_script.push('\n');
+                full_script.push_str(&script_commands.join("\n"));
                 full_script
             } else {
-                script_commands.join(" && ")
+                script_commands.join("\n")
             };
             
             match executor.spawn_streaming(&combined_command, None) {
@@ -869,18 +875,28 @@ pub fn run_script_in_thread(
                         Err(_) => false,
                     };
                     
-                    inner.send_message(Message::PanelOutputUpdate(
-                        choice.id.clone(), 
-                        success, 
-                        output_buffer
-                    ))
+                    let task_id = Uuid::new_v4();
+                    let line_count = output_buffer.lines().count() as u64;
+                    let exit_code = if success { Some(0) } else { Some(1) };
+                    let streaming_complete = StreamingComplete::new(
+                        choice.id.clone(),
+                        task_id,
+                        exit_code,
+                        line_count,
+                    );
+                    inner.send_message(Message::StreamingComplete(streaming_complete))
                 }
                 Err(e) => {
-                    inner.send_message(Message::PanelOutputUpdate(
+                    let task_id = Uuid::new_v4();
+                    let error_message = format!("Failed to start streaming command '{}': {}", combined_command, e);
+                    let line_count = error_message.lines().count() as u64;
+                    let streaming_complete = StreamingComplete::new(
                         choice.id.clone(),
-                        false,
-                        format!("Failed to start streaming command '{}': {}", combined_command, e),
-                    ))
+                        task_id,
+                        Some(1), // Error exit code
+                        line_count,
+                    );
+                    inner.send_message(Message::StreamingComplete(streaming_complete))
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(

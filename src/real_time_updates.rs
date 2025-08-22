@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use uuid::Uuid;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 use log::{debug, warn};
 
-use crate::streaming_messages::StreamingOutput;
+use crate::streaming_messages::{StreamingOutput, StreamingComplete};
 use crate::thread_manager::Message;
 
 /// Manages real-time panel updates with efficient rendering and debouncing
@@ -175,12 +176,16 @@ impl RealTimeUpdateManager {
                 }
             }
 
-            // Send panel update message
-            let msg = Message::PanelOutputUpdate(
+            // Send panel update message using streaming complete
+            let task_id = Uuid::new_v4();
+            let line_count = content.lines().count() as u64;
+            let streaming_complete = StreamingComplete::new(
                 panel_id.to_string(),
-                true,
-                content,
+                task_id,
+                Some(0), // Success exit code
+                line_count,
             );
+            let msg = Message::StreamingComplete(streaming_complete);
 
             if let Err(e) = self.message_sender.send(msg) {
                 warn!("Failed to send panel update message for {}: {}", panel_id, e);
@@ -302,11 +307,15 @@ impl RealTimeUpdateManager {
                     if let Some(content) = content {
                         debug!("Background processing update for panel {}", panel_id);
                         
-                        let msg = Message::PanelOutputUpdate(
+                        let task_id = Uuid::new_v4();
+                        let line_count = content.lines().count() as u64;
+                        let streaming_complete = StreamingComplete::new(
                             panel_id.clone(),
-                            true,
-                            content,
+                            task_id,
+                            Some(0), // Success exit code
+                            line_count,
                         );
+                        let msg = Message::StreamingComplete(streaming_complete);
 
                         if let Err(e) = message_sender.send(msg) {
                             warn!("Background processor failed to send update for {}: {}", panel_id, e);
@@ -353,11 +362,12 @@ mod tests {
         
         // Should trigger render message
         let msg = receiver.try_recv().unwrap();
-        if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
-            assert_eq!(panel_id, "test_panel");
-            assert_eq!(content, "test line");
+        if let Message::StreamingComplete(streaming_complete) = msg {
+            assert_eq!(streaming_complete.panel_id, "test_panel");
+            assert_eq!(streaming_complete.success, true);
+            assert_eq!(streaming_complete.total_lines, 1); // "test line" has 1 line
         } else {
-            panic!("Expected PanelOutputUpdate message");
+            panic!("Expected StreamingComplete message");
         }
     }
 
@@ -387,11 +397,12 @@ mod tests {
         
         // Should trigger combined render
         let msg = receiver.try_recv().unwrap();
-        if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
-            assert_eq!(panel_id, "panel1");
-            assert_eq!(content, "line1\nline2");
+        if let Message::StreamingComplete(streaming_complete) = msg {
+            assert_eq!(streaming_complete.panel_id, "panel1");
+            assert_eq!(streaming_complete.success, true);
+            assert_eq!(streaming_complete.total_lines, 2); // "line1\nline2" has 2 lines
         } else {
-            panic!("Expected PanelOutputUpdate message");
+            panic!("Expected StreamingComplete message");
         }
     }
 
@@ -445,14 +456,14 @@ mod tests {
         // Should get render message
         let mut found_update = false;
         while let Ok(msg) = receiver.try_recv() {
-            if let Message::PanelOutputUpdate(panel_id, _, content) = msg {
-                if panel_id == "test_panel" && content == "more content" {
+            if let Message::StreamingComplete(streaming_complete) = msg {
+                if streaming_complete.panel_id == "test_panel" && streaming_complete.total_lines > 0 {
                     found_update = true;
                     break;
                 }
             }
         }
-        assert!(found_update, "Expected PanelOutputUpdate message with 'more content'");
+        assert!(found_update, "Expected StreamingComplete message with content");
     }
 
     #[test]

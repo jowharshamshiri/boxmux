@@ -84,7 +84,7 @@ impl StreamingPanelManager {
 
         // Create executor
         let mut executor = StreamingExecutor::new();
-        let script = script_commands.join(" && ");
+        let script = script_commands.join("\n");
         
         match executor.spawn_streaming(&script, None) {
             Ok((child, receiver, _command_executed)) => {
@@ -310,7 +310,7 @@ impl StreamingPanelManager {
                     let command_info = {
                         if let Ok(tasks) = active_tasks.lock() {
                             if let Some(task) = tasks.get(&task_id) {
-                                Some(task.script_commands.join(" && "))
+                                Some(task.script_commands.join("\n"))
                             } else {
                                 None
                             }

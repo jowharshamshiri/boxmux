@@ -140,12 +140,12 @@ create_runnable!(
                         // Use streaming execution for app-level keypress actions
                         let mut executor = StreamingExecutor::new();
                         let combined_command = if let Some(ref libs) = libs {
-                            let mut full_script = libs.join(" && ");
-                            full_script.push_str(" && ");
-                            full_script.push_str(&actions.join(" && "));
+                            let mut full_script = libs.join("\n");
+                            full_script.push('\n');
+                            full_script.push_str(&actions.join("\n"));
                             full_script
                         } else {
-                            actions.join(" && ")
+                            actions.join("\n")
                         };
                         
                         match executor.spawn_streaming(&combined_command, None) {
@@ -184,12 +184,12 @@ create_runnable!(
                         // Use streaming execution for layout-level keypress actions
                         let mut executor = StreamingExecutor::new();
                         let combined_command = if let Some(ref libs) = libs {
-                            let mut full_script = libs.join(" && ");
-                            full_script.push_str(" && ");
-                            full_script.push_str(&actions.join(" && "));
+                            let mut full_script = libs.join("\n");
+                            full_script.push('\n');
+                            full_script.push_str(&actions.join("\n"));
                             full_script
                         } else {
-                            actions.join(" && ")
+                            actions.join("\n")
                         };
                         
                         match executor.spawn_streaming(&combined_command, None) {

@@ -90,12 +90,12 @@ mod tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
-            Message::PanelOutputUpdate(panel_id, success, content) => {
-                assert_eq!(panel_id, "test_panel");
-                assert_eq!(*success, true);
-                assert_eq!(content, "test content");
+            Message::StreamingComplete(streaming_complete) => {
+                assert_eq!(streaming_complete.panel_id, "test_panel");
+                assert_eq!(streaming_complete.success, true);
+                assert_eq!(streaming_complete.total_lines, 1); // "test content" has 1 line
             }
-            _ => panic!("Expected PanelOutputUpdate message"),
+            _ => panic!("Expected StreamingComplete message"),
         }
     }
 
