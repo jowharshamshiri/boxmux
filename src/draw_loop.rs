@@ -5,11 +5,13 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script,
     AppContext, Panel, ScreenBuffer,
 };
+use crate::streaming_executor::{StreamingExecutor, OutputLine};
 use crate::{thread_manager::*, FieldUpdate};
 use crossbeam_channel::Sender;
 use std::io::stdout;
 use std::io::Stdout;
 use std::sync::{mpsc, Mutex};
+use std::time::Duration;
 use crossterm::{
     terminal::{enable_raw_mode, EnterAlternateScreen},
     ExecutableCommand,
@@ -413,28 +415,87 @@ create_runnable!(
                                             let libs_clone = libs.clone();
                                             
                                             let job = move |sender: Sender<Result<ChoiceResult<String>, String>>| {
-                                                let result = run_script(libs_clone, &script_clone);
-                                                let mut success = false;
-                                                let result_string = match result {
-                                                    Ok(output) => {
-                                                        success = true;
-                                                        output
-                                                    }
-                                                    Err(e) => e.to_string(),
+                                                // Use streaming execution for choice scripts
+                                                let mut executor = StreamingExecutor::new();
+                                                let combined_command = if let Some(ref libs) = libs_clone {
+                                                    let mut full_script = libs.join(" && ");
+                                                    full_script.push_str(" && ");
+                                                    full_script.push_str(&script_clone.join(" && "));
+                                                    full_script
+                                                } else {
+                                                    script_clone.join(" && ")
                                                 };
-
-                                                sender.send(Ok(ChoiceResult::new(success, result_string))).unwrap();
+                                                
+                                                match executor.spawn_streaming(&combined_command, None) {
+                                                    Ok((mut child, receiver)) => {
+                                                        let mut output_buffer = String::new();
+                                                        
+                                                        // Collect streaming output
+                                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                                            output_buffer.push_str(&line.content);
+                                                            if !line.content.ends_with('\n') {
+                                                                output_buffer.push('\n');
+                                                            }
+                                                        }
+                                                        
+                                                        // Wait for completion
+                                                        let success = match child.wait() {
+                                                            Ok(status) => status.success(),
+                                                            Err(_) => false,
+                                                        };
+                                                        
+                                                        sender.send(Ok(ChoiceResult::new(success, output_buffer))).unwrap();
+                                                    }
+                                                    Err(e) => {
+                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e)))).unwrap();
+                                                    }
+                                                }
                                             };
 
                                             if let Ok(job_id) = POOL.execute(choice_id_clone, panel_id_clone, job) {
                                                 log::trace!("Hot key choice {} dispatched as job: {:?}", choice_id, job_id);
                                             }
                                         } else {
-                                            // Execute immediately
-                                            let result = run_script(libs, script);
-                                            match result {
-                                                Ok(output) => log::trace!("Hot key choice {} executed successfully", choice_id),
-                                                Err(e) => log::error!("Hot key choice {} failed: {}", choice_id, e),
+                                            // Execute immediately with streaming
+                                            let mut executor = StreamingExecutor::new();
+                                            let combined_command = if let Some(ref libs) = libs {
+                                                let mut full_script = libs.join(" && ");
+                                                full_script.push_str(" && ");
+                                                full_script.push_str(&script.join(" && "));
+                                                full_script
+                                            } else {
+                                                script.join(" && ")
+                                            };
+                                            
+                                            match executor.spawn_streaming(&combined_command, None) {
+                                                Ok((mut child, receiver)) => {
+                                                    let mut output_buffer = String::new();
+                                                    
+                                                    // Collect streaming output
+                                                    while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                                        output_buffer.push_str(&line.content);
+                                                        if !line.content.ends_with('\n') {
+                                                            output_buffer.push('\n');
+                                                        }
+                                                    }
+                                                    
+                                                    // Wait for completion
+                                                    match child.wait() {
+                                                        Ok(status) => {
+                                                            if status.success() {
+                                                                log::trace!("Hot key choice {} executed successfully", choice_id);
+                                                            } else {
+                                                                log::error!("Hot key choice {} failed with exit code: {:?}", choice_id, status.code());
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            log::error!("Hot key choice {} process error: {}", choice_id, e);
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    log::error!("Hot key choice {} failed to start streaming: {}", choice_id, e);
+                                                }
                                             }
                                         }
                                     }
@@ -476,20 +537,45 @@ create_runnable!(
                                         let job = move |sender: Sender<
                                             Result<ChoiceResult<String>, String>,
                                         >| {
-                                            let result =
-                                                run_script(libs_clone, &script_clone_unwrapped);
-                                            let mut success = false;
-                                            let result_string = match result {
-                                                Ok(output) => {
-                                                    success = true;
-                                                    output
-                                                }
-                                                Err(e) => e.to_string(),
+                                            // Use streaming execution for choice scripts
+                                            let mut executor = StreamingExecutor::new();
+                                            let combined_command = if let Some(ref libs) = libs_clone {
+                                                let mut full_script = libs.join(" && ");
+                                                full_script.push_str(" && ");
+                                                full_script.push_str(&script_clone_unwrapped.join(" && "));
+                                                full_script
+                                            } else {
+                                                script_clone_unwrapped.join(" && ")
                                             };
-
-                                            sender
-                                                .send(Ok(ChoiceResult::new(success, result_string)))
-                                                .unwrap();
+                                            
+                                            match executor.spawn_streaming(&combined_command, None) {
+                                                Ok((mut child, receiver)) => {
+                                                    let mut output_buffer = String::new();
+                                                    
+                                                    // Collect streaming output
+                                                    while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                                        output_buffer.push_str(&line.content);
+                                                        if !line.content.ends_with('\n') {
+                                                            output_buffer.push('\n');
+                                                        }
+                                                    }
+                                                    
+                                                    // Wait for completion
+                                                    let success = match child.wait() {
+                                                        Ok(status) => status.success(),
+                                                        Err(_) => false,
+                                                    };
+                                                    
+                                                    sender
+                                                        .send(Ok(ChoiceResult::new(success, output_buffer)))
+                                                        .unwrap();
+                                                }
+                                                Err(e) => {
+                                                    sender
+                                                        .send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e))))
+                                                        .unwrap();
+                                                }
+                                            }
                                         };
 
                                         let job_execution = POOL.execute(
@@ -535,48 +621,86 @@ create_runnable!(
                                 if let Some(actions_unwrapped) = actions {
                                     let libs = app_context_unwrapped.app.libs.clone();
 
-                                    match run_script(libs, &actions_unwrapped) {
-                                        Ok(output) => {
-                                            if panel.redirect_output.is_some() {
+                                    // Use streaming execution for keypress actions with redirect_output support
+                                    let mut executor = StreamingExecutor::new();
+                                    let combined_command = if let Some(ref libs) = libs {
+                                        let mut full_script = libs.join(" && ");
+                                        full_script.push_str(" && ");
+                                        full_script.push_str(&actions_unwrapped.join(" && "));
+                                        full_script
+                                    } else {
+                                        actions_unwrapped.join(" && ")
+                                    };
+                                    
+                                    let target_panel_id = if panel.redirect_output.is_some() {
+                                        panel.redirect_output.as_ref().unwrap().clone()
+                                    } else {
+                                        panel.id.clone()
+                                    };
+                                    let append_mode = panel.append_output.unwrap_or(false);
+                                    
+                                    match executor.spawn_streaming(&combined_command, None) {
+                                        Ok((mut child, receiver)) => {
+                                            let mut output_buffer = String::new();
+                                            
+                                            // Stream output incrementally to target panel
+                                            while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                                output_buffer.push_str(&line.content);
+                                                if !line.content.ends_with('\n') {
+                                                    output_buffer.push('\n');
+                                                }
+                                                
+                                                // Send incremental update to target panel
                                                 update_panel_content(
                                                     inner,
                                                     &mut app_context_for_keypress,
-                                                    panel.redirect_output.as_ref().unwrap(),
+                                                    &target_panel_id,
                                                     true,
-                                                    panel.append_output.unwrap_or(false),
-                                                    &output,
+                                                    append_mode,
+                                                    &output_buffer,
                                                 )
-                                            } else {
-                                                update_panel_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    &panel.id,
-                                                    true,
-                                                    panel.append_output.unwrap_or(false),
-                                                    &output,
-                                                )
+                                            }
+                                            
+                                            // Handle final completion status
+                                            match child.wait() {
+                                                Ok(status) => {
+                                                    if !status.success() {
+                                                        let error_msg = format!("Process failed with exit code: {:?}", status.code());
+                                                        output_buffer.push_str(&error_msg);
+                                                        update_panel_content(
+                                                            inner,
+                                                            &mut app_context_for_keypress,
+                                                            &target_panel_id,
+                                                            false,
+                                                            append_mode,
+                                                            &output_buffer,
+                                                        )
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    let error_msg = format!("Process error: {}", e);
+                                                    output_buffer.push_str(&error_msg);
+                                                    update_panel_content(
+                                                        inner,
+                                                        &mut app_context_for_keypress,
+                                                        &target_panel_id,
+                                                        false,
+                                                        append_mode,
+                                                        &error_msg,
+                                                    )
+                                                }
                                             }
                                         }
                                         Err(e) => {
-                                            if panel.redirect_output.is_some() {
-                                                update_panel_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    panel.redirect_output.as_ref().unwrap(),
-                                                    false,
-                                                    panel.append_output.unwrap_or(false),
-                                                    e.to_string().as_str(),
-                                                )
-                                            } else {
-                                                update_panel_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    &panel.id,
-                                                    false,
-                                                    panel.append_output.unwrap_or(false),
-                                                    e.to_string().as_str(),
-                                                )
-                                            }
+                                            let error_msg = format!("Failed to start streaming: {}", e);
+                                            update_panel_content(
+                                                inner,
+                                                &mut app_context_for_keypress,
+                                                &target_panel_id,
+                                                false,
+                                                append_mode,
+                                                &error_msg,
+                                            )
                                         }
                                     }
                                 }

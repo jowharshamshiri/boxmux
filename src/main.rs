@@ -25,6 +25,8 @@ use uuid::Uuid;
 
 use boxmux_lib::model::app::*;
 use boxmux_lib::utils::*;
+use boxmux_lib::streaming_executor::{StreamingExecutor, OutputLine};
+use boxmux_lib::streaming_messages::{StreamingOutput, StreamingComplete};
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
@@ -63,17 +65,76 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
+                            // Use streaming execution for real-time output
+                            let script_commands = panel.script.clone().unwrap();
+                            let panel_id = panel.id.clone();
+                            let sender = inner.get_message_sender().clone();
+                            let uuid = inner.get_uuid();
+                            
+                            let mut executor = StreamingExecutor::new();
+                            let combined_command = if let Some(ref libs) = libs {
+                                let mut full_script = libs.join(" && ");
+                                full_script.push_str(" && ");
+                                full_script.push_str(&script_commands.join(" && "));
+                                full_script
+                            } else {
+                                script_commands.join(" && ")
+                            };
+                            
+                            match executor.spawn_streaming(&combined_command, None) {
+                                Ok((mut child, receiver)) => {
+                                    // Start background thread to handle streaming output
+                                    let panel_id_clone = panel_id.clone();
+                                    std::thread::spawn(move || {
+                                        let mut output_buffer = String::new();
+                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                            output_buffer.push_str(&line.content);
+                                            if !line.content.ends_with('\n') {
+                                                output_buffer.push('\n');
+                                            }
+                                            
+                                            // Send streaming update with UUID
+                                            if let Some(ref sender) = sender {
+                                                let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                    panel_id_clone.clone(),
+                                                    true,
+                                                    output_buffer.clone(),
+                                                )));
+                                            }
+                                        }
+                                        
+                                        // Wait for process completion
+                                        match child.wait() {
+                                            Ok(status) => {
+                                                if !status.success() {
+                                                    if let Some(ref sender) = sender {
+                                                        let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                            panel_id_clone,
+                                                            false,
+                                                            format!("Process failed with exit code: {:?}", status.code()),
+                                                        )));
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                if let Some(ref sender) = sender {
+                                                    let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                        panel_id_clone,
+                                                        false,
+                                                        format!("Process error: {}", e),
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                                Err(e) => {
+                                    inner.send_message(Message::PanelOutputUpdate(
+                                        panel_id,
+                                        false,
+                                        format!("Failed to start streaming: {}", e),
+                                    ));
+                                }
                             }
                             std::thread::sleep(std::time::Duration::from_millis(
                                 panel.calc_refresh_interval(&app_context, &app_graph),
@@ -124,17 +185,76 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
+                            // Use streaming execution for real-time output
+                            let script_commands = panel.script.clone().unwrap();
+                            let panel_id_clone = panel_id.clone();
+                            let sender = inner.get_message_sender().clone();
+                            let uuid = inner.get_uuid();
+                            
+                            let mut executor = StreamingExecutor::new();
+                            let combined_command = if let Some(ref libs) = libs {
+                                let mut full_script = libs.join(" && ");
+                                full_script.push_str(" && ");
+                                full_script.push_str(&script_commands.join(" && "));
+                                full_script
+                            } else {
+                                script_commands.join(" && ")
+                            };
+                            
+                            match executor.spawn_streaming(&combined_command, None) {
+                                Ok((mut child, receiver)) => {
+                                    // Start background thread to handle streaming output
+                                    let panel_id_for_thread = panel_id_clone.clone();
+                                    std::thread::spawn(move || {
+                                        let mut output_buffer = String::new();
+                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                            output_buffer.push_str(&line.content);
+                                            if !line.content.ends_with('\n') {
+                                                output_buffer.push('\n');
+                                            }
+                                            
+                                            // Send streaming update with UUID
+                                            if let Some(ref sender) = sender {
+                                                let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                    panel_id_for_thread.clone(),
+                                                    true,
+                                                    output_buffer.clone(),
+                                                )));
+                                            }
+                                        }
+                                        
+                                        // Wait for process completion
+                                        match child.wait() {
+                                            Ok(status) => {
+                                                if !status.success() {
+                                                    if let Some(ref sender) = sender {
+                                                        let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                            panel_id_for_thread,
+                                                            false,
+                                                            format!("Process failed with exit code: {:?}", status.code()),
+                                                        )));
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                if let Some(ref sender) = sender {
+                                                    let _ = sender.send((uuid, Message::PanelOutputUpdate(
+                                                        panel_id_for_thread,
+                                                        false,
+                                                        format!("Process error: {}", e),
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                                Err(e) => {
+                                    inner.send_message(Message::PanelOutputUpdate(
+                                        panel_id_clone,
+                                        false,
+                                        format!("Failed to start streaming: {}", e),
+                                    ));
+                                }
                             }
 
                             *last_execution_time = Instant::now();

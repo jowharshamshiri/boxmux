@@ -14,6 +14,11 @@ pub mod draw_utils;
 pub mod input_loop;
 pub mod resize_loop;
 pub mod socket_loop;
+pub mod real_time_updates;
+pub mod streaming_executor;
+pub mod streaming_messages;
+pub mod streaming_panel_manager;
+pub mod unified_thread_pool;
 pub mod utils;
 pub mod validation;
 pub mod chart;
@@ -34,7 +39,12 @@ pub use utils::*;
 pub use validation::*;
 pub use chart::*;
 pub use plugin::*;
+pub use real_time_updates::*;
+pub use streaming_executor::*;
+pub use streaming_messages::*;
+pub use streaming_panel_manager::*;
 pub use table::*;
+pub use unified_thread_pool::*;
 
 #[macro_use]
 pub extern crate lazy_static;
