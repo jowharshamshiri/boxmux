@@ -46,7 +46,10 @@ pub mod automatic_scrollbar_tests;
 pub mod auto_scroll_tests;
 
 #[cfg(test)]
-pub mod streaming_script_tests;
+pub mod clipboard_tests;
 
 #[cfg(test)]
-pub mod clipboard_tests;
+pub mod hotkey_tests;
+
+#[cfg(test)]
+pub mod mouse_click_tests;

@@ -11,17 +11,17 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 
 ---
 
-### 🔄 Streaming Output Demos
-**Files**: `streaming_demo.yaml`, `streaming_build_demo.yaml`, `streaming_logs_demo.yaml`, `simple_streaming_test.yaml`  
-**Target Audience**: Developers, system administrators, anyone working with long-running commands  
+### 🔄 Interactive Features Demos
+**Files**: `auto_scroll_demo.yaml`, `hotkey_demo.yaml`, `mouse_click_demo.yaml`  
+**Target Audience**: Developers, system administrators, anyone wanting enhanced UI interaction  
 
 **Features**:
-- **Real-time Streaming**: Live output from long-running commands without waiting for completion
-- **Build Process Monitoring**: Simulated build processes with live progress updates
-- **Log Aggregation**: Multiple log sources with color-coded real-time streaming
-- **System Monitoring**: Live system metrics and process information
+- **Auto-Scroll**: Automatic scroll-to-bottom for new content updates
+- **Hotkey Actions**: Direct keyboard shortcuts to trigger commands without menu navigation
+- **Mouse Click Support**: Click on panels and menu items for immediate execution and selection
+- **Enhanced Interaction**: Improved user experience with immediate visual feedback
 
-**Key Innovation**: Uses `streaming: true` panel configuration for real-time output display
+**Key Innovation**: Uses `auto_scroll_bottom: true` and direct interaction methods for enhanced UX
 
 ### 🚀 DevOps Control Center
 **File**: `devops_control_center.yaml`  

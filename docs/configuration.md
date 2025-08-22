@@ -20,7 +20,6 @@ This document provides a reference for BoxMux YAML configuration files.
 - [Chart Configuration](#chart-configuration)
 - [Table Configuration](#table-configuration)
 - [Plugin Configuration](#plugin-configuration)
-- [Streaming Configuration](#streaming-configuration)
 - [Clipboard Configuration](#clipboard-configuration)
 - [Scrolling Configuration](#scrolling-configuration)
 - [Performance Configuration](#performance-configuration)
@@ -136,7 +135,6 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `variables` | `object` | No | - | Panel-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
-| `streaming` | `boolean` | No | `false` | Enable real-time streaming output from long-running commands |
 | `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
 | `clipboard_enabled` | `boolean` | No | `false` | Enable Ctrl+C clipboard copying |
 | `performance_monitoring` | `boolean` | No | `false` | Enable performance monitoring |
@@ -1009,30 +1007,6 @@ children:
   border_color: 'red'
 ```
 
-## Streaming Configuration
-
-Configure real-time streaming output for long-running commands:
-
-```yaml
-# Basic streaming configuration
-- id: 'live_logs'
-  title: 'Live System Logs'
-  streaming: true
-  script:
-    - tail -f /var/log/system.log
-  refresh_interval: 100  # Fast refresh for smooth streaming
-
-# Advanced streaming with buffer management
-- id: 'build_output'
-  title: 'Build Process'
-  streaming: true
-  stream_config:
-    buffer_size: 10000      # Maximum lines to buffer
-    auto_scroll: true       # Auto-scroll to new content
-    line_buffered: true     # Process output line by line
-  script:
-    - cargo build --verbose
-```
 
 ## Clipboard Configuration
 

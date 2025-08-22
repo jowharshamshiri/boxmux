@@ -5,11 +5,10 @@ title: Advanced Features - BoxMux
 
 # Advanced Features
 
-BoxMux includes streaming output, clipboard integration, scrolling, and performance monitoring.
+BoxMux includes clipboard integration, scrolling, and performance monitoring.
 
 ## Table of Contents
 
-- [Streaming Script Output](#streaming-script-output)
 - [Clipboard Integration](#clipboard-integration)
 - [Enhanced Scrolling](#enhanced-scrolling)
 - [Performance Monitoring](#performance-monitoring)
@@ -17,61 +16,6 @@ BoxMux includes streaming output, clipboard integration, scrolling, and performa
 - [Manual Socket Implementation](#manual-socket-implementation)
 - [Real-World Examples](#real-world-examples)
 
-## Streaming Script Output
-
-BoxMux supports real-time streaming output from long-running commands instead of waiting for completion.
-
-### Features
-
-- **Live Output**: Stream command output in real-time as it's generated
-- **Thread-based Updates**: Background thread processing with non-blocking UI
-- **Buffer Management**: Efficient buffer handling for continuous output
-- **Process Control**: Proper process lifecycle management
-
-### Configuration
-
-```yaml
-# Live log monitoring
-- id: 'live_logs'
-  title: 'Live System Logs'
-  position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
-  streaming: true  # Enable streaming mode
-  script:
-    - tail -f /var/log/system.log
-  refresh_interval: 100  # Fast refresh for smooth streaming
-```
-
-### Implementation Details
-
-- Uses `spawn()` with `BufReader` for line-by-line processing
-- Thread-based real-time updates maintain UI responsiveness  
-- Proper signal handling for process termination
-- Memory-efficient streaming with bounded buffers
-
-### Use Cases
-
-```yaml
-# Continuous deployment monitoring
-- id: 'deploy_logs'
-  title: 'Deployment Progress'
-  streaming: true
-  script:
-    - kubectl logs -f deployment/my-app
-
-# Real-time database logs
-- id: 'db_logs'
-  title: 'Database Activity'
-  streaming: true
-  script:
-    - tail -f /var/log/postgresql/postgresql.log | grep -v "checkpoint"
-
-# Live network monitoring  
-- id: 'network_stream'
-  title: 'Network Traffic'
-  streaming: true
-  script:
-    - tcpdump -i en0 -l | awk '{print strftime("%H:%M:%S"), $0}'
-```
 
 ## Clipboard Integration
 
@@ -326,11 +270,10 @@ app:
       root: true
       title: 'DevOps Command Center'
       children:
-        # Live deployment logs with streaming
+        # Live deployment logs
         - id: 'deploy_logs'
           title: 'Deployment Logs'
           position: {x1: 5%, y1: 10%, x2: 60%, y2: 50%}
-          streaming: true
           clipboard_enabled: true
           scroll: true
           scroll_config:
@@ -377,11 +320,10 @@ app:
       root: true
       title: 'Advanced System Monitor'
       children:
-        # Streaming system logs
+        # System logs
         - id: 'system_logs'
-          title: 'System Logs (Live)'
+          title: 'System Logs'
           position: {x1: 5%, y1: 10%, x2: 48%, y2: 60%}
-          streaming: true
           clipboard_enabled: true
           scroll: true
           scroll_config:
@@ -435,11 +377,10 @@ app:
       root: true
       title: 'Development Environment'
       children:
-        # Live build output with streaming
+        # Build output
         - id: 'build_output'
-          title: 'Build Output (Live)'
+          title: 'Build Output'
           position: {x1: 5%, y1: 10%, x2: 60%, y2: 70%}
-          streaming: true
           clipboard_enabled: true
           scroll: true
           scroll_config:

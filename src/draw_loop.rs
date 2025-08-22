@@ -395,6 +395,53 @@ create_runnable!(
                         // This should no longer be used - socket handler converts messages directly
                         log::warn!("Received deprecated ExternalMessage - should be converted by socket handler");
                     }
+                    Message::ExecuteHotKeyChoice(choice_id) => {
+                        log::trace!("Executing hot key choice: {}", choice_id);
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        
+                        // Find the choice by ID in any panel
+                        if let Some(choice_panel) = active_layout.find_panel_with_choice(&choice_id) {
+                            if let Some(choices) = &choice_panel.choices {
+                                if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
+                                    if let Some(script) = &choice.script {
+                                        let libs = app_context_unwrapped.app.libs.clone();
+                                        
+                                        if choice.thread.unwrap_or(false) {
+                                            let script_clone = script.clone();
+                                            let choice_id_clone = choice_id.clone();
+                                            let panel_id_clone = choice_panel.id.clone();
+                                            let libs_clone = libs.clone();
+                                            
+                                            let job = move |sender: Sender<Result<ChoiceResult<String>, String>>| {
+                                                let result = run_script(libs_clone, &script_clone);
+                                                let mut success = false;
+                                                let result_string = match result {
+                                                    Ok(output) => {
+                                                        success = true;
+                                                        output
+                                                    }
+                                                    Err(e) => e.to_string(),
+                                                };
+
+                                                sender.send(Ok(ChoiceResult::new(success, result_string))).unwrap();
+                                            };
+
+                                            if let Ok(job_id) = POOL.execute(choice_id_clone, panel_id_clone, job) {
+                                                log::trace!("Hot key choice {} dispatched as job: {:?}", choice_id, job_id);
+                                            }
+                                        } else {
+                                            // Execute immediately
+                                            let result = run_script(libs, script);
+                                            match result {
+                                                Ok(output) => log::trace!("Hot key choice {} executed successfully", choice_id),
+                                                Err(e) => log::error!("Hot key choice {} failed: {}", choice_id, e),
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Message::KeyPress(pressed_key) => {
                         let mut app_context_for_keypress = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
@@ -532,6 +579,104 @@ create_runnable!(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                    Message::MouseClick(x, y) => {
+                        log::trace!("Mouse click at ({}, {})", x, y);
+                        let mut app_context_for_click = app_context_unwrapped.clone();
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        
+                        // F0091: Find which panel was clicked based on coordinates
+                        if let Some(clicked_panel) = active_layout.find_panel_at_coordinates(*x, *y) {
+                            log::trace!("Clicked on panel: {}", clicked_panel.id);
+                            
+                            // Check if panel has choices (menu items)
+                            if let Some(choices) = &clicked_panel.choices {
+                                // Calculate which choice was clicked based on y offset within panel
+                                if let Some(clicked_choice_idx) = calculate_clicked_choice_index(clicked_panel, *y, choices.len()) {
+                                    if let Some(clicked_choice) = choices.get(clicked_choice_idx) {
+                                        log::trace!("Clicked on choice: {}", clicked_choice.id);
+                                        
+                                        // First, select the parent panel if not already selected
+                                        let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                        layout.deselect_all_panels();
+                                        layout.select_only_panel(&clicked_panel.id);
+                                        
+                                        // Then select the clicked choice visually
+                                        let panel_to_update = app_context_for_click.app.get_panel_by_id_mut(&clicked_panel.id).unwrap();
+                                        if let Some(ref mut panel_choices) = panel_to_update.choices {
+                                            // Deselect all choices first
+                                            for choice in panel_choices.iter_mut() {
+                                                choice.selected = false;
+                                            }
+                                            // Select only the clicked choice
+                                            if let Some(selected_choice) = panel_choices.get_mut(clicked_choice_idx) {
+                                                selected_choice.selected = true;
+                                            }
+                                        }
+                                        
+                                        // Update the app context and immediately trigger redraw for responsiveness
+                                        inner.update_app_context(app_context_for_click.clone());
+                                        inner.send_message(Message::RedrawApp);
+                                        
+                                        // Then activate the clicked choice (same as pressing Enter)
+                                        // Force threaded execution for clicked choices to maintain UI responsiveness
+                                        if let Some(script) = &clicked_choice.script {
+                                            let libs = app_context_unwrapped.app.libs.clone();
+                                            
+                                            // Always use threaded execution for mouse clicks to keep UI responsive
+                                            let script_clone = script.clone();
+                                            let choice_id_clone = clicked_choice.id.clone();
+                                            let panel_id_clone = clicked_panel.id.clone();
+                                            let libs_clone = libs.clone();
+                                            
+                                            let job = move |sender: Sender<Result<ChoiceResult<String>, String>>| {
+                                                let result = run_script(libs_clone, &script_clone);
+                                                let mut success = false;
+                                                let result_string = match result {
+                                                    Ok(output) => {
+                                                        success = true;
+                                                        output
+                                                    }
+                                                    Err(e) => e.to_string(),
+                                                };
+                                                sender.send(Ok(ChoiceResult::new(success, result_string))).unwrap();
+                                            };
+                                            
+                                            if let Ok(_job_id) = POOL.execute(clicked_choice.id.clone(), panel_id_clone, job) {
+                                                log::trace!("Mouse click choice {} dispatched as background job", clicked_choice.id);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Click was on panel with choices but not on any specific choice
+                                    // Only select the panel, don't activate any choice
+                                    if clicked_panel.tab_order.is_some() || clicked_panel.has_scrollable_content() {
+                                        log::trace!("Selecting panel (clicked on empty area): {}", clicked_panel.id);
+                                        
+                                        // Deselect all panels in the layout first
+                                        let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                        layout.deselect_all_panels();
+                                        layout.select_only_panel(&clicked_panel.id);
+                                        
+                                        inner.update_app_context(app_context_for_click);
+                                        inner.send_message(Message::RedrawApp);
+                                    }
+                                }
+                            } else {
+                                // Panel has no choices - just select it if it's selectable
+                                if clicked_panel.tab_order.is_some() || clicked_panel.has_scrollable_content() {
+                                    log::trace!("Selecting panel (no choices): {}", clicked_panel.id);
+                                    
+                                    // Deselect all panels in the layout first
+                                    let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                    layout.deselect_all_panels();
+                                    layout.select_only_panel(&clicked_panel.id);
+                                    
+                                    inner.update_app_context(app_context_for_click);
+                                    inner.send_message(Message::RedrawApp);
                                 }
                             }
                         }
@@ -792,6 +937,45 @@ pub fn copy_to_clipboard(content: &str) -> Result<(), Box<dyn std::error::Error>
     }
     
     Ok(())
+}
+
+/// Calculate which choice was clicked based on panel bounds and click coordinates
+/// Matches the actual choice rendering: one choice per line starting at bounds.top() + 1
+#[cfg(test)]
+pub fn calculate_clicked_choice_index(panel: &Panel, click_y: u16, num_choices: usize) -> Option<usize> {
+    calculate_clicked_choice_index_impl(panel, click_y, num_choices)
+}
+
+#[cfg(not(test))]
+fn calculate_clicked_choice_index(panel: &Panel, click_y: u16, num_choices: usize) -> Option<usize> {
+    calculate_clicked_choice_index_impl(panel, click_y, num_choices)
+}
+
+fn calculate_clicked_choice_index_impl(panel: &Panel, click_y: u16, num_choices: usize) -> Option<usize> {
+    let bounds = panel.bounds();
+    let panel_top = bounds.y1 as u16;
+    
+    if click_y < panel_top || num_choices == 0 {
+        return None;
+    }
+    
+    // Choices start at bounds.top() + 1 (one line below border) as per draw_utils.rs:553
+    let choices_start_y = panel_top + 1;
+    
+    if click_y < choices_start_y {
+        return None; // Click was on border or title area
+    }
+    
+    // Each choice occupies exactly 1 line, so choice index = relative y offset
+    let choice_index = (click_y - choices_start_y) as usize;
+    
+    // Ensure click is within choice bounds (don't exceed available choices or panel height)
+    let panel_bottom = bounds.y2 as u16;
+    if choice_index < num_choices && click_y < panel_bottom {
+        Some(choice_index)
+    } else {
+        None
+    }
 }
 
 /// Trigger visual flash for panel (stub implementation)

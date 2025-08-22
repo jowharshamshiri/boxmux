@@ -122,6 +122,8 @@ pub struct App {
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
     #[serde(default)]
+    pub hot_keys: Option<HashMap<String, String>>,
+    #[serde(default)]
     pub variables: Option<HashMap<String, String>>,
     #[serde(skip)]
     app_graph: Option<AppGraph>,
@@ -133,6 +135,7 @@ impl PartialEq for App {
     fn eq(&self, other: &Self) -> bool {
         self.layouts == other.layouts
             && self.on_keypress == other.on_keypress
+            && self.hot_keys == other.hot_keys
             && self.app_graph == other.app_graph
             && self.adjusted_bounds == other.adjusted_bounds
     }
@@ -152,6 +155,7 @@ impl App {
             layouts: Vec::new(),
             libs: None,
             on_keypress: None,
+            hot_keys: None,
             variables: None,
             app_graph: None,
             adjusted_bounds: None,
@@ -341,6 +345,7 @@ impl Clone for App {
             layouts: self.layouts.to_vec(),
             libs: self.libs.clone(),
             on_keypress: self.on_keypress.clone(),
+            hot_keys: self.hot_keys.clone(),
             variables: self.variables.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
