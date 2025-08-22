@@ -1,5 +1,6 @@
 use crate::{handle_keypress, AppContext, FieldUpdate};
-use crate::{run_script, thread_manager::Runnable};
+use crate::{thread_manager::Runnable};
+use crate::streaming_executor::{StreamingExecutor, OutputLine};
 use std::sync::mpsc;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, poll, read};
 use std::time::Duration;
@@ -135,13 +136,89 @@ create_runnable!(
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        let _result = run_script(libs, &actions);
+                        
+                        // Use streaming execution for app-level keypress actions
+                        let mut executor = StreamingExecutor::new();
+                        let combined_command = if let Some(ref libs) = libs {
+                            let mut full_script = libs.join(" && ");
+                            full_script.push_str(" && ");
+                            full_script.push_str(&actions.join(" && "));
+                            full_script
+                        } else {
+                            actions.join(" && ")
+                        };
+                        
+                        match executor.spawn_streaming(&combined_command, None) {
+                            Ok((mut child, receiver)) => {
+                                // For global app actions, we collect output but don't display it
+                                // to avoid interfering with the current UI state
+                                let mut _output_buffer = String::new();
+                                while let Ok(line) = receiver.recv_timeout(Duration::from_millis(50)) {
+                                    _output_buffer.push_str(&line.content);
+                                }
+                                
+                                // Wait for completion and log results
+                                match child.wait() {
+                                    Ok(status) => {
+                                        if status.success() {
+                                            log::trace!("App keypress action executed successfully");
+                                        } else {
+                                            log::warn!("App keypress action failed with exit code: {:?}", status.code());
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::error!("App keypress action process error: {}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to start app keypress streaming: {}", e);
+                            }
+                        }
                     }
                 }
                 if let Some(layout_key_mappings) = &active_layout.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, layout_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        let _ = run_script(libs, &actions);
+                        
+                        // Use streaming execution for layout-level keypress actions
+                        let mut executor = StreamingExecutor::new();
+                        let combined_command = if let Some(ref libs) = libs {
+                            let mut full_script = libs.join(" && ");
+                            full_script.push_str(" && ");
+                            full_script.push_str(&actions.join(" && "));
+                            full_script
+                        } else {
+                            actions.join(" && ")
+                        };
+                        
+                        match executor.spawn_streaming(&combined_command, None) {
+                            Ok((mut child, receiver)) => {
+                                // For layout actions, collect output but don't display
+                                // as these are typically control/navigation commands
+                                let mut _output_buffer = String::new();
+                                while let Ok(line) = receiver.recv_timeout(Duration::from_millis(50)) {
+                                    _output_buffer.push_str(&line.content);
+                                }
+                                
+                                // Wait for completion and log results
+                                match child.wait() {
+                                    Ok(status) => {
+                                        if status.success() {
+                                            log::trace!("Layout keypress action executed successfully");
+                                        } else {
+                                            log::warn!("Layout keypress action failed with exit code: {:?}", status.code());
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::error!("Layout keypress action process error: {}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to start layout keypress streaming: {}", e);
+                            }
+                        }
                     }
                 }
 

@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "boxmux"
-version = "0.134.187896"
+version = "0.135.189863"
 dependencies = [
  "actix-web",
  "actix-web-prom",

@@ -1,5 +1,6 @@
 use crate::model::app::AppContext;
-use crate::{run_script, FieldUpdate, Panel, Updatable};
+use crate::{FieldUpdate, Panel, Updatable};
+use crate::streaming_executor::{StreamingExecutor, OutputLine};
 use bincode;
 use log::{error};
 use std::collections::hash_map::DefaultHasher;
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc::{self, Sender};
 use std::thread;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -802,15 +804,49 @@ pub fn run_script_in_thread(
                 .iter_mut()
                 .find(|c| c.id == vec[1])
                 .unwrap();
-            match run_script(libs, choice.script.clone().unwrap().as_ref()) {
-                Ok(output) => {
-                    inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
+            // Use streaming execution for legacy choice script runner
+            let mut executor = StreamingExecutor::new();
+            let script_commands = choice.script.clone().unwrap();
+            let combined_command = if let Some(ref libs) = libs {
+                let mut full_script = libs.join(" && ");
+                full_script.push_str(" && ");
+                full_script.push_str(&script_commands.join(" && "));
+                full_script
+            } else {
+                script_commands.join(" && ")
+            };
+            
+            match executor.spawn_streaming(&combined_command, None) {
+                Ok((mut child, receiver)) => {
+                    let mut output_buffer = String::new();
+                    
+                    // Collect streaming output
+                    while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                        output_buffer.push_str(&line.content);
+                        if !line.content.ends_with('\n') {
+                            output_buffer.push('\n');
+                        }
+                    }
+                    
+                    // Wait for completion and send result
+                    let success = match child.wait() {
+                        Ok(status) => status.success(),
+                        Err(_) => false,
+                    };
+                    
+                    inner.send_message(Message::PanelOutputUpdate(
+                        choice.id.clone(), 
+                        success, 
+                        output_buffer
+                    ))
                 }
-                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                    choice.id.clone(),
-                    false,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    inner.send_message(Message::PanelOutputUpdate(
+                        choice.id.clone(),
+                        false,
+                        format!("Failed to start streaming: {}", e),
+                    ))
+                }
             }
             std::thread::sleep(std::time::Duration::from_millis(
                 panel.calc_refresh_interval(&app_context, &app_graph),

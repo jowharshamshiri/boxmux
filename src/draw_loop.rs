@@ -2,7 +2,7 @@ use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManage
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
-    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script,
+    apply_buffer, apply_buffer_if_changed, handle_keypress,
     AppContext, Panel, ScreenBuffer,
 };
 use crate::streaming_executor::{StreamingExecutor, OutputLine};
@@ -757,16 +757,41 @@ create_runnable!(
                                             let libs_clone = libs.clone();
                                             
                                             let job = move |sender: Sender<Result<ChoiceResult<String>, String>>| {
-                                                let result = run_script(libs_clone, &script_clone);
-                                                let mut success = false;
-                                                let result_string = match result {
-                                                    Ok(output) => {
-                                                        success = true;
-                                                        output
-                                                    }
-                                                    Err(e) => e.to_string(),
+                                                // Use streaming execution for mouse click choice scripts
+                                                let mut executor = StreamingExecutor::new();
+                                                let combined_command = if let Some(ref libs) = libs_clone {
+                                                    let mut full_script = libs.join(" && ");
+                                                    full_script.push_str(" && ");
+                                                    full_script.push_str(&script_clone.join(" && "));
+                                                    full_script
+                                                } else {
+                                                    script_clone.join(" && ")
                                                 };
-                                                sender.send(Ok(ChoiceResult::new(success, result_string))).unwrap();
+                                                
+                                                match executor.spawn_streaming(&combined_command, None) {
+                                                    Ok((mut child, receiver)) => {
+                                                        let mut output_buffer = String::new();
+                                                        
+                                                        // Collect streaming output
+                                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
+                                                            output_buffer.push_str(&line.content);
+                                                            if !line.content.ends_with('\n') {
+                                                                output_buffer.push('\n');
+                                                            }
+                                                        }
+                                                        
+                                                        // Wait for completion
+                                                        let success = match child.wait() {
+                                                            Ok(status) => status.success(),
+                                                            Err(_) => false,
+                                                        };
+                                                        
+                                                        sender.send(Ok(ChoiceResult::new(success, output_buffer))).unwrap();
+                                                    }
+                                                    Err(e) => {
+                                                        sender.send(Ok(ChoiceResult::new(false, format!("Failed to start streaming: {}", e)))).unwrap();
+                                                    }
+                                                }
                                             };
                                             
                                             if let Ok(_job_id) = POOL.execute(clicked_choice.id.clone(), panel_id_clone, job) {
