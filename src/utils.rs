@@ -475,6 +475,7 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
     None
 }
 
+#[deprecated(note = "Use StreamingExecutor for streaming script execution instead")]
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
     // Create the script content in-memory
     let mut script_content = String::new();
