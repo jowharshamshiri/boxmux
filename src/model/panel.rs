@@ -1336,8 +1336,8 @@ impl Panel {
                 formatted_content = format!(
                     "[{}]\n\n{}\n\n\n\n{}",
                     chrono::Local::now().to_rfc2822(),
-                    new_content,
-                    self_content
+                    self_content,
+                    new_content
                 );
             } else {
                 formatted_content =
@@ -1369,6 +1369,34 @@ impl Panel {
                 .open(self.save_in_file.clone().unwrap())
                 .unwrap();
             writeln!(file, "{}", formatted_content_for_file).unwrap();
+        }
+    }
+
+    /// Update content for streaming output (like PTY) without timestamp formatting
+    pub fn update_streaming_content(&mut self, new_content: &str, success: bool) {
+        // Preserve current scroll position
+        let preserved_horizontal_scroll = self.horizontal_scroll;
+        let preserved_vertical_scroll = self.vertical_scroll;
+        
+        let formatted_content = if let Some(self_content) = &self.content {
+            // Simple append without timestamp formatting for streaming
+            format!("{}{}", self_content, new_content)
+        } else {
+            new_content.to_string()
+        };
+        
+        self.content = Some(formatted_content);
+        self.error_state = !success;
+        
+        // Handle auto-scroll to bottom or restore scroll position
+        if self.auto_scroll_bottom == Some(true) {
+            // Auto-scroll to bottom - set vertical scroll to maximum
+            self.vertical_scroll = Some(100.0);
+            self.horizontal_scroll = preserved_horizontal_scroll;
+        } else {
+            // Restore scroll position after content update
+            self.horizontal_scroll = preserved_horizontal_scroll;
+            self.vertical_scroll = preserved_vertical_scroll;
         }
     }
 

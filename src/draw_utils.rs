@@ -156,7 +156,12 @@ pub fn draw_panel(
                 .calc_title_fg_color(app_context, app_graph)
                 .to_string();
             let border = panel.calc_border(app_context, app_graph);
-            let border_color = panel.calc_border_color(app_context, app_graph).to_string();
+            // Use different border color for PTY panels
+            let border_color = if panel.pty.unwrap_or(false) {
+                "bright_cyan".to_string() // PTY panels get bright cyan borders
+            } else {
+                panel.calc_border_color(app_context, app_graph).to_string()
+            };
             let fill_char = panel.calc_fill_char(app_context, app_graph);
 
             // Draw fill
@@ -207,12 +212,22 @@ pub fn draw_panel(
                 }
             }
 
+            // Add PTY indicator to title if panel has PTY enabled
+            let title_with_pty_indicator = if panel.pty.unwrap_or(false) {
+                match panel.title.as_deref() {
+                    Some(title) => Some(format!("⚡ {}", title)),
+                    None => Some("⚡ PTY".to_string()),
+                }
+            } else {
+                panel.title.clone()
+            };
+            
             render_panel(
                 value,
                 &border_color,
                 &bg_color,
                 &parent_bg_color,
-                panel.title.as_deref(),
+                title_with_pty_indicator.as_deref(),
                 &title_fg_color,
                 &title_bg_color,
                 &panel.calc_title_position(app_context, app_graph),
