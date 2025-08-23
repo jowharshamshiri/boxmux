@@ -79,6 +79,7 @@ mod mouse_click_tests {
             thread: Some(true),
             redirect_output: Some("output_panel".to_string()),
             append_output: Some(false),
+            pty: None,
             selected: false,
             waiting: false,
         };
@@ -110,6 +111,7 @@ mod mouse_click_tests {
             thread: Some(false),
             redirect_output: None,
             append_output: None,
+            pty: None,
             selected: false,
             waiting: false,
         };
@@ -121,6 +123,7 @@ mod mouse_click_tests {
             thread: Some(true),
             redirect_output: Some("output".to_string()),
             append_output: Some(true),
+            pty: None,
             selected: false,
             waiting: false,
         };

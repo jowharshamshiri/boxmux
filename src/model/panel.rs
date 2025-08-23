@@ -77,6 +77,7 @@ pub struct Choice {
     pub thread: Option<bool>,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
+    pub pty: Option<bool>,
     #[serde(skip, default)]
     pub selected: bool,
     #[serde(skip, default)]
@@ -91,6 +92,7 @@ impl Hash for Choice {
         self.thread.hash(state);
         self.redirect_output.hash(state);
         self.append_output.hash(state);
+        self.pty.hash(state);
         self.selected.hash(state);
         self.waiting.hash(state);
     }
@@ -104,6 +106,7 @@ impl PartialEq for Choice {
             && self.thread == other.thread
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
+            && self.pty == other.pty
             && self.selected == other.selected
             && self.waiting == other.waiting
     }
@@ -120,6 +123,7 @@ impl Clone for Choice {
             thread: self.thread,
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
+            pty: self.pty,
             selected: self.selected,
             waiting: self.waiting,
         }
@@ -196,6 +200,7 @@ pub struct Panel {
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
+    pub pty: Option<bool>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -280,6 +285,7 @@ impl Hash for Panel {
             serde_json::to_string(config).unwrap_or_default().hash(state);
         }
         self.auto_scroll_bottom.hash(state);
+        self.pty.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -361,6 +367,7 @@ impl Default for Panel {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
+            pty: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -437,6 +444,7 @@ impl PartialEq for Panel {
             && self.table_data == other.table_data
             && self.table_config == other.table_config
             && self.auto_scroll_bottom == other.auto_scroll_bottom
+            && self.pty == other.pty
             && self.error_state == other.error_state
     }
 }
@@ -506,6 +514,7 @@ impl Clone for Panel {
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
+            pty: self.pty,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -2584,6 +2593,7 @@ mod tests {
             thread: Some(false),
             redirect_output: None,
             append_output: None,
+            pty: None,
             selected: false,
             waiting: false,
         }

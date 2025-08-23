@@ -153,6 +153,10 @@
         "append_output": {
           "type": "boolean",
           "description": "Whether to append choice output or replace"
+        },
+        "pty": {
+          "type": "boolean",
+          "description": "Run choice script in a pseudo-terminal (PTY) for interactive programs"
         }
       },
       "required": ["id"],
@@ -460,6 +464,10 @@
         "auto_scroll_bottom": {
           "type": "boolean",
           "description": "Automatically scroll to bottom when new content arrives"
+        },
+        "pty": {
+          "type": "boolean",
+          "description": "Run script in a pseudo-terminal (PTY) for interactive programs and real-time output"
         }
       },
       "required": ["id"],
