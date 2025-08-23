@@ -739,6 +739,8 @@ pub fn render_panel(
 
             // Drawing scroll indicators with track and position
             if max_content_height > viewable_height {
+                let track_height = viewable_height.saturating_sub(2); // Available track space
+                
                 // Draw vertical scroll track
                 for y in (bounds.top() + 1)..bounds.bottom() {
                     print_with_color_and_background_at(
@@ -751,24 +753,38 @@ pub fn render_panel(
                     );
                 }
                 
-                // Draw vertical scroll position indicator
-                let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
-                        as usize
-                } else {
-                    0
-                };
-                print_with_color_and_background_at(
-                    bounds.top() + 1 + scrollbar_position,
-                    bounds.right(),
-                    border_color,
-                    bg_color,
-                    V_SCROLL_CHAR,
-                    buffer,
-                );
+                if track_height > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_height as f64 / max_content_height as f64;
+                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+                    let available_track = track_height.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional vertical scroll knob
+                    for i in 0..knob_size {
+                        let knob_y = bounds.top() + 1 + knob_position + i;
+                        if knob_y < bounds.bottom() {
+                            print_with_color_and_background_at(
+                                knob_y,
+                                bounds.right(),
+                                border_color,
+                                bg_color,
+                                V_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
             }
 
             if max_content_width > viewable_width {
+                let track_width = viewable_width.saturating_sub(2); // Available track space
+                
                 // Draw horizontal scroll track
                 for x in (bounds.left() + 1)..bounds.right() {
                     print_with_color_and_background_at(
@@ -781,21 +797,33 @@ pub fn render_panel(
                     );
                 }
                 
-                // Draw horizontal scroll position indicator
-                let scrollbar_position = if viewable_width > 2 {
-                    ((horizontal_scroll / 100.0) * (viewable_width.saturating_sub(2)) as f64)
-                        .floor() as usize
-                } else {
-                    0
-                };
-                print_with_color_and_background_at(
-                    bounds.bottom(),
-                    bounds.left() + 1 + scrollbar_position,
-                    border_color,
-                    bg_color,
-                    H_SCROLL_CHAR,
-                    buffer,
-                );
+                if track_width > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_width as f64 / max_content_width as f64;
+                    let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
+                    let available_track = track_width.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional horizontal scroll knob
+                    for i in 0..knob_size {
+                        let knob_x = bounds.left() + 1 + knob_position + i;
+                        if knob_x < bounds.right() {
+                            print_with_color_and_background_at(
+                                bounds.bottom(),
+                                knob_x,
+                                border_color,
+                                bg_color,
+                                H_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
             }
 
             // Scroll position percentage indicator removed - visual scrollbars provide sufficient feedback

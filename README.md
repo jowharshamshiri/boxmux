@@ -45,9 +45,22 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Script Execution: Execute shell scripts in panels with output capture and error handling
 - Threaded Execution: Panel scripts run in dedicated threads with refresh intervals
 - Output Redirection: Redirect script output to different panels (replace or append)
-- Auto-Scroll to Bottom: Set vertical scroll to bottom when content updates
+- Streaming Output: Live streaming output from long-running commands with incremental updates
+- Auto-Scroll to Bottom: Automatically scroll to bottom when new content arrives, ideal for logs
 - Library Support: Include external script libraries for reusable functionality
 - File Output: Save panel content to files for persistence
+
+**PTY (Pseudo-Terminal) Features**
+
+- Interactive Terminal Emulation: Run interactive programs (vim, htop, less) in panels
+- PTY Process Management: Process lifecycle control with kill, restart, and status tracking
+- ANSI Processing: Handle ANSI escape codes, colors, and cursor positioning
+- PTY Error Recovery: Fallback to regular execution on PTY failures
+- Circular Buffer Storage: Scrollback with 10,000-line default capacity
+- PTY Input Routing: Send keyboard input to focused PTY panels
+- Special Key Handling: Arrow keys, function keys (F1-F24), and modifier combinations
+- PTY Visual Indicators: Lightning bolt (⚡) title prefix and color-coded borders
+- Socket PTY Control: PTY process management via socket commands
 
 **Socket API and Remote Control (Complete)**
 
@@ -67,13 +80,16 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Table Features: Sorting (text/numeric), filtering, pagination, multiple border styles
 - Table Styling: Zebra striping, row numbers, column width management
 
-**Advanced Features (Complete)**
+**Advanced Features**
 
-- Variable System: Hierarchical variable substitution with proper precedence (env > child > parent > layout > app > default)
+- Variable System: Hierarchical variable substitution with precedence (env > child > parent > layout > app > default)
 - Plugin System: Dynamic component loading with security validation and manifest parsing
 - Configuration Schema Validation: JSON Schema validation integrated into YAML loading
 - Clipboard Integration: Ctrl+C copies focused panel content to clipboard with visual feedback
-- Performance Benchmarking: Built-in performance monitoring with regression detection
+- Mouse Click Support: Click to select panels, activate menu items, and trigger actions
+- Hot Key Actions: Global keyboard shortcuts to trigger choice actions without menu navigation
+- Enhanced Navigation: Home/End for horizontal scroll, Ctrl+Home/End for vertical scroll to beginning/end
+- Performance Benchmarking: Performance monitoring with regression detection
 
 **Cross-platform Compatibility**
 
@@ -84,12 +100,15 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 ## Use Cases
 
 - System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
-- DevOps Tools: Orchestrate deployment scripts with real-time output
+- Interactive Tools: Run `vim`, `htop`, `less`, `nano` directly in panels with full interaction
+- DevOps Tools: Orchestrate deployment scripts with real-time output and PTY support
 - Log Analysis: Monitor logs with `tail -f` commands and auto-scroll
 - Network Monitoring: Execute `netstat`, `ss`, `ping` with live updates
-- Database Operations: Run queries and maintenance scripts with progress tracking
-- Development Workflows: Build, test, and deployment commands with real-time output
-- CI/CD Monitoring: Watch build processes with output display
+- Database Operations: Run interactive database shells (`psql`, `mysql`) in panels
+- Development Workflows: Build, test, and deployment commands with streaming output
+- CI/CD Monitoring: Watch build processes with real-time streaming updates
+- Terminal Multiplexing: Multiple terminal sessions in organized panels with PTY support
+- Remote Administration: SSH sessions and remote commands in dedicated panels
 
 ## Quick Start
 
@@ -208,23 +227,26 @@ boxmux my-interface.yaml
 
 ### Panel Types
 
-- **Content Panels**: Display static or dynamic text with multi-line support
-- **Interactive Menus**: Navigate and select options with keyboard controls
-- **Chart Panels**: Unicode-based visualizations (bar, line, histogram) with smart responsive layout
-- **Table Panels**: Structured data with CSV/JSON parsing, sorting, filtering, pagination
+- **Content Panels**: Display static or dynamic text with multi-line support and streaming updates
+- **Interactive Menus**: Navigate and select options with keyboard controls and mouse clicks
+- **Chart Panels**: Unicode-based visualizations (bar, line, histogram) with responsive layout
+- **Table Panels**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
+- **PTY Panels**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
 - **Plugin Panels**: Dynamic components with security validation and manifest loading
 - **Variable Panels**: Template-driven content with hierarchical variable substitution
 
 ### Interface Features
 
 - **Tab Navigation**: Move between interactive elements with configurable tab order
-- **Keyboard Shortcuts**: Custom keybindings and global/panel-specific actions
-- **Real-time Updates**: Configurable refresh intervals with millisecond precision
-- **Enhanced Scrolling**: Position preservation, page navigation (Page Up/Down), visual indicators
+- **Keyboard Shortcuts**: Custom keybindings, global hot keys (F1-F24), and panel-specific actions
+- **Mouse Support**: Click to select panels, activate menu items, and trigger choice actions
+- **Real-time Updates**: Configurable refresh intervals with millisecond precision and streaming output
+- **Scrolling**: Position preservation, proportional scrollbars, Home/End navigation, auto-scroll
 - **Clipboard Integration**: Ctrl+C copies focused panel content with visual feedback
-- **Borders & Styling**: 16 ANSI colors, multiple border styles, zebra striping for tables
+- **PTY Integration**: Interactive terminal emulation with ANSI processing and special key handling
+- **Borders & Styling**: 16 ANSI colors, multiple border styles, PTY visual indicators (⚡), zebra striping
 - **Focus Management**: Visual focus indicators and next_focus_id configuration
-- **Error Handling**: Graceful script failure handling with error state display
+- **Error Handling**: Script failure handling with PTY fallback and error state display
 
 ## Configuration Structure
 
@@ -338,7 +360,7 @@ This enables:
 
 ## Socket Integration
 
-BoxMux supports real-time communication via Unix sockets:
+BoxMux supports real-time communication via Unix sockets for regular panels and PTY processes:
 
 ```bash
 # Update panel content
@@ -346,6 +368,16 @@ echo '{"UpdatePanel": {"panel_id": "status", "content": "Connected"}}' | nc -U /
 
 # Send commands
 echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmux.sock
+
+# PTY process control
+echo '{"Command": {"action": "kill_pty", "panel_id": "htop_panel"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "restart_pty", "panel_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
+
+# Query PTY status
+echo '{"Command": {"action": "pty_status", "panel_id": "vim_panel"}}' | nc -U /tmp/boxmux.sock
+
+# Send input to PTY (for scripted interaction)
+echo '{"Command": {"action": "pty_input", "panel_id": "ssh_session", "input": "ls -la\n"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ## Example Gallery
@@ -361,22 +393,71 @@ echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmu
     - top -l 1 | grep "CPU usage" | awk '{print $3}' | sed 's/%//'
 ```
 
-### Interactive Menu
+### Interactive Menu with Hot Keys
 
 ```yaml
-# Navigation menu with actions
-- id: 'main_menu'
-  title: 'Actions'
-  tab_order: 1
-  choices:
-    - id: 'deploy'
-      content: 'Deploy Application'
-      script:
-        - ./deploy.sh
-    - id: 'logs'
-      content: 'View Logs'
-      script:
-        - tail -f /var/log/app.log
+# Navigation menu with actions and global hotkeys
+app:
+  hot_keys:
+    'F1': 'deploy'      # F1 triggers deploy action
+    'F2': 'logs'        # F2 triggers logs action
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'main_menu'
+          title: 'Actions (F1=Deploy, F2=Logs)'
+          tab_order: 1
+          choices:
+            - id: 'deploy'
+              content: 'Deploy Application [F1]'
+              script:
+                - ./deploy.sh
+              redirect_output: 'output'
+              streaming: true
+            - id: 'logs'
+              content: 'View Logs [F2]'
+              script:
+                - tail -f /var/log/app.log
+              redirect_output: 'log_panel'
+              auto_scroll_bottom: true
+```
+
+### PTY Interactive Terminals
+
+```yaml
+# Interactive terminal applications in panels
+- id: 'htop_panel'
+  title: 'System Monitor ⚡'
+  pty: true
+  script:
+    - htop
+  position:
+    x1: 0%
+    y1: 0%
+    x2: 50%
+    y2: 50%
+
+- id: 'vim_panel'
+  title: 'Text Editor ⚡'
+  pty: true
+  script:
+    - vim /path/to/file.txt
+  position:
+    x1: 50%
+    y1: 0%
+    x2: 100%
+    y2: 50%
+
+- id: 'ssh_session'
+  title: 'Remote Server ⚡'
+  pty: true
+  script:
+    - ssh user@remote-server
+  position:
+    x1: 0%
+    y1: 50%
+    x2: 100%
+    y2: 100%
 ```
 
 ### Variable Substitution
@@ -414,9 +495,9 @@ app:
     3,8
     4,20
 
-# Table with sorting and filtering
+# Table with sorting and filtering (clickable headers)
 - id: 'data_table'
-  title: 'System Data'
+  title: 'System Data (Click headers to sort)'
   table_config:
     headers: ['Process', 'CPU', 'Memory']
     sortable: true
@@ -426,6 +507,15 @@ app:
     nginx,2.5,45MB
     mysql,15.2,312MB
     redis,0.8,28MB
+
+# Streaming output with auto-scroll
+- id: 'build_output'
+  title: 'Build Progress'
+  auto_scroll_bottom: true
+  streaming: true
+  script:
+    - ./long-running-build.sh
+  refresh_interval: 500
 ```
 
 ## Development

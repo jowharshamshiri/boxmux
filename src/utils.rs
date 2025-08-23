@@ -520,8 +520,9 @@ pub fn run_script_with_pty_and_redirect(
             Ok(_) => {
                 // PTY started successfully - clear any previous failures
                 pty_mgr.clear_pty_failures(&pid);
-                // Return placeholder - actual output will come through messages
-                Ok(format!("[PTY started for panel: {}]", pid))
+                log::info!("PTY started for panel: {}", pid);
+                // Return empty string - actual output will come through messages
+                Ok(String::new())
             }
             Err(e) => {
                 // Fall back to regular execution on PTY failure
