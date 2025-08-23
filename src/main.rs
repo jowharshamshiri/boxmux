@@ -227,7 +227,7 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
     // Set RUST_LOG to enable all our modules at the specified level
     std::env::set_var("RUST_LOG", format!("boxmux={},boxmux_lib={}", env_log_level, env_log_level));
     
-    // Try to initialize env_logger, handle conflicts gracefully
+    // Only initialize logging when --log-file is explicitly provided
     let logger_result = if let Some(ref file_path) = log_file {
         // Create file logger with custom format
         let target = match std::fs::OpenOptions::new()
@@ -254,30 +254,14 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
             })
             .try_init()
     } else {
-        // Stderr logging with format
-        env_logger::Builder::from_default_env()
-            .target(env_logger::Target::Stderr)
-            .format(|buf, record| {
-                use std::io::Write;
-                writeln!(buf, "[{}] [{}] [{}:{}] [T{:?}] {}", 
-                    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                    record.level(),
-                    record.file().unwrap_or("unknown"), 
-                    record.line().unwrap_or(0),
-                    std::thread::current().id(),
-                    record.args()
-                )
-            })
-            .try_init()
+        // No logging when --log-file is not provided to avoid corrupting TUI
+        return Ok(());
     };
     
     match logger_result {
         Ok(_) => {
-            if let Some(file_path) = &log_file {
-                eprintln!("Debug logging initialized: writing to file {}", file_path);
-            } else {
-                eprintln!("Debug logging initialized: output to stderr");
-            }
+            eprintln!("Debug logging initialized: writing to file {}", log_file.as_ref().unwrap());
+            log::info!("BoxMux logging system initialized at {} level", log_level);
         },
         Err(e) => {
             eprintln!("Warning: Could not initialize logger ({}). Logging may not work as expected.", e);
@@ -285,8 +269,6 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
             eprintln!("Continuing anyway...");
         }
     }
-    
-    log::info!("BoxMux logging system initialized at {} level", log_level);
     Ok(())
 }
 

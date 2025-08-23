@@ -239,7 +239,7 @@ impl PtyManager {
                                 if let Err(e) = sender.send((thread_uuid, crate::thread_manager::Message::PanelOutputUpdate(
                                     output_target.clone(),
                                     exit_code == 0,
-                                    format!("[Process exited with code {}]", exit_code),
+                                    format!("\n[Process exited with code {}]\n", exit_code),
                                 ))) {
                                     error!("Failed to send PTY completion message: {}", e);
                                 }
