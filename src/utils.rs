@@ -504,20 +504,28 @@ pub fn run_script_with_pty_and_redirect(
     redirect_target: Option<String>
 ) -> io::Result<String> {
     if use_pty && pty_manager.is_some() && panel_id.is_some() && message_sender.is_some() {
-        // Use PTY for script execution
         let pty_mgr = pty_manager.unwrap();
         let pid = panel_id.unwrap();
+        
+        // Check if we should avoid PTY due to recent failures
+        if pty_mgr.should_avoid_pty(&pid) {
+            log::warn!("Avoiding PTY for panel {} due to recent failures, using regular execution", pid);
+            return run_script_regular(libs_paths, script);
+        }
+        
+        // Use PTY for script execution
         let (sender, thread_uuid) = message_sender.unwrap();
         
         match pty_mgr.spawn_pty_script_with_redirect(pid.clone(), script, libs_paths.clone(), sender, thread_uuid, redirect_target) {
             Ok(_) => {
-                // PTY started successfully - return placeholder
-                // Actual output will come through messages
+                // PTY started successfully - clear any previous failures
+                pty_mgr.clear_pty_failures(&pid);
+                // Return placeholder - actual output will come through messages
                 Ok(format!("[PTY started for panel: {}]", pid))
             }
             Err(e) => {
                 // Fall back to regular execution on PTY failure
-                log::warn!("PTY execution failed, falling back to regular execution: {}", e);
+                log::warn!("PTY execution failed for panel {}, falling back to regular execution: {}", pid, e);
                 run_script_regular(libs_paths, script)
             }
         }

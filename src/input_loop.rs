@@ -269,8 +269,28 @@ create_runnable!(
                             KeyCode::Backspace => "Backspace".to_string(),
                             KeyCode::Delete => "Delete".to_string(),
                             KeyCode::Esc => "Esc".to_string(),
-                            KeyCode::Home => "Home".to_string(),
-                            KeyCode::End => "End".to_string(),
+                            KeyCode::Home => {
+                                if modifiers.contains(KeyModifiers::CONTROL) {
+                                    // Ctrl+Home: scroll to top vertically
+                                    inner.send_message(Message::ScrollPanelToTop());
+                                    "Ctrl+Home".to_string()
+                                } else {
+                                    // Home: scroll to beginning horizontally
+                                    inner.send_message(Message::ScrollPanelToBeginning());
+                                    "Home".to_string()
+                                }
+                            }
+                            KeyCode::End => {
+                                if modifiers.contains(KeyModifiers::CONTROL) {
+                                    // Ctrl+End: scroll to bottom vertically
+                                    inner.send_message(Message::ScrollPanelToBottom());
+                                    "Ctrl+End".to_string()
+                                } else {
+                                    // End: scroll to end horizontally
+                                    inner.send_message(Message::ScrollPanelToEnd());
+                                    "End".to_string()
+                                }
+                            }
                             KeyCode::F(n) => format!("F{}", n),
                             KeyCode::Insert => "Insert".to_string(),
                             _ => return (true, app_context),

@@ -1400,6 +1400,60 @@ impl Panel {
         }
     }
 
+    /// Get scrollback content for PTY panels using the circular buffer
+    /// F0120: PTY Scrollback - Access full scrollback history beyond visible area
+    pub fn get_scrollback_content(&self, pty_manager: &crate::pty_manager::PtyManager) -> Option<String> {
+        if self.pty == Some(true) {
+            pty_manager.get_scrollback_content(&self.id)
+        } else {
+            self.content.clone()
+        }
+    }
+
+    /// Get scrollback lines for PTY panels with range support
+    /// F0120: PTY Scrollback - Access specific range of scrollback lines
+    pub fn get_scrollback_lines(&self, pty_manager: &crate::pty_manager::PtyManager, start_line: usize, line_count: usize) -> Option<Vec<String>> {
+        if self.pty == Some(true) {
+            if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
+                if let Ok(buffer_lock) = buffer.lock() {
+                    let total_lines = buffer_lock.len();
+                    if start_line < total_lines {
+                        let end_line = std::cmp::min(start_line + line_count, total_lines);
+                        return Some(buffer_lock.get_lines_range(start_line, line_count));
+                    }
+                }
+            }
+            None
+        } else {
+            // For regular panels, split content by lines and return range
+            if let Some(content) = &self.content {
+                let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+                let total_lines = lines.len();
+                if start_line < total_lines {
+                    let end_line = std::cmp::min(start_line + line_count, total_lines);
+                    return Some(lines[start_line..end_line].to_vec());
+                }
+            }
+            None
+        }
+    }
+
+    /// Get total available scrollback lines for a panel
+    /// F0120: PTY Scrollback - Get total scrollback line count for scroll calculations
+    pub fn get_scrollback_line_count(&self, pty_manager: &crate::pty_manager::PtyManager) -> usize {
+        if self.pty == Some(true) {
+            if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
+                if let Ok(buffer_lock) = buffer.lock() {
+                    return buffer_lock.len();
+                }
+            }
+            0
+        } else {
+            // For regular panels, count lines in content
+            self.content.as_ref().map(|c| c.lines().count()).unwrap_or(0)
+        }
+    }
+
     /// Generate plugin content for the panel
     pub fn generate_plugin_content(&self, app_context: &AppContext, bounds: &Bounds) -> Option<String> {
         use crate::plugin::{PluginRegistry, PluginContext, ComponentConfig};

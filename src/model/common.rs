@@ -100,6 +100,17 @@ pub enum SocketFunction {
     RemovePanel {
         panel_id: String,
     },
+    // F0137: Socket PTY Control - Kill and restart PTY processes
+    KillPtyProcess {
+        panel_id: String,
+    },
+    RestartPtyProcess {
+        panel_id: String,
+    },
+    // F0138: Socket PTY Query - Get PTY status and info  
+    QueryPtyStatus {
+        panel_id: String,
+    },
 }
 
 pub fn run_socket_function(
@@ -139,6 +150,87 @@ pub fn run_socket_function(
         }
         SocketFunction::RemovePanel { panel_id } => {
             messages.push(Message::RemovePanel(panel_id));
+        }
+        // F0137: Socket PTY Control - Kill and restart PTY processes
+        SocketFunction::KillPtyProcess { panel_id } => {
+            if let Some(pty_manager) = &app_context.pty_manager {
+                match pty_manager.kill_pty_process(&panel_id) {
+                    Ok(_) => {
+                        messages.push(Message::PanelOutputUpdate(
+                            panel_id.clone(),
+                            true,
+                            format!("PTY process killed for panel {}", panel_id)
+                        ));
+                    }
+                    Err(err) => {
+                        messages.push(Message::PanelOutputUpdate(
+                            panel_id.clone(),
+                            false,
+                            format!("Failed to kill PTY process: {}", err)
+                        ));
+                    }
+                }
+            } else {
+                messages.push(Message::PanelOutputUpdate(
+                    panel_id.clone(),
+                    false,
+                    "PTY manager not available".to_string()
+                ));
+            }
+        }
+        SocketFunction::RestartPtyProcess { panel_id } => {
+            if let Some(pty_manager) = &app_context.pty_manager {
+                match pty_manager.restart_pty_process(&panel_id) {
+                    Ok(_) => {
+                        messages.push(Message::PanelOutputUpdate(
+                            panel_id.clone(),
+                            true,
+                            format!("PTY process restarted for panel {}", panel_id)
+                        ));
+                    }
+                    Err(err) => {
+                        messages.push(Message::PanelOutputUpdate(
+                            panel_id.clone(),
+                            false,
+                            format!("Failed to restart PTY process: {}", err)
+                        ));
+                    }
+                }
+            } else {
+                messages.push(Message::PanelOutputUpdate(
+                    panel_id.clone(),
+                    false,
+                    "PTY manager not available".to_string()
+                ));
+            }
+        }
+        // F0138: Socket PTY Query - Get PTY status and info
+        SocketFunction::QueryPtyStatus { panel_id } => {
+            if let Some(pty_manager) = &app_context.pty_manager {
+                if let Some(info) = pty_manager.get_detailed_process_info(&panel_id) {
+                    let status_info = format!(
+                        "PTY Status - Panel: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
+                        info.panel_id, info.process_id, info.status, info.is_running, info.buffer_lines
+                    );
+                    messages.push(Message::PanelOutputUpdate(
+                        panel_id.clone(),
+                        true,
+                        status_info
+                    ));
+                } else {
+                    messages.push(Message::PanelOutputUpdate(
+                        panel_id.clone(),
+                        false,
+                        format!("No PTY process found for panel {}", panel_id)
+                    ));
+                }
+            } else {
+                messages.push(Message::PanelOutputUpdate(
+                    panel_id.clone(),
+                    false,
+                    "PTY manager not available".to_string()
+                ));
+            }
         }
     }
     Ok((app_context, messages))
