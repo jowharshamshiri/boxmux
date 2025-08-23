@@ -15,6 +15,9 @@ This document provides a reference for BoxMux YAML configuration files.
 - [Panel Configuration](#panel-configuration)
 - [Position Configuration](#position-configuration)
 - [Choice Configuration](#choice-configuration)
+- [PTY Configuration](#pty-configuration)
+- [Hot Keys Configuration](#hot-keys-configuration)
+- [Mouse Configuration](#mouse-configuration)
 - [Color Reference](#color-reference)
 - [Script Configuration](#script-configuration)
 - [Chart Configuration](#chart-configuration)
@@ -48,6 +51,8 @@ app:
 |----------|------|----------|-------------|
 | `libs` | `array[string]` | No | List of external script library files |
 | `variables` | `object` | No | Global variables for template substitution |
+| `hot_keys` | `object` | No | Global hot key mappings (F1-F24 to choice IDs) |
+| `mouse_enabled` | `boolean` | No | Enable mouse interaction (default: true) |
 | `layouts` | `array[Layout]` | Yes | List of layout definitions |
 
 ```yaml
@@ -58,6 +63,11 @@ app:
   variables:
     APP_NAME: "BoxMux Dashboard"
     DEFAULT_USER: "admin"
+  hot_keys:
+    'F1': 'build'
+    'F2': 'test'
+    'F3': 'deploy'
+  mouse_enabled: true
   layouts:
     - id: 'main'
       title: '${APP_NAME}'
@@ -128,6 +138,7 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `next_focus_id` | `string` | No | - | ID of next panel for custom navigation |
 | `refresh_interval` | `number` | No | - | Auto-refresh interval in milliseconds |
 | `script` | `array[string]` | No | - | Shell commands to execute |
+| `pty` | `boolean` | No | `false` | Enable PTY (pseudo-terminal) for interactive programs |
 | `choices` | `array[Choice]` | No | - | Interactive menu choices |
 | `redirect_output` | `string` | No | - | Panel ID to redirect script output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
@@ -247,6 +258,97 @@ choices:
     script:
       - systemctl status myapp
     redirect_output: 'output'
+```
+
+## PTY Configuration
+
+PTY (pseudo-terminal) enables running interactive terminal programs within panels.
+
+### PTY Panel Fields
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `pty` | `boolean` | No | `false` | Enable PTY for interactive programs |
+
+### PTY Example
+
+```yaml
+- id: 'interactive_terminal'
+  title: 'System Monitor ⚡'
+  pty: true
+  script:
+    - htop
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+```
+
+### PTY Choice Fields
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `pty` | `boolean` | No | `false` | Enable PTY for choice execution |
+
+```yaml
+choices:
+  - id: 'edit_config'
+    content: 'Edit Configuration'
+    pty: true
+    script:
+      - vim /etc/app/config.yaml
+```
+
+## Hot Keys Configuration
+
+Global hot keys provide instant access to choice actions using function keys.
+
+### Application Hot Keys
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `hot_keys` | `object` | No | `{}` | Function key to choice ID mappings |
+
+### Hot Keys Example
+
+```yaml
+app:
+  hot_keys:
+    'F1': 'build'
+    'F2': 'test'  
+    'F3': 'deploy'
+    'F5': 'git_status'
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'actions'
+          choices:
+            - id: 'build'
+              content: 'Build [F1]'
+              script: ['cargo build']
+```
+
+## Mouse Configuration
+
+Mouse interaction for clicking panels and menu items.
+
+### Application Mouse Settings
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `mouse_enabled` | `boolean` | No | `true` | Enable mouse interaction |
+
+### Mouse Example
+
+```yaml
+app:
+  mouse_enabled: true  # Allow clicking panels and menu items
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'clickable_menu'
+          title: 'Click to Execute'
+          choices:
+            - id: 'action1'
+              content: 'Action 1'
+              script: ['echo "Clicked!"']
 ```
 
 ## Color Reference

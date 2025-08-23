@@ -13,6 +13,7 @@ title: User Guide - BoxMux
 - [Core Concepts](#core-concepts)
 - [Building Interfaces](#building-interfaces)
 - [Common Patterns](#common-patterns)
+- [PTY Features](#pty-features)
 - [Data Visualization](#data-visualization)
 - [Plugin System](#plugin-system)
 - [Advanced Features](#advanced-features)
@@ -343,6 +344,76 @@ children:
   - id: 'bottom_right'
     position: {x1: 50%, y1: 50%, x2: 100%, y2: 100%}
 ```
+
+## PTY Features
+
+PTY (pseudo-terminal) features enable running interactive terminal programs directly within BoxMux panels.
+
+### When to Use PTY
+
+Use PTY for interactive programs that require:
+- Keyboard input (vim, nano, htop)
+- Terminal control sequences (colors, cursor movement)
+- Process interaction (ssh sessions, database shells)
+
+### PTY Panel Example
+
+```yaml
+# Interactive system monitor
+- id: 'system_monitor'
+  title: 'System Monitor ⚡'
+  pty: true
+  script:
+    - htop
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+
+# Text editor
+- id: 'editor'
+  title: 'Configuration Editor ⚡'
+  pty: true
+  script:
+    - vim /etc/app/config.yaml
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+```
+
+### PTY Choice Example
+
+```yaml
+# Interactive menu choices
+- id: 'admin_panel'
+  title: 'Administration'
+  choices:
+    - id: 'edit_config'
+      content: 'Edit Config File'
+      pty: true
+      script:
+        - vim /etc/app/config.yaml
+    
+    - id: 'database_shell'
+      content: 'Database Console'
+      pty: true
+      script:
+        - psql -U postgres -d myapp
+        
+    - id: 'ssh_server'
+      content: 'Connect to Server'
+      pty: true
+      script:
+        - ssh admin@production-server
+```
+
+### PTY vs Regular Execution
+
+| Feature | PTY | Regular |
+|---------|-----|---------|
+| Interactive input | ✅ Yes | ❌ No |
+| ANSI colors/formatting | ✅ Yes | ❌ Limited |
+| Real-time output | ✅ Yes | ❌ Buffered |
+| Process control (Ctrl+C) | ✅ Yes | ❌ No |
+| Terminal programs | ✅ Yes | ❌ No |
+| Simple commands | ✅ Yes | ✅ Yes |
+
+**Learn more**: See the [PTY Features Guide](pty-features.md) for detailed configuration and examples.
 
 ## Data Visualization
 

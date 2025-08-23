@@ -45,7 +45,6 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Script Execution: Execute shell scripts in panels with output capture and error handling
 - Threaded Execution: Panel scripts run in dedicated threads with refresh intervals
 - Output Redirection: Redirect script output to different panels (replace or append)
-- Streaming Output: Live streaming output from long-running commands with incremental updates
 - Auto-Scroll to Bottom: Automatically scroll to bottom when new content arrives, ideal for logs
 - Library Support: Include external script libraries for reusable functionality
 - File Output: Save panel content to files for persistence
@@ -101,12 +100,12 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 
 - System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
 - Interactive Tools: Run `vim`, `htop`, `less`, `nano` directly in panels with full interaction
-- DevOps Tools: Orchestrate deployment scripts with real-time output and PTY support
+- DevOps Tools: Orchestrate deployment scripts with PTY support for interactive execution
 - Log Analysis: Monitor logs with `tail -f` commands and auto-scroll
 - Network Monitoring: Execute `netstat`, `ss`, `ping` with live updates
 - Database Operations: Run interactive database shells (`psql`, `mysql`) in panels
-- Development Workflows: Build, test, and deployment commands with streaming output
-- CI/CD Monitoring: Watch build processes with real-time streaming updates
+- Development Workflows: Build, test, and deployment commands with PTY for interactive execution
+- CI/CD Monitoring: Watch build processes with PTY support for real-time interaction
 - Terminal Multiplexing: Multiple terminal sessions in organized panels with PTY support
 - Remote Administration: SSH sessions and remote commands in dedicated panels
 
@@ -227,7 +226,7 @@ boxmux my-interface.yaml
 
 ### Panel Types
 
-- **Content Panels**: Display static or dynamic text with multi-line support and streaming updates
+- **Content Panels**: Display static or dynamic text with multi-line support
 - **Interactive Menus**: Navigate and select options with keyboard controls and mouse clicks
 - **Chart Panels**: Unicode-based visualizations (bar, line, histogram) with responsive layout
 - **Table Panels**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
@@ -240,7 +239,7 @@ boxmux my-interface.yaml
 - **Tab Navigation**: Move between interactive elements with configurable tab order
 - **Keyboard Shortcuts**: Custom keybindings, global hot keys (F1-F24), and panel-specific actions
 - **Mouse Support**: Click to select panels, activate menu items, and trigger choice actions
-- **Real-time Updates**: Configurable refresh intervals with millisecond precision and streaming output
+- **Real-time Updates**: Configurable refresh intervals with millisecond precision
 - **Scrolling**: Position preservation, proportional scrollbars, Home/End navigation, auto-scroll
 - **Clipboard Integration**: Ctrl+C copies focused panel content with visual feedback
 - **PTY Integration**: Interactive terminal emulation with ANSI processing and special key handling
@@ -413,7 +412,6 @@ app:
               script:
                 - ./deploy.sh
               redirect_output: 'output'
-              streaming: true
             - id: 'logs'
               content: 'View Logs [F2]'
               script:
@@ -508,14 +506,13 @@ app:
     mysql,15.2,312MB
     redis,0.8,28MB
 
-# Streaming output with auto-scroll
+# PTY output with interactive build process
 - id: 'build_output'
-  title: 'Build Progress'
+  title: 'Build Progress ⚡'
   auto_scroll_bottom: true
-  streaming: true
+  pty: true
   script:
-    - ./long-running-build.sh
-  refresh_interval: 500
+    - ./interactive-build.sh
 ```
 
 ## Development
