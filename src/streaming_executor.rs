@@ -29,8 +29,8 @@ impl StreamingExecutor {
             sender,
             receiver,
             sequence_counter: 0,
-            buffer_size: 10,  // Buffer up to 10 lines before flushing
-            rate_limit_interval: Duration::from_millis(16), // ~60fps rate limiting
+            buffer_size: 1,  // Send each line immediately for better responsiveness
+            rate_limit_interval: Duration::from_millis(10), // 100fps rate limiting for better responsiveness
         }
     }
 
@@ -92,8 +92,9 @@ impl StreamingExecutor {
                 match line {
                     Ok(content) => {
                         seq_counter += 1;
+                        debug!("📥 StreamingExecutor stdout line {}: '{}'", seq_counter, content);
                         let output_line = OutputLine {
-                            content,
+                            content: content.clone(),
                             sequence: seq_counter,
                             timestamp: Instant::now(),
                             is_stderr: false,
@@ -104,8 +105,13 @@ impl StreamingExecutor {
                         let should_flush = line_buffer.len() >= buffer_size || 
                                          last_flush.elapsed() >= rate_limit_interval;
                         
+                        debug!("🔄 Buffer len: {}, buffer_size: {}, elapsed: {:?}, should_flush: {}", 
+                               line_buffer.len(), buffer_size, last_flush.elapsed(), should_flush);
+                        
                         if should_flush {
+                            debug!("🚀 Flushing {} buffered lines", line_buffer.len());
                             for buffered_line in line_buffer.drain(..) {
+                                debug!("📤 Sending line: '{}'", buffered_line.content);
                                 if sender_clone.send(buffered_line).is_err() {
                                     warn!("Failed to send stdout line - receiver dropped");
                                     return;
@@ -122,15 +128,18 @@ impl StreamingExecutor {
             }
             
             // Flush remaining buffer on exit
+            debug!("🏁 Stdout thread ending, flushing {} remaining lines", line_buffer.len());
             for buffered_line in line_buffer.drain(..) {
+                debug!("📤 Final send: '{}'", buffered_line.content);
                 if sender_clone.send(buffered_line).is_err() {
                     break;
                 }
             }
+            debug!("✅ Stdout thread completed");
         });
 
-        let sender_clone = self.sender.clone();
-        let mut seq_counter = self.sequence_counter;
+        let sender_clone_stderr = sender.clone(); // FIX: Use the same channel as stdout, not self.sender
+        let mut seq_counter_stderr = self.sequence_counter + 1000; // Separate sequence counter for stderr
         let buffer_size = self.buffer_size;
         let rate_limit_interval = self.rate_limit_interval;
         
@@ -143,10 +152,10 @@ impl StreamingExecutor {
             for line in reader.lines() {
                 match line {
                     Ok(content) => {
-                        seq_counter += 1;
+                        seq_counter_stderr += 1;
                         let output_line = OutputLine {
                             content,
-                            sequence: seq_counter,
+                            sequence: seq_counter_stderr,
                             timestamp: Instant::now(),
                             is_stderr: true,
                         };
@@ -158,7 +167,7 @@ impl StreamingExecutor {
                         
                         if should_flush {
                             for buffered_line in line_buffer.drain(..) {
-                                if sender_clone.send(buffered_line).is_err() {
+                                if sender_clone_stderr.send(buffered_line).is_err() {
                                     warn!("Failed to send stderr line - receiver dropped");
                                     return;
                                 }
@@ -175,7 +184,7 @@ impl StreamingExecutor {
             
             // Flush remaining buffer on exit
             for buffered_line in line_buffer.drain(..) {
-                if sender_clone.send(buffered_line).is_err() {
+                if sender_clone_stderr.send(buffered_line).is_err() {
                     break;
                 }
             }
@@ -335,16 +344,21 @@ mod tests {
         let start = Instant::now();
         
         while start.elapsed() < Duration::from_secs(2) {
-            if let Some(line) = executor.try_read_line() {
+            // FIX: Read from the returned receiver, not executor's internal receiver
+            if let Ok(line) = receiver.try_recv() {
                 if line.is_stderr {
                     stderr_lines.push(line);
                 }
             }
             
             if let Some(status) = executor.get_exit_status(&mut child) {
-                if !status.success() || start.elapsed() > Duration::from_millis(500) {
-                    break;
+                // Process completed, drain any remaining messages
+                while let Ok(line) = receiver.try_recv() {
+                    if line.is_stderr {
+                        stderr_lines.push(line);
+                    }
                 }
+                break;
             }
             
             thread::sleep(Duration::from_millis(10));
