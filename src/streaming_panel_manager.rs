@@ -277,6 +277,38 @@ impl StreamingPanelManager {
                 }
 
                 if process_completed {
+                    // CRITICAL FIX: Drain any remaining messages from receiver before completing
+                    let mut final_lines = Vec::new();
+                    while let Ok(output_line) = receiver.try_recv() {
+                        final_lines.push(output_line);
+                    }
+                    
+                    // Process the final lines if any
+                    if !final_lines.is_empty() {
+                        accumulated_lines.extend(final_lines);
+                        
+                        // Send final batch of output immediately
+                        if !accumulated_lines.is_empty() {
+                            let final_output_lines: Vec<&OutputLine> = accumulated_lines.iter().collect();
+                            
+                            for line in &final_output_lines {
+                                let streaming_output = StreamingOutput::new(
+                                    panel_id.clone(),
+                                    line.content.clone(),
+                                    line.sequence,
+                                    line.is_stderr,
+                                );
+                                
+                                let msg = Message::StreamingOutput(streaming_output);
+                                if let Err(e) = message_sender.send(msg) {
+                                    error!("Failed to send final streaming output for task {}: {}", task_id, e);
+                                    break;
+                                }
+                            }
+                            accumulated_lines.clear();
+                        }
+                    }
+                    
                     // Get final line count and send completion status
                     let (final_panel_id, final_line_count) = {
                         if let Ok(tasks) = active_tasks.lock() {

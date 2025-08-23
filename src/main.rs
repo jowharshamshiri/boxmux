@@ -2,6 +2,8 @@
 extern crate lazy_static;
 extern crate clap;
 
+use log::warn;
+
 use boxmux_lib::create_runnable_with_dynamic_input;
 use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;
@@ -85,24 +87,67 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     // Start background thread to handle streaming output
                                     let panel_id_clone = panel_id.clone();
                                     std::thread::spawn(move || {
-                                        let mut output_buffer = String::new();
                                         let mut lines_received = 0;
-                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
-                                            lines_received += 1;
-                                            output_buffer.push_str(&line.content);
-                                            if !line.content.ends_with('\n') {
-                                                output_buffer.push('\n');
+                                        let start_time = std::time::Instant::now();
+                                        
+                                        // Use try_recv() with process monitoring instead of timeout
+                                        loop {
+                                            // Check for new messages
+                                            match receiver.try_recv() {
+                                                Ok(line) => {
+                                                    lines_received += 1;
+                                                    let mut line_content = line.content;
+                                                    if !line_content.ends_with('\n') {
+                                                        line_content.push('\n');
+                                                    }
+                                                    
+                                                    // Send just this line, not accumulated content
+                                                    if let Some(ref sender) = sender {
+                                                        let streaming_msg = StreamingOutput::new(
+                                                            panel_id_clone.clone(),
+                                                            line_content,
+                                                            line.sequence,
+                                                            false, // stdout
+                                                        );
+                                                        let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                                    }
+                                                }
+                                                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                                                    // No message available, check if process is still running
+                                                    if let Some(exit_status) = child.try_wait().unwrap_or(None) {
+                                                        // Process finished, drain remaining messages
+                                                        while let Ok(line) = receiver.try_recv() {
+                                                            lines_received += 1;
+                                                            let mut line_content = line.content;
+                                                            if !line_content.ends_with('\n') {
+                                                                line_content.push('\n');
+                                                            }
+                                                            
+                                                            if let Some(ref sender) = sender {
+                                                                let streaming_msg = StreamingOutput::new(
+                                                                    panel_id_clone.clone(),
+                                                                    line_content,
+                                                                    line.sequence,
+                                                                    false,
+                                                                );
+                                                                let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                                            }
+                                                        }
+                                                        break; // Exit the loop
+                                                    }
+                                                    // Process still running, wait a bit
+                                                    std::thread::sleep(std::time::Duration::from_millis(10));
+                                                }
+                                                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                                    // Sender closed, exit
+                                                    break;
+                                                }
                                             }
                                             
-                                            // Send streaming update with UUID
-                                            if let Some(ref sender) = sender {
-                                                let streaming_msg = StreamingOutput::new(
-                                                    panel_id_clone.clone(),
-                                                    output_buffer.clone(),
-                                                    0, // sequence will be managed by streaming system
-                                                    false, // stdout
-                                                );
-                                                let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                            // Safety timeout - prevent infinite loops
+                                            if start_time.elapsed() > std::time::Duration::from_secs(300) {
+                                                warn!("Streaming timeout after 5 minutes, terminating");
+                                                break;
                                             }
                                         }
                                         
@@ -225,24 +270,67 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     // Start background thread to handle streaming output
                                     let panel_id_for_thread = panel_id_clone.clone();
                                     std::thread::spawn(move || {
-                                        let mut output_buffer = String::new();
                                         let mut lines_received = 0;
-                                        while let Ok(line) = receiver.recv_timeout(Duration::from_millis(100)) {
-                                            lines_received += 1;
-                                            output_buffer.push_str(&line.content);
-                                            if !line.content.ends_with('\n') {
-                                                output_buffer.push('\n');
+                                        let start_time = std::time::Instant::now();
+                                        
+                                        // Use try_recv() with process monitoring instead of timeout
+                                        loop {
+                                            // Check for new messages
+                                            match receiver.try_recv() {
+                                                Ok(line) => {
+                                                    lines_received += 1;
+                                                    let mut line_content = line.content;
+                                                    if !line_content.ends_with('\n') {
+                                                        line_content.push('\n');
+                                                    }
+                                                    
+                                                    // Send just this line, not accumulated content
+                                                    if let Some(ref sender) = sender {
+                                                        let streaming_msg = StreamingOutput::new(
+                                                            panel_id_for_thread.clone(),
+                                                            line_content,
+                                                            line.sequence,
+                                                            false, // stdout
+                                                        );
+                                                        let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                                    }
+                                                }
+                                                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                                                    // No message available, check if process is still running
+                                                    if let Some(exit_status) = child.try_wait().unwrap_or(None) {
+                                                        // Process finished, drain remaining messages
+                                                        while let Ok(line) = receiver.try_recv() {
+                                                            lines_received += 1;
+                                                            let mut line_content = line.content;
+                                                            if !line_content.ends_with('\n') {
+                                                                line_content.push('\n');
+                                                            }
+                                                            
+                                                            if let Some(ref sender) = sender {
+                                                                let streaming_msg = StreamingOutput::new(
+                                                                    panel_id_for_thread.clone(),
+                                                                    line_content,
+                                                                    line.sequence,
+                                                                    false,
+                                                                );
+                                                                let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                                            }
+                                                        }
+                                                        break; // Exit the loop
+                                                    }
+                                                    // Process still running, wait a bit
+                                                    std::thread::sleep(std::time::Duration::from_millis(10));
+                                                }
+                                                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                                    // Sender closed, exit
+                                                    break;
+                                                }
                                             }
                                             
-                                            // Send streaming update with UUID
-                                            if let Some(ref sender) = sender {
-                                                let streaming_msg = StreamingOutput::new(
-                                                    panel_id_for_thread.clone(),
-                                                    output_buffer.clone(),
-                                                    0, // sequence will be managed by streaming system
-                                                    false, // stdout
-                                                );
-                                                let _ = sender.send((uuid, Message::StreamingOutput(streaming_msg)));
+                                            // Safety timeout - prevent infinite loops
+                                            if start_time.elapsed() > std::time::Duration::from_secs(300) {
+                                                warn!("Streaming timeout after 5 minutes, terminating");
+                                                break;
                                             }
                                         }
                                         

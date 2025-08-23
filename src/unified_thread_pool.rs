@@ -298,7 +298,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, _receiver, _command_executed)) => {
+            Ok((child, receiver, _command_executed)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {
@@ -316,30 +316,46 @@ impl UnifiedThreadPool {
                 };
                 
                 if let Some(mut child) = child {
-                    let mut output_lines = Vec::new();
+                    let mut sequence = 0u64;
                     
-                    // Collect streaming output
+                    // Send streaming output in real-time
                     loop {
-                        if let Some(line) = executor.try_read_line() {
-                            output_lines.push(line.content);
+                        // Check for new output lines
+                        if let Ok(line) = receiver.try_recv() {
+                            sequence += 1;
+                            debug!("Panel {} received line {}: '{}'", panel_id, sequence, line.content);
+                            
+                            if rate_limiter.allow_streaming_output(panel_id) {
+                                let streaming_output = StreamingOutput::new(
+                                    panel_id.to_string(),
+                                    line.content,
+                                    sequence,
+                                    line.is_stderr,
+                                );
+                                let msg = Message::StreamingOutput(streaming_output);
+                                if let Err(e) = message_sender.send(msg) {
+                                    error!("Failed to send streaming output: {}", e);
+                                }
+                            } else {
+                                debug!("Rate limit exceeded for panel {}, dropping output line", panel_id);
+                            }
                         }
                         
+                        // Check if process has completed
                         if let Some(status) = executor.get_exit_status(&mut child) {
-                            // Process completed
+                            // Process completed - drain any remaining output
+                            debug!("Panel {} process completed, draining remaining output", panel_id);
                             
-                            // Collect any remaining output
-                            while let Some(line) = executor.try_read_line() {
-                                output_lines.push(line.content);
-                            }
-                            
-                            // Send streaming output lines with rate limiting
-                            for (seq, line) in output_lines.iter().enumerate() {
+                            while let Ok(line) = receiver.try_recv() {
+                                sequence += 1;
+                                debug!("Panel {} draining line {}: '{}'", panel_id, sequence, line.content);
+                                
                                 if rate_limiter.allow_streaming_output(panel_id) {
                                     let streaming_output = StreamingOutput::new(
                                         panel_id.to_string(),
-                                        line.clone(),
-                                        seq as u64,
-                                        false, // not stderr
+                                        line.content,
+                                        sequence,
+                                        line.is_stderr,
                                     );
                                     let msg = Message::StreamingOutput(streaming_output);
                                     if let Err(e) = message_sender.send(msg) {
@@ -356,7 +372,7 @@ impl UnifiedThreadPool {
                                     panel_id.to_string(),
                                     task_id,
                                     status.code(),
-                                    output_lines.len() as u64,
+                                    sequence,
                                 );
                                 let completion_msg = Message::StreamingComplete(streaming_complete);
                                 if let Err(e) = message_sender.send(completion_msg) {
@@ -398,7 +414,7 @@ impl UnifiedThreadPool {
         let mut executor = StreamingExecutor::new();
         
         match executor.spawn_streaming(&script, None) {
-            Ok((child, _receiver, _command_executed)) => {
+            Ok((child, receiver, _command_executed)) => {
                 // Store the running process
                 {
                     if let Ok(mut processes) = running_processes.lock() {
@@ -416,41 +432,60 @@ impl UnifiedThreadPool {
                 };
                 
                 if let Some(mut child) = child {
-                    let mut output_lines = Vec::new();
+                    let mut sequence = 0u64;
                     
-                    // Collect streaming output
+                    // Send streaming output in real-time
                     loop {
-                        if let Some(line) = executor.try_read_line() {
-                            output_lines.push(line.content);
+                        // Check for new output lines
+                        if let Ok(line) = receiver.try_recv() {
+                            sequence += 1;
+                            debug!("Choice {} received line {}: '{}'", choice_id, sequence, line.content);
                             
                             // Send incremental updates if redirecting output with rate limiting
                             if let Some(target_panel_id) = redirect_output_to {
-                                if rate_limiter.allow_batch_output(target_panel_id, output_lines.len() as u32) {
-                                    for (seq, line) in output_lines.iter().enumerate() {
+                                if rate_limiter.allow_streaming_output(target_panel_id) {
+                                    let streaming_output = StreamingOutput::new(
+                                        target_panel_id.clone(),
+                                        line.content,
+                                        sequence,
+                                        line.is_stderr,
+                                    );
+                                    let msg = Message::StreamingOutput(streaming_output);
+                                    
+                                    if let Err(e) = message_sender.send(msg) {
+                                        error!("Failed to send streaming output: {}", e);
+                                    }
+                                } else {
+                                    debug!("Rate limit exceeded for choice output to panel {}, dropping line", target_panel_id);
+                                }
+                            }
+                        }
+                        
+                        if let Some(status) = executor.get_exit_status(&mut child) {
+                            // Process completed - drain any remaining output
+                            debug!("Choice {} process completed, draining remaining output", choice_id);
+                            
+                            while let Ok(line) = receiver.try_recv() {
+                                sequence += 1;
+                                debug!("Choice {} draining line {}: '{}'", choice_id, sequence, line.content);
+                                
+                                if let Some(target_panel_id) = redirect_output_to {
+                                    if rate_limiter.allow_streaming_output(target_panel_id) {
                                         let streaming_output = StreamingOutput::new(
                                             target_panel_id.clone(),
-                                            line.clone(),
-                                            seq as u64,
-                                            false, // Assume stdout for now
+                                            line.content,
+                                            sequence,
+                                            line.is_stderr,
                                         );
                                         let msg = Message::StreamingOutput(streaming_output);
                                         
                                         if let Err(e) = message_sender.send(msg) {
                                             error!("Failed to send streaming output: {}", e);
                                         }
+                                    } else {
+                                        debug!("Rate limit exceeded for choice output to panel {}, dropping line", target_panel_id);
                                     }
-                                } else {
-                                    debug!("Rate limit exceeded for choice output to panel {}, dropping {} lines", target_panel_id, output_lines.len());
                                 }
-                            }
-                        }
-                        
-                        if let Some(status) = executor.get_exit_status(&mut child) {
-                            // Process completed
-                            
-                            // Collect any remaining output
-                            while let Some(line) = executor.try_read_line() {
-                                output_lines.push(line.content);
                             }
                             
                             // Send completion message
@@ -461,7 +496,7 @@ impl UnifiedThreadPool {
                                         target_panel_id.clone(),
                                         task_id,
                                         status.code(),
-                                        output_lines.len() as u64,
+                                        sequence,
                                     );
                                     let msg = Message::StreamingComplete(streaming_complete);
                                     
