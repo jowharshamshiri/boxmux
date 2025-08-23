@@ -18,6 +18,7 @@ pub mod utils;
 pub mod validation;
 pub mod chart;
 pub mod plugin;
+pub mod pty_manager;
 pub mod table;
 
 #[cfg(test)]
@@ -34,6 +35,7 @@ pub use utils::*;
 pub use validation::*;
 pub use chart::*;
 pub use plugin::*;
+pub use pty_manager::*;
 pub use table::*;
 
 #[macro_use]

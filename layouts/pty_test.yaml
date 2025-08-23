@@ -1,0 +1,34 @@
+app:
+  layouts:
+    - id: "pty_test"
+      root: true
+      title: "PTY Test Layout"
+      children:
+        - id: "pty_panel"
+          title: "PTY Test Panel"
+          position:
+            x1: 0%
+            y1: 0%
+            x2: 100%
+            y2: 80%
+          border: true
+          pty: true
+          script:
+            - "echo 'PTY Test Started'"
+            - "for i in {1..5}; do echo \"Line $i\"; sleep 1; done"
+            - "echo 'PTY Test Complete'"
+          refresh_interval: 5000
+          
+        - id: "regular_panel"
+          title: "Regular Script Panel (No PTY)"
+          position:
+            x1: 0%
+            y1: 80%
+            x2: 100%
+            y2: 100%
+          border: true
+          pty: false
+          script:
+            - "echo 'Regular script output'"
+            - "date"
+          refresh_interval: 3000

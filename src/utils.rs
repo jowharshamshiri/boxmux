@@ -1,5 +1,6 @@
 use crate::{
     model::common::{Bounds, InputBounds, ScreenBuffer},
+    pty_manager::PtyManager,
     Layout,
 };
 use regex::Regex;
@@ -476,6 +477,42 @@ pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Op
 }
 
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
+    run_script_with_pty(libs_paths, script, false, None, None, None)
+}
+
+pub fn run_script_with_pty(
+    libs_paths: Option<Vec<String>>, 
+    script: &Vec<String>, 
+    use_pty: bool, 
+    pty_manager: Option<&PtyManager>,
+    panel_id: Option<String>,
+    message_sender: Option<(std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>, uuid::Uuid)>
+) -> io::Result<String> {
+    if use_pty && pty_manager.is_some() && panel_id.is_some() && message_sender.is_some() {
+        // Use PTY for script execution
+        let pty_mgr = pty_manager.unwrap();
+        let pid = panel_id.unwrap();
+        let (sender, thread_uuid) = message_sender.unwrap();
+        
+        match pty_mgr.spawn_pty_script(pid.clone(), script, libs_paths.clone(), sender, thread_uuid) {
+            Ok(_) => {
+                // PTY started successfully - return placeholder
+                // Actual output will come through messages
+                Ok(format!("[PTY started for panel: {}]", pid))
+            }
+            Err(e) => {
+                // Fall back to regular execution on PTY failure
+                log::warn!("PTY execution failed, falling back to regular execution: {}", e);
+                run_script_regular(libs_paths, script)
+            }
+        }
+    } else {
+        // Use regular script execution
+        run_script_regular(libs_paths, script)
+    }
+}
+
+fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
     // Create the script content in-memory
     let mut script_content = String::new();
     if let Some(paths) = libs_paths {
@@ -516,6 +553,14 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
         }
         Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
     }
+}
+
+pub fn should_use_pty(panel: &crate::model::panel::Panel) -> bool {
+    panel.pty.unwrap_or(false)
+}
+
+pub fn should_use_pty_for_choice(choice: &crate::model::panel::Choice) -> bool {
+    choice.pty.unwrap_or(false)
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {

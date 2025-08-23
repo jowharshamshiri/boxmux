@@ -52,6 +52,7 @@ mod hotkey_tests {
             thread: Some(false),
             redirect_output: None,
             append_output: None,
+            pty: None,
             selected: false,
             waiting: false,
         };
