@@ -3,6 +3,9 @@ use crate::{
     pty_manager::PtyManager,
     Layout,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{self, Write};
 use std::process::{Command};
@@ -488,13 +491,25 @@ pub fn run_script_with_pty(
     panel_id: Option<String>,
     message_sender: Option<(std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>, uuid::Uuid)>
 ) -> io::Result<String> {
+    run_script_with_pty_and_redirect(libs_paths, script, use_pty, pty_manager, panel_id, message_sender, None)
+}
+
+pub fn run_script_with_pty_and_redirect(
+    libs_paths: Option<Vec<String>>, 
+    script: &Vec<String>, 
+    use_pty: bool, 
+    pty_manager: Option<&PtyManager>,
+    panel_id: Option<String>,
+    message_sender: Option<(std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>, uuid::Uuid)>,
+    redirect_target: Option<String>
+) -> io::Result<String> {
     if use_pty && pty_manager.is_some() && panel_id.is_some() && message_sender.is_some() {
         // Use PTY for script execution
         let pty_mgr = pty_manager.unwrap();
         let pid = panel_id.unwrap();
         let (sender, thread_uuid) = message_sender.unwrap();
         
-        match pty_mgr.spawn_pty_script(pid.clone(), script, libs_paths.clone(), sender, thread_uuid) {
+        match pty_mgr.spawn_pty_script_with_redirect(pid.clone(), script, libs_paths.clone(), sender, thread_uuid, redirect_target) {
             Ok(_) => {
                 // PTY started successfully - return placeholder
                 // Actual output will come through messages

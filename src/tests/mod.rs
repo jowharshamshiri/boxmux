@@ -53,3 +53,15 @@ pub mod hotkey_tests;
 
 #[cfg(test)]
 pub mod mouse_click_tests;
+
+#[cfg(test)]
+pub mod pty_input_tests;
+
+#[cfg(test)]
+pub mod pty_resize_tests;
+
+#[cfg(test)]
+pub mod ansi_processor_tests;
+
+#[cfg(test)]
+pub mod special_key_tests;

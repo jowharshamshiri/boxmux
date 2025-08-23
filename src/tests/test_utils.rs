@@ -204,6 +204,7 @@ impl TestDataFactory {
             app: Self::create_test_app(),
             config: Config::default(),
             plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            pty_manager: None,
         }
     }
 
