@@ -149,7 +149,7 @@ title: BoxMux - YAML-driven Terminal UI Framework
       
       <div class="feature-card">
         <h3>Scripting & Automation</h3>
-        <p>Multi-threaded script execution, streaming output, PTY support, and output redirection.</p>
+        <p>Multi-threaded script execution, PTY support, and output redirection.</p>
       </div>
       
       <div class="feature-card">

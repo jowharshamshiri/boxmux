@@ -5,13 +5,12 @@ title: Advanced Features - BoxMux
 
 # Advanced Features
 
-BoxMux includes mouse support, hot keys, streaming output, clipboard integration, navigation, and performance monitoring.
+BoxMux includes mouse support, hot keys, clipboard integration, navigation, and performance monitoring.
 
 ## Table of Contents
 
 - [Mouse Click Support](#mouse-click-support)
 - [Hot Key Actions](#hot-key-actions)
-- [Streaming Output](#streaming-output)
 - [Enhanced Navigation](#enhanced-navigation)
 - [Clipboard Integration](#clipboard-integration)
 - [Enhanced Scrolling](#enhanced-scrolling)
@@ -139,86 +138,6 @@ app:
     'F10': 'memory_usage'
     'F11': 'disk_usage'
     'F12': 'system_logs'
-```
-
-## Streaming Output
-
-Live streaming output from long-running commands with incremental updates.
-
-### Features
-
-- **Real-time Updates**: Stream command output as it's generated
-- **Incremental Rendering**: Update panels with partial output
-- **Choice Streaming**: Enable streaming for choice script execution
-- **Background Processing**: Commands run in background threads
-- **Output Redirection**: Stream output to target panels
-- **Auto-scroll Integration**: Automatic scrolling for streaming content
-
-### Basic Streaming
-
-```yaml
-# Enable streaming for panel scripts
-- id: 'streaming_panel'
-  title: 'Live Build Output'
-  streaming: true
-  auto_scroll_bottom: true
-  script:
-    - ./long-running-build.sh
-  refresh_interval: 500  # Check for updates every 500ms
-```
-
-### Choice Streaming
-
-```yaml
-# Enable streaming for choice actions
-- id: 'build_menu'
-  title: 'Build Options'
-  choices:
-    - id: 'build_project'
-      content: 'Build Project (Streaming)'
-      streaming: true           # Enable streaming for this choice
-      script:
-        - cargo build --verbose
-      redirect_output: 'build_log'
-      
-    - id: 'run_tests'
-      content: 'Run Test Suite (Streaming)'
-      streaming: true
-      script:
-        - cargo test -- --nocapture
-      redirect_output: 'test_output'
-
-- id: 'build_log'
-  title: 'Build Output (Live)'
-  auto_scroll_bottom: true
-  position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
-```
-
-### Streaming with Hot Keys
-
-```yaml
-app:
-  hot_keys:
-    'F1': 'streaming_build'
-    
-  layouts:
-    - id: 'main'
-      children:
-        - id: 'controls'
-          choices:
-            - id: 'streaming_build'
-              content: 'Streaming Build [F1]'
-              streaming: true
-              script:
-                - echo "Starting build..."
-                - cargo build --verbose 2>&1
-                - echo "Build completed!"
-              redirect_output: 'live_output'
-              
-        - id: 'live_output'
-          title: 'Live Build Output'
-          auto_scroll_bottom: true
-          position: {x1: 0%, y1: 40%, x2: 100%, y2: 100%}
 ```
 
 ## Enhanced Navigation
