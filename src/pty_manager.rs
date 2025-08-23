@@ -200,10 +200,11 @@ impl PtyManager {
                                 // Send any remaining processed output
                                 let remaining_text = ansi_processor.get_processed_text();
                                 if !remaining_text.is_empty() {
-                                    if let Err(e) = sender.send((thread_uuid, crate::thread_manager::Message::PanelOutputUpdate(
+                                    let pty_reader_uuid = uuid::Uuid::new_v4();
+                                    if let Err(e) = sender.send((pty_reader_uuid, crate::thread_manager::Message::PanelOutputUpdate(
                                         output_target.clone(),
                                         true,
-                                        remaining_text.to_string(),
+                                        format!("{}\n", remaining_text), // Add newline for final output
                                     ))) {
                                         error!("Failed to send final PTY output: {}", e);
                                     }
@@ -256,10 +257,12 @@ impl PtyManager {
                                         let message = crate::thread_manager::Message::PanelOutputUpdate(
                                             output_target.clone(),
                                             true,
-                                            line,
+                                            format!("{}\n", line), // Add newline for proper line separation
                                         );
-                                        debug!("About to send message via channel - thread_uuid: {:?}", thread_uuid);
-                                        if let Err(e) = sender.send((thread_uuid, message)) {
+                                        // Use a new UUID for PTY reader thread to avoid ThreadManager filtering
+                                        let pty_reader_uuid = uuid::Uuid::new_v4();
+                                        debug!("About to send message via channel - pty_reader_uuid: {:?}", pty_reader_uuid);
+                                        if let Err(e) = sender.send((pty_reader_uuid, message)) {
                                             error!("PTY message send failed - channel disconnected or full: {}", e);
                                             break;
                                         } else {

@@ -1,5 +1,6 @@
 use crate::model::app::AppContext;
 use crate::{run_script, FieldUpdate, Panel, Updatable};
+use crate::model::panel::Choice;
 use bincode;
 use log::{error};
 use std::collections::hash_map::DefaultHasher;
@@ -40,6 +41,7 @@ pub enum Message {
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16), // x, y coordinates
     PTYInput(String, String), // panel_id, input_text
+    ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
     ExternalMessage(String),
     AddPanel(String, Panel),
     RemovePanel(String),
@@ -108,6 +110,21 @@ impl Hash for Message {
                 "pty_input".hash(state);
                 panel_id.hash(state);
                 input.hash(state);
+            }
+            Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
+                "choice_execution_complete".hash(state);
+                choice_id.hash(state);
+                panel_id.hash(state);
+                match result {
+                    Ok(output) => {
+                        "ok".hash(state);
+                        output.hash(state);
+                    }
+                    Err(error) => {
+                        "err".hash(state);
+                        error.hash(state);
+                    }
+                }
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
@@ -609,7 +626,7 @@ macro_rules! create_runnable {
             }
 
             fn process(&mut self, app_context: AppContext, messages: Vec<Message>) {
-                self.inner.process(app_context.clone(), messages.clone());
+                self.inner.process(app_context, messages)
             }
 
             fn update_app_context(&mut self, app_context: AppContext) {
@@ -642,7 +659,10 @@ macro_rules! create_runnable {
                 self.inner.set_app_context_receiver(app_context_receiver)
             }
 
-            fn set_message_receiver(&mut self, message_receiver: mpsc::Receiver<(Uuid, Message)>) {
+            fn set_message_receiver(
+                &mut self,
+                message_receiver: mpsc::Receiver<(Uuid, Message)>,
+            ) {
                 self.inner.set_message_receiver(message_receiver)
             }
 
@@ -667,6 +687,56 @@ macro_rules! create_runnable {
             }
         }
     };
+}
+
+// T312: ChoiceExecutionRunnable - Convert choice execution to Runnable pattern
+create_runnable!(
+    ChoiceExecutionRunnable,
+    |_inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool {
+        // Initialize - no setup needed for choice execution
+        true
+    },
+    |inner: &mut RunnableImpl,
+     app_context: AppContext,
+     _messages: Vec<Message>|
+     -> (bool, AppContext) {
+        // This runnable is designed to execute a single choice and then terminate
+        // It should be spawned for each choice execution
+        (false, app_context) // Always terminate after processing
+    }
+);
+
+impl ChoiceExecutionRunnable {
+    pub fn execute_choice(
+        choice: Choice,
+        panel_id: String,
+        libs: Option<Vec<String>>,
+        app_context: AppContext,
+    ) -> Self {
+        let mut runnable = Self::new(app_context.clone());
+        
+        // Execute the choice script and send completion message
+        let choice_id = choice.id.clone();
+        let panel_id_clone = panel_id.clone();
+        
+        let result = if let Some(script) = &choice.script {
+            match run_script(libs, script) {
+                Ok(output) => Ok(output),
+                Err(e) => Err(e.to_string()),
+            }
+        } else {
+            Err("No script defined for choice".to_string())
+        };
+        
+        // Send completion message via the runnable's message system
+        runnable.inner.send_message(Message::ChoiceExecutionComplete(
+            choice_id,
+            panel_id,
+            result,
+        ));
+        
+        runnable
+    }
 }
 
 #[macro_export]
