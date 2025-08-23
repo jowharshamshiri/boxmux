@@ -5,16 +5,279 @@ title: Advanced Features - BoxMux
 
 # Advanced Features
 
-BoxMux includes clipboard integration, scrolling, and performance monitoring.
+BoxMux includes mouse support, hot keys, streaming output, clipboard integration, navigation, and performance monitoring.
 
 ## Table of Contents
 
+- [Mouse Click Support](#mouse-click-support)
+- [Hot Key Actions](#hot-key-actions)
+- [Streaming Output](#streaming-output)
+- [Enhanced Navigation](#enhanced-navigation)
 - [Clipboard Integration](#clipboard-integration)
 - [Enhanced Scrolling](#enhanced-scrolling)
 - [Performance Monitoring](#performance-monitoring)
 - [Configuration Schema Validation](#configuration-schema-validation)
 - [Manual Socket Implementation](#manual-socket-implementation)
 - [Real-World Examples](#real-world-examples)
+
+## Mouse Click Support
+
+BoxMux provides mouse interaction for navigation and control.
+
+### Features
+
+- **Panel Selection**: Click to select and focus panels
+- **Menu Activation**: Click menu items to trigger actions
+- **Parent Panel Auto-selection**: Menu clicks automatically select parent panel
+- **Scrollable Content**: Auto-selectability for panels with scrollable content
+- **Non-blocking Execution**: Threaded execution prevents UI freezing
+- **Visual Feedback**: Immediate visual feedback on clicks
+
+### Usage
+
+```yaml
+# Enable mouse interaction (enabled by default)
+app:
+  mouse_enabled: true
+  layouts:
+    - id: 'interactive'
+      children:
+        - id: 'clickable_menu'
+          title: 'Actions (Click to Execute)'
+          choices:
+            - id: 'deploy'
+              content: 'Deploy Application'
+              script: ['./deploy.sh']
+            - id: 'test'
+              content: 'Run Tests'
+              script: ['cargo test']
+              
+        - id: 'output_panel'
+          title: 'Output (Click to Focus)'
+          position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
+          content: 'Click this panel to focus and enable scrolling'
+```
+
+### Mouse Interaction Behavior
+
+- **Single Click**: Select panel and focus for keyboard input
+- **Menu Clicks**: Execute choice action and redirect output to target panel
+- **Panel Focus**: Enable keyboard scrolling and input routing
+- **Visual Indicators**: Focused panels show distinct border colors
+
+## Hot Key Actions
+
+Global keyboard shortcuts to trigger specific choice actions without menu navigation.
+
+### Features
+
+- **Global Shortcuts**: F1-F24 function keys for instant action execution
+- **Direct Choice Execution**: Bypass menu navigation for frequently used commands
+- **Background Execution**: Actions run in background threads
+- **Output Redirection**: Hot key actions support output redirection
+- **Visual Feedback**: Hot key mappings shown in panel titles
+
+### Configuration
+
+```yaml
+app:
+  hot_keys:
+    'F1': 'build'           # F1 triggers build action
+    'F2': 'test'            # F2 triggers test action
+    'F3': 'deploy'          # F3 triggers deploy action
+    'F5': 'refresh_all'     # F5 refreshes all panels
+    'F9': 'git_status'      # F9 shows git status
+    'F12': 'system_info'    # F12 shows system info
+    
+  layouts:
+    - id: 'development'
+      title: 'Dev Environment (F1=Build, F2=Test, F3=Deploy)'
+      children:
+        - id: 'menu'
+          title: 'Quick Actions'
+          choices:
+            - id: 'build'
+              content: 'Build Project [F1]'
+              script: ['cargo build']
+              redirect_output: 'output'
+              
+            - id: 'test'
+              content: 'Run Tests [F2]'
+              script: ['cargo test']
+              redirect_output: 'output'
+              
+            - id: 'deploy'
+              content: 'Deploy [F3]'
+              script: ['./deploy.sh']
+              redirect_output: 'output'
+              
+        - id: 'output'
+          title: 'Build/Test Output'
+          position: {x1: 0%, y1: 40%, x2: 100%, y2: 100%}
+```
+
+### Hot Key Best Practices
+
+```yaml
+# Group related actions by function key ranges
+app:
+  hot_keys:
+    # Build/Test (F1-F4)
+    'F1': 'build_debug'
+    'F2': 'build_release'
+    'F3': 'test_unit'
+    'F4': 'test_integration'
+    
+    # Git operations (F5-F8)
+    'F5': 'git_status'
+    'F6': 'git_pull'
+    'F7': 'git_commit'
+    'F8': 'git_push'
+    
+    # System monitoring (F9-F12)
+    'F9': 'cpu_usage'
+    'F10': 'memory_usage'
+    'F11': 'disk_usage'
+    'F12': 'system_logs'
+```
+
+## Streaming Output
+
+Live streaming output from long-running commands with incremental updates.
+
+### Features
+
+- **Real-time Updates**: Stream command output as it's generated
+- **Incremental Rendering**: Update panels with partial output
+- **Choice Streaming**: Enable streaming for choice script execution
+- **Background Processing**: Commands run in background threads
+- **Output Redirection**: Stream output to target panels
+- **Auto-scroll Integration**: Automatic scrolling for streaming content
+
+### Basic Streaming
+
+```yaml
+# Enable streaming for panel scripts
+- id: 'streaming_panel'
+  title: 'Live Build Output'
+  streaming: true
+  auto_scroll_bottom: true
+  script:
+    - ./long-running-build.sh
+  refresh_interval: 500  # Check for updates every 500ms
+```
+
+### Choice Streaming
+
+```yaml
+# Enable streaming for choice actions
+- id: 'build_menu'
+  title: 'Build Options'
+  choices:
+    - id: 'build_project'
+      content: 'Build Project (Streaming)'
+      streaming: true           # Enable streaming for this choice
+      script:
+        - cargo build --verbose
+      redirect_output: 'build_log'
+      
+    - id: 'run_tests'
+      content: 'Run Test Suite (Streaming)'
+      streaming: true
+      script:
+        - cargo test -- --nocapture
+      redirect_output: 'test_output'
+
+- id: 'build_log'
+  title: 'Build Output (Live)'
+  auto_scroll_bottom: true
+  position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
+```
+
+### Streaming with Hot Keys
+
+```yaml
+app:
+  hot_keys:
+    'F1': 'streaming_build'
+    
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'controls'
+          choices:
+            - id: 'streaming_build'
+              content: 'Streaming Build [F1]'
+              streaming: true
+              script:
+                - echo "Starting build..."
+                - cargo build --verbose 2>&1
+                - echo "Build completed!"
+              redirect_output: 'live_output'
+              
+        - id: 'live_output'
+          title: 'Live Build Output'
+          auto_scroll_bottom: true
+          position: {x1: 0%, y1: 40%, x2: 100%, y2: 100%}
+```
+
+## Enhanced Navigation
+
+Keyboard navigation with Home/End scrolling and proportional scrollbars.
+
+### Features
+
+- **Home/End Horizontal**: Home/End keys scroll to beginning/end of lines (0%/100%)
+- **Ctrl+Home/End Vertical**: Ctrl+Home/End scroll to top/bottom of content (0%/100%)
+- **Proportional Scrollbars**: Scrollbar knob size reflects content proportions
+- **Accurate Positioning**: Knob position accurately represents scroll location
+- **Visual Feedback**: Scrollbars show exact scroll state and content ratio
+
+### Navigation Keys
+
+```
+Home          - Scroll to beginning of current line (horizontal 0%)
+End           - Scroll to end of current line (horizontal 100%)
+Ctrl+Home     - Scroll to top of content (vertical 0%)
+Ctrl+End      - Scroll to bottom of content (vertical 100%)
+Arrow Keys    - Line-by-line scrolling
+Page Up/Down  - Page-based scrolling
+```
+
+### Navigation Configuration
+
+```yaml
+# Panel with enhanced navigation
+- id: 'large_content'
+  title: 'Large Content (Home/End/Ctrl+Home/End navigation)'
+  position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
+  scrollable: true
+  navigation_enabled: true
+  script:
+    - |
+      echo "=== Large Content for Navigation Demo ==="
+      for i in {1..100}; do
+        echo "Line $i: This is a very long line that extends beyond the panel width to demonstrate horizontal scrolling capabilities in BoxMux panels"
+      done
+```
+
+### Proportional Scrollbar Behavior
+
+- **Large Knob**: When content is only slightly larger than viewport (e.g., 1 extra line)
+- **Small Knob**: When there's much more content than fits in viewport
+- **Reaches End**: Knob reaches bottom/right edge when scrolled to 100%
+- **Smooth Movement**: Knob position reflects exact scroll percentage
+
+```yaml
+# Example: Different content ratios
+- id: 'small_overflow'
+  title: 'Small Overflow (Large Knob)'
+  script: ['seq 1 25']  # Only 5 extra lines - large scrollbar knob
+  
+- id: 'large_overflow' 
+  title: 'Large Overflow (Small Knob)'
+  script: ['seq 1 1000'] # Many extra lines - small scrollbar knob
+```
 
 
 ## Clipboard Integration

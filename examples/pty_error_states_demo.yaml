@@ -1,0 +1,87 @@
+config:
+  frame_delay: 100
+
+layouts:
+  - id: error_states_demo
+    bg_color: black
+
+    panels:
+      - id: normal_pty
+        title: "Normal PTY"
+        position:
+          x1: 0%
+          y1: 0%
+          x2: 33%
+          y2: 50%
+        border: true
+        pty: true
+        script:
+          - echo "Normal PTY process"
+          - echo "⚡ Lightning bolt indicator"
+          - echo "Bright cyan border"
+        next_focus_id: "error_pty"
+
+      - id: error_pty
+        title: "Error PTY"
+        position:
+          x1: 33%
+          y1: 0%
+          x2: 66%
+          y2: 50%
+        border: true
+        pty: true
+        script:
+          - echo "This PTY will show error state"
+          - echo "⚠️ Warning indicator"
+          - echo "Yellow border for errors"
+        next_focus_id: "dead_pty"
+
+      - id: dead_pty
+        title: "Dead PTY"
+        position:
+          x1: 66%
+          y1: 0%
+          x2: 100%
+          y2: 50%
+        border: true
+        pty: true
+        script:
+          - echo "This PTY will show dead state"
+          - echo "💀 Skull indicator"
+          - echo "Red border for dead processes"
+        next_focus_id: "info_panel"
+
+      - id: info_panel
+        title: "Error States Info"
+        position:
+          x1: 0%
+          y1: 50%
+          x2: 100%
+          y2: 100%
+        border: true
+        content: |
+          PTY Error States Visual Indicators:
+          
+          Normal PTY:  ⚡ [PID:xxx Running] - Bright Cyan Border
+          Error PTY:   ⚠️ [PID:xxx Error:msg] - Yellow Border  
+          Dead PTY:    💀 [PID:xxx Dead:reason] - Red Border
+          Fallback:    ⚠️ [PID:xxx Fallback] - Yellow Border
+          
+          Visual Hierarchy:
+          🟢 Green:  Regular panels (no PTY)
+          🔵 Cyan:   Healthy PTY processes
+          🟡 Yellow: PTY error states (recoverable)
+          🔴 Red:    Dead PTY processes (need restart)
+          
+          Process States:
+          - Starting: PTY process initializing
+          - Running:  PTY process active
+          - Done:     Successful completion
+          - Exit:n:   Failed with exit code n
+          - Error:    Execution error
+          - Dead:     Process died unexpectedly
+          - Fallback: Using regular execution
+        next_focus_id: "normal_pty"
+
+app:
+  active_layout: error_states_demo

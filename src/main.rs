@@ -12,12 +12,13 @@ use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
 use boxmux_lib::Panel;
 use boxmux_lib::SocketFunction;
+use boxmux_lib::pty_manager::PtyManager;
 use clap::{Arg, Command};
+// Removed manual debug logging - using env_logger instead
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use std::sync::mpsc;
-use std::sync::Mutex;
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use std::time::Instant;
 use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
@@ -32,7 +33,6 @@ lazy_static! {
 
 fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     let active_layout = app_context.app.get_active_layout();
-
     let mut non_threaded_panels: Vec<String> = vec![];
 
     if let Some(layout) = active_layout {
@@ -51,7 +51,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          _messages: Vec<Message>,
                          _vec: Vec<String>|
                          -> bool { true },
-                        |inner: &mut RunnableImpl,
+                        move |inner: &mut RunnableImpl,
                          app_context: AppContext,
                          _messages: Vec<Message>,
                          vec: Vec<String>|
@@ -63,7 +63,20 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                            
+                            // Check if panel should use PTY
+                            let use_pty = panel.pty.unwrap_or(false);
+                            let sender_for_pty = inner.get_message_sender().clone();
+                            let thread_uuid = inner.get_uuid();
+                            
+                            match boxmux_lib::utils::run_script_with_pty(
+                                libs, 
+                                panel.script.clone().unwrap().as_ref(),
+                                use_pty,
+                                app_context_unwrapped.pty_manager.as_ref().map(|arc| arc.as_ref()),
+                                if use_pty { Some(panel.id.clone()) } else { None },
+                                if use_pty && sender_for_pty.is_some() { Some((sender_for_pty.unwrap().clone(), thread_uuid)) } else { None }
+                            ) {
                                 Ok(output) => inner.send_message(Message::PanelOutputUpdate(
                                     panel.id.clone(),
                                     true,
@@ -101,7 +114,7 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  _messages: Vec<Message>,
                  _vec: Vec<String>|
                  -> bool { true },
-                |inner: &mut RunnableImpl,
+                move |inner: &mut RunnableImpl,
                  app_context: AppContext,
                  _messages: Vec<Message>,
                  vec: Vec<String>|
@@ -124,7 +137,19 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            match run_script(libs, panel.script.clone().unwrap().as_ref()) {
+                            // Check if panel should use PTY
+                            let use_pty = panel.pty.unwrap_or(false);
+                            let sender_for_pty = inner.get_message_sender().clone();
+                            let thread_uuid = inner.get_uuid();
+                            
+                            match boxmux_lib::utils::run_script_with_pty(
+                                libs, 
+                                panel.script.clone().unwrap().as_ref(),
+                                use_pty,
+                                app_context_unwrapped.pty_manager.as_ref().map(|arc| arc.as_ref()),
+                                if use_pty { Some(panel.id.clone()) } else { None },
+                                if use_pty && sender_for_pty.is_some() { Some((sender_for_pty.unwrap().clone(), thread_uuid)) } else { None }
+                            ) {
                                 Ok(output) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
                                     true,
@@ -184,7 +209,71 @@ fn cleanup_terminal() {
     let _ = terminal::disable_raw_mode();
 }
 
+/// Initialize comprehensive logging framework (F0161/F0162) 
+fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    let log_level = matches.get_one::<String>("log_level").unwrap_or(&"info".to_string()).clone();
+    let log_file = matches.get_one::<String>("log_file").cloned();
+    
+    // Parse log level for env_logger
+    let env_log_level = match log_level.as_str() {
+        "trace" => "trace",
+        "debug" => "debug", 
+        "info" => "info",
+        "warn" => "warn",
+        "error" => "error",
+        _ => "info",
+    };
+    
+    // Set RUST_LOG to enable all our modules at the specified level
+    std::env::set_var("RUST_LOG", format!("boxmux={},boxmux_lib={}", env_log_level, env_log_level));
+    
+    // Only initialize logging when --log-file is explicitly provided
+    let logger_result = if let Some(ref file_path) = log_file {
+        // Create file logger with custom format
+        let target = match std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&file_path) {
+            Ok(file) => Box::new(file),
+            Err(e) => return Err(format!("Failed to create log file '{}': {}", file_path, e).into()),
+        };
+            
+        env_logger::Builder::from_default_env()
+            .target(env_logger::Target::Pipe(target))
+            .format(|buf, record| {
+                use std::io::Write;
+                writeln!(buf, "[{}] [{}] [{}:{}] [T{:?}] {}", 
+                    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    record.level(),
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                    std::thread::current().id(),
+                    record.args()
+                )
+            })
+            .try_init()
+    } else {
+        // No logging when --log-file is not provided to avoid corrupting TUI
+        return Ok(());
+    };
+    
+    match logger_result {
+        Ok(_) => {
+            eprintln!("Debug logging initialized: writing to file {}", log_file.as_ref().unwrap());
+            log::info!("BoxMux logging system initialized at {} level", log_level);
+        },
+        Err(e) => {
+            eprintln!("Warning: Could not initialize logger ({}). Logging may not work as expected.", e);
+            eprintln!("This usually means another logger is already initialized in the codebase.");
+            eprintln!("Continuing anyway...");
+        }
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize logging FIRST before any other setup
     let matches = Command::new("Boxmux")
         .version(env!("CARGO_PKG_VERSION"))
         .author("jowharshamshiri@gmail.com")
@@ -202,6 +291,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .value_name("DELAY")
                 .default_value("30")
                 .help("Sets the frame delay in milliseconds"),
+        )
+        .arg(
+            Arg::new("log_level")
+                .short('l')
+                .long("log-level")
+                .value_name("LEVEL")
+                .help("Sets the logging level (trace, debug, info, warn, error)")
+                .default_value("info"),
+        )
+        .arg(
+            Arg::new("log_file")
+                .short('f')
+                .long("log-file")
+                .value_name("FILE")
+                .help("Write logs to file instead of stderr"),
         )
         .subcommand(
             Command::new("stop_panel_refresh")
@@ -313,7 +417,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("The panel id to remove from its layout"),
                 ),
         )
+        // F0137: Socket PTY Control - Kill and restart PTY processes
+        .subcommand(
+            Command::new("kill_pty_process")
+                .about("Kills a PTY process for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id with the PTY process to kill"),
+                ),
+        )
+        .subcommand(
+            Command::new("restart_pty_process")
+                .about("Restarts a PTY process for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id with the PTY process to restart"),
+                ),
+        )
+        // F0138: Socket PTY Query - Get PTY status and info
+        .subcommand(
+            Command::new("query_pty_status")
+                .about("Gets PTY process status for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to query PTY status for"),
+                ),
+        )
         .get_matches();
+
+    // Initialize logging framework (F0161/F0162)
+    initialize_logging(&matches)?;
 
     // Handle the stop_panel_refresh subcommand
     if let Some(matches) = matches.subcommand_matches("stop_panel_refresh") {
@@ -500,6 +639,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // F0137: Socket PTY Control - Handle kill_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("kill_pty_process") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::KillPtyProcess {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for kill_pty_process command".into());
+        }
+    }
+
+    // F0137: Socket PTY Control - Handle restart_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("restart_pty_process") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::RestartPtyProcess {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for restart_pty_process command".into());
+        }
+    }
+
+    // F0138: Socket PTY Query - Handle query_pty_status subcommand
+    if let Some(matches) = matches.subcommand_matches("query_pty_status") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::QueryPtyStatus {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for query_pty_status command".into());
+        }
+    }
+
     let yaml_path = matches.get_one::<String>("yaml_file").unwrap();
     let frame_delay = matches
         .get_one::<String>("frame_delay")
@@ -514,11 +701,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
-        simplelog::LevelFilter::Debug,
-        simplelog::Config::default(),
-        File::create("app.log")?,
-    )])?;
+    // Removed old simplelog - using our new comprehensive logging system instead
     let config = boxmux_lib::model::common::Config::new(frame_delay);
     let app = match load_app_from_yaml(yaml_path.to_str().unwrap()) {
         Ok(app) => app,
@@ -530,7 +713,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let app_context = AppContext::new(app, config);
+    // Initialize PTY manager for this session
+    let pty_manager = match PtyManager::new() {
+        Ok(mgr) => {
+            log::info!("PTY manager initialized successfully");
+            Some(Arc::new(mgr))
+        },
+        Err(e) => {
+            log::warn!("Failed to initialize PTY manager: {}", e);
+            None
+        }
+    };
+
+    let app_context = if let Some(pty_mgr) = pty_manager.as_ref() {
+        AppContext::new_with_pty(app, config, pty_mgr.clone())
+    } else {
+        AppContext::new(app, config)
+    };
 
     //create alternate screen in terminal and clear it
     use crossterm::{execute, terminal, event};

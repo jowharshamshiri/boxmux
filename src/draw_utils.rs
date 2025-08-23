@@ -156,7 +156,23 @@ pub fn draw_panel(
                 .calc_title_fg_color(app_context, app_graph)
                 .to_string();
             let border = panel.calc_border(app_context, app_graph);
-            let border_color = panel.calc_border_color(app_context, app_graph).to_string();
+            // F0135: PTY Error States - Use different colors based on PTY status
+            let border_color = if panel.pty.unwrap_or(false) {
+                // Check for error states and use appropriate colors
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if pty_manager.is_pty_dead(&panel.id) {
+                        "red".to_string() // Dead PTY processes get red borders
+                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                        "yellow".to_string() // Error states get yellow borders
+                    } else {
+                        "bright_cyan".to_string() // Normal PTY panels get bright cyan borders
+                    }
+                } else {
+                    "bright_cyan".to_string() // Default PTY color if no manager
+                }
+            } else {
+                panel.calc_border_color(app_context, app_graph).to_string()
+            };
             let fill_char = panel.calc_fill_char(app_context, app_graph);
 
             // Draw fill
@@ -185,7 +201,18 @@ pub fn draw_panel(
                 content = table_content.as_deref();
             }
             
-            // check output is not null or empty - output overrides everything
+            // F0120: PTY Scrollback - Use scrollback content for PTY panels
+            let mut pty_scrollback_content = None;
+            if panel.pty.unwrap_or(false) {
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if let Some(scrollback) = panel.get_scrollback_content(pty_manager) {
+                        pty_scrollback_content = Some(scrollback);
+                        content = pty_scrollback_content.as_deref();
+                    }
+                }
+            }
+
+            // check output is not null or empty - output overrides everything (including scrollback)
             if !panel.output.is_empty() {
                 content = Some(&panel.output);
             }
@@ -207,12 +234,48 @@ pub fn draw_panel(
                 }
             }
 
+            // Add PTY indicator and process info to title if panel has PTY enabled
+            let title_with_pty_indicator = if panel.pty.unwrap_or(false) {
+                // F0135: PTY Error States - Use different indicators for error states
+                let indicator = if let Some(pty_manager) = &app_context.pty_manager {
+                    if pty_manager.is_pty_dead(&panel.id) {
+                        "💀" // Skull for dead processes
+                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                        "⚠️" // Warning for error states
+                    } else {
+                        "⚡" // Lightning bolt for normal PTY
+                    }
+                } else {
+                    "⚡" // Default lightning bolt
+                };
+                
+                let mut title_parts = vec![indicator.to_string()];
+                
+                // F0132: PTY Process Info - Add process info if available
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if let Some(status_summary) = pty_manager.get_process_status_summary(&panel.id) {
+                        title_parts.push(format!("[{}]", status_summary));
+                    }
+                }
+                
+                // Add original title if it exists
+                if let Some(title) = panel.title.as_deref() {
+                    title_parts.push(title.to_string());
+                } else {
+                    title_parts.push("PTY".to_string());
+                }
+                
+                Some(title_parts.join(" "))
+            } else {
+                panel.title.clone()
+            };
+            
             render_panel(
                 value,
                 &border_color,
                 &bg_color,
                 &parent_bg_color,
-                panel.title.as_deref(),
+                title_with_pty_indicator.as_deref(),
                 &title_fg_color,
                 &title_bg_color,
                 &panel.calc_title_position(app_context, app_graph),
@@ -676,6 +739,8 @@ pub fn render_panel(
 
             // Drawing scroll indicators with track and position
             if max_content_height > viewable_height {
+                let track_height = viewable_height.saturating_sub(2); // Available track space
+                
                 // Draw vertical scroll track
                 for y in (bounds.top() + 1)..bounds.bottom() {
                     print_with_color_and_background_at(
@@ -688,24 +753,38 @@ pub fn render_panel(
                     );
                 }
                 
-                // Draw vertical scroll position indicator
-                let scrollbar_position = if viewable_height > 1 {
-                    ((vertical_scroll / 100.0) * (viewable_height.saturating_sub(1)) as f64).floor()
-                        as usize
-                } else {
-                    0
-                };
-                print_with_color_and_background_at(
-                    bounds.top() + 1 + scrollbar_position,
-                    bounds.right(),
-                    border_color,
-                    bg_color,
-                    V_SCROLL_CHAR,
-                    buffer,
-                );
+                if track_height > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_height as f64 / max_content_height as f64;
+                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+                    let available_track = track_height.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional vertical scroll knob
+                    for i in 0..knob_size {
+                        let knob_y = bounds.top() + 1 + knob_position + i;
+                        if knob_y < bounds.bottom() {
+                            print_with_color_and_background_at(
+                                knob_y,
+                                bounds.right(),
+                                border_color,
+                                bg_color,
+                                V_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
             }
 
             if max_content_width > viewable_width {
+                let track_width = viewable_width.saturating_sub(2); // Available track space
+                
                 // Draw horizontal scroll track
                 for x in (bounds.left() + 1)..bounds.right() {
                     print_with_color_and_background_at(
@@ -718,21 +797,33 @@ pub fn render_panel(
                     );
                 }
                 
-                // Draw horizontal scroll position indicator
-                let scrollbar_position = if viewable_width > 2 {
-                    ((horizontal_scroll / 100.0) * (viewable_width.saturating_sub(2)) as f64)
-                        .floor() as usize
-                } else {
-                    0
-                };
-                print_with_color_and_background_at(
-                    bounds.bottom(),
-                    bounds.left() + 1 + scrollbar_position,
-                    border_color,
-                    bg_color,
-                    H_SCROLL_CHAR,
-                    buffer,
-                );
+                if track_width > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_width as f64 / max_content_width as f64;
+                    let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
+                    let available_track = track_width.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional horizontal scroll knob
+                    for i in 0..knob_size {
+                        let knob_x = bounds.left() + 1 + knob_position + i;
+                        if knob_x < bounds.right() {
+                            print_with_color_and_background_at(
+                                bounds.bottom(),
+                                knob_x,
+                                border_color,
+                                bg_color,
+                                H_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
             }
 
             // Scroll position percentage indicator removed - visual scrollbars provide sufficient feedback

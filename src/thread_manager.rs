@@ -1,5 +1,6 @@
 use crate::model::app::AppContext;
-use crate::{run_script, FieldUpdate, Panel, Updatable};
+use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, Panel, Updatable};
+use crate::model::panel::Choice;
 use bincode;
 use log::{error};
 use std::collections::hash_map::DefaultHasher;
@@ -25,6 +26,10 @@ pub enum Message {
     ScrollPanelPageDown(),
     ScrollPanelPageLeft(),
     ScrollPanelPageRight(),
+    ScrollPanelToBeginning(), // Home key - scroll to beginning horizontally
+    ScrollPanelToEnd(), // End key - scroll to end horizontally
+    ScrollPanelToTop(), // Ctrl+Home - scroll to top vertically
+    ScrollPanelToBottom(), // Ctrl+End - scroll to bottom vertically
     CopyFocusedPanelContent(),
     Resize,
     RedrawPanel(String),
@@ -39,6 +44,9 @@ pub enum Message {
     KeyPress(String),
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16), // x, y coordinates
+    PTYInput(String, String), // panel_id, input_text
+    ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, panel_id, libs
+    ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
     ExternalMessage(String),
     AddPanel(String, Panel),
     RemovePanel(String),
@@ -73,6 +81,10 @@ impl Hash for Message {
             Message::ScrollPanelPageDown() => "scroll_panel_page_down".hash(state),
             Message::ScrollPanelPageLeft() => "scroll_panel_page_left".hash(state),
             Message::ScrollPanelPageRight() => "scroll_panel_page_right".hash(state),
+            Message::ScrollPanelToBeginning() => "scroll_panel_to_beginning".hash(state),
+            Message::ScrollPanelToEnd() => "scroll_panel_to_end".hash(state),
+            Message::ScrollPanelToTop() => "scroll_panel_to_top".hash(state),
+            Message::ScrollPanelToBottom() => "scroll_panel_to_bottom".hash(state),
             Message::CopyFocusedPanelContent() => "copy_focused_panel_content".hash(state),
             Message::PanelOutputUpdate(panel_id, success, output) => {
                 "panel_output_update".hash(state);
@@ -102,6 +114,32 @@ impl Hash for Message {
                 "mouse_click".hash(state);
                 x.hash(state);
                 y.hash(state);
+            }
+            Message::PTYInput(panel_id, input) => {
+                "pty_input".hash(state);
+                panel_id.hash(state);
+                input.hash(state);
+            }
+            Message::ExecuteChoice(choice, panel_id, libs) => {
+                "execute_choice".hash(state);
+                choice.hash(state);
+                panel_id.hash(state);
+                libs.hash(state);
+            }
+            Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
+                "choice_execution_complete".hash(state);
+                choice_id.hash(state);
+                panel_id.hash(state);
+                match result {
+                    Ok(output) => {
+                        "ok".hash(state);
+                        output.hash(state);
+                    }
+                    Err(error) => {
+                        "err".hash(state);
+                        error.hash(state);
+                    }
+                }
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
@@ -219,7 +257,9 @@ impl RunnableImpl {
             self.app_context = updated_app_context;
         }
 
+        log::info!("RunnableImpl _run: state={:?}, messages={}", self.running_state, new_messages.len());
         if self.running_state == RunnableState::Running {
+            log::info!("RunnableImpl calling process function with {} messages", new_messages.len());
             let (process_should_continue, result_app_context) =
                 process_fn(self, self.app_context.clone(), new_messages);
             if result_app_context != original_app_context {
@@ -227,6 +267,9 @@ impl RunnableImpl {
                 self.send_app_context_update(original_app_context);
             }
             should_continue = process_should_continue;
+            log::info!("RunnableImpl process function returned should_continue={}", should_continue);
+        } else {
+            log::info!("RunnableImpl NOT calling process function - state is {:?}", self.running_state);
         }
 
         if !should_continue {
@@ -432,14 +475,45 @@ impl ThreadManager {
                 }
             }
 
-            // Handle messages
+            // Handle messages - collect first to avoid borrow conflicts
+            let mut messages_to_process = Vec::new();
             for reciever in self.message_receivers.values() {
                 if let Ok((uuid, received_msg)) = reciever.try_recv() {
-                    // log::info!("Received message from thread {}: {:?}", uuid, received_msg);
-                    if received_msg == Message::Exit {
+                    messages_to_process.push((uuid, received_msg));
+                }
+            }
+            
+            // Process collected messages
+            for (uuid, received_msg) in messages_to_process {
+                // log::info!("Received message from thread {}: {:?}", uuid, received_msg);
+                match received_msg {
+                    Message::Exit => {
                         self.send_message_to_all_threads((Uuid::new_v4(), Message::Terminate));
                         should_continue = false;
-                    } else {
+                    }
+                    Message::ExecuteChoice(choice, panel_id, libs) => {
+                        // Handle choice execution request by spawning ChoiceExecutionRunnable
+                        log::info!("ThreadManager spawning choice execution: {} on panel {}", choice.id, panel_id);
+                        let choice_runnable = ChoiceExecutionRunnable::new(self.app_context.clone());
+                        let choice_uuid = self.spawn_thread(choice_runnable);
+                        
+                        // Send ExecuteChoice message to the spawned runnable via unified message system
+                        log::info!("ThreadManager sending ExecuteChoice message to runnable thread: {}", choice_uuid);
+                        self.send_message_to_thread((Uuid::new_v4(), Message::ExecuteChoice(choice, panel_id, libs)), choice_uuid);
+                        has_updates = true;
+                    }
+                    Message::ChoiceExecutionComplete(ref choice_id, ref panel_id, ref result) => {
+                        log::info!("ThreadManager received ChoiceExecutionComplete for choice: {} on panel: {}", choice_id, panel_id);
+                        match result {
+                            Ok(output) => log::info!("ThreadManager broadcasting choice success: {} chars of output", output.len()),
+                            Err(error) => log::error!("ThreadManager broadcasting choice error: {}", error),
+                        }
+                        // Broadcast to all threads including DrawLoop
+                        self.send_message_to_all_threads((uuid, received_msg));
+                        has_updates = true;
+                    }
+                    _ => {
+                        // For all other messages, broadcast to all threads
                         self.send_message_to_all_threads((uuid, received_msg));
                         has_updates = true;
                     }
@@ -479,15 +553,16 @@ impl ThreadManager {
         let handle = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                let continue_running = true;
+                let mut continue_running = true;
                 while continue_running {
                     let result = runnable.run();
                     if let Err(e) = result {
                         error!("Runnable encountered an error: {}", e);
-                    } else if let Ok(continue_running) = result {
+                        continue_running = false;
+                    } else if let Ok(should_continue) = result {
+                        continue_running = should_continue;
                         if !continue_running {
                             log::trace!("Stopping thread as directed by run method");
-                            break;
                         }
                     }
                 }
@@ -523,9 +598,14 @@ impl ThreadManager {
 
     pub fn send_message_to_thread(&self, msg: (Uuid, Message), uuid: Uuid) {
         if let Some(sender) = self.message_senders.get(&uuid) {
+            log::info!("ThreadManager found message sender for thread: {}", uuid);
             if let Err(e) = sender.send(msg) {
-                error!("Failed to send message to thread: {}", e);
+                log::error!("Failed to send message to thread {}: {}", uuid, e);
+            } else {
+                log::info!("ThreadManager successfully sent message to thread: {}", uuid);
             }
+        } else {
+            log::error!("ThreadManager could not find message sender for thread: {}", uuid);
         }
     }
 
@@ -603,7 +683,7 @@ macro_rules! create_runnable {
             }
 
             fn process(&mut self, app_context: AppContext, messages: Vec<Message>) {
-                self.inner.process(app_context.clone(), messages.clone());
+                self.inner.process(app_context, messages)
             }
 
             fn update_app_context(&mut self, app_context: AppContext) {
@@ -636,7 +716,10 @@ macro_rules! create_runnable {
                 self.inner.set_app_context_receiver(app_context_receiver)
             }
 
-            fn set_message_receiver(&mut self, message_receiver: mpsc::Receiver<(Uuid, Message)>) {
+            fn set_message_receiver(
+                &mut self,
+                message_receiver: mpsc::Receiver<(Uuid, Message)>,
+            ) {
                 self.inner.set_message_receiver(message_receiver)
             }
 
@@ -662,6 +745,97 @@ macro_rules! create_runnable {
         }
     };
 }
+
+// T312: ChoiceExecutionRunnable - Convert choice execution to Runnable pattern
+create_runnable!(
+    ChoiceExecutionRunnable,
+    |inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool {
+        // Initialize - no setup needed for choice execution
+        log::info!("ChoiceExecutionRunnable initialization: state={:?}", inner.running_state);
+        inner.running_state = RunnableState::Running;
+        log::info!("ChoiceExecutionRunnable set state to Running");
+        true
+    },
+    |inner: &mut RunnableImpl,
+     app_context: AppContext,
+     messages: Vec<Message>|
+     -> (bool, AppContext) {
+        // Debug: Always log to see if processing function is called
+        let message_count = messages.len();
+        log::info!("ChoiceExecutionRunnable processing function called with {} messages", message_count);
+        
+        let mut has_executed_choice = false;
+        for message in messages {
+            if let Message::ExecuteChoice(choice, panel_id, libs) = message {
+                log::info!("ChoiceExecutionRunnable executing choice: {} for panel: {}", choice.id, panel_id);
+                has_executed_choice = true;
+                
+                // Execute the choice script
+                let choice_id = choice.id.clone();
+                let use_pty = choice.pty.unwrap_or(false);
+                let redirect_target = choice.redirect_output.clone();
+                
+                let result = if let Some(script) = &choice.script {
+                    log::info!("ChoiceExecutionRunnable running script for choice: {} (pty: {})", choice_id, use_pty);
+                    
+                    if use_pty {
+                        // PTY execution
+                        let message_sender = inner.message_sender.clone().map(|sender| (sender, inner.uuid));
+                        match run_script_with_pty_and_redirect(
+                            libs, 
+                            script, 
+                            use_pty, 
+                            app_context.pty_manager.as_ref().map(|v| &**v), 
+                            Some(panel_id.clone()),
+                            message_sender,
+                            redirect_target
+                        ) {
+                            Ok(output) => {
+                                log::info!("ChoiceExecutionRunnable PTY script started successfully for choice: {}", choice_id);
+                                Ok(output)
+                            },
+                            Err(e) => {
+                                log::error!("ChoiceExecutionRunnable PTY script failed for choice: {}: {}", choice_id, e);
+                                Err(e.to_string())
+                            }
+                        }
+                    } else {
+                        // Regular execution
+                        match run_script(libs, script) {
+                            Ok(output) => {
+                                log::info!("ChoiceExecutionRunnable script completed successfully for choice: {}", choice_id);
+                                Ok(output)
+                            },
+                            Err(e) => {
+                                log::error!("ChoiceExecutionRunnable script failed for choice: {}: {}", choice_id, e);
+                                Err(e.to_string())
+                            }
+                        }
+                    }
+                } else {
+                    log::error!("ChoiceExecutionRunnable no script defined for choice: {}", choice_id);
+                    Err("No script defined for choice".to_string())
+                };
+                
+                log::info!("ChoiceExecutionRunnable sending completion message for choice: {}", choice_id);
+                // Send completion message back to ThreadManager
+                inner.send_message(Message::ChoiceExecutionComplete(
+                    choice_id,
+                    panel_id,
+                    result,
+                ));
+            }
+        }
+        
+        // Continue if no messages received yet, terminate after processing ExecuteChoice
+        let should_continue = !has_executed_choice; // Continue until we process an ExecuteChoice
+        log::info!("ChoiceExecutionRunnable: messages={}, has_executed_choice={}, should_continue={}", 
+                   message_count, has_executed_choice, should_continue);
+        (should_continue, app_context)
+    }
+);
+
+// ChoiceExecutionRunnable implementation removed - using unified message system
 
 #[macro_export]
 macro_rules! create_runnable_with_dynamic_input {
@@ -802,7 +976,19 @@ pub fn run_script_in_thread(
                 .iter_mut()
                 .find(|c| c.id == vec[1])
                 .unwrap();
-            match run_script(libs, choice.script.clone().unwrap().as_ref()) {
+            // Check if choice should use PTY
+            let use_pty = crate::utils::should_use_pty_for_choice(choice);
+            let pty_manager = app_context_unwrapped.pty_manager.as_ref();
+            let message_sender = Some((inner.get_message_sender().as_ref().unwrap().clone(), inner.get_uuid()));
+            
+            match crate::utils::run_script_with_pty(
+                libs, 
+                choice.script.clone().unwrap().as_ref(),
+                use_pty,
+                pty_manager.map(|arc| arc.as_ref()),
+                Some(choice.id.clone()),
+                message_sender
+            ) {
                 Ok(output) => {
                     inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
                 }
