@@ -39,6 +39,7 @@ pub enum Message {
     KeyPress(String),
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16), // x, y coordinates
+    PTYInput(String, String), // panel_id, input_text
     ExternalMessage(String),
     AddPanel(String, Panel),
     RemovePanel(String),
@@ -102,6 +103,11 @@ impl Hash for Message {
                 "mouse_click".hash(state);
                 x.hash(state);
                 y.hash(state);
+            }
+            Message::PTYInput(panel_id, input) => {
+                "pty_input".hash(state);
+                panel_id.hash(state);
+                input.hash(state);
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
@@ -802,7 +808,19 @@ pub fn run_script_in_thread(
                 .iter_mut()
                 .find(|c| c.id == vec[1])
                 .unwrap();
-            match run_script(libs, choice.script.clone().unwrap().as_ref()) {
+            // Check if choice should use PTY
+            let use_pty = crate::utils::should_use_pty_for_choice(choice);
+            let pty_manager = app_context_unwrapped.pty_manager.as_ref();
+            let message_sender = Some((inner.get_message_sender().as_ref().unwrap().clone(), inner.get_uuid()));
+            
+            match crate::utils::run_script_with_pty(
+                libs, 
+                choice.script.clone().unwrap().as_ref(),
+                use_pty,
+                pty_manager.map(|arc| arc.as_ref()),
+                Some(choice.id.clone()),
+                message_sender
+            ) {
                 Ok(output) => {
                     inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
                 }

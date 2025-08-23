@@ -592,6 +592,7 @@ pub struct AppContext {
     pub app: App,
     pub config: Config,
     pub plugin_registry: std::sync::Arc<std::sync::Mutex<crate::plugin::PluginRegistry>>,
+    pub pty_manager: Option<std::sync::Arc<crate::pty_manager::PtyManager>>,
 }
 
 impl Updatable for AppContext {
@@ -651,6 +652,16 @@ impl AppContext {
             app, 
             config,
             plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            pty_manager: None,
+        }
+    }
+
+    pub fn new_with_pty(app: App, config: Config, pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>) -> Self {
+        AppContext { 
+            app, 
+            config,
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            pty_manager: Some(pty_manager),
         }
     }
 }
@@ -661,6 +672,7 @@ impl Clone for AppContext {
             app: self.app.clone(),
             config: self.config.clone(),
             plugin_registry: self.plugin_registry.clone(),
+            pty_manager: self.pty_manager.clone(),
         }
     }
 }

@@ -1,10 +1,12 @@
 use crate::choice_threads::{ChoiceResult, ChoiceResultPacket, ChoiceThreadManager, JobStatus};
+use log::{debug, error, info, warn};
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script,
     AppContext, Panel, ScreenBuffer,
 };
+use crate::utils::{run_script_with_pty_and_redirect, should_use_pty_for_choice};
 use crate::{thread_manager::*, FieldUpdate};
 use crossbeam_channel::Sender;
 use std::io::stdout;
@@ -378,6 +380,8 @@ create_runnable!(
                         *buffer = new_buffer;
                     }
                     Message::PanelOutputUpdate(panel_id, success, output) => {
+                        log::info!("RECEIVED PanelOutputUpdate for panel: {}, success: {}, output_len: {}, preview: {}", 
+                                   panel_id, success, output.len(), output.chars().take(50).collect::<String>());
                         let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                         let panel = app_context_unwrapped.app.get_panel_by_id(panel_id).unwrap();
                         update_panel_content(
@@ -396,50 +400,120 @@ create_runnable!(
                         log::warn!("Received deprecated ExternalMessage - should be converted by socket handler");
                     }
                     Message::ExecuteHotKeyChoice(choice_id) => {
-                        log::trace!("Executing hot key choice: {}", choice_id);
+                        log::info!("=== EXECUTING HOT KEY CHOICE: {} ===", choice_id);
+                        
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
                         
                         // Find the choice by ID in any panel
+                        log::info!("Searching for choice {} in active layout", choice_id);
                         if let Some(choice_panel) = active_layout.find_panel_with_choice(&choice_id) {
+                            log::info!("Found choice in panel: {}", choice_panel.id);
+                            
                             if let Some(choices) = &choice_panel.choices {
                                 if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
+                                    log::info!("Executing choice config - pty: {}, thread: {}, redirect: {:?}, script_lines: {}", 
+                                        choice.pty.unwrap_or(false),
+                                        choice.thread.unwrap_or(false), 
+                                        choice.redirect_output,
+                                        choice.script.as_ref().map(|s| s.len()).unwrap_or(0)
+                                    );
+                                    
                                     if let Some(script) = &choice.script {
                                         let libs = app_context_unwrapped.app.libs.clone();
                                         
                                         if choice.thread.unwrap_or(false) {
+                                            log::info!("Using threaded execution via thread pool");
                                             let script_clone = script.clone();
                                             let choice_id_clone = choice_id.clone();
                                             let panel_id_clone = choice_panel.id.clone();
                                             let libs_clone = libs.clone();
                                             
+                                            let use_pty = choice.pty.unwrap_or(false);
+                                            let pty_manager_clone = app_context_unwrapped.pty_manager.clone();
+                                            let redirect_output_clone = choice.redirect_output.clone();
+                                            let message_sender_clone = inner.get_message_sender().clone();
+                                            let thread_uuid_clone = inner.get_uuid();
+                                            
                                             let job = move |sender: Sender<Result<ChoiceResult<String>, String>>| {
-                                                let result = run_script(libs_clone, &script_clone);
+                                                log::info!("Thread pool executing choice script for {} (pty: {})", choice_id_clone, use_pty);
+                                                
+                                                let result = if use_pty && pty_manager_clone.is_some() {
+                                                    // Use PTY in thread pool execution
+                                                    log::info!("Using PTY execution in thread pool for choice {}", choice_id_clone);
+                                                    run_script_with_pty_and_redirect(
+                                                        libs_clone,
+                                                        &script_clone,
+                                                        true,
+                                                        pty_manager_clone.as_ref().map(|arc| arc.as_ref()),
+                                                        Some(choice_id_clone.clone()),
+                                                        Some((message_sender_clone.unwrap().clone(), thread_uuid_clone)),
+                                                        redirect_output_clone
+                                                    )
+                                                } else {
+                                                    // Regular script execution
+                                                    log::info!("Using regular execution in thread pool for choice {}", choice_id_clone);
+                                                    run_script(libs_clone, &script_clone)
+                                                };
+                                                
                                                 let mut success = false;
                                                 let result_string = match result {
                                                     Ok(output) => {
+                                                        log::info!("Thread pool choice {} completed successfully", choice_id_clone);
                                                         success = true;
                                                         output
                                                     }
-                                                    Err(e) => e.to_string(),
+                                                    Err(e) => {
+                                                        log::error!("Thread pool choice {} failed: {}", choice_id_clone, e);
+                                                        e.to_string()
+                                                    }
                                                 };
 
                                                 sender.send(Ok(ChoiceResult::new(success, result_string))).unwrap();
                                             };
 
-                                            if let Ok(job_id) = POOL.execute(choice_id_clone, panel_id_clone, job) {
+                                            let choice_id_for_pool = choice_id.clone();
+                                            if let Ok(job_id) = POOL.execute(choice_id_for_pool, panel_id_clone, job) {
                                                 log::trace!("Hot key choice {} dispatched as job: {:?}", choice_id, job_id);
                                             }
                                         } else {
-                                            // Execute immediately
-                                            let result = run_script(libs, script);
+                                            log::info!("Using immediate execution with PTY support");
+                                            
+                                            // Execute immediately with PTY support if specified
+                                            let use_pty = should_use_pty_for_choice(choice);
+                                            let pty_manager = app_context_unwrapped.pty_manager.as_ref();
+                                            let message_sender = Some((inner.get_message_sender().as_ref().unwrap().clone(), inner.get_uuid()));
+                                            
+                                            log::info!("PTY execution config - use_pty: {}, has_manager: {}, redirect: {:?}", 
+                                                use_pty, pty_manager.is_some(), choice.redirect_output);
+                                            
+                                            let result = run_script_with_pty_and_redirect(
+                                                libs,
+                                                script,
+                                                use_pty,
+                                                pty_manager.map(|arc| arc.as_ref()),
+                                                Some(choice.id.clone()),
+                                                message_sender,
+                                                choice.redirect_output.clone()
+                                            );
                                             match result {
-                                                Ok(output) => log::trace!("Hot key choice {} executed successfully", choice_id),
-                                                Err(e) => log::error!("Hot key choice {} failed: {}", choice_id, e),
+                                                Ok(output) => {
+                                                    log::info!("Choice executed successfully - output preview: {}", 
+                                                        output.chars().take(100).collect::<String>());
+                                                },
+                                                Err(e) => {
+                                                    log::error!("Choice execution failed: {}", e);
+                                                },
                                             }
                                         }
                                     }
+                                } else {
+                                    log::warn!("Choice {} found in panel {} but no matching choice in choices list", choice_id, choice_panel.id);
                                 }
+                            } else {
+                                log::warn!("Panel {} has no choices list", choice_panel.id);
                             }
+                        } else {
+                            log::error!("Choice {} not found in any panel of active layout", choice_id);
                         }
                     }
                     Message::KeyPress(pressed_key) => {
@@ -470,21 +544,58 @@ create_runnable!(
                                 let choices = panel_mut.choices.as_mut().unwrap();
                                 let selected_choice = choices.iter_mut().find(|c| c.selected);
                                 if let Some(selected_choice_unwrapped) = selected_choice {
+                                    log::info!("=== ENTER KEY CHOICE EXECUTION: {} (panel: {}) ===", 
+                                               selected_choice_unwrapped.id, panel.id);
+                                    log::info!("Enter choice config - pty: {}, thread: {}, redirect: {:?}", 
+                                        selected_choice_unwrapped.pty.unwrap_or(false),
+                                        selected_choice_unwrapped.thread.unwrap_or(false),
+                                        selected_choice_unwrapped.redirect_output
+                                    );
+                                    
                                     let script_clone = selected_choice_unwrapped.script.clone();
                                     if let Some(script_clone_unwrapped) = script_clone {
                                         let libs_clone = libs.clone();
+                                        let use_pty = selected_choice_unwrapped.pty.unwrap_or(false);
+                                        let pty_manager_clone = app_context_unwrapped.pty_manager.clone();
+                                        let redirect_output_clone = selected_choice_unwrapped.redirect_output.clone();
+                                        let choice_id_clone = selected_choice_unwrapped.id.clone();
+                                        let message_sender_clone = inner.get_message_sender().clone();
+                                        let thread_uuid_clone = inner.get_uuid();
+                                        
                                         let job = move |sender: Sender<
                                             Result<ChoiceResult<String>, String>,
                                         >| {
-                                            let result =
-                                                run_script(libs_clone, &script_clone_unwrapped);
+                                            log::info!("Enter key thread executing choice {} (pty: {})", choice_id_clone, use_pty);
+                                            
+                                            let result = if use_pty && pty_manager_clone.is_some() {
+                                                // Use PTY in Enter key execution
+                                                log::info!("Using PTY execution for Enter key choice {}", choice_id_clone);
+                                                run_script_with_pty_and_redirect(
+                                                    libs_clone,
+                                                    &script_clone_unwrapped,
+                                                    true,
+                                                    pty_manager_clone.as_ref().map(|arc| arc.as_ref()),
+                                                    Some(choice_id_clone.clone()),
+                                                    Some((message_sender_clone.unwrap().clone(), thread_uuid_clone)),
+                                                    redirect_output_clone
+                                                )
+                                            } else {
+                                                // Regular script execution
+                                                log::info!("Using regular execution for Enter key choice {}", choice_id_clone);
+                                                run_script(libs_clone, &script_clone_unwrapped)
+                                            };
+                                            
                                             let mut success = false;
                                             let result_string = match result {
                                                 Ok(output) => {
+                                                    log::info!("Enter key choice {} completed successfully", choice_id_clone);
                                                     success = true;
                                                     output
                                                 }
-                                                Err(e) => e.to_string(),
+                                                Err(e) => {
+                                                    log::error!("Enter key choice {} failed: {}", choice_id_clone, e);
+                                                    e.to_string()
+                                                }
                                             };
 
                                             sender
@@ -581,6 +692,25 @@ create_runnable!(
                                     }
                                 }
                             }
+                        }
+                    }
+                    Message::PTYInput(panel_id, input) => {
+                        log::trace!("PTY input for panel {}: {}", panel_id, input);
+                        
+                        // Find the target panel to verify it exists and has PTY enabled
+                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
+                            if panel.pty.unwrap_or(false) {
+                                log::debug!("Routing input to PTY panel {}: {:?}", panel_id, input.chars().collect::<Vec<_>>());
+                                
+                                // TODO: Write input to PTY process when PTY manager is thread-safe
+                                // For now, log the successful routing detection
+                                log::info!("PTY input ready for routing to panel {}: {} chars", 
+                                          panel_id, input.len());
+                            } else {
+                                log::warn!("Panel {} received PTY input but pty field is false", panel_id);
+                            }
+                        } else {
+                            log::error!("PTY input received for non-existent panel: {}", panel_id);
                         }
                     }
                     Message::MouseClick(x, y) => {
