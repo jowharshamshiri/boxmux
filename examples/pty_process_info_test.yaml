@@ -1,0 +1,56 @@
+config:
+  frame_delay: 50
+
+layouts:
+  - id: pty_info_demo
+    bg_color: black
+
+    panels:
+      - id: pty_panel_1
+        title: "PTY Shell"
+        position:
+          x1: 0%
+          y1: 0%
+          x2: 50%
+          y2: 50%
+        border: true
+        border_color: bright_cyan
+        pty: true
+        script:
+          - bash
+        next_focus_id: "pty_panel_2"
+
+      - id: pty_panel_2  
+        title: "PTY Commands"
+        position:
+          x1: 50%
+          y1: 0%
+          x2: 100%
+          y2: 50%
+        border: true
+        border_color: bright_cyan
+        pty: true
+        script:
+          - echo "Process info demo"
+          - echo "This PTY panel shows process details"
+          - ps aux | head -10
+        next_focus_id: "regular_panel"
+
+      - id: regular_panel
+        title: "Regular Panel (No PTY)"
+        position:
+          x1: 0%
+          y1: 50%
+          x2: 100%
+          y2: 100%
+        border: true
+        border_color: green
+        pty: false
+        script:
+          - echo "Regular panel without PTY"
+          - echo "No process info shown in title"
+          - date
+        next_focus_id: "pty_panel_1"
+
+app:
+  active_layout: pty_info_demo

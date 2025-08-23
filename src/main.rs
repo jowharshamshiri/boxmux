@@ -435,6 +435,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("The panel id to remove from its layout"),
                 ),
         )
+        // F0137: Socket PTY Control - Kill and restart PTY processes
+        .subcommand(
+            Command::new("kill_pty_process")
+                .about("Kills a PTY process for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id with the PTY process to kill"),
+                ),
+        )
+        .subcommand(
+            Command::new("restart_pty_process")
+                .about("Restarts a PTY process for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id with the PTY process to restart"),
+                ),
+        )
+        // F0138: Socket PTY Query - Get PTY status and info
+        .subcommand(
+            Command::new("query_pty_status")
+                .about("Gets PTY process status for a panel")
+                .arg(
+                    Arg::new("panel_id")
+                        .required(true)
+                        .index(1)
+                        .help("The panel id to query PTY status for"),
+                ),
+        )
         .get_matches();
 
     // Initialize logging framework (F0161/F0162)
@@ -622,6 +654,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         } else {
             return Err("Panel ID is required for remove_panel command".into());
+        }
+    }
+
+    // F0137: Socket PTY Control - Handle kill_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("kill_pty_process") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::KillPtyProcess {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for kill_pty_process command".into());
+        }
+    }
+
+    // F0137: Socket PTY Control - Handle restart_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("restart_pty_process") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::RestartPtyProcess {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for restart_pty_process command".into());
+        }
+    }
+
+    // F0138: Socket PTY Query - Handle query_pty_status subcommand
+    if let Some(matches) = matches.subcommand_matches("query_pty_status") {
+        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+            let socket_function = SocketFunction::QueryPtyStatus {
+                panel_id: panel_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Panel ID is required for query_pty_status command".into());
         }
     }
 

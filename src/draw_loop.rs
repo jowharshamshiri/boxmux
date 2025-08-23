@@ -6,6 +6,7 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script,
     AppContext, Panel, ScreenBuffer,
 };
+use crate::model::panel::Choice;
 use crate::utils::{run_script_with_pty_and_redirect, should_use_pty_for_choice};
 use crate::{thread_manager::*, FieldUpdate};
 // use crossbeam_channel::Sender; // T311: Removed with ChoiceThreadManager
@@ -81,6 +82,18 @@ create_runnable!(
                 .app
                 .get_adjusted_bounds_and_app_graph(Some(true));
             // T311: choice_ids_now_waiting removed - no longer needed with unified threading
+
+            if !messages.is_empty() {
+                log::info!("DrawLoop processing {} messages", messages.len());
+                for msg in &messages {
+                    match msg {
+                        Message::ChoiceExecutionComplete(choice_id, panel_id, _) => {
+                            log::info!("About to process ChoiceExecutionComplete: {} -> {}", choice_id, panel_id);
+                        }
+                        _ => {}
+                    }
+                }
+            }
 
             for message in &messages {
                 match message {
@@ -319,6 +332,74 @@ create_runnable!(
                             }
                         }
                     }
+                    Message::ScrollPanelToBeginning() => {
+                        // Home key: scroll to beginning horizontally (horizontal_scroll = 0)
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                found_panel.horizontal_scroll = Some(0.0);
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::ScrollPanelToEnd() => {
+                        // End key: scroll to end horizontally (horizontal_scroll = 100)
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                found_panel.horizontal_scroll = Some(100.0);
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::ScrollPanelToTop() => {
+                        // Ctrl+Home: scroll to top vertically (vertical_scroll = 0)
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                found_panel.vertical_scroll = Some(0.0);
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
+                    Message::ScrollPanelToBottom() => {
+                        // Ctrl+End: scroll to bottom vertically (vertical_scroll = 100)
+                        let selected_panels = app_context_unwrapped
+                            .app
+                            .get_active_layout()
+                            .unwrap()
+                            .get_selected_panels();
+                        if !selected_panels.is_empty() {
+                            let selected_id = selected_panels.first().unwrap().id.clone();
+                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
+                            if let Some(found_panel) = panel {
+                                found_panel.vertical_scroll = Some(100.0);
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawPanel(selected_id));
+                            }
+                        }
+                    }
                     Message::CopyFocusedPanelContent() => {
                         let selected_panels = app_context_unwrapped
                             .app
@@ -488,75 +569,79 @@ create_runnable!(
                                 .filter(|p| p.choices.is_some())
                                 .collect();
                             for panel in selected_panels_with_choices {
-                                let panel_mut = app_context_for_keypress
-                                    .app
-                                    .get_panel_by_id_mut(panel.id.as_str())
-                                    .unwrap();
-                                let choices = panel_mut.choices.as_mut().unwrap();
-                                let selected_choice = choices.iter_mut().find(|c| c.selected);
-                                if let Some(selected_choice_unwrapped) = selected_choice {
-                                    log::info!("=== ENTER KEY CHOICE EXECUTION: {} (panel: {}) ===", 
-                                               selected_choice_unwrapped.id, panel.id);
-                                    log::info!("Enter choice config - pty: {}, thread: {}, redirect: {:?}", 
-                                        selected_choice_unwrapped.pty.unwrap_or(false),
-                                        selected_choice_unwrapped.thread.unwrap_or(false),
-                                        selected_choice_unwrapped.redirect_output
-                                    );
-                                    
-                                    let script_clone = selected_choice_unwrapped.script.clone();
-                                    if let Some(script_clone_unwrapped) = script_clone {
-                                        let libs_clone = libs.clone();
-                                        let use_pty = selected_choice_unwrapped.pty.unwrap_or(false);
-                                        let pty_manager_clone = app_context_unwrapped.pty_manager.clone();
-                                        let redirect_output_clone = selected_choice_unwrapped.redirect_output.clone();
-                                        let choice_id_clone = selected_choice_unwrapped.id.clone();
-                                        let message_sender_clone = inner.get_message_sender().clone();
-                                        let thread_uuid_clone = inner.get_uuid();
-                                        
-                                        // T312: Execute choice using unified threading system instead of POOL
-                                        log::info!("Enter key thread executing choice {} (pty: {})", choice_id_clone, use_pty);
-                                        
-                                        let result = if use_pty && pty_manager_clone.is_some() {
-                                            // Use PTY in Enter key execution
-                                            log::info!("Using PTY execution for Enter key choice {}", choice_id_clone);
-                                            run_script_with_pty_and_redirect(
-                                                libs_clone,
-                                                &script_clone_unwrapped,
-                                                true,
-                                                pty_manager_clone.as_ref().map(|arc| arc.as_ref()),
-                                                Some(choice_id_clone.clone()),
-                                                Some((message_sender_clone.unwrap().clone(), thread_uuid_clone)),
-                                                redirect_output_clone
-                                            )
+                                // First, extract choice information before any mutable operations
+                                let (selected_choice_data, choice_needs_execution) = {
+                                    let panel_ref = app_context_for_keypress.app.get_panel_by_id(&panel.id).unwrap();
+                                    if let Some(ref choices) = panel_ref.choices {
+                                        if let Some(selected_choice) = choices.iter().find(|c| c.selected) {
+                                            let choice_data = (
+                                                selected_choice.id.clone(),
+                                                selected_choice.script.clone(),
+                                                selected_choice.pty.unwrap_or(false),
+                                                selected_choice.thread.unwrap_or(false),
+                                                selected_choice.redirect_output.clone(),
+                                                selected_choice.append_output.unwrap_or(false),
+                                                panel.id.clone()
+                                            );
+                                            (Some(choice_data), selected_choice.script.is_some())
                                         } else {
-                                            // Regular script execution
-                                            log::info!("Using regular execution for Enter key choice {}", choice_id_clone);
-                                            run_script(libs_clone, &script_clone_unwrapped)
-                                        };
-
-                                        match result {
-                                            Ok(output) => {
-                                                log::info!("Enter key choice {} completed successfully", choice_id_clone);
-                                                inner.send_message(Message::ChoiceExecutionComplete(
-                                                    selected_choice_unwrapped.id.clone(),
-                                                    panel.id.clone(),
-                                                    Ok(output),
-                                                ));
-                                            }
-                                            Err(e) => {
-                                                log::error!("Enter key choice {} failed: {}", choice_id_clone, e);
-                                                inner.send_message(Message::ChoiceExecutionComplete(
-                                                    selected_choice_unwrapped.id.clone(),
-                                                    panel.id.clone(),
-                                                    Err(e.to_string()),
-                                                ));
+                                            (None, false)
+                                        }
+                                    } else {
+                                        (None, false)
+                                    }
+                                };
+                                
+                                if let Some((choice_id, script_opt, use_pty, use_thread, redirect_output, append_output, panel_id)) = selected_choice_data {
+                                    if choice_needs_execution {
+                                        log::info!("=== ENTER KEY CHOICE EXECUTION: {} (panel: {}) ===", 
+                                                   choice_id, panel_id);
+                                        log::info!("Enter choice config - pty: {}, thread: {}, redirect: {:?}", 
+                                            use_pty, use_thread, redirect_output
+                                        );
+                                        
+                                        if let Some(script) = script_opt {
+                                        let libs_clone = libs.clone();
+                                        
+                                        // T312: Execute choice using unified threading system - proper architecture
+                                        log::info!("Enter key requesting ThreadManager to execute choice {} (pty: {})", choice_id, use_pty);
+                                        
+                                        // Set choice to waiting state before execution
+                                        if let Some(panel_mut) = app_context_for_keypress.app.get_panel_by_id_mut(&panel_id) {
+                                            if let Some(ref mut choices) = panel_mut.choices {
+                                                if let Some(choice) = choices.iter_mut().find(|c| c.id == choice_id) {
+                                                    choice.waiting = true;
+                                                }
                                             }
                                         }
 
-                                        log::trace!(
-                                            "Enter key choice {} execution completed",
-                                            selected_choice_unwrapped.id
-                                        );
+                                        // Create the choice object for execution
+                                        let choice_for_execution = Choice {
+                                            id: choice_id.clone(),
+                                            content: Some("".to_string()), // Not needed for execution
+                                            selected: false, // Not needed for execution
+                                            script: Some(script.clone()),
+                                            pty: Some(use_pty),
+                                            thread: Some(use_thread),
+                                            redirect_output: redirect_output.clone(),
+                                            append_output: Some(append_output),
+                                            waiting: true,
+                                        };
+
+                                        // Send ExecuteChoice message to ThreadManager (proper architecture)
+                                        log::info!("Sending ExecuteChoice message for choice {} (pty: {}, thread: {})", 
+                                            choice_id, use_pty, use_thread);
+                                        inner.send_message(Message::ExecuteChoice(
+                                            choice_for_execution,
+                                            panel_id.clone(),
+                                            libs_clone,
+                                        ));
+                                        
+                                        // Update the app context to persist the waiting state change
+                                        inner.update_app_context(app_context_for_keypress.clone());
+                                        
+                                        log::trace!("ExecuteChoice message sent for choice {}", choice_id);
+                                        }
                                     }
                                 }
                             }
@@ -685,13 +770,12 @@ create_runnable!(
                                             let panel_id_clone = clicked_panel.id.clone();
                                             let libs_clone = libs.clone();
                                             
-                                            // T312: Use ChoiceExecutionRunnable instead of POOL
-                                            let choice_runnable = ChoiceExecutionRunnable::execute_choice(
+                                            // T312: Use unified ExecuteChoice message system
+                                            inner.send_message(Message::ExecuteChoice(
                                                 clicked_choice.clone(),
                                                 panel_id_clone,
                                                 libs_clone,
-                                                app_context_unwrapped.clone(),
-                                            );
+                                            ));
                                             
                                             // Spawn the choice execution in ThreadManager
                                             // TODO: Get ThreadManager reference to spawn the runnable
@@ -730,7 +814,11 @@ create_runnable!(
                         }
                     }
                     Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
-                        log::trace!("Choice execution complete: {} on panel {}", choice_id, panel_id);
+                        log::info!("=== DRAWLOOP RECEIVED CHOICE EXECUTION COMPLETE: {} on panel {} ===", choice_id, panel_id);
+                        match result {
+                            Ok(ref output) => log::info!("DrawLoop processing choice success: {} chars of output", output.len()),
+                            Err(ref error) => log::error!("DrawLoop processing choice error: {}", error),
+                        }
                         
                         // First update the choice waiting state
                         if let Some(panel) = app_context_unwrapped.app.get_panel_by_id_mut(panel_id) {
@@ -746,14 +834,20 @@ create_runnable!(
                             if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
                                 if let Some(ref choices) = panel.choices {
                                     if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
-                                        choice.redirect_output.as_ref().unwrap_or(panel_id).clone()
+                                        let redirect_target = choice.redirect_output.as_ref().unwrap_or(panel_id).clone();
+                                        log::info!("Choice {} redirect_output: {:?} -> target panel: {}", 
+                                            choice_id, choice.redirect_output, redirect_target);
+                                        redirect_target
                                     } else {
+                                        log::warn!("Choice {} not found in panel {}", choice_id, panel_id);
                                         panel_id.clone()
                                     }
                                 } else {
+                                    log::warn!("Panel {} has no choices", panel_id);
                                     panel_id.clone()
                                 }
                             } else {
+                                log::error!("Panel {} not found", panel_id);
                                 panel_id.clone()
                             }
                         };
@@ -776,7 +870,8 @@ create_runnable!(
                         
                         match result {
                             Ok(output) => {
-                                log::trace!("Choice script output: {}", output);
+                                log::info!("Choice {} output length: {} chars, redirecting to panel: {}", 
+                                    choice_id, output.len(), target_panel_id);
                                 update_panel_content(
                                     inner,
                                     &mut app_context_unwrapped,
@@ -825,20 +920,20 @@ pub fn update_panel_content(
     append_output: bool,
     output: &str,
 ) {
+    log::info!("=== UPDATE PANEL CONTENT: {} (success: {}, append: {}, output_len: {}) ===", 
+        panel_id, success, append_output, output.len());
+        
     let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
     let panel = app_context_unwrapped.app.get_panel_by_id_mut(panel_id);
 
-    log::trace!(
-        "Updating panel content: {}, redirection: {:?}",
-        panel_id,
-        panel.as_ref().unwrap().redirect_output
-    );
     if let Some(found_panel) = panel {
+        log::info!("Found target panel: {} (redirect_output: {:?})", panel_id, found_panel.redirect_output);
+        
         if found_panel.redirect_output.is_some()
             && found_panel.redirect_output.as_ref().unwrap() != panel_id
         {
-            log::trace!(
-                "Redirecting output from panel {} to panel: {}",
+            log::info!(
+                "Panel {} has its own redirect to: {}, following redirect chain",
                 panel_id,
                 found_panel.redirect_output.as_ref().unwrap()
             );
@@ -851,22 +946,35 @@ pub fn update_panel_content(
                 output,
             );
         } else {
-            log::trace!("Updating panel {} content with no redirection.", panel_id);
+            log::info!("Updating panel {} content directly (no redirection)", panel_id);
+            log::info!("Panel {} current content length: {} chars", panel_id, 
+                found_panel.content.as_ref().map_or(0, |c| c.len()));
             
             // Check if this is PTY streaming output by the newline indicator
             let is_pty_streaming = output.ends_with('\n');
             
             if is_pty_streaming {
                 // Use streaming update for PTY output (no timestamp formatting)
+                log::info!("Using streaming update for panel {}", panel_id);
                 found_panel.update_streaming_content(output, success);
             } else {
                 // Use regular update for non-PTY output
+                log::info!("Using regular update for panel {} (append: {})", panel_id, append_output);
                 found_panel.update_content(output, append_output, success);
             }
             
+            log::info!("Panel {} updated content length: {} chars", panel_id,
+                found_panel.content.as_ref().map_or(0, |c| c.len()));
             inner.update_app_context(app_context_unwrapped.clone());
             inner.send_message(Message::RedrawPanel(panel_id.to_string()));
+            log::info!("Sent RedrawPanel message for panel: {}", panel_id);
         }
+    } else {
+        log::error!("Could not find panel {} for content update.", panel_id);
+        // List available panels for debugging
+        let available_panels: Vec<String> = app_context_unwrapped.app.get_active_layout()
+            .unwrap().get_all_panels().iter().map(|p| p.id.clone()).collect();
+        log::error!("Available panels: {:?}", available_panels);
     }
 }
 

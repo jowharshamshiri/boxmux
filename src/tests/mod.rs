@@ -49,6 +49,9 @@ pub mod auto_scroll_tests;
 pub mod clipboard_tests;
 
 #[cfg(test)]
+pub mod home_end_navigation_tests;
+
+#[cfg(test)]
 pub mod hotkey_tests;
 
 #[cfg(test)]
@@ -65,3 +68,15 @@ pub mod ansi_processor_tests;
 
 #[cfg(test)]
 pub mod special_key_tests;
+
+#[cfg(test)]
+pub mod pty_scrollback_tests;
+
+#[cfg(test)]
+pub mod pty_process_info_tests;
+
+#[cfg(test)]
+pub mod pty_error_states_tests;
+
+#[cfg(test)]
+pub mod socket_pty_control_tests;

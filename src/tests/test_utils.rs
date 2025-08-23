@@ -401,6 +401,16 @@ impl IntegrationTestUtils {
             SocketFunction::RemovePanel { panel_id } => {
                 Message::RemovePanel(panel_id)
             }
+            // F0137/F0138: Socket PTY Control and Query patterns
+            SocketFunction::KillPtyProcess { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY process killed".to_string())
+            }
+            SocketFunction::RestartPtyProcess { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY process restarted".to_string())
+            }
+            SocketFunction::QueryPtyStatus { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY status queried".to_string())
+            }
         };
         
         tx.send((test_uuid, boxmux_message))?;

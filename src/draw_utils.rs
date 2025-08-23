@@ -156,9 +156,20 @@ pub fn draw_panel(
                 .calc_title_fg_color(app_context, app_graph)
                 .to_string();
             let border = panel.calc_border(app_context, app_graph);
-            // Use different border color for PTY panels
+            // F0135: PTY Error States - Use different colors based on PTY status
             let border_color = if panel.pty.unwrap_or(false) {
-                "bright_cyan".to_string() // PTY panels get bright cyan borders
+                // Check for error states and use appropriate colors
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if pty_manager.is_pty_dead(&panel.id) {
+                        "red".to_string() // Dead PTY processes get red borders
+                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                        "yellow".to_string() // Error states get yellow borders
+                    } else {
+                        "bright_cyan".to_string() // Normal PTY panels get bright cyan borders
+                    }
+                } else {
+                    "bright_cyan".to_string() // Default PTY color if no manager
+                }
             } else {
                 panel.calc_border_color(app_context, app_graph).to_string()
             };
@@ -190,7 +201,18 @@ pub fn draw_panel(
                 content = table_content.as_deref();
             }
             
-            // check output is not null or empty - output overrides everything
+            // F0120: PTY Scrollback - Use scrollback content for PTY panels
+            let mut pty_scrollback_content = None;
+            if panel.pty.unwrap_or(false) {
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if let Some(scrollback) = panel.get_scrollback_content(pty_manager) {
+                        pty_scrollback_content = Some(scrollback);
+                        content = pty_scrollback_content.as_deref();
+                    }
+                }
+            }
+
+            // check output is not null or empty - output overrides everything (including scrollback)
             if !panel.output.is_empty() {
                 content = Some(&panel.output);
             }
@@ -212,12 +234,38 @@ pub fn draw_panel(
                 }
             }
 
-            // Add PTY indicator to title if panel has PTY enabled
+            // Add PTY indicator and process info to title if panel has PTY enabled
             let title_with_pty_indicator = if panel.pty.unwrap_or(false) {
-                match panel.title.as_deref() {
-                    Some(title) => Some(format!("⚡ {}", title)),
-                    None => Some("⚡ PTY".to_string()),
+                // F0135: PTY Error States - Use different indicators for error states
+                let indicator = if let Some(pty_manager) = &app_context.pty_manager {
+                    if pty_manager.is_pty_dead(&panel.id) {
+                        "💀" // Skull for dead processes
+                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                        "⚠️" // Warning for error states
+                    } else {
+                        "⚡" // Lightning bolt for normal PTY
+                    }
+                } else {
+                    "⚡" // Default lightning bolt
+                };
+                
+                let mut title_parts = vec![indicator.to_string()];
+                
+                // F0132: PTY Process Info - Add process info if available
+                if let Some(pty_manager) = &app_context.pty_manager {
+                    if let Some(status_summary) = pty_manager.get_process_status_summary(&panel.id) {
+                        title_parts.push(format!("[{}]", status_summary));
+                    }
                 }
+                
+                // Add original title if it exists
+                if let Some(title) = panel.title.as_deref() {
+                    title_parts.push(title.to_string());
+                } else {
+                    title_parts.push("PTY".to_string());
+                }
+                
+                Some(title_parts.join(" "))
             } else {
                 panel.title.clone()
             };

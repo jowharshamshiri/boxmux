@@ -18,6 +18,7 @@ pub mod utils;
 pub mod validation;
 pub mod chart;
 pub mod plugin;
+pub mod circular_buffer;
 pub mod pty_manager;
 pub mod ansi_processor;
 pub mod table;
