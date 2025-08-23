@@ -86,6 +86,7 @@ impl TestDataFactory {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
+            pty: None,
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,
@@ -203,6 +204,7 @@ impl TestDataFactory {
             app: Self::create_test_app(),
             config: Config::default(),
             plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            pty_manager: None,
         }
     }
 
@@ -398,6 +400,16 @@ impl IntegrationTestUtils {
             }
             SocketFunction::RemovePanel { panel_id } => {
                 Message::RemovePanel(panel_id)
+            }
+            // F0137/F0138: Socket PTY Control and Query patterns
+            SocketFunction::KillPtyProcess { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY process killed".to_string())
+            }
+            SocketFunction::RestartPtyProcess { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY process restarted".to_string())
+            }
+            SocketFunction::QueryPtyStatus { panel_id } => {
+                Message::PanelOutputUpdate(panel_id, true, "PTY status queried".to_string())
             }
         };
         

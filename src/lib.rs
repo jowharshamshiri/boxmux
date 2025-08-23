@@ -8,7 +8,7 @@ pub mod model {
 
 #[macro_use]
 pub mod thread_manager;
-pub mod choice_threads;
+// pub mod choice_threads; // T311: Removed with ChoiceThreadManager unification
 pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;
@@ -18,6 +18,9 @@ pub mod utils;
 pub mod validation;
 pub mod chart;
 pub mod plugin;
+pub mod circular_buffer;
+pub mod pty_manager;
+pub mod ansi_processor;
 pub mod table;
 
 #[cfg(test)]
@@ -34,6 +37,8 @@ pub use utils::*;
 pub use validation::*;
 pub use chart::*;
 pub use plugin::*;
+pub use pty_manager::*;
+pub use ansi_processor::*;
 pub use table::*;
 
 #[macro_use]

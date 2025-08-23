@@ -77,6 +77,7 @@ pub struct Choice {
     pub thread: Option<bool>,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
+    pub pty: Option<bool>,
     #[serde(skip, default)]
     pub selected: bool,
     #[serde(skip, default)]
@@ -91,6 +92,7 @@ impl Hash for Choice {
         self.thread.hash(state);
         self.redirect_output.hash(state);
         self.append_output.hash(state);
+        self.pty.hash(state);
         self.selected.hash(state);
         self.waiting.hash(state);
     }
@@ -104,6 +106,7 @@ impl PartialEq for Choice {
             && self.thread == other.thread
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
+            && self.pty == other.pty
             && self.selected == other.selected
             && self.waiting == other.waiting
     }
@@ -120,6 +123,7 @@ impl Clone for Choice {
             thread: self.thread,
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
+            pty: self.pty,
             selected: self.selected,
             waiting: self.waiting,
         }
@@ -196,6 +200,7 @@ pub struct Panel {
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
+    pub pty: Option<bool>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -280,6 +285,7 @@ impl Hash for Panel {
             serde_json::to_string(config).unwrap_or_default().hash(state);
         }
         self.auto_scroll_bottom.hash(state);
+        self.pty.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -361,6 +367,7 @@ impl Default for Panel {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
+            pty: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -437,6 +444,7 @@ impl PartialEq for Panel {
             && self.table_data == other.table_data
             && self.table_config == other.table_config
             && self.auto_scroll_bottom == other.auto_scroll_bottom
+            && self.pty == other.pty
             && self.error_state == other.error_state
     }
 }
@@ -506,6 +514,7 @@ impl Clone for Panel {
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
+            pty: self.pty,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -1327,8 +1336,8 @@ impl Panel {
                 formatted_content = format!(
                     "[{}]\n\n{}\n\n\n\n{}",
                     chrono::Local::now().to_rfc2822(),
-                    new_content,
-                    self_content
+                    self_content,
+                    new_content
                 );
             } else {
                 formatted_content =
@@ -1360,6 +1369,88 @@ impl Panel {
                 .open(self.save_in_file.clone().unwrap())
                 .unwrap();
             writeln!(file, "{}", formatted_content_for_file).unwrap();
+        }
+    }
+
+    /// Update content for streaming output (like PTY) without timestamp formatting
+    pub fn update_streaming_content(&mut self, new_content: &str, success: bool) {
+        // Preserve current scroll position
+        let preserved_horizontal_scroll = self.horizontal_scroll;
+        let preserved_vertical_scroll = self.vertical_scroll;
+        
+        let formatted_content = if let Some(self_content) = &self.content {
+            // Simple append without timestamp formatting for streaming
+            format!("{}{}", self_content, new_content)
+        } else {
+            new_content.to_string()
+        };
+        
+        self.content = Some(formatted_content);
+        self.error_state = !success;
+        
+        // Handle auto-scroll to bottom or restore scroll position
+        if self.auto_scroll_bottom == Some(true) {
+            // Auto-scroll to bottom - set vertical scroll to maximum
+            self.vertical_scroll = Some(100.0);
+            self.horizontal_scroll = preserved_horizontal_scroll;
+        } else {
+            // Restore scroll position after content update
+            self.horizontal_scroll = preserved_horizontal_scroll;
+            self.vertical_scroll = preserved_vertical_scroll;
+        }
+    }
+
+    /// Get scrollback content for PTY panels using the circular buffer
+    /// F0120: PTY Scrollback - Access full scrollback history beyond visible area
+    pub fn get_scrollback_content(&self, pty_manager: &crate::pty_manager::PtyManager) -> Option<String> {
+        if self.pty == Some(true) {
+            pty_manager.get_scrollback_content(&self.id)
+        } else {
+            self.content.clone()
+        }
+    }
+
+    /// Get scrollback lines for PTY panels with range support
+    /// F0120: PTY Scrollback - Access specific range of scrollback lines
+    pub fn get_scrollback_lines(&self, pty_manager: &crate::pty_manager::PtyManager, start_line: usize, line_count: usize) -> Option<Vec<String>> {
+        if self.pty == Some(true) {
+            if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
+                if let Ok(buffer_lock) = buffer.lock() {
+                    let total_lines = buffer_lock.len();
+                    if start_line < total_lines {
+                        let end_line = std::cmp::min(start_line + line_count, total_lines);
+                        return Some(buffer_lock.get_lines_range(start_line, line_count));
+                    }
+                }
+            }
+            None
+        } else {
+            // For regular panels, split content by lines and return range
+            if let Some(content) = &self.content {
+                let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+                let total_lines = lines.len();
+                if start_line < total_lines {
+                    let end_line = std::cmp::min(start_line + line_count, total_lines);
+                    return Some(lines[start_line..end_line].to_vec());
+                }
+            }
+            None
+        }
+    }
+
+    /// Get total available scrollback lines for a panel
+    /// F0120: PTY Scrollback - Get total scrollback line count for scroll calculations
+    pub fn get_scrollback_line_count(&self, pty_manager: &crate::pty_manager::PtyManager) -> usize {
+        if self.pty == Some(true) {
+            if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
+                if let Ok(buffer_lock) = buffer.lock() {
+                    return buffer_lock.len();
+                }
+            }
+            0
+        } else {
+            // For regular panels, count lines in content
+            self.content.as_ref().map(|c| c.lines().count()).unwrap_or(0)
         }
     }
 
@@ -2584,6 +2675,7 @@ mod tests {
             thread: Some(false),
             redirect_output: None,
             append_output: None,
+            pty: None,
             selected: false,
             waiting: false,
         }

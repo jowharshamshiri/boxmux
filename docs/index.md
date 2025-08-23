@@ -64,6 +64,22 @@ title: BoxMux - YAML-driven Terminal UI Framework
           Plugin guide
         </a>
       </div>
+      
+      <div class="feature-card">
+        <h3>PTY Features</h3>
+        <p>Interactive terminal emulation and process management.</p>
+        <a href="{{ "/pty-features" | relative_url }}" class="card-link">
+          PTY guide
+        </a>
+      </div>
+      
+      <div class="feature-card">
+        <h3>Advanced Features</h3>
+        <p>Mouse support, hot keys, streaming output, and enhanced navigation.</p>
+        <a href="{{ "/advanced-features" | relative_url }}" class="card-link">
+          Advanced guide
+        </a>
+      </div>
     </div>
   </div>
 </section>
@@ -123,7 +139,7 @@ title: BoxMux - YAML-driven Terminal UI Framework
     <div class="cards-grid">
       <div class="feature-card">
         <h3>Core Framework</h3>
-        <p>Complete YAML configuration system with multi-layout support, panel hierarchy, and real-time rendering.</p>
+        <p>YAML configuration system with multi-layout support, panel hierarchy, and real-time rendering.</p>
       </div>
       
       <div class="feature-card">
@@ -133,37 +149,37 @@ title: BoxMux - YAML-driven Terminal UI Framework
       
       <div class="feature-card">
         <h3>Scripting & Automation</h3>
-        <p>Multi-threaded script execution, output redirection, and external library support.</p>
+        <p>Multi-threaded script execution, streaming output, PTY support, and output redirection.</p>
       </div>
       
       <div class="feature-card">
         <h3>Socket API</h3>
-        <p>Complete Unix socket server for remote control - update panels, switch layouts, manage refresh cycles.</p>
+        <p>Unix socket server for remote control - update panels, switch layouts, manage refresh cycles.</p>
       </div>
       
       <div class="feature-card">
         <h3>Data Visualization</h3>
-        <p>Unicode charts (bar/line/histogram), smart layout engine, table panels with CSV/JSON parsing, sorting, filtering.</p>
+        <p>Unicode charts (bar/line/histogram), layout engine, table panels with CSV/JSON parsing, sorting, filtering.</p>
       </div>
       
       <div class="feature-card">
         <h3>Variable System</h3>
-        <p>Hierarchical variable substitution with proper precedence: environment > child > parent > layout > app > default.</p>
+        <p>Hierarchical variable substitution with precedence: environment > child > parent > layout > app > default.</p>
       </div>
       
       <div class="feature-card">
         <h3>Plugin System</h3>
-        <p>Dynamic component loading with security validation, manifest parsing, and permission-based access control.</p>
+        <p>Dynamic component loading with security validation, manifest parsing, and access control.</p>
       </div>
       
       <div class="feature-card">
         <h3>Enhanced Features</h3>
-        <p>Configuration schema validation, clipboard integration (Ctrl+C), enhanced scrolling with position preservation.</p>
+        <p>Mouse clicks, hot keys (F1-F24), clipboard integration (Ctrl+C), scrolling, proportional scrollbars.</p>
       </div>
       
       <div class="feature-card">
         <h3>Performance & Quality</h3>
-        <p>402/402 tests passing (100% success), performance benchmarking, cross-platform compatibility (macOS/Linux).</p>
+        <p>527/528 tests passing, performance benchmarking, cross-platform compatibility (macOS/Linux).</p>
       </div>
     </div>
   </div>
