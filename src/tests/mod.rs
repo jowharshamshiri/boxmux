@@ -58,6 +58,9 @@ pub mod hotkey_tests;
 pub mod mouse_click_tests;
 
 #[cfg(test)]
+pub mod clickable_scrollbar_tests;
+
+#[cfg(test)]
 pub mod pty_input_tests;
 
 #[cfg(test)]

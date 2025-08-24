@@ -279,6 +279,14 @@ create_runnable!(
                                         }
                                         _ => format!("Ctrl+{}", c),
                                     }
+                                } else if modifiers.contains(KeyModifiers::SUPER) {
+                                    match c {
+                                        'c' => {
+                                            inner.send_message(Message::CopyFocusedPanelContent());
+                                            "Cmd+c".to_string()
+                                        }
+                                        _ => format!("Cmd+{}", c),
+                                    }
                                 } else if modifiers.contains(KeyModifiers::ALT) {
                                     format!("Alt+{}", c)
                                 } else {

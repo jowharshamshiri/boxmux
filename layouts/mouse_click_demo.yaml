@@ -138,7 +138,6 @@ app:
             • Background threading
             
             Click away!
-          scroll: true
           auto_scroll_bottom: true
           border: true
           border_color: 'blue'

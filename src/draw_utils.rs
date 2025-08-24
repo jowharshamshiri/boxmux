@@ -220,18 +220,9 @@ pub fn draw_panel(
             // Automatic scrollbar logic for focusable panels
             let mut overflow_behavior = panel.calc_overflow_behavior(app_context, app_graph);
 
-            // If panel is focusable (has next_focus_id) and content might overflow, enable scrolling
-            if panel.next_focus_id.is_some() {
-                if let Some(content_str) = content {
-                    let (content_width, content_height) = content_size(content_str);
-                    let viewable_width = value.width().saturating_sub(4);
-                    let viewable_height = value.height().saturating_sub(4);
-
-                    // Check if content would overflow
-                    if content_width > viewable_width || content_height > viewable_height {
-                        overflow_behavior = "scroll".to_string();
-                    }
-                }
+            // If panel is focusable (has next_focus_id) and has scrollable content, enable scrolling
+            if panel.next_focus_id.is_some() && panel.has_scrollable_content() {
+                overflow_behavior = "scroll".to_string();
             }
 
             // Add PTY indicator and process info to title if panel has PTY enabled

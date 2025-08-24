@@ -143,8 +143,6 @@ pub struct Panel {
     pub max_width: Option<usize>,
     pub max_height: Option<usize>,
     pub overflow_behavior: Option<String>,
-    #[serde(default)]
-    pub scroll: bool,
     pub refresh_interval: Option<u64>,
     pub tab_order: Option<String>,
     pub next_focus_id: Option<String>,
@@ -223,7 +221,6 @@ impl Hash for Panel {
         self.max_height.hash(state);
         self.overflow_behavior.hash(state);
         self.content.hash(state);
-        self.scroll.hash(state);
         self.refresh_interval.hash(state);
         self.tab_order.hash(state);
         self.next_focus_id.hash(state);
@@ -321,7 +318,6 @@ impl Default for Panel {
             max_height: None,
             overflow_behavior: None,
             content: None,
-            scroll: false,
             refresh_interval: None,
             tab_order: None,
             next_focus_id: None,
@@ -393,7 +389,6 @@ impl PartialEq for Panel {
             && self.max_height == other.max_height
             && self.overflow_behavior == other.overflow_behavior
             && self.content == other.content
-            && self.scroll == other.scroll
             && self.refresh_interval == other.refresh_interval
             && self.tab_order == other.tab_order
             && self.next_focus_id == other.next_focus_id
@@ -468,7 +463,6 @@ impl Clone for Panel {
             max_height: self.max_height,
             overflow_behavior: self.overflow_behavior.clone(),
             content: self.content.clone(),
-            scroll: self.scroll,
             refresh_interval: self.refresh_interval,
             tab_order: self.tab_order.clone(),
             next_focus_id: self.next_focus_id.clone(),
@@ -1151,7 +1145,35 @@ impl Panel {
     }
 
     pub fn has_scrollable_content(&self) -> bool {
-        // Check if panel has content that could overflow and require scrolling
+        let bounds = self.bounds();
+        let viewable_width = bounds.width().saturating_sub(4); // Account for borders and padding
+        let viewable_height = bounds.height().saturating_sub(4);
+
+        // Check for choice/menu overflow first - choices take priority in rendering
+        if let Some(choices) = &self.choices {
+            let choice_count = choices.len();
+            if choice_count > viewable_height {
+                return true; // Choices overflow vertically
+            }
+            
+            // Check if any choice content is too wide
+            let max_choice_width = choices
+                .iter()
+                .map(|choice| {
+                    choice.content
+                        .as_ref()
+                        .map(|c| c.len())
+                        .unwrap_or(0)
+                })
+                .max()
+                .unwrap_or(0);
+            
+            if max_choice_width > viewable_width {
+                return true; // Choice content overflows horizontally
+            }
+        }
+
+        // Check text content for overflow (if no choices, or choices don't overflow)
         let content = if !self.output.is_empty() {
             Some(self.output.as_str())
         } else {
@@ -1164,17 +1186,20 @@ impl Panel {
                 return false;
             }
 
-            let bounds = self.bounds();
-            let viewable_width = bounds.width().saturating_sub(4); // Account for borders and padding
-            let viewable_height = bounds.height().saturating_sub(4);
-
             // Use the same content_size logic as draw_utils.rs
             let lines: Vec<&str> = content_str.split('\n').collect();
             let content_height = lines.len();
             let content_width = lines.iter().map(|line| line.len()).max().unwrap_or(0);
 
+            // Account for choice height if both choices and content exist
+            let total_content_height = if let Some(choices) = &self.choices {
+                content_height + choices.len()
+            } else {
+                content_height
+            };
+
             // Content overflows if it's larger than viewable area
-            content_width > viewable_width || content_height > viewable_height
+            content_width > viewable_width || total_content_height > viewable_height
         } else {
             false
         }
@@ -1810,14 +1835,6 @@ impl Updatable for Panel {
             }
         }
 
-        if self.scroll != other.scroll {
-            updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
-                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-                field_name: "scroll".to_string(),
-                new_value: serde_json::to_value(other.scroll).unwrap(),
-            });
-        }
 
         if self.refresh_interval != other.refresh_interval {
             if let Some(new_value) = other.refresh_interval {
@@ -2372,12 +2389,6 @@ impl Updatable for Panel {
                         self.overflow_behavior = new_overflow_behavior;
                     }
                 }
-                "scroll" => {
-                    if let Ok(new_scroll) = serde_json::from_value::<bool>(update.new_value.clone())
-                    {
-                        self.scroll = new_scroll;
-                    }
-                }
                 "refresh_interval" => {
                     if let Ok(new_refresh_interval) =
                         serde_json::from_value::<Option<u64>>(update.new_value.clone())
@@ -2766,7 +2777,6 @@ mod tests {
         let panel = Panel::default();
         assert_eq!(panel.id, "");
         assert_eq!(panel.title, None);
-        assert_eq!(panel.scroll, false);
         assert_eq!(panel.anchor, Anchor::Center);
         assert_eq!(panel.selected, Some(false));
         assert_eq!(panel.thread, Some(false));
@@ -2791,7 +2801,6 @@ mod tests {
                 x2: "90%".to_string(),
                 y2: "80%".to_string(),
             },
-            scroll: true,
             anchor: Anchor::TopLeft,
             selected: Some(true),
             content: Some("Test content".to_string()),
@@ -2800,7 +2809,6 @@ mod tests {
 
         assert_eq!(panel.id, "test_panel");
         assert_eq!(panel.title, Some("Test Panel".to_string()));
-        assert_eq!(panel.scroll, true);
         assert_eq!(panel.anchor, Anchor::TopLeft);
         assert_eq!(panel.selected, Some(true));
         assert_eq!(panel.content, Some("Test content".to_string()));
@@ -3421,6 +3429,63 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_panel_scrollable_content_with_choices() {
+        // Test that panels with many choices are correctly detected as scrollable
+        let mut panel = Panel {
+            id: "test_choice_scroll".to_string(),
+            position: InputBounds {
+                x1: "0".to_string(),
+                y1: "0".to_string(),
+                x2: "50".to_string(),  // Moderate width
+                y2: "20".to_string(),  // Moderate height
+            },
+            anchor: Anchor::TopLeft,
+            tab_order: None,
+            choices: None,
+            content: None,
+            ..Default::default()
+        };
+
+        // Test: Panel with no choices should not be scrollable
+        assert!(!panel.has_scrollable_content(), "Empty panel should not be scrollable");
+
+        // Test: Panel with few choices that fit should not be scrollable
+        panel.choices = Some(vec![
+            create_test_choice("choice1", "Item 1"),
+            create_test_choice("choice2", "Item 2"),
+            create_test_choice("choice3", "Item 3"),
+        ]);
+        assert!(!panel.has_scrollable_content(), "Panel with few choices should not be scrollable");
+
+        // Test: Panel with many choices should be scrollable (vertical overflow)
+        let many_choices: Vec<Choice> = (0..25).map(|i| {
+            create_test_choice(&format!("choice{}", i), &format!("Menu Item {}", i))
+        }).collect();
+        panel.choices = Some(many_choices);
+        assert!(panel.has_scrollable_content(), "Panel with many choices should be scrollable");
+
+        // Test: Panel with wide choice content should be scrollable (horizontal overflow)
+        panel.choices = Some(vec![
+            create_test_choice("wide_choice", "This is a very long menu choice that definitely exceeds the panel width and should trigger horizontal scrolling")
+        ]);
+        assert!(panel.has_scrollable_content(), "Panel with wide choice content should be scrollable");
+
+        // Test: Large panel with choices should not be scrollable
+        panel.position = InputBounds {
+            x1: "0".to_string(),
+            y1: "0".to_string(),
+            x2: "200".to_string(), // Very large width
+            y2: "100".to_string(),  // Very large height
+        };
+        panel.choices = Some(vec![
+            create_test_choice("choice1", "Item 1"),
+            create_test_choice("choice2", "Item 2"),
+        ]);
+        panel.content = None;
+        assert!(!panel.has_scrollable_content(), "Large panel with few choices should not be scrollable");
+    }
+
     // === Panel with Choices Tests ===
 
     /// Tests that Panel correctly handles choices.
@@ -3482,7 +3547,6 @@ mod tests {
         let panel1 = Panel {
             id: "test".to_string(),
             title: Some("Test".to_string()),
-            scroll: true,
             selected: Some(true),
             ..Default::default()
         };
@@ -3490,15 +3554,13 @@ mod tests {
         let panel2 = Panel {
             id: "test".to_string(),
             title: Some("Test".to_string()),
-            scroll: true,
             selected: Some(true),
             ..Default::default()
         };
 
         let panel3 = Panel {
             id: "test".to_string(),
-            title: Some("Test".to_string()),
-            scroll: false, // Different scroll value
+            title: Some("Different Title".to_string()), // Make it different
             selected: Some(true),
             ..Default::default()
         };

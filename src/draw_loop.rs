@@ -782,8 +782,64 @@ create_runnable!(
                         let mut app_context_for_click = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
-                        // F0091: Find which panel was clicked based on coordinates
-                        if let Some(clicked_panel) = active_layout.find_panel_at_coordinates(*x, *y)
+                        // F0187: Check for scrollbar clicks first
+                        let mut handled_scrollbar_click = false;
+                        for panel in active_layout.get_all_panels() {
+                            if panel.has_scrollable_content() {
+                                let panel_bounds = panel.bounds();
+                                
+                                // Check for vertical scrollbar click (right border)
+                                if *x as usize == panel_bounds.right() && 
+                                   *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
+                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
+                                    let click_position = ((*y as usize) - panel_bounds.top() - 1) as f64 / track_height as f64;
+                                    let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
+                                    
+                                    log::trace!("Vertical scrollbar click on panel {} at {}%", panel.id, scroll_percentage);
+                                    
+                                    // Update panel vertical scroll
+                                    let panel_to_update = app_context_for_click
+                                        .app
+                                        .get_panel_by_id_mut(&panel.id)
+                                        .unwrap();
+                                    panel_to_update.vertical_scroll = Some(scroll_percentage);
+                                    
+                                    inner.update_app_context(app_context_for_click.clone());
+                                    inner.send_message(Message::RedrawApp);
+                                    handled_scrollbar_click = true;
+                                    break;
+                                }
+                                
+                                // Check for horizontal scrollbar click (bottom border)
+                                if *y as usize == panel_bounds.bottom() && 
+                                   *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
+                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
+                                    let click_position = ((*x as usize) - panel_bounds.left() - 1) as f64 / track_width as f64;
+                                    let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
+                                    
+                                    log::trace!("Horizontal scrollbar click on panel {} at {}%", panel.id, scroll_percentage);
+                                    
+                                    // Update panel horizontal scroll
+                                    let panel_to_update = app_context_for_click
+                                        .app
+                                        .get_panel_by_id_mut(&panel.id)
+                                        .unwrap();
+                                    panel_to_update.horizontal_scroll = Some(scroll_percentage);
+                                    
+                                    inner.update_app_context(app_context_for_click.clone());
+                                    inner.send_message(Message::RedrawApp);
+                                    handled_scrollbar_click = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // If scrollbar click was handled, skip panel selection
+                        if handled_scrollbar_click {
+                            // Continue to next message
+                        } else {
+                            // F0091: Find which panel was clicked based on coordinates
+                            if let Some(clicked_panel) = active_layout.find_panel_at_coordinates(*x, *y)
                         {
                             log::trace!("Clicked on panel: {}", clicked_panel.id);
 
@@ -893,6 +949,7 @@ create_runnable!(
                                     inner.send_message(Message::RedrawApp);
                                 }
                             }
+                        }
                         }
                     }
                     Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
