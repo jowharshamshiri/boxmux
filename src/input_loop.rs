@@ -192,9 +192,20 @@ create_runnable!(
                                 "ScrollRight".to_string()
                             }
                             MouseEventKind::Down(_button) => {
-                                // F0091: Handle mouse clicks
+                                // F0091 & F0188: Handle mouse clicks and start of drag
                                 inner.send_message(Message::MouseClick(column, row));
+                                inner.send_message(Message::MouseDragStart(column, row));
                                 format!("MouseClick({}, {})", column, row)
+                            }
+                            MouseEventKind::Drag(_button) => {
+                                // F0188: Handle mouse drag for scroll knob dragging
+                                inner.send_message(Message::MouseDrag(column, row));
+                                format!("MouseDrag({}, {})", column, row)
+                            }
+                            MouseEventKind::Up(_button) => {
+                                // F0188: Handle end of drag
+                                inner.send_message(Message::MouseDragEnd(column, row));
+                                format!("MouseDragEnd({}, {})", column, row)
                             }
                             _ => return (true, app_context), // Ignore other mouse events
                         }
