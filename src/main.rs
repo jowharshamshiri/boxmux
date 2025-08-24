@@ -16,7 +16,6 @@ use boxmux_lib::pty_manager::PtyManager;
 use clap::{Arg, Command};
 // Removed manual debug logging - using env_logger instead
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::Path;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -25,7 +24,6 @@ use thread_manager::{Message, Runnable, RunnableImpl, ThreadManager};
 use uuid::Uuid;
 
 use boxmux_lib::model::app::*;
-use boxmux_lib::utils::*;
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
@@ -192,7 +190,7 @@ fn setup_signal_handler() {
     
     thread::spawn(move || {
         let mut signals = Signals::new(&[SIGINT]).expect("Error setting up signal handler");
-        for _sig in signals.forever() {
+        if let Some(_sig) = signals.forever().next() {
             r.store(false, Ordering::SeqCst);
             cleanup_terminal();
             std::process::exit(0);
