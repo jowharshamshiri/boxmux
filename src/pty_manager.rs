@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::{debug, error, warn};
 // Use log crate for debugging
-use portable_pty::{CommandBuilder, PtySize, MasterPty, Child};
+use portable_pty::{CommandBuilder, PtySize, MasterPty};
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{Arc, Mutex};

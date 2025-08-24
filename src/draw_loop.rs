@@ -1,5 +1,3 @@
-use crate::thread_manager::ChoiceExecutionRunnable;
-use log::{debug, error, info, warn};
 use crate::draw_utils::{draw_app, draw_panel};
 use crate::thread_manager::Runnable;
 use crate::{

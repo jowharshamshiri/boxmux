@@ -3,9 +3,6 @@ use crate::{
     pty_manager::PtyManager,
     Layout,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{self, Write};
 use std::process::{Command};
