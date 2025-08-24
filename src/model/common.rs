@@ -38,23 +38,37 @@ pub trait Updatable {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
     pub frame_delay: u64,
+    pub locked: bool, // Disable panel resizing and moving when true
 }
 
 impl Hash for Config {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.frame_delay.hash(state);
+        self.locked.hash(state);
     }
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { frame_delay: 30 }
+        Config { 
+            frame_delay: 30,
+            locked: false, // Default to unlocked (resizable/movable)
+        }
     }
 }
 
 impl Config {
     pub fn new(frame_delay: u64) -> Self {
-        let result = Config { frame_delay };
+        let result = Config { 
+            frame_delay,
+            locked: false, // Default to unlocked
+        };
+        result.validate();
+        result
+    }
+    
+    pub fn new_with_lock(frame_delay: u64, locked: bool) -> Self {
+        let result = Config { frame_delay, locked };
         result.validate();
         result
     }
@@ -896,7 +910,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Validation error: frame_delay cannot be 0")]
     fn test_config_validate_zero_frame_delay() {
-        let config = Config { frame_delay: 0 };
+        let config = Config { frame_delay: 0, locked: false };
         config.validate();
     }
 
@@ -904,7 +918,7 @@ mod tests {
     /// This test demonstrates successful Config validation.
     #[test]
     fn test_config_validate_valid() {
-        let config = Config { frame_delay: 16 };
+        let config = Config { frame_delay: 16, locked: false };
         config.validate(); // Should not panic
     }
 

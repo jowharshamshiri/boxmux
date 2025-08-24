@@ -2183,11 +2183,23 @@ pub fn update_panel_bounds_recursive(
             // Check if this is the panel we're looking for
             if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
                 if id == target_panel_id {
-                    // Update the bounds
-                    map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
-                    map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
-                    map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
-                    map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
+                    // Update the bounds in the position field
+                    if let Some(position_value) = map.get_mut(&Value::String("position".to_string())) {
+                        if let Value::Mapping(position_map) = position_value {
+                            position_map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
+                            position_map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
+                            position_map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
+                            position_map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
+                            return Ok(true);
+                        }
+                    }
+                    // If no position field exists, create one
+                    let mut position_map = serde_yaml::Mapping::new();
+                    position_map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
+                    position_map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
+                    position_map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
+                    position_map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
+                    map.insert(Value::String("position".to_string()), Value::Mapping(position_map));
                     return Ok(true);
                 }
             }

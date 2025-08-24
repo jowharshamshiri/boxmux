@@ -344,6 +344,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .value_name("FILE")
                 .help("Write logs to file instead of stderr"),
         )
+        .arg(
+            Arg::new("lock")
+                .long("lock")
+                .action(clap::ArgAction::SetTrue)
+                .help("Disable panel resizing and moving"),
+        )
         .subcommand(
             Command::new("stop_panel_refresh")
                 .about("Stops the refresh of the panel")
@@ -730,6 +736,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .parse::<u64>()
         .unwrap_or(100);
+    let locked = matches.get_flag("lock");
 
     let yaml_path = Path::new(yaml_path);
 
@@ -738,8 +745,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    // Convert to absolute path to ensure YAML persistence works regardless of working directory
+    let yaml_path = yaml_path.canonicalize().map_err(|e| {
+        format!("Failed to resolve absolute path for YAML file: {}", e)
+    })?;
+
     // Removed old simplelog - using our new comprehensive logging system instead
-    let config = boxmux_lib::model::common::Config::new(frame_delay);
+    let config = boxmux_lib::model::common::Config::new_with_lock(frame_delay, locked);
     let app = match load_app_from_yaml(yaml_path.to_str().unwrap()) {
         Ok(app) => app,
         Err(e) => {
