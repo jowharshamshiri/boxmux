@@ -733,7 +733,7 @@ pub fn render_panel(
 
             // Drawing scroll indicators with track and position
             if max_content_height > viewable_height {
-                let track_height = viewable_height.saturating_sub(2); // Available track space
+                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1); // Actual track space
 
                 // Draw vertical scroll track
                 for y in (bounds.top() + 1)..bounds.bottom() {
@@ -778,7 +778,7 @@ pub fn render_panel(
             }
 
             if max_content_width > viewable_width {
-                let track_width = viewable_width.saturating_sub(2); // Available track space
+                let track_width = bounds.right().saturating_sub(bounds.left() + 1); // Actual track space
 
                 // Draw horizontal scroll track
                 for x in (bounds.left() + 1)..bounds.right() {
