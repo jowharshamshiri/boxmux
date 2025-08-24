@@ -6,6 +6,8 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, AppContext, Panel,
     ScreenBuffer,
 };
+use crate::model::app::save_panel_bounds_to_yaml;
+use crate::model::common::InputBounds;
 use crate::{thread_manager::*, FieldUpdate};
 // use crossbeam_channel::Sender; // T311: Removed with ChoiceThreadManager
 use crossterm::{
@@ -28,7 +30,103 @@ struct DragState {
     start_scroll_percentage: f64,
 }
 
+// F0189: Panel resize state tracking for draggable panel borders
+#[derive(Debug, Clone)]
+struct PanelResizeState {
+    panel_id: String,
+    resize_edge: ResizeEdge,
+    start_x: u16,
+    start_y: u16,
+    original_bounds: InputBounds,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResizeEdge {
+    Right,
+    Bottom,
+    BottomRight,
+}
+
 static DRAG_STATE: Mutex<Option<DragState>> = Mutex::new(None);
+static PANEL_RESIZE_STATE: Mutex<Option<PanelResizeState>> = Mutex::new(None);
+
+// F0189: Helper functions to detect panel border resize areas
+pub fn detect_resize_edge(panel: &Panel, click_x: u16, click_y: u16) -> Option<ResizeEdge> {
+    let bounds = panel.bounds();
+    let x = click_x as usize;
+    let y = click_y as usize;
+    
+    // Check for corner resize (bottom-right)
+    if x == bounds.x2 && y == bounds.y2 {
+        return Some(ResizeEdge::BottomRight);
+    }
+    
+    // Check for right edge resize
+    if x == bounds.x2 && y >= bounds.y1 && y <= bounds.y2 {
+        return Some(ResizeEdge::Right);
+    }
+    
+    // Check for bottom edge resize  
+    if y == bounds.y2 && x >= bounds.x1 && x <= bounds.x2 {
+        return Some(ResizeEdge::Bottom);
+    }
+    
+    None
+}
+
+pub fn calculate_new_bounds(
+    original_bounds: &InputBounds, 
+    resize_edge: &ResizeEdge,
+    start_x: u16,
+    start_y: u16,
+    current_x: u16, 
+    current_y: u16,
+    terminal_width: usize,
+    terminal_height: usize,
+) -> InputBounds {
+    let delta_x = (current_x as i32) - (start_x as i32);
+    let delta_y = (current_y as i32) - (start_y as i32);
+    
+    let mut new_bounds = original_bounds.clone();
+    
+    match resize_edge {
+        ResizeEdge::Right => {
+            // Update x2 coordinate, convert pixel delta to percentage
+            if let Ok(current_x2_percent) = new_bounds.x2.replace('%', "").parse::<f32>() {
+                let pixel_delta = delta_x as f32;
+                let percent_delta = (pixel_delta / terminal_width as f32) * 100.0;
+                let new_x2_percent = (current_x2_percent + percent_delta).max(10.0).min(100.0);
+                new_bounds.x2 = format!("{}%", new_x2_percent.round() as i32);
+            }
+        }
+        ResizeEdge::Bottom => {
+            // Update y2 coordinate
+            if let Ok(current_y2_percent) = new_bounds.y2.replace('%', "").parse::<f32>() {
+                let pixel_delta = delta_y as f32;
+                let percent_delta = (pixel_delta / terminal_height as f32) * 100.0;
+                let new_y2_percent = (current_y2_percent + percent_delta).max(10.0).min(100.0);
+                new_bounds.y2 = format!("{}%", new_y2_percent.round() as i32);
+            }
+        }
+        ResizeEdge::BottomRight => {
+            // Update both x2 and y2
+            if let Ok(current_x2_percent) = new_bounds.x2.replace('%', "").parse::<f32>() {
+                let pixel_delta = delta_x as f32;
+                let percent_delta = (pixel_delta / terminal_width as f32) * 100.0;
+                let new_x2_percent = (current_x2_percent + percent_delta).max(10.0).min(100.0);
+                new_bounds.x2 = format!("{}%", new_x2_percent.round() as i32);
+            }
+            if let Ok(current_y2_percent) = new_bounds.y2.replace('%', "").parse::<f32>() {
+                let pixel_delta = delta_y as f32;
+                let percent_delta = (pixel_delta / terminal_height as f32) * 100.0;
+                let new_y2_percent = (current_y2_percent + percent_delta).max(10.0).min(100.0);
+                new_bounds.y2 = format!("{}%", new_y2_percent.round() as i32);
+            }
+        }
+    }
+    
+    new_bounds
+}
 
 // F0188: Helper functions to determine if click is on scroll knob (not just track)
 fn is_on_vertical_knob(panel: &Panel, click_y: usize) -> bool {
@@ -1059,95 +1157,153 @@ create_runnable!(
                         }
                     }
                     Message::MouseDragStart(x, y) => {
-                        // F0188: Check if drag started on a scroll knob
+                        // F0189: Check if drag started on a panel border first
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
-                        let mut drag_state = DRAG_STATE.lock().unwrap();
-                        *drag_state = None; // Clear any previous drag state
-
+                        let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                        *resize_state = None; // Clear any previous resize state
+                        
+                        // Check for panel border resize first
+                        let mut handled_resize = false;
                         for panel in active_layout.get_all_panels() {
-                            if panel.has_scrollable_content() {
-                                let panel_bounds = panel.bounds();
-                                
-                                // Check if drag started on vertical scroll knob
-                                if *x as usize == panel_bounds.right() && 
-                                   *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
-                                    // Check if we clicked on the actual knob, not just the track
-                                    if is_on_vertical_knob(panel, *y as usize) {
-                                        let current_scroll = panel.vertical_scroll.unwrap_or(0.0);
-                                        *drag_state = Some(DragState {
-                                            panel_id: panel.id.clone(),
-                                            is_vertical: true,
-                                            start_x: *x,
-                                            start_y: *y,
-                                            start_scroll_percentage: current_scroll,
-                                        });
-                                        log::trace!("Started dragging vertical scroll knob on panel {}", panel.id);
-                                        break;
+                            if let Some(resize_edge) = detect_resize_edge(panel, *x, *y) {
+                                *resize_state = Some(PanelResizeState {
+                                    panel_id: panel.id.clone(),
+                                    resize_edge,
+                                    start_x: *x,
+                                    start_y: *y,
+                                    original_bounds: panel.position.clone(),
+                                });
+                                log::trace!("Started resizing panel {} via {:?} edge", panel.id, resize_state.as_ref().unwrap().resize_edge);
+                                handled_resize = true;
+                                break;
+                            }
+                        }
+                        
+                        // F0188: If not a resize, check if drag started on a scroll knob
+                        if !handled_resize {
+                            let mut drag_state = DRAG_STATE.lock().unwrap();
+                            *drag_state = None; // Clear any previous drag state
+
+                            for panel in active_layout.get_all_panels() {
+                                if panel.has_scrollable_content() {
+                                    let panel_bounds = panel.bounds();
+                                    
+                                    // Check if drag started on vertical scroll knob
+                                    if *x as usize == panel_bounds.right() && 
+                                       *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
+                                        // Check if we clicked on the actual knob, not just the track
+                                        if is_on_vertical_knob(panel, *y as usize) {
+                                            let current_scroll = panel.vertical_scroll.unwrap_or(0.0);
+                                            *drag_state = Some(DragState {
+                                                panel_id: panel.id.clone(),
+                                                is_vertical: true,
+                                                start_x: *x,
+                                                start_y: *y,
+                                                start_scroll_percentage: current_scroll,
+                                            });
+                                            log::trace!("Started dragging vertical scroll knob on panel {}", panel.id);
+                                            break;
+                                        }
                                     }
-                                }
-                                
-                                // Check if drag started on horizontal scroll knob
-                                if *y as usize == panel_bounds.bottom() && 
-                                   *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
-                                    // Check if we clicked on the actual knob, not just the track
-                                    if is_on_horizontal_knob(panel, *x as usize) {
-                                        let current_scroll = panel.horizontal_scroll.unwrap_or(0.0);
-                                        *drag_state = Some(DragState {
-                                            panel_id: panel.id.clone(),
-                                            is_vertical: false,
-                                            start_x: *x,
-                                            start_y: *y,
-                                            start_scroll_percentage: current_scroll,
-                                        });
-                                        log::trace!("Started dragging horizontal scroll knob on panel {}", panel.id);
-                                        break;
-                                    }
+                                    
+                                    // Check if drag started on horizontal scroll knob
+                                    if *y as usize == panel_bounds.bottom() && 
+                                       *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
+                                        // Check if we clicked on the actual knob, not just the track
+                                        if is_on_horizontal_knob(panel, *x as usize) {
+                                            let current_scroll = panel.horizontal_scroll.unwrap_or(0.0);
+                                            *drag_state = Some(DragState {
+                                                panel_id: panel.id.clone(),
+                                                is_vertical: false,
+                                                start_x: *x,
+                                                start_y: *y,
+                                                start_scroll_percentage: current_scroll,
+                                            });
+                                            log::trace!("Started dragging horizontal scroll knob on panel {}", panel.id);
+                                            break;
+                                        }
                                 }
                             }
                         }
+                        }
                     }
                     Message::MouseDrag(x, y) => {
-                        // F0188: Update scroll position during drag
-                        let drag_state_guard = DRAG_STATE.lock().unwrap();
-                        if let Some(ref drag_state) = *drag_state_guard {
-                            let panel_to_update = app_context_unwrapped
-                                .app
-                                .get_panel_by_id_mut(&drag_state.panel_id);
-                                
-                            if let Some(panel) = panel_to_update {
-                                let panel_bounds = panel.bounds();
-                                
-                                if drag_state.is_vertical {
-                                    // Calculate new vertical scroll percentage based on drag distance
-                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
-                                    let drag_delta = (*y as isize) - (drag_state.start_y as isize);
-                                    let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
-                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                        .min(100.0).max(0.0);
-                                    
-                                    panel.vertical_scroll = Some(new_percentage);
-                                } else {
-                                    // Calculate new horizontal scroll percentage based on drag distance
-                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
-                                    let drag_delta = (*x as isize) - (drag_state.start_x as isize);
-                                    let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
-                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                        .min(100.0).max(0.0);
-                                    
-                                    panel.horizontal_scroll = Some(new_percentage);
-                                }
-                                
+                        // F0189: Handle panel border resize during drag
+                        let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
+                        if let Some(ref resize_state) = *resize_state_guard {
+                            let terminal_width = crate::screen_width();
+                            let terminal_height = crate::screen_height();
+                            
+                            let new_bounds = calculate_new_bounds(
+                                &resize_state.original_bounds,
+                                &resize_state.resize_edge,
+                                resize_state.start_x,
+                                resize_state.start_y,
+                                *x,
+                                *y,
+                                terminal_width,
+                                terminal_height,
+                            );
+                            
+                            // Update the panel bounds in real-time
+                            if let Some(panel) = app_context_unwrapped.app.get_panel_by_id_mut(&resize_state.panel_id) {
+                                panel.position = new_bounds;
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawApp);
+                            }
+                        } else {
+                            // F0188: Update scroll position during drag if not resizing
+                            let drag_state_guard = DRAG_STATE.lock().unwrap();
+                            if let Some(ref drag_state) = *drag_state_guard {
+                                let panel_to_update = app_context_unwrapped
+                                    .app
+                                    .get_panel_by_id_mut(&drag_state.panel_id);
+                                    
+                                if let Some(panel) = panel_to_update {
+                                    let panel_bounds = panel.bounds();
+                                    
+                                    if drag_state.is_vertical {
+                                        // Calculate new vertical scroll percentage based on drag distance
+                                        let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
+                                        let drag_delta = (*y as isize) - (drag_state.start_y as isize);
+                                        let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
+                                        let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                            .min(100.0).max(0.0);
+                                        
+                                        panel.vertical_scroll = Some(new_percentage);
+                                    } else {
+                                        // Calculate new horizontal scroll percentage based on drag distance
+                                        let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
+                                        let drag_delta = (*x as isize) - (drag_state.start_x as isize);
+                                        let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
+                                        let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                            .min(100.0).max(0.0);
+                                        
+                                        panel.horizontal_scroll = Some(new_percentage);
+                                    }
+                                    
+                                    inner.update_app_context(app_context_unwrapped.clone());
+                                    inner.send_message(Message::RedrawApp);
+                                }
                             }
                         }
                     }
                     Message::MouseDragEnd(x, y) => {
-                        // F0188: End drag operation
-                        let mut drag_state = DRAG_STATE.lock().unwrap();
-                        if drag_state.is_some() {
-                            log::trace!("Ended scroll knob drag at ({}, {})", x, y);
-                            *drag_state = None; // Clear drag state
+                        // F0189: End panel resize operation
+                        let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                        if let Some(ref resize_state_data) = *resize_state {
+                            log::trace!("Ended panel resize at ({}, {}) for panel {}", x, y, resize_state_data.panel_id);
+                            
+                            // Trigger YAML persistence
+                            inner.send_message(Message::PanelResizeComplete(resize_state_data.panel_id.clone()));
+                            *resize_state = None; // Clear resize state
+                        } else {
+                            // F0188: End scroll knob drag operation  
+                            let mut drag_state = DRAG_STATE.lock().unwrap();
+                            if drag_state.is_some() {
+                                log::trace!("Ended scroll knob drag at ({}, {})", x, y);
+                                *drag_state = None; // Clear drag state
+                            }
                         }
                     }
                     Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
@@ -1263,6 +1419,33 @@ create_runnable!(
                                     error,
                                 );
                             }
+                        }
+                    }
+                    Message::PanelResizeComplete(panel_id) => {
+                        // F0190: Save panel bounds changes to YAML file
+                        log::info!("Saving panel resize changes to YAML for panel: {}", panel_id);
+                        
+                        // Get the updated panel bounds
+                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
+                            let new_bounds = &panel.position;
+                            log::debug!("New bounds for panel {}: x1={}, y1={}, x2={}, y2={}", 
+                                panel_id, new_bounds.x1, new_bounds.y1, new_bounds.x2, new_bounds.y2);
+                                
+                            // Find the original YAML file path
+                            if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
+                                match save_panel_bounds_to_yaml(yaml_path, panel_id, new_bounds) {
+                                    Ok(()) => {
+                                        log::info!("Successfully saved panel {} bounds to YAML file", panel_id);
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to save panel {} bounds to YAML: {}", panel_id, e);
+                                    }
+                                }
+                            } else {
+                                log::warn!("No YAML file path available for saving panel bounds");
+                            }
+                        } else {
+                            log::error!("Panel {} not found for saving bounds", panel_id);
                         }
                     }
                     _ => {}

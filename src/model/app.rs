@@ -612,6 +612,7 @@ pub struct AppContext {
     pub config: Config,
     pub plugin_registry: std::sync::Arc<std::sync::Mutex<crate::plugin::PluginRegistry>>,
     pub pty_manager: Option<std::sync::Arc<crate::pty_manager::PtyManager>>,
+    pub yaml_file_path: Option<String>, // F0190: Store original YAML file path for live updates
 }
 
 impl Updatable for AppContext {
@@ -674,6 +675,7 @@ impl AppContext {
                 crate::plugin::PluginRegistry::new(),
             )),
             pty_manager: None,
+            yaml_file_path: None,
         }
     }
 
@@ -689,6 +691,37 @@ impl AppContext {
                 crate::plugin::PluginRegistry::new(),
             )),
             pty_manager: Some(pty_manager),
+            yaml_file_path: None,
+        }
+    }
+
+    // F0190: Constructor with YAML file path for live updates
+    pub fn new_with_yaml_path(app: App, config: Config, yaml_path: String) -> Self {
+        AppContext {
+            app,
+            config,
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugin::PluginRegistry::new(),
+            )),
+            pty_manager: None,
+            yaml_file_path: Some(yaml_path),
+        }
+    }
+
+    pub fn new_with_pty_and_yaml(
+        app: App,
+        config: Config,
+        pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>,
+        yaml_path: String,
+    ) -> Self {
+        AppContext {
+            app,
+            config,
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugin::PluginRegistry::new(),
+            )),
+            pty_manager: Some(pty_manager),
+            yaml_file_path: Some(yaml_path),
         }
     }
 }
@@ -700,6 +733,7 @@ impl Clone for AppContext {
             config: self.config.clone(),
             plugin_registry: self.plugin_registry.clone(),
             pty_manager: self.pty_manager.clone(),
+            yaml_file_path: self.yaml_file_path.clone(),
         }
     }
 }
@@ -2112,4 +2146,71 @@ app:
         // Clean up
         let _ = fs::remove_file(temp_file);
     }
+}
+
+// F0190: YAML persistence functions for live panel resizing
+pub fn save_panel_bounds_to_yaml(
+    yaml_path: &str,
+    panel_id: &str,
+    new_bounds: &crate::InputBounds,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    use serde_yaml::{self, Value};
+    
+    // Read the current YAML file
+    let yaml_content = fs::read_to_string(yaml_path)?;
+    let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
+    
+    // Find and update the panel bounds
+    update_panel_bounds_recursive(&mut yaml_value, panel_id, new_bounds)?;
+    
+    // Write back to file
+    let updated_yaml = serde_yaml::to_string(&yaml_value)?;
+    fs::write(yaml_path, updated_yaml)?;
+    
+    log::info!("Updated panel {} bounds in YAML file: {}", panel_id, yaml_path);
+    Ok(())
+}
+
+pub fn update_panel_bounds_recursive(
+    value: &mut serde_yaml::Value,
+    target_panel_id: &str,
+    new_bounds: &crate::InputBounds,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    use serde_yaml::Value;
+    match value {
+        Value::Mapping(map) => {
+            // Check if this is the panel we're looking for
+            if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
+                if id == target_panel_id {
+                    // Update the bounds
+                    map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
+                    map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
+                    map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
+                    map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
+                    return Ok(true);
+                }
+            }
+            
+            // Recursively search in children and other mappings
+            for (_, child_value) in map.iter_mut() {
+                if update_panel_bounds_recursive(child_value, target_panel_id, new_bounds)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Value::Sequence(seq) => {
+            // Search through sequences (like children arrays)
+            for item in seq.iter_mut() {
+                if update_panel_bounds_recursive(item, target_panel_id, new_bounds)? {
+                    return Ok(true);
+                }
+            }
+        }
+        _ => {
+            // Other value types don't contain panels
+        }
+    }
+    
+    Ok(false)
 }

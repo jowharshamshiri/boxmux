@@ -47,6 +47,8 @@ pub enum Message {
     MouseDragStart(u16, u16),                           // x, y coordinates - start drag
     MouseDrag(u16, u16),                                // x, y coordinates - continue drag
     MouseDragEnd(u16, u16),                             // x, y coordinates - end drag
+    PanelBorderDrag(String, u16, u16),                  // panel_id, x, y coordinates - resize panel
+    PanelResizeComplete(String),                        // panel_id - save changes to YAML
     PTYInput(String, String),                           // panel_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, panel_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
@@ -132,6 +134,16 @@ impl Hash for Message {
                 "mouse_drag_end".hash(state);
                 x.hash(state);
                 y.hash(state);
+            }
+            Message::PanelBorderDrag(panel_id, x, y) => {
+                "panel_border_drag".hash(state);
+                panel_id.hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::PanelResizeComplete(panel_id) => {
+                "panel_resize_complete".hash(state);
+                panel_id.hash(state);
             }
             Message::PTYInput(panel_id, input) => {
                 "pty_input".hash(state);
