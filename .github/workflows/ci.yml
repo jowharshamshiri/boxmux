@@ -90,9 +90,45 @@ jobs:
         name: ${{ matrix.asset_name }}
         path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
+  packages:
+    name: Build Packages
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Install packaging tools
+      run: |
+        cargo install cargo-deb cargo-rpm
+        sudo apt-get update && sudo apt-get install -y rpm
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/cache
+          ~/.cargo/registry
+          target
+        key: packages-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Build .deb package
+      run: cargo deb
+    - name: Build .rpm package
+      run: cargo rpm build
+    - name: Upload .deb package
+      uses: actions/upload-artifact@v3
+      with:
+        name: boxmux-deb
+        path: target/debian/*.deb
+    - name: Upload .rpm package
+      uses: actions/upload-artifact@v3
+      with:
+        name: boxmux-rpm
+        path: target/rpm/RPMS/*/*.rpm
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, packages]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     steps:
@@ -123,6 +159,15 @@ jobs:
         cd release-assets
         sha256sum * > checksums.txt
         cat checksums.txt
+    - name: Copy package files
+      run: |
+        # Copy .deb and .rpm packages
+        cp boxmux-deb/*.deb release-assets/ || echo "No .deb files found"
+        cp boxmux-rpm/*.rpm release-assets/ || echo "No .rpm files found"
+        # Update checksums to include packages
+        cd release-assets
+        sha256sum * > checksums.txt
+        cat checksums.txt
     - name: Upload release assets
       uses: softprops/action-gh-release@v1
       with:
@@ -132,6 +177,8 @@ jobs:
           release-assets/boxmux-macos-amd64
           release-assets/boxmux-macos-arm64
           release-assets/boxmux-windows-amd64.exe
+          release-assets/*.deb
+          release-assets/*.rpm
           release-assets/checksums.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -91,4 +91,39 @@ license = "MIT"
 name = "boxmux"
 readme = "README.md"
 repository = "https://github.com/jowharshamshiri/boxmux"
+version = "0.144.197284.0.197683"
+
+[package.metadata.deb]
+assets = [["target/release/boxmux", "usr/bin/", "755"], ["README.md", "usr/share/doc/boxmux/README", "644"], ["examples/*", "usr/share/doc/boxmux/examples/", "644"]]
+copyright = "2024, Bahram Shamshiri <jowharshamshiri@gmail.com>"
+depends = "$auto"
+extended-description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
+license-file = ["LICENSE", "4"]
+maintainer = "Bahram Shamshiri <jowharshamshiri@gmail.com>"
+priority = "optional"
+section = "utils"
+
+[package.metadata.rpm]
+description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
+group = "Applications/System"
+license = "MIT"
+package = "boxmux"
+requires = []
+summary = "YAML-driven terminal UI framework"
+url = "https://boxmux.com"
 version = "0.144.197284"
+
+[[package.metadata.rpm.files]]
+dest = "/usr/bin/boxmux"
+mode = "755"
+source = "target/release/boxmux"
+
+[[package.metadata.rpm.files]]
+dest = "/usr/share/doc/boxmux/README"
+mode = "644"
+source = "README.md"
+
+[[package.metadata.rpm.files]]
+dest = "/usr/share/doc/boxmux/examples/"
+mode = "644"
+source = "examples/*"
