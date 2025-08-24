@@ -18,6 +18,112 @@ use std::sync::{mpsc, Mutex};
 
 use uuid::Uuid;
 
+// F0188: Drag state tracking for draggable scroll knobs
+#[derive(Debug, Clone)]
+struct DragState {
+    panel_id: String,
+    is_vertical: bool,  // true for vertical scrollbar, false for horizontal
+    start_x: u16,
+    start_y: u16,
+    start_scroll_percentage: f64,
+}
+
+static DRAG_STATE: Mutex<Option<DragState>> = Mutex::new(None);
+
+// F0188: Helper functions to determine if click is on scroll knob (not just track)
+fn is_on_vertical_knob(panel: &Panel, click_y: usize) -> bool {
+    let panel_bounds = panel.bounds();
+    let viewable_height = panel_bounds.height().saturating_sub(4);
+    
+    // Get content dimensions to calculate knob position and size
+    let max_content_height = if let Some(content) = &panel.content {
+        let lines: Vec<&str> = content.split('\n').collect();
+        let mut total_height = lines.len();
+        
+        // Add choices height if present
+        if let Some(choices) = &panel.choices {
+            total_height += choices.len();
+        }
+        total_height
+    } else if let Some(choices) = &panel.choices {
+        choices.len()
+    } else {
+        viewable_height // No scrolling needed
+    };
+    
+    if max_content_height <= viewable_height {
+        return false; // No scrollbar needed
+    }
+    
+    let track_height = viewable_height.saturating_sub(2);
+    if track_height == 0 {
+        return false;
+    }
+    
+    // Calculate knob position and size (matching draw_utils.rs logic)
+    let content_ratio = viewable_height as f64 / max_content_height as f64;
+    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+    let available_track = track_height.saturating_sub(knob_size);
+    
+    let vertical_scroll = panel.vertical_scroll.unwrap_or(0.0);
+    let knob_position = if available_track > 0 {
+        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+    } else {
+        0
+    };
+    
+    // Check if click is within knob bounds
+    let knob_start_y = panel_bounds.top() + 1 + knob_position;
+    let knob_end_y = knob_start_y + knob_size;
+    
+    click_y >= knob_start_y && click_y < knob_end_y
+}
+
+fn is_on_horizontal_knob(panel: &Panel, click_x: usize) -> bool {
+    let panel_bounds = panel.bounds();
+    let viewable_width = panel_bounds.width().saturating_sub(4);
+    
+    // Get content width to calculate knob position and size
+    let max_content_width = if let Some(content) = &panel.content {
+        let lines: Vec<&str> = content.split('\n').collect();
+        lines.iter().map(|line| line.len()).max().unwrap_or(0)
+    } else if let Some(choices) = &panel.choices {
+        choices.iter()
+            .map(|choice| choice.content.as_ref().map(|c| c.len()).unwrap_or(0))
+            .max()
+            .unwrap_or(0)
+    } else {
+        viewable_width // No scrolling needed
+    };
+    
+    if max_content_width <= viewable_width {
+        return false; // No scrollbar needed
+    }
+    
+    let track_width = viewable_width.saturating_sub(2);
+    if track_width == 0 {
+        return false;
+    }
+    
+    // Calculate knob position and size (matching draw_utils.rs logic)
+    let content_ratio = viewable_width as f64 / max_content_width as f64;
+    let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
+    let available_track = track_width.saturating_sub(knob_size);
+    
+    let horizontal_scroll = panel.horizontal_scroll.unwrap_or(0.0);
+    let knob_position = if available_track > 0 {
+        ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
+    } else {
+        0
+    };
+    
+    // Check if click is within knob bounds
+    let knob_start_x = panel_bounds.left() + 1 + knob_position;
+    let knob_end_x = knob_start_x + knob_size;
+    
+    click_x >= knob_start_x && click_x < knob_end_x
+}
+
 lazy_static! {
     static ref GLOBAL_SCREEN: Mutex<Option<Stdout>> = Mutex::new(None);
     static ref GLOBAL_BUFFER: Mutex<Option<ScreenBuffer>> = Mutex::new(None);
@@ -950,6 +1056,98 @@ create_runnable!(
                                 }
                             }
                         }
+                        }
+                    }
+                    Message::MouseDragStart(x, y) => {
+                        // F0188: Check if drag started on a scroll knob
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        let mut drag_state = DRAG_STATE.lock().unwrap();
+                        *drag_state = None; // Clear any previous drag state
+
+                        for panel in active_layout.get_all_panels() {
+                            if panel.has_scrollable_content() {
+                                let panel_bounds = panel.bounds();
+                                
+                                // Check if drag started on vertical scroll knob
+                                if *x as usize == panel_bounds.right() && 
+                                   *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
+                                    // Check if we clicked on the actual knob, not just the track
+                                    if is_on_vertical_knob(panel, *y as usize) {
+                                        let current_scroll = panel.vertical_scroll.unwrap_or(0.0);
+                                        *drag_state = Some(DragState {
+                                            panel_id: panel.id.clone(),
+                                            is_vertical: true,
+                                            start_x: *x,
+                                            start_y: *y,
+                                            start_scroll_percentage: current_scroll,
+                                        });
+                                        log::trace!("Started dragging vertical scroll knob on panel {}", panel.id);
+                                        break;
+                                    }
+                                }
+                                
+                                // Check if drag started on horizontal scroll knob
+                                if *y as usize == panel_bounds.bottom() && 
+                                   *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
+                                    // Check if we clicked on the actual knob, not just the track
+                                    if is_on_horizontal_knob(panel, *x as usize) {
+                                        let current_scroll = panel.horizontal_scroll.unwrap_or(0.0);
+                                        *drag_state = Some(DragState {
+                                            panel_id: panel.id.clone(),
+                                            is_vertical: false,
+                                            start_x: *x,
+                                            start_y: *y,
+                                            start_scroll_percentage: current_scroll,
+                                        });
+                                        log::trace!("Started dragging horizontal scroll knob on panel {}", panel.id);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Message::MouseDrag(x, y) => {
+                        // F0188: Update scroll position during drag
+                        let drag_state_guard = DRAG_STATE.lock().unwrap();
+                        if let Some(ref drag_state) = *drag_state_guard {
+                            let panel_to_update = app_context_unwrapped
+                                .app
+                                .get_panel_by_id_mut(&drag_state.panel_id);
+                                
+                            if let Some(panel) = panel_to_update {
+                                let panel_bounds = panel.bounds();
+                                
+                                if drag_state.is_vertical {
+                                    // Calculate new vertical scroll percentage based on drag distance
+                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
+                                    let drag_delta = (*y as isize) - (drag_state.start_y as isize);
+                                    let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                        .min(100.0).max(0.0);
+                                    
+                                    panel.vertical_scroll = Some(new_percentage);
+                                } else {
+                                    // Calculate new horizontal scroll percentage based on drag distance
+                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
+                                    let drag_delta = (*x as isize) - (drag_state.start_x as isize);
+                                    let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                        .min(100.0).max(0.0);
+                                    
+                                    panel.horizontal_scroll = Some(new_percentage);
+                                }
+                                
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawApp);
+                            }
+                        }
+                    }
+                    Message::MouseDragEnd(x, y) => {
+                        // F0188: End drag operation
+                        let mut drag_state = DRAG_STATE.lock().unwrap();
+                        if drag_state.is_some() {
+                            log::trace!("Ended scroll knob drag at ({}, {})", x, y);
+                            *drag_state = None; // Clear drag state
                         }
                     }
                     Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {

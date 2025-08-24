@@ -44,6 +44,9 @@ pub enum Message {
     KeyPress(String),
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16),                               // x, y coordinates
+    MouseDragStart(u16, u16),                           // x, y coordinates - start drag
+    MouseDrag(u16, u16),                                // x, y coordinates - continue drag
+    MouseDragEnd(u16, u16),                             // x, y coordinates - end drag
     PTYInput(String, String),                           // panel_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, panel_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
@@ -112,6 +115,21 @@ impl Hash for Message {
             }
             Message::MouseClick(x, y) => {
                 "mouse_click".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseDragStart(x, y) => {
+                "mouse_drag_start".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseDrag(x, y) => {
+                "mouse_drag".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseDragEnd(x, y) => {
+                "mouse_drag_end".hash(state);
                 x.hash(state);
                 y.hash(state);
             }
