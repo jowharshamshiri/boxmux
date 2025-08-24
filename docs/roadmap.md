@@ -22,7 +22,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **YAML Configuration System** - Declarative interface definition with JSON schema validation
 - **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
 - **Socket-based API** - External control via Unix domain sockets
-- **Rich Component Library** - Panels, menus, charts, tables, real-time updates
+- **Rich Component Library** - MuxBoxes, menus, charts, tables, real-time updates
 - **Auto-Scroll Output** - Auto-scroll for command output with scroll-to-bottom
 - **Data Visualization** - Charts and tables with sorting, filtering, pagination
 - **Plugin System** - Dynamic component loading with security validation
@@ -30,11 +30,11 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **Performance Optimization** - Sub-millisecond input handling, efficient rendering
 
 ### Recently Completed Features
-- **Auto-Scroll to Bottom**: Panels automatically scroll to show latest content for logs and command output  
+- **Auto-Scroll to Bottom**: MuxBoxes automatically scroll to show latest content for logs and command output  
 - **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
 - **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
 - **Plugin System**: Dynamic component loading with security validation
-- **Clipboard Integration**: Ctrl+C copies focused panel content to clipboard
+- **Clipboard Integration**: Ctrl+C copies focused box content to clipboard
 - **Configuration Schema Validation**: JSON Schema validation for YAML configurations
 
 ## Planned Enhancements
@@ -56,7 +56,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
   - Better error reporting with line numbers and context
 
 - [ ] **Plugin Architecture**
-  - Dynamic loading of custom panel types
+  - Dynamic loading of custom box types
   - Standardized plugin API
   - Plugin marketplace and distribution
   - Community-contributed components

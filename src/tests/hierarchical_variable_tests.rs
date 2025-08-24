@@ -5,9 +5,9 @@ mod hierarchical_variable_tests {
     use std::fs;
     use tempfile::NamedTempFile;
 
-    /// Test hierarchical variable precedence: child panel overrides parent panel
+    /// Test hierarchical variable precedence: child muxbox overrides parent muxbox
     #[test]
-    fn test_child_panel_variables_override_parent_panel() {
+    fn test_child_muxbox_variables_override_parent_muxbox() {
         let yaml_content = r#"
 app:
   layouts:
@@ -15,16 +15,16 @@ app:
       root: true
       title: 'Test'
       children:
-        - id: 'parent_panel'
-          title: 'Parent Panel'
+        - id: 'parent_muxbox'
+          title: 'Parent MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           variables:
             SHARED_VAR: "parent_value"
             PARENT_ONLY: "parent_specific"
           content: 'Parent sees: ${SHARED_VAR}'
           children:
-            - id: 'child_panel'
-              title: 'Child Panel'
+            - id: 'child_muxbox'
+              title: 'Child MuxBox'
               position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
               variables:
                 SHARED_VAR: "child_value"  # Should override parent
@@ -39,19 +39,19 @@ app:
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
 
         let app = result.unwrap();
-        let parent_panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        let child_panel = &parent_panel.children.as_ref().unwrap()[0];
+        let parent_muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        let child_muxbox = &parent_muxbox.children.as_ref().unwrap()[0];
 
         // Parent should see its own variable value
-        let parent_content = parent_panel.content.as_ref().unwrap();
+        let parent_content = parent_muxbox.content.as_ref().unwrap();
         assert!(
             parent_content.contains("parent_value"),
-            "FAILED: Parent panel should see its own variable value. Got: '{}'",
+            "FAILED: Parent muxbox should see its own variable value. Got: '{}'",
             parent_content
         );
 
         // Child should see its own override value + inherit parent-only value
-        let child_content = child_panel.content.as_ref().unwrap();
+        let child_content = child_muxbox.content.as_ref().unwrap();
         assert!(
             child_content.contains("child_value"),
             "FAILED: Child should override parent variable. Got: '{}'",
@@ -78,15 +78,15 @@ app:
       root: true
       title: 'Test'
       children:
-        - id: 'parent_panel'
-          title: 'Parent Panel'
+        - id: 'parent_muxbox'
+          title: 'Parent MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           variables:
             HIERARCHY_TEST_VAR: "parent_level"
           content: 'Parent: ${HIERARCHY_TEST_VAR}'
           children:
-            - id: 'child_panel'
-              title: 'Child Panel' 
+            - id: 'child_muxbox'
+              title: 'Child MuxBox' 
               position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
               variables:
                 HIERARCHY_TEST_VAR: "child_level"
@@ -100,18 +100,18 @@ app:
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
 
         let app = result.unwrap();
-        let parent_panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        let child_panel = &parent_panel.children.as_ref().unwrap()[0];
+        let parent_muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        let child_muxbox = &parent_muxbox.children.as_ref().unwrap()[0];
 
         // YAML-defined variables should override environment for granular control
-        let parent_content = parent_panel.content.as_ref().unwrap();
+        let parent_content = parent_muxbox.content.as_ref().unwrap();
         assert!(
             parent_content.contains("parent_level"),
             "FAILED: Parent YAML variable should override environment. Got: '{}'",
             parent_content
         );
 
-        let child_content = child_panel.content.as_ref().unwrap();
+        let child_content = child_muxbox.content.as_ref().unwrap();
         assert!(
             child_content.contains("child_level"),
             "FAILED: Child YAML variable should override environment and parent. Got: '{}'",
@@ -204,18 +204,18 @@ app:
       root: true
       title: '${GLOBAL_PREFIX} Layout'
       children:
-        - id: 'parent_panel'
+        - id: 'parent_muxbox'
           title: '${GLOBAL_PREFIX} Parent'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           variables:
             LEVEL: "PARENT"
-            OUTPUT_TARGET: "child_panel"
+            OUTPUT_TARGET: "child_muxbox"
           content: 'Parent Level: ${LEVEL}'
           script:
             - "echo 'Parent script: ${LEVEL}'"
           redirect_output: '${OUTPUT_TARGET}'
           children:
-            - id: 'child_panel'
+            - id: 'child_muxbox'
               title: '${GLOBAL_PREFIX} Child'
               position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
               variables:
@@ -254,7 +254,7 @@ app:
         );
         assert_eq!(
             parent.redirect_output.as_ref().unwrap(),
-            "child_panel",
+            "child_muxbox",
             "FAILED: Parent redirect_output should use variable substitution"
         );
 

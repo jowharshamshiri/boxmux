@@ -1,7 +1,7 @@
 use crossterm::style::{Color, SetBackgroundColor, SetForegroundColor};
 
 use crate::{
-    set_terminal_title, AppContext, AppGraph, Bounds, Choice, Layout, Panel, ScreenBuffer,
+    set_terminal_title, AppContext, AppGraph, Bounds, Choice, Layout, MuxBox, ScreenBuffer,
 };
 use std::collections::HashMap;
 
@@ -96,7 +96,7 @@ pub fn draw_layout(
     let fill_char = cloned_layout.fill_char.unwrap_or(' ');
 
     // Set the background for the layout
-    fill_panel(&screen_bounds(), false, &bg_color, fill_char, buffer);
+    fill_muxbox(&screen_bounds(), false, &bg_color, fill_char, buffer);
 
     if let Some(layout_title) = &cloned_layout.title {
         if !layout_title.trim().is_empty() {
@@ -105,107 +105,107 @@ pub fn draw_layout(
     }
 
     if let Some(children) = &cloned_layout.children {
-        for panel in children.iter() {
-            draw_panel(
+        for muxbox in children.iter() {
+            draw_muxbox(
                 app_context,
                 app_graph,
                 adjusted_bounds,
                 layout,
-                panel,
+                muxbox,
                 buffer,
             );
         }
     }
 }
 
-pub fn draw_panel(
+pub fn draw_muxbox(
     app_context: &AppContext,
     app_graph: &AppGraph,
     adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
     layout: &Layout,
-    panel: &Panel,
+    muxbox: &MuxBox,
     buffer: &mut ScreenBuffer,
 ) {
-    let panel_parent = app_graph.get_parent(&layout.id, &panel.id);
+    let muxbox_parent = app_graph.get_parent(&layout.id, &muxbox.id);
 
     let layout_adjusted_bounds = adjusted_bounds.get(&layout.id);
 
-    let mut panel_adjusted_bounds = None;
+    let mut muxbox_adjusted_bounds = None;
     match layout_adjusted_bounds {
-        Some(value) => panel_adjusted_bounds = value.get(&panel.id),
+        Some(value) => muxbox_adjusted_bounds = value.get(&muxbox.id),
         None => println!("Calculated bounds for layout {} not found", &layout.id),
     }
 
-    match panel_adjusted_bounds {
+    match muxbox_adjusted_bounds {
         Some(value) => {
-            let bg_color = panel.calc_bg_color(app_context, app_graph).to_string();
-            let parent_bg_color = if panel_parent.is_none() {
+            let bg_color = muxbox.calc_bg_color(app_context, app_graph).to_string();
+            let parent_bg_color = if muxbox_parent.is_none() {
                 layout.bg_color.clone().unwrap_or("black".to_string())
             } else {
-                panel_parent
+                muxbox_parent
                     .unwrap()
                     .calc_bg_color(app_context, app_graph)
                     .to_string()
             };
-            let fg_color = panel.calc_fg_color(app_context, app_graph).to_string();
+            let fg_color = muxbox.calc_fg_color(app_context, app_graph).to_string();
 
-            let title_bg_color = panel
+            let title_bg_color = muxbox
                 .calc_title_bg_color(app_context, app_graph)
                 .to_string();
-            let title_fg_color = panel
+            let title_fg_color = muxbox
                 .calc_title_fg_color(app_context, app_graph)
                 .to_string();
-            let border = panel.calc_border(app_context, app_graph);
+            let border = muxbox.calc_border(app_context, app_graph);
             // F0135: PTY Error States - Use different colors based on PTY status
-            let border_color = if panel.pty.unwrap_or(false) {
+            let border_color = if muxbox.pty.unwrap_or(false) {
                 // Check for error states and use appropriate colors
                 if let Some(pty_manager) = &app_context.pty_manager {
-                    if pty_manager.is_pty_dead(&panel.id) {
+                    if pty_manager.is_pty_dead(&muxbox.id) {
                         "red".to_string() // Dead PTY processes get red borders
-                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                    } else if pty_manager.is_pty_in_error_state(&muxbox.id) {
                         "yellow".to_string() // Error states get yellow borders
                     } else {
-                        "bright_cyan".to_string() // Normal PTY panels get bright cyan borders
+                        "bright_cyan".to_string() // Normal PTY muxboxes get bright cyan borders
                     }
                 } else {
                     "bright_cyan".to_string() // Default PTY color if no manager
                 }
             } else {
-                panel.calc_border_color(app_context, app_graph).to_string()
+                muxbox.calc_border_color(app_context, app_graph).to_string()
             };
-            let fill_char = panel.calc_fill_char(app_context, app_graph);
+            let fill_char = muxbox.calc_fill_char(app_context, app_graph);
 
             // Draw fill
-            fill_panel(value, border, &bg_color, fill_char, buffer);
+            fill_muxbox(value, border, &bg_color, fill_char, buffer);
 
-            let mut content = panel.content.as_deref();
+            let mut content = muxbox.content.as_deref();
             let mut chart_content = None;
             let mut plugin_content = None;
             let mut table_content = None;
 
-            // Generate plugin content if panel has plugin configuration
-            if let Some(generated_plugin) = panel.generate_plugin_content(app_context, value) {
+            // Generate plugin content if muxbox has plugin configuration
+            if let Some(generated_plugin) = muxbox.generate_plugin_content(app_context, value) {
                 plugin_content = Some(generated_plugin);
                 content = plugin_content.as_deref();
             }
 
-            // Generate chart content if panel has chart configuration (charts override plugins)
-            if let Some(generated_chart) = panel.generate_chart_content(value) {
+            // Generate chart content if muxbox has chart configuration (charts override plugins)
+            if let Some(generated_chart) = muxbox.generate_chart_content(value) {
                 chart_content = Some(generated_chart);
                 content = chart_content.as_deref();
             }
 
-            // Generate table content if panel has table configuration (tables override charts)
-            if let Some(generated_table) = panel.generate_table_content(value) {
+            // Generate table content if muxbox has table configuration (tables override charts)
+            if let Some(generated_table) = muxbox.generate_table_content(value) {
                 table_content = Some(generated_table);
                 content = table_content.as_deref();
             }
 
-            // F0120: PTY Scrollback - Use scrollback content for PTY panels
+            // F0120: PTY Scrollback - Use scrollback content for PTY muxboxes
             let mut pty_scrollback_content = None;
-            if panel.pty.unwrap_or(false) {
+            if muxbox.pty.unwrap_or(false) {
                 if let Some(pty_manager) = &app_context.pty_manager {
-                    if let Some(scrollback) = panel.get_scrollback_content(pty_manager) {
+                    if let Some(scrollback) = muxbox.get_scrollback_content(pty_manager) {
                         pty_scrollback_content = Some(scrollback);
                         content = pty_scrollback_content.as_deref();
                     }
@@ -213,25 +213,25 @@ pub fn draw_panel(
             }
 
             // check output is not null or empty - output overrides everything (including scrollback)
-            if !panel.output.is_empty() {
-                content = Some(&panel.output);
+            if !muxbox.output.is_empty() {
+                content = Some(&muxbox.output);
             }
 
-            // Automatic scrollbar logic for focusable panels
-            let mut overflow_behavior = panel.calc_overflow_behavior(app_context, app_graph);
+            // Automatic scrollbar logic for focusable muxboxes
+            let mut overflow_behavior = muxbox.calc_overflow_behavior(app_context, app_graph);
 
-            // If panel is focusable (has next_focus_id) and has scrollable content, enable scrolling
-            if panel.next_focus_id.is_some() && panel.has_scrollable_content() {
+            // If muxbox is focusable (has next_focus_id) and has scrollable content, enable scrolling
+            if muxbox.next_focus_id.is_some() && muxbox.has_scrollable_content() {
                 overflow_behavior = "scroll".to_string();
             }
 
-            // Add PTY indicator and process info to title if panel has PTY enabled
-            let title_with_pty_indicator = if panel.pty.unwrap_or(false) {
+            // Add PTY indicator and process info to title if muxbox has PTY enabled
+            let title_with_pty_indicator = if muxbox.pty.unwrap_or(false) {
                 // F0135: PTY Error States - Use different indicators for error states
                 let indicator = if let Some(pty_manager) = &app_context.pty_manager {
-                    if pty_manager.is_pty_dead(&panel.id) {
+                    if pty_manager.is_pty_dead(&muxbox.id) {
                         "💀" // Skull for dead processes
-                    } else if pty_manager.is_pty_in_error_state(&panel.id) {
+                    } else if pty_manager.is_pty_in_error_state(&muxbox.id) {
                         "⚠️" // Warning for error states
                     } else {
                         "⚡" // Lightning bolt for normal PTY
@@ -244,14 +244,14 @@ pub fn draw_panel(
 
                 // F0132: PTY Process Info - Add process info if available
                 if let Some(pty_manager) = &app_context.pty_manager {
-                    if let Some(status_summary) = pty_manager.get_process_status_summary(&panel.id)
+                    if let Some(status_summary) = pty_manager.get_process_status_summary(&muxbox.id)
                     {
                         title_parts.push(format!("[{}]", status_summary));
                     }
                 }
 
                 // Add original title if it exists
-                if let Some(title) = panel.title.as_deref() {
+                if let Some(title) = muxbox.title.as_deref() {
                     title_parts.push(title.to_string());
                 } else {
                     title_parts.push("PTY".to_string());
@@ -259,10 +259,10 @@ pub fn draw_panel(
 
                 Some(title_parts.join(" "))
             } else {
-                panel.title.clone()
+                muxbox.title.clone()
             };
 
-            render_panel(
+            render_muxbox(
                 value,
                 &border_color,
                 &bg_color,
@@ -270,26 +270,26 @@ pub fn draw_panel(
                 title_with_pty_indicator.as_deref(),
                 &title_fg_color,
                 &title_bg_color,
-                &panel.calc_title_position(app_context, app_graph),
-                panel.choices.clone(),
-                &panel.calc_menu_fg_color(app_context, app_graph),
-                &panel.calc_menu_bg_color(app_context, app_graph),
-                &panel.calc_selected_menu_fg_color(app_context, app_graph),
-                &panel.calc_selected_menu_bg_color(app_context, app_graph),
+                &muxbox.calc_title_position(app_context, app_graph),
+                muxbox.choices.clone(),
+                &muxbox.calc_menu_fg_color(app_context, app_graph),
+                &muxbox.calc_menu_bg_color(app_context, app_graph),
+                &muxbox.calc_selected_menu_fg_color(app_context, app_graph),
+                &muxbox.calc_selected_menu_bg_color(app_context, app_graph),
                 content,
                 &fg_color,
                 &overflow_behavior,
-                Some(&panel.calc_border(app_context, app_graph)),
-                panel.current_horizontal_scroll(),
-                panel.current_vertical_scroll(),
+                Some(&muxbox.calc_border(app_context, app_graph)),
+                muxbox.current_horizontal_scroll(),
+                muxbox.current_vertical_scroll(),
                 app_context.config.locked, // Pass locked state from config
                 buffer,
             );
 
             // Draw children
-            if let Some(children) = &panel.children {
+            if let Some(children) = &muxbox.children {
                 for child in children.iter() {
-                    draw_panel(
+                    draw_muxbox(
                         app_context,
                         app_graph,
                         adjusted_bounds,
@@ -300,7 +300,7 @@ pub fn draw_panel(
                 }
             }
         }
-        None => println!("Calculated bounds for panel {} not found", &panel.id),
+        None => println!("Calculated bounds for muxbox {} not found", &muxbox.id),
     }
 }
 
@@ -519,7 +519,7 @@ static V_SCROLL_CHAR: &str = "█";
 static H_SCROLL_TRACK: &str = "─";
 static V_SCROLL_TRACK: &str = "│";
 
-pub fn render_panel(
+pub fn render_muxbox(
     bounds: &Bounds,
     border_color: &str,
     bg_color: &str,
@@ -539,7 +539,7 @@ pub fn render_panel(
     border: Option<&bool>,
     horizontal_scroll: f64,
     vertical_scroll: f64,
-    locked: bool, // Whether panels are locked (disable resize/move and hide corner knob)
+    locked: bool, // Whether muxboxes are locked (disable resize/move and hide corner knob)
     buffer: &mut ScreenBuffer,
 ) {
     let draw_border = border.unwrap_or(&true);
@@ -853,7 +853,7 @@ pub fn render_panel(
 
     if _overflowing && overflow_behavior != "scroll" {
         if overflow_behavior == "fill" {
-            fill_panel(&bounds, true, bg_color, '█', buffer);
+            fill_muxbox(&bounds, true, bg_color, '█', buffer);
         } else if overflow_behavior == "cross_out" {
             for i in 0..bounds.width() {
                 let cell = Cell {
@@ -864,7 +864,7 @@ pub fn render_panel(
                 buffer.update(bounds.left() + i, bounds.top() + i, cell);
             }
         } else if overflow_behavior == "removed" {
-            fill_panel(&bounds, false, parent_bg_color, ' ', buffer);
+            fill_muxbox(&bounds, false, parent_bg_color, ' ', buffer);
         }
     } else if *draw_border {
         // Draw bottom border
@@ -942,7 +942,7 @@ pub fn render_panel(
     }
 }
 
-pub fn fill_panel(
+pub fn fill_muxbox(
     bounds: &Bounds,
     inside: bool,
     bg_color: &str,

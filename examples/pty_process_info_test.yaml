@@ -5,8 +5,8 @@ layouts:
   - id: pty_info_demo
     bg_color: black
 
-    panels:
-      - id: pty_panel_1
+    boxes:
+      - id: pty_box_1
         title: "PTY Shell"
         position:
           x1: 0%
@@ -18,9 +18,9 @@ layouts:
         pty: true
         script:
           - bash
-        next_focus_id: "pty_panel_2"
+        next_focus_id: "pty_box_2"
 
-      - id: pty_panel_2  
+      - id: pty_box_2  
         title: "PTY Commands"
         position:
           x1: 50%
@@ -32,12 +32,12 @@ layouts:
         pty: true
         script:
           - echo "Process info demo"
-          - echo "This PTY panel shows process details"
+          - echo "This PTY box shows process details"
           - ps aux | head -10
-        next_focus_id: "regular_panel"
+        next_focus_id: "regular_box"
 
-      - id: regular_panel
-        title: "Regular Panel (No PTY)"
+      - id: regular_box
+        title: "Regular MuxBox (No PTY)"
         position:
           x1: 0%
           y1: 50%
@@ -47,10 +47,10 @@ layouts:
         border_color: green
         pty: false
         script:
-          - echo "Regular panel without PTY"
+          - echo "Regular box without PTY"
           - echo "No process info shown in title"
           - date
-        next_focus_id: "pty_panel_1"
+        next_focus_id: "pty_box_1"
 
 app:
   active_layout: pty_info_demo

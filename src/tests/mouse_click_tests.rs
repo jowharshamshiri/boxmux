@@ -1,10 +1,10 @@
 //! F0091 - Mouse Click Support Tests
-//! Test the mouse click functionality for panel selection and choice activation
+//! Test the mouse click functionality for muxbox selection and choice activation
 
 #[cfg(test)]
 mod mouse_click_tests {
     use crate::model::layout::Layout;
-    use crate::model::panel::{Choice, Panel};
+    use crate::model::muxbox::{Choice, MuxBox};
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
 
@@ -49,24 +49,24 @@ mod mouse_click_tests {
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
 
-    /// Test finding panel at coordinates
+    /// Test finding muxbox at coordinates
     #[test]
-    fn test_find_panel_at_coordinates() {
-        let mut panel1 = TestDataFactory::create_test_panel("panel1");
-        let mut panel2 = TestDataFactory::create_test_panel("panel2");
+    fn test_find_muxbox_at_coordinates() {
+        let mut muxbox1 = TestDataFactory::create_test_muxbox("muxbox1");
+        let mut muxbox2 = TestDataFactory::create_test_muxbox("muxbox2");
 
-        // Create layout with panels at different positions
-        let layout = TestDataFactory::create_test_layout("test_layout", Some(vec![panel1, panel2]));
+        // Create layout with muxboxes at different positions
+        let layout = TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox1, muxbox2]));
 
-        // Test finding panels at various coordinates
+        // Test finding muxboxes at various coordinates
         // Note: The actual coordinates depend on bounds calculation which needs screen size
         // For this test, we're mainly testing the method exists and doesn't panic
 
-        let found_panel = layout.find_panel_at_coordinates(50, 25);
+        let found_muxbox = layout.find_muxbox_at_coordinates(50, 25);
         // The result depends on bounds calculation, but method should not panic
 
-        let not_found = layout.find_panel_at_coordinates(1000, 1000);
-        // Very large coordinates should not find any panel (unless screen is huge)
+        let not_found = layout.find_muxbox_at_coordinates(1000, 1000);
+        // Very large coordinates should not find any muxbox (unless screen is huge)
     }
 
     /// Test choice creation with mouse-activatable properties
@@ -77,7 +77,7 @@ mod mouse_click_tests {
             content: Some("Click Me".to_string()),
             script: Some(vec!["echo clicked".to_string()]),
             thread: Some(true),
-            redirect_output: Some("output_panel".to_string()),
+            redirect_output: Some("output_muxbox".to_string()),
             append_output: Some(false),
             pty: None,
             selected: false,
@@ -87,23 +87,23 @@ mod mouse_click_tests {
         // Verify the choice has all properties needed for mouse activation
         assert!(choice.script.is_some());
         assert_eq!(choice.thread, Some(true));
-        assert_eq!(choice.redirect_output, Some("output_panel".to_string()));
+        assert_eq!(choice.redirect_output, Some("output_muxbox".to_string()));
     }
 
-    /// Test panel selection properties for mouse clicks
+    /// Test muxbox selection properties for mouse clicks
     #[test]
-    fn test_panel_selection_properties() {
-        let mut panel = TestDataFactory::create_test_panel("selectable_panel");
-        panel.tab_order = Some("1".to_string()); // Makes panel selectable
+    fn test_muxbox_selection_properties() {
+        let mut muxbox = TestDataFactory::create_test_muxbox("selectable_muxbox");
+        muxbox.tab_order = Some("1".to_string()); // Makes muxbox selectable
 
-        // Panel should be selectable if it has tab_order
-        assert!(panel.tab_order.is_some());
-        assert_eq!(panel.tab_order, Some("1".to_string()));
+        // MuxBox should be selectable if it has tab_order
+        assert!(muxbox.tab_order.is_some());
+        assert_eq!(muxbox.tab_order, Some("1".to_string()));
     }
 
-    /// Test panel with choices for menu activation
+    /// Test muxbox with choices for menu activation
     #[test]
-    fn test_panel_with_choices_for_menu() {
+    fn test_muxbox_with_choices_for_menu() {
         let choice1 = Choice {
             id: "choice1".to_string(),
             content: Some("First Choice".to_string()),
@@ -128,12 +128,12 @@ mod mouse_click_tests {
             waiting: false,
         };
 
-        let mut panel = TestDataFactory::create_test_panel("menu_panel");
-        panel.choices = Some(vec![choice1, choice2]);
+        let mut muxbox = TestDataFactory::create_test_muxbox("menu_muxbox");
+        muxbox.choices = Some(vec![choice1, choice2]);
 
-        // Panel should have choices for menu activation
-        assert!(panel.choices.is_some());
-        let choices = panel.choices.as_ref().unwrap();
+        // MuxBox should have choices for menu activation
+        assert!(muxbox.choices.is_some());
+        let choices = muxbox.choices.as_ref().unwrap();
         assert_eq!(choices.len(), 2);
         assert_eq!(choices[0].id, "choice1");
         assert_eq!(choices[1].id, "choice2");
@@ -165,23 +165,23 @@ mod mouse_click_tests {
         }
     }
 
-    /// Test layout with nested panels for coordinate detection
+    /// Test layout with nested muxboxes for coordinate detection
     #[test]
-    fn test_nested_panels_coordinate_detection() {
-        let child_panel = TestDataFactory::create_test_panel("child");
-        let mut parent_panel = TestDataFactory::create_test_panel("parent");
-        parent_panel.children = Some(vec![child_panel]);
+    fn test_nested_muxboxes_coordinate_detection() {
+        let child_muxbox = TestDataFactory::create_test_muxbox("child");
+        let mut parent_muxbox = TestDataFactory::create_test_muxbox("parent");
+        parent_muxbox.children = Some(vec![child_muxbox]);
 
-        let layout = TestDataFactory::create_test_layout("nested_layout", Some(vec![parent_panel]));
+        let layout = TestDataFactory::create_test_layout("nested_layout", Some(vec![parent_muxbox]));
 
         // Test that coordinate detection works with nested structure
-        // The method should handle nested panels without panicking
-        let _result = layout.find_panel_at_coordinates(10, 10);
+        // The method should handle nested muxboxes without panicking
+        let _result = layout.find_muxbox_at_coordinates(10, 10);
 
         // Main test is that this doesn't panic with nested structure
         assert!(
             true,
-            "Nested panel coordinate detection completed without panic"
+            "Nested muxbox coordinate detection completed without panic"
         );
     }
 
@@ -190,9 +190,9 @@ mod mouse_click_tests {
     fn test_choice_index_calculation_logic() {
         // This tests the logic that would be used in calculate_clicked_choice_index
         let num_choices = 5;
-        let panel_height = 20u16;
+        let muxbox_height = 20u16;
         let content_start_offset = 3u16;
-        let content_height = panel_height - content_start_offset;
+        let content_height = muxbox_height - content_start_offset;
 
         if content_height > 0 && num_choices > 0 {
             let choice_height = content_height / num_choices as u16;

@@ -48,7 +48,7 @@ pub struct PluginComponent {
 #[derive(Debug, Clone)]
 pub struct PluginContext {
     pub app_context: AppContext,
-    pub panel_bounds: Bounds,
+    pub muxbox_bounds: Bounds,
     pub plugin_data: HashMap<String, serde_json::Value>,
     pub permissions: Vec<PluginPermission>,
 }
@@ -86,7 +86,7 @@ pub enum PluginEvent {
         source: String,
         data: serde_json::Value,
     },
-    PanelResize {
+    MuxBoxResize {
         new_bounds: Bounds,
     },
 }

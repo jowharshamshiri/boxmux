@@ -12,7 +12,7 @@ mod pty_resize_tests {
     }
 
     #[test]
-    fn test_pty_resize_nonexistent_panel() {
+    fn test_pty_resize_nonexistent_muxbox() {
         let mut manager = PtyManager::new().unwrap();
 
         let result = manager.resize_pty("nonexistent", 25, 80);
@@ -24,8 +24,8 @@ mod pty_resize_tests {
     fn test_pty_process_fields() {
         // Test that PtyProcess can be created with all fields
         let manager = PtyManager::new().unwrap();
-        let active_panels = manager.get_active_pty_panels();
-        assert_eq!(active_panels.len(), 0);
+        let active_muxboxes = manager.get_active_pty_muxboxes();
+        assert_eq!(active_muxboxes.len(), 0);
     }
 
     #[test]
@@ -49,13 +49,13 @@ mod pty_resize_tests {
         let mut manager = PtyManager::new().unwrap();
 
         // Test resize with common terminal sizes
-        let result = manager.resize_pty("test_panel", 24, 80);
+        let result = manager.resize_pty("test_muxbox", 24, 80);
         assert!(result.is_ok());
 
-        let result = manager.resize_pty("test_panel", 50, 120);
+        let result = manager.resize_pty("test_muxbox", 50, 120);
         assert!(result.is_ok());
 
-        let result = manager.resize_pty("test_panel", 30, 100);
+        let result = manager.resize_pty("test_muxbox", 30, 100);
         assert!(result.is_ok());
     }
 
@@ -67,8 +67,8 @@ mod pty_resize_tests {
         manager.cleanup_finished();
 
         // Should not panic or error
-        let active_panels = manager.get_active_pty_panels();
-        assert_eq!(active_panels.len(), 0);
+        let active_muxboxes = manager.get_active_pty_muxboxes();
+        assert_eq!(active_muxboxes.len(), 0);
     }
 
     #[test]

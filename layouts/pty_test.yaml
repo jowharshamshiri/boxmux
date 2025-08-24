@@ -4,8 +4,8 @@ app:
       root: true
       title: "PTY Test Layout"
       children:
-        - id: "pty_panel"
-          title: "PTY Test Panel"
+        - id: "pty_box"
+          title: "PTY Test MuxBox"
           position:
             x1: 0%
             y1: 0%
@@ -19,8 +19,8 @@ app:
             - "echo 'PTY Test Complete'"
           refresh_interval: 5000
           
-        - id: "regular_panel"
-          title: "Regular Script Panel (No PTY)"
+        - id: "regular_box"
+          title: "Regular Script MuxBox (No PTY)"
           position:
             x1: 0%
             y1: 80%

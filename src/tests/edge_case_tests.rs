@@ -8,7 +8,7 @@ mod tests {
     use crate::model::app::App;
     use crate::model::common::{InputBounds, SocketFunction};
     use crate::model::layout::Layout;
-    use crate::model::panel::Panel;
+    use crate::model::muxbox::MuxBox;
     use crate::tests::test_utils::*;
     use crate::thread_manager::Message;
     use crate::utils::*;
@@ -27,16 +27,16 @@ mod tests {
         let _graph = empty_app.generate_graph();
         // Just verify it doesn't panic
 
-        // Test layout with no panels
+        // Test layout with no muxboxes
         let empty_layout = Layout {
             id: "empty".to_string(),
             title: None,
-            children: None, // No panels
+            children: None, // No muxboxes
             root: Some(true),
             ..Default::default()
         };
 
-        // Should handle empty panel list
+        // Should handle empty muxbox list
         assert!(
             empty_layout.children.is_none() || empty_layout.children.as_ref().unwrap().is_empty()
         );
@@ -45,20 +45,20 @@ mod tests {
     /// Test extremely large inputs
     #[test]
     fn test_large_inputs() {
-        // Test very long panel content
+        // Test very long muxbox content
         let huge_content = "x".repeat(1_000_000); // 1MB of content
-        let mut panel = TestDataFactory::create_test_panel("huge_panel");
-        panel.content = Some(huge_content.clone());
+        let mut muxbox = TestDataFactory::create_test_muxbox("huge_muxbox");
+        muxbox.content = Some(huge_content.clone());
 
-        assert_eq!(panel.content.as_ref().unwrap().len(), 1_000_000);
+        assert_eq!(muxbox.content.as_ref().unwrap().len(), 1_000_000);
 
         // Test very long script arrays
         let huge_script: Vec<String> = (0..10000)
             .map(|i| format!("echo 'command number {}'", i))
             .collect();
 
-        panel.script = Some(huge_script.clone());
-        assert_eq!(panel.script.as_ref().unwrap().len(), 10000);
+        muxbox.script = Some(huge_script.clone());
+        assert_eq!(muxbox.script.as_ref().unwrap().len(), 10000);
     }
 
     /// Test invalid bounds configurations
@@ -180,7 +180,7 @@ mod tests {
             let handle = thread::spawn(move || {
                 let _app_guard = app_clone.lock().unwrap();
                 // Simulate some work with the app
-                let _panel = TestDataFactory::create_test_panel(&format!("thread_panel_{}", i));
+                let _muxbox = TestDataFactory::create_test_muxbox(&format!("thread_muxbox_{}", i));
                 thread::sleep(std::time::Duration::from_millis(1));
             });
             handles.push(handle);
@@ -223,12 +223,12 @@ mod tests {
     /// Test validation edge cases
     #[test]
     fn test_validation_edge_cases() {
-        // Test panel with extremely long ID
-        let mut panel = TestDataFactory::create_test_panel("normal_id");
-        panel.id = "x".repeat(10000);
+        // Test muxbox with extremely long ID
+        let mut muxbox = TestDataFactory::create_test_muxbox("normal_id");
+        muxbox.id = "x".repeat(10000);
 
         // Should handle long IDs (behavior depends on implementation)
-        assert_eq!(panel.id.len(), 10000);
+        assert_eq!(muxbox.id.len(), 10000);
 
         // Test layout with circular references (if possible)
         let mut layout = TestDataFactory::create_test_layout("circular", None);
@@ -253,9 +253,9 @@ mod tests {
     /// Test socket function edge cases
     #[test]
     fn test_socket_function_edge_cases() {
-        // Test with empty panel ID
-        let empty_id_function = SocketFunction::ReplacePanelContent {
-            panel_id: "".to_string(),
+        // Test with empty muxbox ID
+        let empty_id_function = SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: "".to_string(),
             success: true,
             content: "content".to_string(),
         };
@@ -265,8 +265,8 @@ mod tests {
 
         // Test with extremely long content
         let huge_content = "x".repeat(1_000_000);
-        let huge_content_function = SocketFunction::ReplacePanelContent {
-            panel_id: "test".to_string(),
+        let huge_content_function = SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: "test".to_string(),
             success: true,
             content: huge_content,
         };
@@ -276,8 +276,8 @@ mod tests {
 
         // Test with special characters in content
         let special_content = "Special chars: ñáéíóú 中文 🚀 \n\r\t\\\"'";
-        let special_function = SocketFunction::ReplacePanelContent {
-            panel_id: "special".to_string(),
+        let special_function = SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: "special".to_string(),
             success: true,
             content: special_content.to_string(),
         };
@@ -285,7 +285,7 @@ mod tests {
         let result = IntegrationTestUtils::simulate_socket_to_app_workflow(special_function);
         assert!(result.is_ok());
 
-        if let Ok(Message::PanelOutputUpdate(_, _, content)) = result {
+        if let Ok(Message::MuxBoxOutputUpdate(_, _, content)) = result {
             assert_eq!(content, special_content);
         }
     }
@@ -340,12 +340,12 @@ mod tests {
     /// Test unicode and internationalization
     #[test]
     fn test_unicode_handling() {
-        // Test unicode in panel content
+        // Test unicode in muxbox content
         let unicode_content = "Hello: 你好 مرحبا こんにちは 🌍 🚀 ñáéíóú";
-        let mut panel = TestDataFactory::create_test_panel("unicode_panel");
-        panel.content = Some(unicode_content.to_string());
+        let mut muxbox = TestDataFactory::create_test_muxbox("unicode_muxbox");
+        muxbox.content = Some(unicode_content.to_string());
 
-        assert_eq!(panel.content.as_ref().unwrap(), unicode_content);
+        assert_eq!(muxbox.content.as_ref().unwrap(), unicode_content);
 
         // Test unicode in ANSI stripping
         let unicode_ansi = format!("\x1b[31m{}\x1b[0m", unicode_content);
@@ -363,38 +363,38 @@ mod tests {
     /// Test resource exhaustion scenarios
     #[test]
     fn test_resource_exhaustion() {
-        // Test creating maximum reasonable number of panels
-        let large_panel_count = 10000;
+        // Test creating maximum reasonable number of muxboxes
+        let large_muxbox_count = 10000;
         let start_time = std::time::Instant::now();
 
-        let large_panels = PerformanceTestUtils::create_large_panel_list(large_panel_count);
+        let large_muxboxes = PerformanceTestUtils::create_large_muxbox_list(large_muxbox_count);
 
         let creation_time = start_time.elapsed();
         println!(
-            "Created {} panels in {:?}",
-            large_panel_count, creation_time
+            "Created {} muxboxes in {:?}",
+            large_muxbox_count, creation_time
         );
 
-        assert_eq!(large_panels.len(), large_panel_count);
+        assert_eq!(large_muxboxes.len(), large_muxbox_count);
 
         // Should complete in reasonable time (less than 5 seconds)
         assert!(
             creation_time.as_secs() < 5,
-            "Creating {} panels took too long: {:?}",
-            large_panel_count,
+            "Creating {} muxboxes took too long: {:?}",
+            large_muxbox_count,
             creation_time
         );
 
         // Test memory usage stays reasonable
-        let panel_size = std::mem::size_of::<Panel>();
-        let expected_memory = large_panel_count * panel_size;
+        let muxbox_size = std::mem::size_of::<MuxBox>();
+        let expected_memory = large_muxbox_count * muxbox_size;
         println!(
             "Estimated memory usage: {} bytes ({} MB)",
             expected_memory,
             expected_memory / 1_000_000
         );
 
-        // Memory usage should be reasonable (less than 100MB for 10k panels)
+        // Memory usage should be reasonable (less than 100MB for 10k muxboxes)
         assert!(
             expected_memory < 100_000_000,
             "Memory usage too high: {} bytes",

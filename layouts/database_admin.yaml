@@ -29,7 +29,7 @@ app:
           script:
             - "echo 'DB ADMIN | HOST: $(hostname) | TIME: $(date \"+%Y-%m-%d %H:%M:%S\") | SERVICES: $(ps aux | grep -E \"(mysql|postgres|redis|mongo)\" | grep -v grep | wc -l) active'"
 
-        # Database connection panel
+        # Database connection box
         - id: 'db_connections'
           title: 'Database Connections'
           position:

@@ -51,9 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Thread manager todo!() implementation
-- Panel selectability logic for empty tab orders
+- MuxBox selectability logic for empty tab orders
 - Layout default value handling
-- Panel bounds calculation accuracy
+- MuxBox bounds calculation accuracy
 - Build errors with clap v4 API changes
 
 ### Security
@@ -66,11 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Socket-based API for external control
-- Real-time panel updates via socket messaging
+- Real-time box updates via socket messaging
 - Script execution in background threads
 - Keyboard event handling system
-- Panel focus management
-- Tab navigation between panels
+- MuxBox focus management
+- Tab navigation between boxes
 
 ### Changed
 
@@ -82,14 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Memory leaks in long-running applications
 - Rendering glitches with rapid updates
-- Panel overflow handling
+- MuxBox overflow handling
 
 ## [0.76.71203] - 2024-01-05
 
 ### Added
 
 - YAML-based configuration system
-- Hierarchical panel layouts
+- Hierarchical box layouts
 - Real-time data refresh intervals
 - Interactive menu system
 - Color and styling customization
@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Terminal restoration on exit
 - Color rendering inconsistencies
-- Panel positioning calculations
+- MuxBox positioning calculations
 
 ## [0.76.71202] - 2024-01-01
 
@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of BoxMux
 - Basic terminal UI framework
-- Panel system with positioning
+- MuxBox system with positioning
 - Simple script execution
 - Basic color support
 

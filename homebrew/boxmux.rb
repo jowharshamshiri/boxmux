@@ -43,8 +43,8 @@ class Boxmux < Formula
       layouts:
         - name: test
           children:
-            - id: test_panel
-              panel_type: Content
+            - id: test_box
+              box_type: Content
               content: "Hello, World!"
               bounds:
                 x: 0

@@ -248,4 +248,4 @@ app:
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_yellow'
-          content: "Build output will appear here\\n\\nUse Build & Test panel to:\\n- Build your project\\n- Run tests\\n- Check code quality\\n- Analyze coverage\\n\\nSupported build systems:\\n- npm/yarn (Node.js)\\n- cargo (Rust)\\n- maven/gradle (Java)\\n- make (C/C++)\\n- pip (Python)"
+          content: "Build output will appear here\\n\\nUse Build & Test box to:\\n- Build your project\\n- Run tests\\n- Check code quality\\n- Analyze coverage\\n\\nSupported build systems:\\n- npm/yarn (Node.js)\\n- cargo (Rust)\\n- maven/gradle (Java)\\n- make (C/C++)\\n- pip (Python)"

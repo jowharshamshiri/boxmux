@@ -25,10 +25,10 @@ BoxMux provides mouse interaction for navigation and control.
 
 ### Features
 
-- **Panel Selection**: Click to select and focus panels
+- **MuxBox Selection**: Click to select and focus boxes
 - **Menu Activation**: Click menu items to trigger actions
-- **Parent Panel Auto-selection**: Menu clicks automatically select parent panel
-- **Scrollable Content**: Auto-selectability for panels with scrollable content
+- **Parent MuxBox Auto-selection**: Menu clicks automatically select parent box
+- **Scrollable Content**: Auto-selectability for boxes with scrollable content
 - **Non-blocking Execution**: Threaded execution prevents UI freezing
 - **Visual Feedback**: Immediate visual feedback on clicks
 
@@ -51,18 +51,18 @@ app:
               content: 'Run Tests'
               script: ['cargo test']
               
-        - id: 'output_panel'
+        - id: 'output_box'
           title: 'Output (Click to Focus)'
           position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
-          content: 'Click this panel to focus and enable scrolling'
+          content: 'Click this box to focus and enable scrolling'
 ```
 
 ### Mouse Interaction Behavior
 
-- **Single Click**: Select panel and focus for keyboard input
-- **Menu Clicks**: Execute choice action and redirect output to target panel
-- **Panel Focus**: Enable keyboard scrolling and input routing
-- **Visual Indicators**: Focused panels show distinct border colors
+- **Single Click**: Select box and focus for keyboard input
+- **Menu Clicks**: Execute choice action and redirect output to target box
+- **MuxBox Focus**: Enable keyboard scrolling and input routing
+- **Visual Indicators**: Focused boxes show distinct border colors
 
 ## Hot Key Actions
 
@@ -74,7 +74,7 @@ Global keyboard shortcuts to trigger specific choice actions without menu naviga
 - **Direct Choice Execution**: Bypass menu navigation for frequently used commands
 - **Background Execution**: Actions run in background threads
 - **Output Redirection**: Hot key actions support output redirection
-- **Visual Feedback**: Hot key mappings shown in panel titles
+- **Visual Feedback**: Hot key mappings shown in box titles
 
 ### Configuration
 
@@ -84,7 +84,7 @@ app:
     'F1': 'build'           # F1 triggers build action
     'F2': 'test'            # F2 triggers test action
     'F3': 'deploy'          # F3 triggers deploy action
-    'F5': 'refresh_all'     # F5 refreshes all panels
+    'F5': 'refresh_all'     # F5 refreshes all boxes
     'F9': 'git_status'      # F9 shows git status
     'F12': 'system_info'    # F12 shows system info
     
@@ -166,7 +166,7 @@ Page Up/Down  - Page-based scrolling
 ### Navigation Configuration
 
 ```yaml
-# Panel with enhanced navigation
+# MuxBox with enhanced navigation
 - id: 'large_content'
   title: 'Large Content (Home/End/Ctrl+Home/End navigation)'
   position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
@@ -176,7 +176,7 @@ Page Up/Down  - Page-based scrolling
     - |
       echo "=== Large Content for Navigation Demo ==="
       for i in {1..100}; do
-        echo "Line $i: This is a very long line that extends beyond the panel width to demonstrate horizontal scrolling capabilities in BoxMux panels"
+        echo "Line $i: This is a very long line that extends beyond the box width to demonstrate horizontal scrolling capabilities in BoxMux boxes"
       done
 ```
 
@@ -205,23 +205,23 @@ BoxMux provides platform-specific clipboard integration with visual feedback.
 
 ### Features
 
-- **Ctrl+C Integration**: Copy focused panel content to system clipboard
+- **Ctrl+C Integration**: Copy focused box content to system clipboard
 - **Visual Feedback**: Brief visual indication when content is copied
 - **Platform Support**: Works on macOS, Linux, and Windows
-- **Content Selection**: Copies complete panel content or selected regions
+- **Content Selection**: Copies complete box content or selected regions
 
 ### Usage
 
-1. **Navigate** to a panel using Tab key or mouse
-2. **Press Ctrl+C** to copy panel content to clipboard
+1. **Navigate** to a box using Tab key or mouse
+2. **Press Ctrl+C** to copy box content to clipboard
 3. **Visual flash** indicates successful copy operation
 4. **Paste** content in any application using standard clipboard operations
 
 ### Configuration
 
 ```yaml
-# Enable clipboard for specific panels
-- id: 'results_panel'
+# Enable clipboard for specific boxes
+- id: 'results_box'
   title: 'Command Results'
   clipboard_enabled: true  # Allow clipboard copying
   script:
@@ -247,7 +247,7 @@ BoxMux provides advanced scrolling capabilities with position preservation and n
 - **Page Navigation**: Page Up/Down keyboard support for efficient scrolling  
 - **Visual Indicators**: Scroll position indicators and scrollbar detection
 - **Smooth Scrolling**: Smooth scrolling with configurable scroll amounts
-- **Auto-sizing**: Automatic scrollbar detection for focusable panels
+- **Auto-sizing**: Automatic scrollbar detection for focusable boxes
 
 ### Keyboard Controls
 
@@ -259,7 +259,7 @@ BoxMux provides advanced scrolling capabilities with position preservation and n
 ### Configuration
 
 ```yaml
-# Panel with enhanced scrolling
+# MuxBox with enhanced scrolling
 - id: 'scrollable_output'
   title: 'Large Output'
   position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
@@ -307,7 +307,7 @@ BoxMux tracks performance metrics for core operations:
 ### Monitoring Configuration
 
 ```yaml
-# Performance monitoring panel
+# Performance monitoring box
 - id: 'performance'
   title: 'System Performance'
   position: {x1: 5%, y1: 10%, x2: 95%, y2: 50%}
@@ -320,7 +320,7 @@ BoxMux tracks performance metrics for core operations:
       echo "Memory Usage: $(ps -o rss= -p $$) KB"
       echo "CPU Usage: $(ps -o %cpu= -p $$)%"
       echo "Uptime: $(uptime -p)"
-      echo "Active Panels: $(pgrep -f boxmux | wc -l)"
+      echo "Active MuxBoxes: $(pgrep -f boxmux | wc -l)"
 ```
 
 ### Performance Testing
@@ -411,21 +411,21 @@ BoxMux uses a manual Unix socket implementation without external dependencies fo
 BoxMux supports comprehensive socket API:
 
 ```bash
-# Update panel content
-echo '{"UpdatePanel": {"panel_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
+# Update box content
+echo '{"UpdateMuxBox": {"box_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
 
-# Replace panel script
-echo '{"ReplaceScript": {"panel_id": "monitor", "script": ["uptime"]}}' | nc -U /tmp/boxmux.sock
+# Replace box script
+echo '{"ReplaceScript": {"box_id": "monitor", "script": ["uptime"]}}' | nc -U /tmp/boxmux.sock
 
 # Switch layouts
 echo '{"SwitchLayout": {"layout_id": "dashboard"}}' | nc -U /tmp/boxmux.sock
 
-# Add new panel
-echo '{"AddPanel": {"parent_id": "main", "panel": {...}}}' | nc -U /tmp/boxmux.sock
+# Add new box
+echo '{"AddMuxBox": {"parent_id": "main", "box": {...}}}' | nc -U /tmp/boxmux.sock
 
 # Control refresh
-echo '{"StartRefresh": {"panel_id": "logs"}}' | nc -U /tmp/boxmux.sock
-echo '{"StopRefresh": {"panel_id": "logs"}}' | nc -U /tmp/boxmux.sock
+echo '{"StartRefresh": {"box_id": "logs"}}' | nc -U /tmp/boxmux.sock
+echo '{"StopRefresh": {"box_id": "logs"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ### Socket Configuration
@@ -475,7 +475,7 @@ app:
             - echo "---"
             - kubectl top pods
             
-        # Interactive control panel
+        # Interactive control box
         - id: 'controls'
           title: 'Deployment Controls'
           position: {x1: 5%, y1: 55%, x2: 95%, y2: 90%}

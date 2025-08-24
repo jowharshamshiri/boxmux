@@ -5,9 +5,9 @@ title: PTY Features - BoxMux
 
 # PTY (Pseudo-Terminal) Features
 
-**Interactive terminal emulation in BoxMux panels**
+**Interactive terminal emulation in BoxMux boxes**
 
-PTY features enable running interactive terminal programs within BoxMux panels, providing keyboard interaction, ANSI processing, and process management.
+PTY features enable running interactive terminal programs within BoxMux boxes, providing keyboard interaction, ANSI processing, and process management.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ PTY features enable running interactive terminal programs within BoxMux panels, 
 
 ## Overview
 
-PTY (Pseudo-Terminal) features allow you to run interactive terminal applications like `vim`, `htop`, `ssh`, `less`, `nano`, and database shells within BoxMux panels. This provides terminal multiplexing with organized panel layouts.
+PTY (Pseudo-Terminal) features allow you to run interactive terminal applications like `vim`, `htop`, `ssh`, `less`, `nano`, and database shells within BoxMux boxes. This provides terminal multiplexing with organized box layouts.
 
 ### Key Benefits
 
@@ -36,14 +36,14 @@ PTY (Pseudo-Terminal) features allow you to run interactive terminal application
 
 ## Basic PTY Configuration
 
-Enable PTY for any panel by adding `pty: true`:
+Enable PTY for any box by adding `pty: true`:
 
 ```yaml
 app:
   layouts:
     - id: 'main'
       children:
-        - id: 'interactive_panel'
+        - id: 'interactive_box'
           title: 'Interactive Terminal ⚡'
           pty: true
           script:
@@ -59,7 +59,7 @@ app:
 
 ```yaml
 # Regular script execution (non-interactive)
-- id: 'regular_panel'
+- id: 'regular_box'
   title: 'System Info'
   script:
     - ps aux | head -10
@@ -67,7 +67,7 @@ app:
   refresh_interval: 5000
 
 # PTY execution (interactive)
-- id: 'pty_panel'
+- id: 'pty_box'
   title: 'Interactive Top ⚡'
   pty: true
   script:
@@ -168,14 +168,14 @@ app:
 
 PTY processes have full lifecycle management:
 
-- **Automatic Start**: Process starts when panel initializes
+- **Automatic Start**: Process starts when box initializes
 - **Process Monitoring**: Track running/stopped/failed states  
 - **Manual Control**: Kill, restart via keyboard or socket
 - **Resource Cleanup**: Proper cleanup when BoxMux exits
 
 ### Process Status
 
-PTY panels show process information in their titles:
+PTY boxes show process information in their titles:
 
 ```
 Interactive Top ⚡ [PID: 12345, Running]
@@ -196,19 +196,19 @@ Available process management actions:
     - id: 'kill_htop'
       content: 'Kill htop process'
       script:
-        - echo '{"Command": {"action": "kill_pty", "panel_id": "htop_monitor"}}' | nc -U /tmp/boxmux.sock
+        - echo '{"Command": {"action": "kill_pty", "box_id": "htop_monitor"}}' | nc -U /tmp/boxmux.sock
     
     - id: 'restart_ssh'
       content: 'Restart SSH session'
       script:
-        - echo '{"Command": {"action": "restart_pty", "panel_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
+        - echo '{"Command": {"action": "restart_pty", "box_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ## Input and Navigation
 
 ### Keyboard Input Routing
 
-When a PTY panel is focused, all keyboard input is routed directly to the running process:
+When a PTY box is focused, all keyboard input is routed directly to the running process:
 
 - **Regular Keys**: Letters, numbers, symbols sent directly
 - **Special Keys**: Arrow keys, function keys (F1-F24), navigation keys
@@ -227,15 +227,15 @@ Modifiers:      Ctrl+C Ctrl+Z Ctrl+D etc.
 
 ### Focus Management
 
-Switch between PTY and regular panels:
+Switch between PTY and regular boxes:
 
-- **Tab/Shift+Tab**: Navigate between focusable panels
-- **Mouse Click**: Focus PTY panel and enable input routing
-- **Panel Selection**: Visual indicators show which panel receives input
+- **Tab/Shift+Tab**: Navigate between focusable boxes
+- **Mouse Click**: Focus PTY box and enable input routing
+- **MuxBox Selection**: Visual indicators show which box receives input
 
 ### Scrollback Navigation
 
-PTY panels maintain scrollback history:
+PTY boxes maintain scrollback history:
 
 - **Circular Buffer**: 10,000 lines of command history
 - **Memory Efficient**: Automatic cleanup of old content
@@ -244,28 +244,28 @@ PTY panels maintain scrollback history:
 
 ## Visual Indicators
 
-### Panel Title Indicators
+### MuxBox Title Indicators
 
-PTY panels display special visual indicators:
+PTY boxes display special visual indicators:
 
 ```
-Regular Panel:      "System Info"
-PTY Panel:          "Interactive Top ⚡" 
+Regular MuxBox:      "System Info"
+PTY MuxBox:          "Interactive Top ⚡" 
 PTY with Process:   "SSH Session ⚡ [PID: 12345, Running]"
 PTY Error State:    "Failed Process ⚡ [Process Stopped]"
 ```
 
 ### Border Colors
 
-PTY panels use distinct border colors:
+PTY boxes use distinct border colors:
 
 - **PTY Active**: Bright cyan borders
 - **PTY Error**: Red borders with error indicators
-- **Regular Panel**: Standard border colors
+- **Regular MuxBox**: Standard border colors
 
 ### Status Information
 
-Process status appears in panel titles:
+Process status appears in box titles:
 
 - **PID**: Process ID when running
 - **State**: Running, Stopped, Error, Connected
@@ -279,29 +279,29 @@ Control PTY processes via Unix socket:
 
 ```bash
 # Kill PTY process
-echo '{"Command": {"action": "kill_pty", "panel_id": "htop_panel"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "kill_pty", "box_id": "htop_box"}}' | nc -U /tmp/boxmux.sock
 
 # Restart PTY process  
-echo '{"Command": {"action": "restart_pty", "panel_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "restart_pty", "box_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
 
 # Query PTY status
-echo '{"Command": {"action": "pty_status", "panel_id": "vim_panel"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "pty_status", "box_id": "vim_box"}}' | nc -U /tmp/boxmux.sock
 
 # Send input to PTY (for automation)
-echo '{"Command": {"action": "pty_input", "panel_id": "database", "input": "SELECT * FROM users LIMIT 5;\n"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "pty_input", "box_id": "database", "input": "SELECT * FROM users LIMIT 5;\n"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ### Batch Operations
 
 ```bash
 # Kill all PTY processes
-for panel in htop_panel ssh_session vim_editor; do
-  echo '{"Command": {"action": "kill_pty", "panel_id": "'$panel'"}}' | nc -U /tmp/boxmux.sock
+for box in htop_box ssh_session vim_editor; do
+  echo '{"Command": {"action": "kill_pty", "box_id": "'$box'"}}' | nc -U /tmp/boxmux.sock
 done
 
 # Restart development environment
-echo '{"Command": {"action": "restart_pty", "panel_id": "vim_editor"}}' | nc -U /tmp/boxmux.sock
-echo '{"Command": {"action": "restart_pty", "panel_id": "test_runner"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "restart_pty", "box_id": "vim_editor"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "restart_pty", "box_id": "test_runner"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ## Error Handling
@@ -311,7 +311,7 @@ echo '{"Command": {"action": "restart_pty", "panel_id": "test_runner"}}' | nc -U
 When PTY fails, BoxMux automatically falls back to regular execution:
 
 ```yaml
-- id: 'robust_panel'
+- id: 'robust_box'
   title: 'System Status'
   pty: true  # Try PTY first
   script:
@@ -322,13 +322,13 @@ When PTY fails, BoxMux automatically falls back to regular execution:
 
 BoxMux tracks PTY failures and avoids repeated attempts:
 
-- **Failure Threshold**: After 3 consecutive failures, avoid PTY for that panel
+- **Failure Threshold**: After 3 consecutive failures, avoid PTY for that box
 - **Success Recovery**: Clear failure count on successful PTY startup
-- **Panel-Specific**: Failure tracking per panel, not global
+- **MuxBox-Specific**: Failure tracking per box, not global
 
 ### Error States
 
-PTY panels can be in various error states:
+PTY boxes can be in various error states:
 
 ```yaml
 # Error state indicators in titles
@@ -342,7 +342,7 @@ PTY panels can be in various error states:
 
 Manual recovery options:
 
-- **Panel Restart**: Kill and restart PTY process
+- **MuxBox Restart**: Kill and restart PTY process
 - **Configuration Reload**: Reload YAML with updated settings
 - **Fallback Mode**: Disable PTY and use regular execution
 
@@ -352,13 +352,13 @@ Manual recovery options:
 
 ```yaml
 # Good: Specific PTY processes
-- id: 'htop_panel'
+- id: 'htop_box'
   pty: true
   script:
     - htop
 
 # Avoid: Heavy output in PTY
-- id: 'log_panel'  
+- id: 'log_box'  
   pty: false  # Use regular execution for high-volume logs
   script:
     - tail -f /var/log/messages
@@ -404,7 +404,7 @@ app:
 ### Layout Design
 
 ```yaml
-# Organize PTY panels logically
+# Organize PTY boxes logically
 app:
   layouts:
     - id: 'development'
@@ -417,7 +417,7 @@ app:
           script: [vim]
           position: {x1: 0%, y1: 0%, x2: 70%, y2: 70%}
           
-        # Monitoring (side panel)  
+        # Monitoring (side box)  
         - id: 'system'
           title: 'System Monitor ⚡'
           pty: true
@@ -439,13 +439,13 @@ Common PTY issues and solutions:
 ```yaml
 # Issue: PTY not starting
 # Solution: Check permissions and binary paths
-- id: 'debug_panel'
+- id: 'debug_box'
   pty: true
   script:
     - /usr/bin/htop  # Use full path
     
 # Issue: Input not working
-# Solution: Ensure panel is focused and check key bindings
+# Solution: Ensure box is focused and check key bindings
 
 # Issue: Display corruption
 # Solution: Use ANSI processing and proper terminal size
@@ -455,4 +455,4 @@ Common PTY issues and solutions:
     - TERM=xterm-256color htop
 ```
 
-PTY features provide powerful terminal multiplexing capabilities within BoxMux's organized panel system, enabling complex interactive workflows with proper process management and visual organization.
+PTY features provide powerful terminal multiplexing capabilities within BoxMux's organized box system, enabling complex interactive workflows with proper process management and visual organization.

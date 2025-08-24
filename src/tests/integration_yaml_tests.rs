@@ -16,8 +16,8 @@ app:
       root: true
       title: '${TEST_VAR} Dashboard'
       children:
-        - id: 'panel1'
-          title: 'Panel'
+        - id: 'muxbox1'
+          title: 'MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           variables:
             LOCAL_VAR: "local_value"
@@ -42,10 +42,10 @@ app:
             Some(&"test_value".to_string())
         );
 
-        let panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        assert!(panel.variables.is_some());
+        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        assert!(muxbox.variables.is_some());
         assert_eq!(
-            panel.variables.as_ref().unwrap().get("LOCAL_VAR"),
+            muxbox.variables.as_ref().unwrap().get("LOCAL_VAR"),
             Some(&"local_value".to_string())
         );
     }
@@ -61,8 +61,8 @@ app:
       root: true
       title: '$YAML_TEST_VAR Dashboard'
       children:
-        - id: 'panel1'
-          title: 'Panel'
+        - id: 'muxbox1'
+          title: 'MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           content: 'Env var: $YAML_TEST_VAR'
 "#;
@@ -89,8 +89,8 @@ app:
       root: true
       title: '${MISSING_VAR:Default Title}'
       children:
-        - id: 'panel1'
-          title: 'Panel'
+        - id: 'muxbox1'
+          title: 'MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           content: 'Value: ${MISSING_VAR:fallback_value}'
 "#;
@@ -118,12 +118,12 @@ app:
       root: true
       title: '${APP_NAME}'
       children:
-        - id: 'panel1'
-          title: 'Panel'
+        - id: 'muxbox1'
+          title: 'MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           variables:
-            PANEL_VAR: "panel_value"
-          content: 'App: ${APP_NAME}, Panel: ${PANEL_VAR}'
+            MUXBOX_VAR: "muxbox_value"
+          content: 'App: ${APP_NAME}, MuxBox: ${MUXBOX_VAR}'
 "#;
 
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -148,8 +148,8 @@ app:
       root: true
       title: 'Test'
       children:
-        - id: 'panel1'
-          title: 'Panel'
+        - id: 'muxbox1'
+          title: 'MuxBox'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           content: 'Test'
 "#;
@@ -186,8 +186,8 @@ app:
       bg_color: 'black'
       fg_color: 'white'
       children:
-        - id: 'test_panel'
-          title: 'Test Panel'
+        - id: 'test_muxbox'
+          title: 'Test MuxBox'
           position: {x1: 5%, y1: 5%, x2: 95%, y2: 95%}
           border: true
           variables:
@@ -220,8 +220,8 @@ app:
 
         // Verify variables are preserved
         assert!(app.variables.is_some());
-        let panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        assert!(panel.variables.is_some());
+        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        assert!(muxbox.variables.is_some());
 
         env::remove_var("INTEGRATION_TEST_VAR");
     }

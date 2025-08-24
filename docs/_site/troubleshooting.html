@@ -135,7 +135,7 @@ yamllint layouts/dashboard.yaml
 
 <h4 id="script-execution-fails">Script Execution Fails</h4>
 
-<p><strong>Problem</strong>: Panel scripts don’t execute
+<p><strong>Problem</strong>: MuxBox scripts don’t execute
 <strong>Solution</strong>:</p>
 
 <ul>
@@ -154,7 +154,7 @@ yamllint layouts/dashboard.yaml
 <ul>
   <li>Increase refresh intervals in configuration</li>
   <li>Optimize scripts to run faster</li>
-  <li>Reduce number of panels with scripts</li>
+  <li>Reduce number of muxboxes with scripts</li>
   <li>Check for infinite loops in scripts</li>
 </ul>
 
@@ -297,8 +297,8 @@ bash <span class="nt">-c</span> <span class="s2">"your_script_command_here"</spa
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">test'</span>
       <span class="na">root</span><span class="pi">:</span> <span class="kc">true</span>
       <span class="na">children</span><span class="pi">:</span>
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">problem_panel'</span>
-          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Problem</span><span class="nv"> </span><span class="s">Panel'</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">problem_muxbox'</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Problem</span><span class="nv"> </span><span class="s">MuxBox'</span>
           <span class="na">position</span><span class="pi">:</span>
             <span class="na">x1</span><span class="pi">:</span> <span class="s">10%</span>
             <span class="na">y1</span><span class="pi">:</span> <span class="s">10%</span>

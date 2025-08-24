@@ -6,7 +6,7 @@
 use crate::model::app::{App, AppContext};
 use crate::model::common::{Anchor, Bounds, InputBounds, SocketFunction};
 use crate::model::layout::Layout;
-use crate::model::panel::Panel;
+use crate::model::muxbox::MuxBox;
 use crate::thread_manager::Message;
 use crate::Config;
 use std::collections::HashMap;
@@ -16,11 +16,11 @@ use uuid::Uuid;
 pub struct TestDataFactory;
 
 impl TestDataFactory {
-    /// Create a minimal test panel with required fields
-    pub fn create_test_panel(id: &str) -> Panel {
-        Panel {
+    /// Create a minimal test muxbox with required fields
+    pub fn create_test_muxbox(id: &str) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
-            title: Some("Test Panel".to_string()),
+            title: Some("Test MuxBox".to_string()),
             position: InputBounds {
                 x1: "0".to_string(),
                 y1: "0".to_string(),
@@ -93,21 +93,21 @@ impl TestDataFactory {
         }
     }
 
-    /// Create a panel with custom properties
-    pub fn create_custom_panel(id: &str, content: &str) -> Panel {
-        let mut panel = Self::create_test_panel(id);
-        panel.content = Some(content.to_string());
-        panel.title = Some(format!("{} Panel", id));
-        panel
+    /// Create a muxbox with custom properties
+    pub fn create_custom_muxbox(id: &str, content: &str) -> MuxBox {
+        let mut muxbox = Self::create_test_muxbox(id);
+        muxbox.content = Some(content.to_string());
+        muxbox.title = Some(format!("{} MuxBox", id));
+        muxbox
     }
 
-    /// Create a test layout with panels
-    pub fn create_test_layout(id: &str, panels: Option<Vec<Panel>>) -> Layout {
+    /// Create a test layout with muxboxes
+    pub fn create_test_layout(id: &str, muxboxes: Option<Vec<MuxBox>>) -> Layout {
         Layout {
             id: id.to_string(),
             title: Some(format!("Test Layout {}", id)),
             refresh_interval: None,
-            children: panels.or_else(|| Some(vec![Self::create_test_panel("default_panel")])),
+            children: muxboxes.or_else(|| Some(vec![Self::create_test_muxbox("default_muxbox")])),
             fill: None,
             fill_char: None,
             selected_fill_char: None,
@@ -141,21 +141,21 @@ impl TestDataFactory {
             root: Some(false),
             on_keypress: None,
             active: None,
-            panel_ids_in_tab_order: None,
+            muxbox_ids_in_tab_order: None,
         }
     }
 
     /// Create a test layout marked as root
-    pub fn create_root_layout(id: &str, panels: Option<Vec<Panel>>) -> Layout {
-        let mut layout = Self::create_test_layout(id, panels);
+    pub fn create_root_layout(id: &str, muxboxes: Option<Vec<MuxBox>>) -> Layout {
+        let mut layout = Self::create_test_layout(id, muxboxes);
         layout.root = Some(true);
         layout
     }
 
     /// Create a test app with basic structure
     pub fn create_test_app() -> App {
-        let panel = Self::create_test_panel("test_panel");
-        let layout = Self::create_root_layout("test_layout", Some(vec![panel]));
+        let muxbox = Self::create_test_muxbox("test_muxbox");
+        let layout = Self::create_root_layout("test_layout", Some(vec![muxbox]));
 
         let mut app = App::new();
         app.layouts = vec![layout];
@@ -167,13 +167,13 @@ impl TestDataFactory {
 
     /// Create an app with multiple layouts for testing layout switching
     pub fn create_multi_layout_app() -> App {
-        let panel1 = Self::create_test_panel("panel1");
-        let panel2 = Self::create_test_panel("panel2");
-        let panel3 = Self::create_test_panel("panel3");
+        let muxbox1 = Self::create_test_muxbox("muxbox1");
+        let muxbox2 = Self::create_test_muxbox("muxbox2");
+        let muxbox3 = Self::create_test_muxbox("muxbox3");
 
-        let layout1 = Self::create_root_layout("layout1", Some(vec![panel1]));
-        let layout2 = Self::create_test_layout("layout2", Some(vec![panel2]));
-        let layout3 = Self::create_test_layout("layout3", Some(vec![panel3]));
+        let layout1 = Self::create_root_layout("layout1", Some(vec![muxbox1]));
+        let layout2 = Self::create_test_layout("layout2", Some(vec![muxbox2]));
+        let layout3 = Self::create_test_layout("layout3", Some(vec![muxbox3]));
 
         let mut app = App::new();
         app.layouts = vec![layout1, layout2, layout3];
@@ -212,12 +212,12 @@ impl TestDataFactory {
 
     /// Create socket function for testing
     pub fn create_socket_function_replace_content(
-        panel_id: &str,
+        muxbox_id: &str,
         content: &str,
         success: bool,
     ) -> SocketFunction {
-        SocketFunction::ReplacePanelContent {
-            panel_id: panel_id.to_string(),
+        SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: muxbox_id.to_string(),
             success,
             content: content.to_string(),
         }
@@ -225,11 +225,11 @@ impl TestDataFactory {
 
     /// Create socket function for testing script replacement
     pub fn create_socket_function_replace_script(
-        panel_id: &str,
+        muxbox_id: &str,
         script: Vec<String>,
     ) -> SocketFunction {
-        SocketFunction::ReplacePanelScript {
-            panel_id: panel_id.to_string(),
+        SocketFunction::ReplaceMuxBoxScript {
+            muxbox_id: muxbox_id.to_string(),
             script,
         }
     }
@@ -239,17 +239,17 @@ impl TestDataFactory {
 pub struct TestAssertions;
 
 impl TestAssertions {
-    /// Assert that a panel exists in a layout with specific properties
-    pub fn assert_panel_exists_in_layout(layout: &Layout, panel_id: &str) -> bool {
+    /// Assert that a muxbox exists in a layout with specific properties
+    pub fn assert_muxbox_exists_in_layout(layout: &Layout, muxbox_id: &str) -> bool {
         layout
             .children
             .as_ref()
-            .map_or(false, |panels| panels.iter().any(|p| p.id == panel_id))
+            .map_or(false, |muxboxes| muxboxes.iter().any(|p| p.id == muxbox_id))
     }
 
-    /// Assert that a panel has specific content
-    pub fn assert_panel_has_content(panel: &Panel, expected_content: &str) -> bool {
-        panel.content.as_ref().map(|c| c.as_str()) == Some(expected_content)
+    /// Assert that a muxbox has specific content
+    pub fn assert_muxbox_has_content(muxbox: &MuxBox, expected_content: &str) -> bool {
+        muxbox.content.as_ref().map(|c| c.as_str()) == Some(expected_content)
     }
 
     /// Assert that an app has a specific active layout
@@ -266,14 +266,14 @@ impl TestAssertions {
     /// Assert message type matches expected
     pub fn assert_message_type(message: &Message, expected_type: &str) -> bool {
         match (message, expected_type) {
-            (Message::PanelOutputUpdate(_, _, _), "PanelOutputUpdate") => true,
-            (Message::PanelScriptUpdate(_, _), "PanelScriptUpdate") => true,
-            (Message::StopPanelRefresh(_), "StopPanelRefresh") => true,
-            (Message::StartPanelRefresh(_), "StartPanelRefresh") => true,
+            (Message::MuxBoxOutputUpdate(_, _, _), "MuxBoxOutputUpdate") => true,
+            (Message::MuxBoxScriptUpdate(_, _), "MuxBoxScriptUpdate") => true,
+            (Message::StopMuxBoxRefresh(_), "StopMuxBoxRefresh") => true,
+            (Message::StartMuxBoxRefresh(_), "StartMuxBoxRefresh") => true,
             (Message::SwitchActiveLayout(_), "SwitchActiveLayout") => true,
-            (Message::ReplacePanel(_, _), "ReplacePanel") => true,
-            (Message::AddPanel(_, _), "AddPanel") => true,
-            (Message::RemovePanel(_), "RemovePanel") => true,
+            (Message::ReplaceMuxBox(_, _), "ReplaceMuxBox") => true,
+            (Message::AddMuxBox(_, _), "AddMuxBox") => true,
+            (Message::RemoveMuxBox(_), "RemoveMuxBox") => true,
             _ => false,
         }
     }
@@ -319,16 +319,16 @@ impl PerformanceTestUtils {
     }
 
     /// Create large test data for performance testing
-    pub fn create_large_panel_list(count: usize) -> Vec<Panel> {
+    pub fn create_large_muxbox_list(count: usize) -> Vec<MuxBox> {
         (0..count)
-            .map(|i| TestDataFactory::create_test_panel(&format!("panel_{}", i)))
+            .map(|i| TestDataFactory::create_test_muxbox(&format!("muxbox_{}", i)))
             .collect()
     }
 
-    /// Create large test layout with many panels
-    pub fn create_large_layout(panel_count: usize) -> Layout {
-        let panels = Self::create_large_panel_list(panel_count);
-        TestDataFactory::create_test_layout("large_layout", Some(panels))
+    /// Create large test layout with many muxboxes
+    pub fn create_large_layout(muxbox_count: usize) -> Layout {
+        let muxboxes = Self::create_large_muxbox_list(muxbox_count);
+        TestDataFactory::create_test_layout("large_layout", Some(muxboxes))
     }
 }
 
@@ -367,7 +367,7 @@ impl MockUtils {
         mappings.insert("Ctrl + D".to_string(), vec!["quit".to_string()]);
         mappings.insert("Enter".to_string(), vec!["confirm".to_string()]);
         mappings.insert("Escape".to_string(), vec!["cancel".to_string()]);
-        mappings.insert("Tab".to_string(), vec!["next_panel".to_string()]);
+        mappings.insert("Tab".to_string(), vec!["next_muxbox".to_string()]);
         mappings
     }
 }
@@ -393,34 +393,34 @@ impl IntegrationTestUtils {
 
         // This would normally go through the socket handler
         let boxmux_message = match socket_function {
-            SocketFunction::ReplacePanelContent {
-                panel_id,
+            SocketFunction::ReplaceMuxBoxContent {
+                muxbox_id,
                 success,
                 content,
-            } => Message::PanelOutputUpdate(panel_id, success, content),
-            SocketFunction::ReplacePanelScript { panel_id, script } => {
-                Message::PanelScriptUpdate(panel_id, script)
+            } => Message::MuxBoxOutputUpdate(muxbox_id, success, content),
+            SocketFunction::ReplaceMuxBoxScript { muxbox_id, script } => {
+                Message::MuxBoxScriptUpdate(muxbox_id, script)
             }
-            SocketFunction::StopPanelRefresh { panel_id } => Message::StopPanelRefresh(panel_id),
-            SocketFunction::StartPanelRefresh { panel_id } => Message::StartPanelRefresh(panel_id),
-            SocketFunction::ReplacePanel {
-                panel_id,
-                new_panel,
-            } => Message::ReplacePanel(panel_id, new_panel),
+            SocketFunction::StopMuxBoxRefresh { muxbox_id } => Message::StopMuxBoxRefresh(muxbox_id),
+            SocketFunction::StartMuxBoxRefresh { muxbox_id } => Message::StartMuxBoxRefresh(muxbox_id),
+            SocketFunction::ReplaceMuxBox {
+                muxbox_id,
+                new_muxbox,
+            } => Message::ReplaceMuxBox(muxbox_id, new_muxbox),
             SocketFunction::SwitchActiveLayout { layout_id } => {
                 Message::SwitchActiveLayout(layout_id)
             }
-            SocketFunction::AddPanel { layout_id, panel } => Message::AddPanel(layout_id, panel),
-            SocketFunction::RemovePanel { panel_id } => Message::RemovePanel(panel_id),
+            SocketFunction::AddMuxBox { layout_id, muxbox } => Message::AddMuxBox(layout_id, muxbox),
+            SocketFunction::RemoveMuxBox { muxbox_id } => Message::RemoveMuxBox(muxbox_id),
             // F0137/F0138: Socket PTY Control and Query patterns
-            SocketFunction::KillPtyProcess { panel_id } => {
-                Message::PanelOutputUpdate(panel_id, true, "PTY process killed".to_string())
+            SocketFunction::KillPtyProcess { muxbox_id } => {
+                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY process killed".to_string())
             }
-            SocketFunction::RestartPtyProcess { panel_id } => {
-                Message::PanelOutputUpdate(panel_id, true, "PTY process restarted".to_string())
+            SocketFunction::RestartPtyProcess { muxbox_id } => {
+                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY process restarted".to_string())
             }
-            SocketFunction::QueryPtyStatus { panel_id } => {
-                Message::PanelOutputUpdate(panel_id, true, "PTY status queried".to_string())
+            SocketFunction::QueryPtyStatus { muxbox_id } => {
+                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY status queried".to_string())
             }
         };
 
@@ -435,11 +435,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_factory_creates_valid_panel() {
-        let panel = TestDataFactory::create_test_panel("test");
-        assert_eq!(panel.id, "test");
-        // Panel doesn't have panel_type field - removed assertion
-        assert!(panel.content.is_some());
+    fn test_factory_creates_valid_muxbox() {
+        let muxbox = TestDataFactory::create_test_muxbox("test");
+        assert_eq!(muxbox.id, "test");
+        // MuxBox doesn't have muxbox_type field - removed assertion
+        assert!(muxbox.content.is_some());
     }
 
     #[test]
@@ -449,7 +449,7 @@ mod tests {
         assert!(layout.children.is_some());
         let children = layout.children.as_ref().unwrap();
         assert!(!children.is_empty());
-        assert_eq!(children[0].id, "default_panel");
+        assert_eq!(children[0].id, "default_muxbox");
     }
 
     #[test]
@@ -463,13 +463,13 @@ mod tests {
 
     #[test]
     fn test_assertions_work_correctly() {
-        let panel = TestDataFactory::create_test_panel("test");
-        assert!(TestAssertions::assert_panel_has_content(
-            &panel,
+        let muxbox = TestDataFactory::create_test_muxbox("test");
+        assert!(TestAssertions::assert_muxbox_has_content(
+            &muxbox,
             "Test content"
         ));
-        assert!(!TestAssertions::assert_panel_has_content(
-            &panel,
+        assert!(!TestAssertions::assert_muxbox_has_content(
+            &muxbox,
             "Wrong content"
         ));
     }
@@ -477,10 +477,10 @@ mod tests {
     #[test]
     fn test_performance_utils() {
         let duration = PerformanceTestUtils::benchmark_function(1000, || {
-            let _ = TestDataFactory::create_test_panel("perf_test");
+            let _ = TestDataFactory::create_test_muxbox("perf_test");
         });
 
-        // Should be able to create 1000 panels very quickly
+        // Should be able to create 1000 muxboxes very quickly
         assert!(duration.as_millis() < 100);
     }
 
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn test_integration_utils() {
         let socket_function = TestDataFactory::create_socket_function_replace_content(
-            "test_panel",
+            "test_muxbox",
             "new content",
             true,
         );
@@ -508,7 +508,7 @@ mod tests {
         let message = result.unwrap();
         assert!(TestAssertions::assert_message_type(
             &message,
-            "PanelOutputUpdate"
+            "MuxBoxOutputUpdate"
         ));
     }
 }

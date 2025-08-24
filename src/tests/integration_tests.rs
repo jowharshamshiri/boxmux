@@ -38,9 +38,9 @@ mod tests {
     /// Test socket command to app message workflow
     #[test]
     fn test_socket_to_message_workflow() {
-        // Test replace panel content workflow
+        // Test replace muxbox content workflow
         let socket_function = TestDataFactory::create_socket_function_replace_content(
-            "test_panel",
+            "test_muxbox",
             "Updated via socket",
             true,
         );
@@ -51,11 +51,11 @@ mod tests {
         let message = result.unwrap();
         assert!(TestAssertions::assert_message_type(
             &message,
-            "PanelOutputUpdate"
+            "MuxBoxOutputUpdate"
         ));
 
-        if let Message::PanelOutputUpdate(panel_id, success, content) = message {
-            assert_eq!(panel_id, "test_panel");
+        if let Message::MuxBoxOutputUpdate(muxbox_id, success, content) = message {
+            assert_eq!(muxbox_id, "test_muxbox");
             assert_eq!(success, true);
             assert_eq!(content, "Updated via socket");
         }
@@ -66,7 +66,7 @@ mod tests {
     fn test_script_replacement_workflow() {
         let script_commands = MockUtils::create_test_script_commands();
         let socket_function = TestDataFactory::create_socket_function_replace_script(
-            "script_panel",
+            "script_muxbox",
             script_commands.clone(),
         );
 
@@ -76,11 +76,11 @@ mod tests {
         let message = result.unwrap();
         assert!(TestAssertions::assert_message_type(
             &message,
-            "PanelScriptUpdate"
+            "MuxBoxScriptUpdate"
         ));
 
-        if let Message::PanelScriptUpdate(panel_id, script) = message {
-            assert_eq!(panel_id, "script_panel");
+        if let Message::MuxBoxScriptUpdate(muxbox_id, script) = message {
+            assert_eq!(muxbox_id, "script_muxbox");
             assert_eq!(script, script_commands);
         }
     }
@@ -89,8 +89,8 @@ mod tests {
     #[test]
     fn test_socket_function_handling() {
         // Test SocketFunction processing directly
-        let socket_function = SocketFunction::ReplacePanelContent {
-            panel_id: "test_panel".to_string(),
+        let socket_function = SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: "test_muxbox".to_string(),
             success: true,
             content: "test content".to_string(),
         };
@@ -104,12 +104,12 @@ mod tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
-            Message::PanelOutputUpdate(panel_id, success, content) => {
-                assert_eq!(panel_id, "test_panel");
+            Message::MuxBoxOutputUpdate(muxbox_id, success, content) => {
+                assert_eq!(muxbox_id, "test_muxbox");
                 assert_eq!(*success, true);
                 assert_eq!(content, "test content");
             }
-            _ => panic!("Expected PanelOutputUpdate message"),
+            _ => panic!("Expected MuxBoxOutputUpdate message"),
         }
     }
 
@@ -134,19 +134,19 @@ mod tests {
 
         // Simulate multiple concurrent socket functions by directly sending messages
         let functions = vec![
-            TestDataFactory::create_socket_function_replace_content("panel1", "content1", true),
-            TestDataFactory::create_socket_function_replace_content("panel2", "content2", true),
-            TestDataFactory::create_socket_function_replace_content("panel3", "content3", true),
+            TestDataFactory::create_socket_function_replace_content("muxbox1", "content1", true),
+            TestDataFactory::create_socket_function_replace_content("muxbox2", "content2", true),
+            TestDataFactory::create_socket_function_replace_content("muxbox3", "content3", true),
         ];
 
         for socket_function in functions {
             // Convert socket function to message and send to channel
             let message = match socket_function {
-                SocketFunction::ReplacePanelContent {
-                    panel_id,
+                SocketFunction::ReplaceMuxBoxContent {
+                    muxbox_id,
                     success,
                     content,
-                } => Message::PanelOutputUpdate(panel_id, success, content),
+                } => Message::MuxBoxOutputUpdate(muxbox_id, success, content),
                 _ => panic!("Unexpected socket function type"),
             };
             tx.send((test_uuid, message))
@@ -201,7 +201,7 @@ mod tests {
             ("CTRL+C", Some(vec!["exit".to_string()])),
             ("enter", Some(vec!["confirm".to_string()])),
             ("ENTER", Some(vec!["confirm".to_string()])),
-            ("tab", Some(vec!["next_panel".to_string()])),
+            ("tab", Some(vec!["next_muxbox".to_string()])),
             ("unknown_key", None),
         ];
 
@@ -249,44 +249,44 @@ mod tests {
         }
     }
 
-    /// Test complete panel lifecycle
+    /// Test complete muxbox lifecycle
     #[test]
-    fn test_panel_lifecycle_integration() {
+    fn test_muxbox_lifecycle_integration() {
         let mut app = TestDataFactory::create_test_app();
-        let original_panel_count = app.layouts[0].children.as_ref().unwrap().len();
+        let original_muxbox_count = app.layouts[0].children.as_ref().unwrap().len();
 
-        // Add panel via socket function
-        let new_panel = TestDataFactory::create_custom_panel("new_panel", "New panel content");
-        let add_function = SocketFunction::AddPanel {
+        // Add muxbox via socket function
+        let new_muxbox = TestDataFactory::create_custom_muxbox("new_muxbox", "New muxbox content");
+        let add_function = SocketFunction::AddMuxBox {
             layout_id: "test_layout".to_string(),
-            panel: new_panel.clone(),
+            muxbox: new_muxbox.clone(),
         };
 
         let message = IntegrationTestUtils::simulate_socket_to_app_workflow(add_function).unwrap();
-        assert!(TestAssertions::assert_message_type(&message, "AddPanel"));
+        assert!(TestAssertions::assert_message_type(&message, "AddMuxBox"));
 
-        // Test panel replacement
-        let updated_panel = TestDataFactory::create_custom_panel("new_panel", "Updated content");
-        let replace_function = SocketFunction::ReplacePanel {
-            panel_id: "new_panel".to_string(),
-            new_panel: updated_panel,
+        // Test muxbox replacement
+        let updated_muxbox = TestDataFactory::create_custom_muxbox("new_muxbox", "Updated content");
+        let replace_function = SocketFunction::ReplaceMuxBox {
+            muxbox_id: "new_muxbox".to_string(),
+            new_muxbox: updated_muxbox,
         };
 
         let message =
             IntegrationTestUtils::simulate_socket_to_app_workflow(replace_function).unwrap();
         assert!(TestAssertions::assert_message_type(
             &message,
-            "ReplacePanel"
+            "ReplaceMuxBox"
         ));
 
-        // Test panel removal
-        let remove_function = SocketFunction::RemovePanel {
-            panel_id: "new_panel".to_string(),
+        // Test muxbox removal
+        let remove_function = SocketFunction::RemoveMuxBox {
+            muxbox_id: "new_muxbox".to_string(),
         };
 
         let message =
             IntegrationTestUtils::simulate_socket_to_app_workflow(remove_function).unwrap();
-        assert!(TestAssertions::assert_message_type(&message, "RemovePanel"));
+        assert!(TestAssertions::assert_message_type(&message, "RemoveMuxBox"));
     }
 
     /// Test error recovery scenarios
@@ -295,13 +295,13 @@ mod tests {
         // Test app validation with invalid configurations
         let mut invalid_app = TestDataFactory::create_test_app();
 
-        // Add duplicate panel IDs
-        let duplicate_panel = TestDataFactory::create_test_panel("test_panel"); // Same ID as existing
+        // Add duplicate muxbox IDs
+        let duplicate_muxbox = TestDataFactory::create_test_muxbox("test_muxbox"); // Same ID as existing
         invalid_app.layouts[0]
             .children
             .as_mut()
             .unwrap()
-            .push(duplicate_panel);
+            .push(duplicate_muxbox);
 
         // This should panic with validation error
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

@@ -100,7 +100,7 @@ paths = ["/tmp"]
 
         let context = PluginContext {
             app_context,
-            panel_bounds: bounds,
+            muxbox_bounds: bounds,
             plugin_data: HashMap::new(),
             permissions: vec![],
         };
@@ -142,7 +142,7 @@ paths = ["/tmp"]
 
         let context = PluginContext {
             app_context,
-            panel_bounds: bounds,
+            muxbox_bounds: bounds,
             plugin_data: HashMap::new(),
             permissions: vec![],
         };
@@ -278,7 +278,7 @@ permissions = []
 
         let context = PluginContext {
             app_context,
-            panel_bounds: bounds,
+            muxbox_bounds: bounds,
             plugin_data: HashMap::new(),
             permissions: vec![],
         };
@@ -336,7 +336,7 @@ permissions = []
 
         let context = PluginContext {
             app_context,
-            panel_bounds: bounds,
+            muxbox_bounds: bounds,
             plugin_data: HashMap::new(),
             permissions: vec![],
         };

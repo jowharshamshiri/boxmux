@@ -10,16 +10,16 @@ app:
       root: true
       title: '${APP_NAME} - ${ENVIRONMENT}'
       children:
-        # Environment status panel
+        # Environment status box
         - id: 'environment_info'
           title: 'Environment Information'
           position: {x1: 2%, y1: 2%, x2: 48%, y2: 30%}
           variables:
-            PANEL_TYPE: "info"
+            MUXBOX_TYPE: "info"
           content: |
             Environment: ${ENVIRONMENT}
             App Name: ${APP_NAME}
-            Panel Type: ${PANEL_TYPE}
+            MuxBox Type: ${MUXBOX_TYPE}
             Log Level: ${LOG_LEVEL}
             Current User: ${USER:admin}
             Home Directory: ${HOME:/tmp}
@@ -155,7 +155,7 @@ app:
                         - "echo \"================================\""
                       redirect_output: 'variable_debug'
                       
-        # Output panels for redirected content
+        # Output boxes for redirected content
         - id: 'schema_output'
           title: 'Schema Check Output'
           position: {x1: 2%, y1: 72%, x2: 48%, y2: 98%}

@@ -23,7 +23,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 
 - YAML Configuration Loading: Load app configuration from YAML files with validation
 - Multi-Layout System: Support multiple layouts with root/active switching
-- Panel Hierarchy: Nested panel structure with parent-child relationships and bounds calculation
+- MuxBox Hierarchy: Nested box structure with parent-child relationships and bounds calculation
 - Real-time Rendering: Efficient terminal rendering with frame rate control
 - Multi-threaded Architecture: Thread manager coordinating multiple execution threads
 - Input Handling: Full keyboard input processing and routing with custom key bindings
@@ -32,31 +32,31 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 
 **UI Components and Styling (Complete)**
 
-- Panel Positioning: Flexible panel positioning with percentage/absolute bounds
-- Borders and Styling: Panel borders with customizable colors and 16 ANSI color palette
+- MuxBox Positioning: Flexible box positioning with percentage/absolute bounds
+- Borders and Styling: MuxBox borders with customizable colors and 16 ANSI color palette
 - Text Rendering: Multi-line text content display with wrapping and positioning
 - Choice/Menu System: Interactive menu components with selection and navigation
-- Focus Management: Tab order and focus navigation between panels
+- Focus Management: Tab order and focus navigation between boxes
 - Error State Styling: Visual error indication with specialized colors
 - Scrolling Support: Scrolling with position preservation, page navigation, visual indicators, and auto-scroll functionality
 
 **Scripting and Automation**
 
-- Script Execution: Execute shell scripts in panels with output capture and error handling
-- Threaded Execution: Panel scripts run in dedicated threads with refresh intervals
-- Output Redirection: Redirect script output to different panels (replace or append)
+- Script Execution: Execute shell scripts in boxes with output capture and error handling
+- Threaded Execution: MuxBox scripts run in dedicated threads with refresh intervals
+- Output Redirection: Redirect script output to different boxes (replace or append)
 - Auto-Scroll to Bottom: Automatically scroll to bottom when new content arrives, ideal for logs
 - Library Support: Include external script libraries for reusable functionality
-- File Output: Save panel content to files for persistence
+- File Output: Save box content to files for persistence
 
 **PTY (Pseudo-Terminal) Features**
 
-- Interactive Terminal Emulation: Run interactive programs (vim, htop, less) in panels
+- Interactive Terminal Emulation: Run interactive programs (vim, htop, less) in boxes
 - PTY Process Management: Process lifecycle control with kill, restart, and status tracking
 - ANSI Processing: Handle ANSI escape codes, colors, and cursor positioning
 - PTY Error Recovery: Fallback to regular execution on PTY failures
 - Circular Buffer Storage: Scrollback with 10,000-line default capacity
-- PTY Input Routing: Send keyboard input to focused PTY panels
+- PTY Input Routing: Send keyboard input to focused PTY boxes
 - Special Key Handling: Arrow keys, function keys (F1-F24), and modifier combinations
 - PTY Visual Indicators: Lightning bolt (⚡) title prefix and color-coded borders
 - Socket PTY Control: PTY process management via socket commands
@@ -64,18 +64,18 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 **Socket API and Remote Control (Complete)**
 
 - Unix Socket Server: Manual Unix socket server implementation for remote control
-- Panel Content Updates: Update panel content via socket commands
-- Panel Script Updates: Replace panel scripts dynamically
+- MuxBox Content Updates: Update box content via socket commands
+- MuxBox Script Updates: Replace box scripts dynamically
 - Layout Switching: Switch active layout via socket commands
-- Panel Management: Add/remove panels dynamically through API
-- Refresh Control: Start/stop panel refresh via socket commands
+- MuxBox Management: Add/remove boxes dynamically through API
+- Refresh Control: Start/stop box refresh via socket commands
 - Socket Error Handling: Proper error responses for invalid requests
 
 **Data Visualization (Complete)**
 
 - Enhanced Charting: Unicode-based charts (bar, line, histogram) with smart layout engine
 - Chart Layout System: Responsive chart sizing and improved alignment
-- Table Panels: Structured data display with CSV/JSON parsing
+- Table MuxBoxes: Structured data display with CSV/JSON parsing
 - Table Features: Sorting (text/numeric), filtering, pagination, multiple border styles
 - Table Styling: Zebra striping, row numbers, column width management
 
@@ -84,8 +84,8 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Variable System: Hierarchical variable substitution with precedence (env > child > parent > layout > app > default)
 - Plugin System: Dynamic component loading with security validation and manifest parsing
 - Configuration Schema Validation: JSON Schema validation integrated into YAML loading
-- Clipboard Integration: Ctrl+C copies focused panel content to clipboard with visual feedback
-- Mouse Click Support: Click to select panels, activate menu items, and trigger actions
+- Clipboard Integration: Ctrl+C copies focused box content to clipboard with visual feedback
+- Mouse Click Support: Click to select boxes, activate menu items, and trigger actions
 - Hot Key Actions: Global keyboard shortcuts to trigger choice actions without menu navigation
 - Enhanced Navigation: Home/End for horizontal scroll, Ctrl+Home/End for vertical scroll to beginning/end
 - Performance Benchmarking: Performance monitoring with regression detection
@@ -99,15 +99,15 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 ## Use Cases
 
 - System Monitoring: Combine `top`, `df`, `iostat` into unified dashboards
-- Interactive Tools: Run `vim`, `htop`, `less`, `nano` directly in panels with full interaction
+- Interactive Tools: Run `vim`, `htop`, `less`, `nano` directly in boxes with full interaction
 - DevOps Tools: Orchestrate deployment scripts with PTY support for interactive execution
 - Log Analysis: Monitor logs with `tail -f` commands and auto-scroll
 - Network Monitoring: Execute `netstat`, `ss`, `ping` with live updates
-- Database Operations: Run interactive database shells (`psql`, `mysql`) in panels
+- Database Operations: Run interactive database shells (`psql`, `mysql`) in boxes
 - Development Workflows: Build, test, and deployment commands with PTY for interactive execution
 - CI/CD Monitoring: Watch build processes with PTY support for real-time interaction
-- Terminal Multiplexing: Multiple terminal sessions in organized panels with PTY support
-- Remote Administration: SSH sessions and remote commands in dedicated panels
+- Terminal Multiplexing: Multiple terminal sessions in organized boxes with PTY support
+- Remote Administration: SSH sessions and remote commands in dedicated boxes
 
 ## Quick Start
 
@@ -156,7 +156,7 @@ boxmux layouts/dashboard.yaml
 
 ### Your First Interface
 
-Create a simple interface with a single panel:
+Create a simple interface with a single box:
 
 ```yaml
 # my-interface.yaml
@@ -168,13 +168,13 @@ app:
       bg_color: 'black'
       children:
         - id: 'welcome'
-          title: 'Welcome Panel'
+          title: 'Welcome MuxBox'
           position:
             x1: 10%
             y1: 20%
             x2: 90%
             y2: 60%
-          content: 'Basic panel example'
+          content: 'Basic box example'
           border: true
           
         - id: 'system_logs'
@@ -224,24 +224,24 @@ boxmux my-interface.yaml
 
 ## Interface Components
 
-### Panel Types
+### MuxBox Types
 
-- **Content Panels**: Display static or dynamic text with multi-line support
+- **Content MuxBoxes**: Display static or dynamic text with multi-line support
 - **Interactive Menus**: Navigate and select options with keyboard controls and mouse clicks
-- **Chart Panels**: Unicode-based visualizations (bar, line, histogram) with responsive layout
-- **Table Panels**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
-- **PTY Panels**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
-- **Plugin Panels**: Dynamic components with security validation and manifest loading
-- **Variable Panels**: Template-driven content with hierarchical variable substitution
+- **Chart MuxBoxes**: Unicode-based visualizations (bar, line, histogram) with responsive layout
+- **Table MuxBoxes**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
+- **PTY MuxBoxes**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
+- **Plugin MuxBoxes**: Dynamic components with security validation and manifest loading
+- **Variable MuxBoxes**: Template-driven content with hierarchical variable substitution
 
 ### Interface Features
 
 - **Tab Navigation**: Move between interactive elements with configurable tab order
-- **Keyboard Shortcuts**: Custom keybindings, global hot keys (F1-F24), and panel-specific actions
-- **Mouse Support**: Click to select panels, activate menu items, and trigger choice actions
+- **Keyboard Shortcuts**: Custom keybindings, global hot keys (F1-F24), and box-specific actions
+- **Mouse Support**: Click to select boxes, activate menu items, and trigger choice actions
 - **Real-time Updates**: Configurable refresh intervals with millisecond precision
 - **Scrolling**: Position preservation, proportional scrollbars, Home/End navigation, auto-scroll
-- **Clipboard Integration**: Ctrl+C copies focused panel content with visual feedback
+- **Clipboard Integration**: Ctrl+C copies focused box content with visual feedback
 - **PTY Integration**: Interactive terminal emulation with ANSI processing and special key handling
 - **Borders & Styling**: 16 ANSI colors, multiple border styles, PTY visual indicators (⚡), zebra striping
 - **Focus Management**: Visual focus indicators and next_focus_id configuration
@@ -259,7 +259,7 @@ app:
     - id: 'dashboard'
       root: true
       title: 'Dashboard'
-      children:              # Nested panels
+      children:              # Nested boxes
         - id: 'header'
           title: 'Header'
           position:          # Percentage-based positioning
@@ -285,8 +285,8 @@ BoxMux includes hierarchical variable substitution for dynamic configuration and
 
 Variables are resolved in this order (highest to lowest priority):
 
-1. **Panel-specific variables** (most granular control)
-2. **Parent panel variables** (inherited through hierarchy)
+1. **MuxBox-specific variables** (most granular control)
+2. **Parent box variables** (inherited through hierarchy)
 3. **Layout-level variables** (layout scope)
 4. **Application-global variables** (app-wide scope)
 5. **Environment variables** (system fallback)
@@ -304,10 +304,10 @@ app:
     - id: 'dashboard'
       title: 'Dashboard for ${SERVER_NAME}'
       children:
-        - id: 'status_panel'
+        - id: 'status_box'
           variables:
-            PANEL_TITLE: "Server Status"
-          title: '${PANEL_TITLE}'
+            MUXBOX_TITLE: "Server Status"
+          title: '${MUXBOX_TITLE}'
           content: 'Monitoring: ${SERVER_NAME}'
           script:
             - echo "Checking ${SERVER_NAME} status..."
@@ -316,7 +316,7 @@ app:
 
 ### Variable Features
 
-- Hierarchical inheritance: Child panels inherit parent variables
+- Hierarchical inheritance: Child boxes inherit parent variables
 - Environment integration: Use existing environment variables as fallbacks
 - Default values: Provide fallbacks with `${VAR:default_value}` syntax
 - Multi-level substitution: Variables work in all fields (titles, content, scripts)
@@ -359,24 +359,24 @@ This enables:
 
 ## Socket Integration
 
-BoxMux supports real-time communication via Unix sockets for regular panels and PTY processes:
+BoxMux supports real-time communication via Unix sockets for regular boxes and PTY processes:
 
 ```bash
-# Update panel content
-echo '{"UpdatePanel": {"panel_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
+# Update box content
+echo '{"UpdateMuxBox": {"box_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
 
 # Send commands
-echo '{"Command": {"action": "refresh", "panel_id": "logs"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "refresh", "box_id": "logs"}}' | nc -U /tmp/boxmux.sock
 
 # PTY process control
-echo '{"Command": {"action": "kill_pty", "panel_id": "htop_panel"}}' | nc -U /tmp/boxmux.sock
-echo '{"Command": {"action": "restart_pty", "panel_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "kill_pty", "box_id": "htop_box"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "restart_pty", "box_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
 
 # Query PTY status
-echo '{"Command": {"action": "pty_status", "panel_id": "vim_panel"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "pty_status", "box_id": "vim_box"}}' | nc -U /tmp/boxmux.sock
 
 # Send input to PTY (for scripted interaction)
-echo '{"Command": {"action": "pty_input", "panel_id": "ssh_session", "input": "ls -la\n"}}' | nc -U /tmp/boxmux.sock
+echo '{"Command": {"action": "pty_input", "box_id": "ssh_session", "input": "ls -la\n"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ## Example Gallery
@@ -416,15 +416,15 @@ app:
               content: 'View Logs [F2]'
               script:
                 - tail -f /var/log/app.log
-              redirect_output: 'log_panel'
+              redirect_output: 'log_box'
               auto_scroll_bottom: true
 ```
 
 ### PTY Interactive Terminals
 
 ```yaml
-# Interactive terminal applications in panels
-- id: 'htop_panel'
+# Interactive terminal applications in boxes
+- id: 'htop_box'
   title: 'System Monitor ⚡'
   pty: true
   script:
@@ -435,7 +435,7 @@ app:
     x2: 50%
     y2: 50%
 
-- id: 'vim_panel'
+- id: 'vim_box'
   title: 'Text Editor ⚡'
   pty: true
   script:
@@ -574,7 +574,7 @@ BoxMux performance characteristics (validated with 402 passing tests):
 - **Fast Rendering**: Optimized screen updates with frame rate control
 - **Efficient Threading**: Multi-threaded architecture with clean message passing
 - **Responsive**: Sub-millisecond input handling with performance benchmarking
-- **Scalable**: Handles complex layouts with nested panel hierarchies
+- **Scalable**: Handles complex layouts with nested box hierarchies
 
 ### Performance Benchmarks
 

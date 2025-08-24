@@ -84,12 +84,12 @@
     "overflow_behavior": {
       "type": "string",
       "enum": ["scroll", "wrap", "truncate", "hidden"],
-      "description": "How to handle content that exceeds panel boundaries"
+      "description": "How to handle content that exceeds box boundaries"
     },
     "title_position": {
       "type": "string", 
       "enum": ["left", "center", "right"],
-      "description": "Horizontal alignment of panel title"
+      "description": "Horizontal alignment of box title"
     },
     "input_bounds": {
       "type": "object",
@@ -148,7 +148,7 @@
         },
         "redirect_output": {
           "type": "string",
-          "description": "ID of panel to redirect choice output to"
+          "description": "ID of box to redirect choice output to"
         },
         "append_output": {
           "type": "boolean",
@@ -162,49 +162,49 @@
       "required": ["id"],
       "additionalProperties": false
     },
-    "panel": {
+    "box": {
       "type": "object",
       "properties": {
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique identifier for the panel"
+          "description": "Unique identifier for the box"
         },
         "title": {
           "type": "string",
-          "description": "Optional display title for the panel"
+          "description": "Optional display title for the box"
         },
         "position": {
           "$ref": "#/definitions/input_bounds",
-          "description": "Panel position and size bounds"
+          "description": "MuxBox position and size bounds"
         },
         "bounds": {
           "$ref": "#/definitions/input_bounds",
-          "description": "Panel position and size bounds (alias for position)"
+          "description": "MuxBox position and size bounds (alias for position)"
         },
         "anchor": {
           "$ref": "#/definitions/anchor_type",
-          "description": "Anchor point for panel positioning"
+          "description": "Anchor point for box positioning"
         },
         "min_width": {
           "type": "integer",
           "minimum": 1,
-          "description": "Minimum panel width in characters"
+          "description": "Minimum box width in characters"
         },
         "min_height": {
           "type": "integer", 
           "minimum": 1,
-          "description": "Minimum panel height in characters"
+          "description": "Minimum box height in characters"
         },
         "max_width": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum panel width in characters"
+          "description": "Maximum box width in characters"
         },
         "max_height": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum panel height in characters"
+          "description": "Maximum box height in characters"
         },
         "overflow_behavior": {
           "$ref": "#/definitions/overflow_behavior",
@@ -213,7 +213,7 @@
         "scroll": {
           "type": "boolean",
           "default": false,
-          "description": "Whether panel content is scrollable"
+          "description": "Whether box content is scrollable"
         },
         "refresh_interval": {
           "type": "integer",
@@ -229,18 +229,18 @@
         },
         "next_focus_id": {
           "type": "string",
-          "description": "ID of next panel to focus when tabbing"
+          "description": "ID of next box to focus when tabbing"
         },
         "children": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/panel"
+            "$ref": "#/definitions/box"
           },
-          "description": "Array of nested child panels"
+          "description": "Array of nested child boxes"
         },
         "fill": {
           "type": "boolean",
-          "description": "Whether to fill panel background"
+          "description": "Whether to fill box background"
         },
         "fill_char": {
           "type": "string",
@@ -250,11 +250,11 @@
         "selected_fill_char": {
           "type": "string",
           "maxLength": 1,
-          "description": "Fill character when panel is selected"
+          "description": "Fill character when box is selected"
         },
         "border": {
           "type": "boolean",
-          "description": "Whether to show border around panel"
+          "description": "Whether to show border around box"
         },
         "border_color": {
           "$ref": "#/definitions/color_name",
@@ -365,7 +365,7 @@
         },
         "redirect_output": {
           "type": "string",
-          "description": "ID of panel to redirect script output to"
+          "description": "ID of box to redirect script output to"
         },
         "append_output": {
           "type": "boolean",
@@ -385,7 +385,7 @@
               "description": "Array of script commands to execute"
             }
           ],
-          "description": "Script commands to execute for panel content"
+          "description": "Script commands to execute for box content"
         },
         "thread": {
           "type": "boolean",
@@ -401,7 +401,7 @@
               }
             }
           },
-          "description": "Panel-specific key bindings"
+          "description": "MuxBox-specific key bindings"
         },
         "variables": {
           "type": "object",
@@ -410,7 +410,7 @@
               "type": "string"
             }
           },
-          "description": "Panel-local variables for template substitution"
+          "description": "MuxBox-local variables for template substitution"
         },
         "horizontal_scroll": {
           "type": "number",
@@ -424,15 +424,15 @@
         },
         "selected": {
           "type": "boolean",
-          "description": "Whether panel is currently selected"
+          "description": "Whether box is currently selected"
         },
         "content": {
           "type": "string",
-          "description": "Static text content to display in panel"
+          "description": "Static text content to display in box"
         },
         "save_in_file": {
           "type": "string",
-          "description": "File path to save panel content to"
+          "description": "File path to save box content to"
         },
         "chart_type": {
           "type": "string",
@@ -445,7 +445,7 @@
         },
         "plugin_component": {
           "type": "string",
-          "description": "Plugin component type to render in this panel"
+          "description": "Plugin component type to render in this box"
         },
         "plugin_config": {
           "type": "object",
@@ -497,9 +497,9 @@
         "children": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/panel"
+            "$ref": "#/definitions/box"
           },
-          "description": "Array of child panels within this layout"
+          "description": "Array of child boxes within this layout"
         },
         "fill": {
           "type": "boolean",
@@ -658,9 +658,9 @@
         "children": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/panel"
+            "$ref": "#/definitions/box"
           },
-          "description": "Array of child panels within this layout"
+          "description": "Array of child boxes within this layout"
         },
         "fill": {
           "type": "boolean",

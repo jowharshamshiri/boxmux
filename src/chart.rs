@@ -46,26 +46,26 @@ pub enum ChartType {
 
 /// Generate ASCII+ chart using Unicode block characters
 pub fn generate_chart(data: &[DataPoint], config: &ChartConfig) -> String {
-    generate_chart_with_panel_title(data, config, None)
+    generate_chart_with_muxbox_title(data, config, None)
 }
 
-/// Generate chart with panel title context to avoid duplication
-pub fn generate_chart_with_panel_title(
+/// Generate chart with muxbox title context to avoid duplication
+pub fn generate_chart_with_muxbox_title(
     data: &[DataPoint],
     config: &ChartConfig,
-    panel_title: Option<&str>,
+    muxbox_title: Option<&str>,
 ) -> String {
     if data.is_empty() {
         return "No chart data".to_string();
     }
 
     // Calculate smart layout based on chart type and data
-    let layout = calculate_chart_layout(data, config, panel_title);
+    let layout = calculate_chart_layout(data, config, muxbox_title);
 
     match config.chart_type {
-        ChartType::Bar => generate_bar_chart(data, config, &layout, panel_title),
-        ChartType::Line => generate_line_chart(data, config, &layout, panel_title),
-        ChartType::Histogram => generate_histogram(data, config, &layout, panel_title),
+        ChartType::Bar => generate_bar_chart(data, config, &layout, muxbox_title),
+        ChartType::Line => generate_line_chart(data, config, &layout, muxbox_title),
+        ChartType::Histogram => generate_histogram(data, config, &layout, muxbox_title),
     }
 }
 
@@ -73,14 +73,14 @@ pub fn generate_chart_with_panel_title(
 fn calculate_chart_layout(
     data: &[DataPoint],
     config: &ChartConfig,
-    panel_title: Option<&str>,
+    muxbox_title: Option<&str>,
 ) -> ChartLayout {
     let total_width = config.width.max(20); // Minimum width
     let total_height = config.height.max(5); // Minimum height
 
-    // Reserve space for title if present and different from panel title
+    // Reserve space for title if present and different from muxbox title
     let title_height = if let Some(title) = &config.title {
-        let should_show_title = panel_title.map_or(true, |panel_title| panel_title != title);
+        let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
         if should_show_title {
             2
         } else {
@@ -141,14 +141,14 @@ fn generate_bar_chart(
     data: &[DataPoint],
     config: &ChartConfig,
     layout: &ChartLayout,
-    panel_title: Option<&str>,
+    muxbox_title: Option<&str>,
 ) -> String {
     let max_value = data.iter().map(|p| p.value).fold(0.0, f64::max);
     let mut result = String::new();
 
-    // Only add title if it's different from the panel title
+    // Only add title if it's different from the muxbox title
     if let Some(title) = &config.title {
-        let should_show_title = panel_title.map_or(true, |panel_title| panel_title != title);
+        let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
         if should_show_title {
             let title_centered = center_text(title, layout.total_width);
             result.push_str(&format!("{}\n", title_centered));
@@ -231,7 +231,7 @@ fn generate_line_chart(
     data: &[DataPoint],
     config: &ChartConfig,
     layout: &ChartLayout,
-    panel_title: Option<&str>,
+    muxbox_title: Option<&str>,
 ) -> String {
     if data.len() < 2 {
         return "Need at least 2 data points for line chart".to_string();
@@ -243,9 +243,9 @@ fn generate_line_chart(
 
     let mut result = String::new();
 
-    // Only add title if it's different from the panel title
+    // Only add title if it's different from the muxbox title
     if let Some(title) = &config.title {
-        let should_show_title = panel_title.map_or(true, |panel_title| panel_title != title);
+        let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
         if should_show_title {
             let title_centered = center_text(title, layout.total_width);
             result.push_str(&format!("{}\n", title_centered));
@@ -355,7 +355,7 @@ fn generate_histogram(
     data: &[DataPoint],
     config: &ChartConfig,
     layout: &ChartLayout,
-    panel_title: Option<&str>,
+    muxbox_title: Option<&str>,
 ) -> String {
     // Create bins based on value ranges
     let max_value = data.iter().map(|p| p.value).fold(0.0, f64::max);
@@ -399,9 +399,9 @@ fn generate_histogram(
 
     let mut result = String::new();
 
-    // Only add title if it's different from the panel title
+    // Only add title if it's different from the muxbox title
     if let Some(title) = &config.title {
-        let should_show_title = panel_title.map_or(true, |panel_title| panel_title != title);
+        let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
         if should_show_title {
             let title_centered = center_text(title, layout.total_width);
             result.push_str(&format!("{}\n", title_centered));

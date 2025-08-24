@@ -176,19 +176,19 @@ create_runnable!(
                     }) => {
                         match kind {
                             MouseEventKind::ScrollUp => {
-                                inner.send_message(Message::ScrollPanelUp());
+                                inner.send_message(Message::ScrollMuxBoxUp());
                                 "ScrollUp".to_string()
                             }
                             MouseEventKind::ScrollDown => {
-                                inner.send_message(Message::ScrollPanelDown());
+                                inner.send_message(Message::ScrollMuxBoxDown());
                                 "ScrollDown".to_string()
                             }
                             MouseEventKind::ScrollLeft => {
-                                inner.send_message(Message::ScrollPanelLeft());
+                                inner.send_message(Message::ScrollMuxBoxLeft());
                                 "ScrollLeft".to_string()
                             }
                             MouseEventKind::ScrollRight => {
-                                inner.send_message(Message::ScrollPanelRight());
+                                inner.send_message(Message::ScrollMuxBoxRight());
                                 "ScrollRight".to_string()
                             }
                             MouseEventKind::Down(_button) => {
@@ -213,19 +213,19 @@ create_runnable!(
                     Event::Key(KeyEvent {
                         code, modifiers, ..
                     }) => {
-                        // Check if focused panel has PTY enabled - if so, route input to PTY
-                        let selected_panels = active_layout.get_selected_panels();
-                        let focused_panel_has_pty = selected_panels
+                        // Check if focused muxbox has PTY enabled - if so, route input to PTY
+                        let selected_muxboxes = active_layout.get_selected_muxboxes();
+                        let focused_muxbox_has_pty = selected_muxboxes
                             .first()
-                            .map(|panel| should_use_pty(panel))
+                            .map(|muxbox| should_use_pty(muxbox))
                             .unwrap_or(false);
 
-                        if focused_panel_has_pty {
+                        if focused_muxbox_has_pty {
                             // Convert key event to string and send to PTY
                             let key_str = format_key_for_pty(code, modifiers);
-                            if let Some(focused_panel) = selected_panels.first() {
+                            if let Some(focused_muxbox) = selected_muxboxes.first() {
                                 inner.send_message(Message::PTYInput(
-                                    focused_panel.id.clone(),
+                                    focused_muxbox.id.clone(),
                                     key_str.clone(),
                                 ));
                                 return (true, app_context);
@@ -239,45 +239,45 @@ create_runnable!(
                                 "q".to_string()
                             }
                             KeyCode::Tab => {
-                                inner.send_message(Message::NextPanel());
+                                inner.send_message(Message::NextMuxBox());
                                 "Tab".to_string()
                             }
                             KeyCode::BackTab => {
-                                inner.send_message(Message::PreviousPanel());
+                                inner.send_message(Message::PreviousMuxBox());
                                 "BackTab".to_string()
                             }
                             KeyCode::Enter => "Enter".to_string(),
                             KeyCode::Down => {
-                                inner.send_message(Message::ScrollPanelDown());
+                                inner.send_message(Message::ScrollMuxBoxDown());
                                 "Down".to_string()
                             }
                             KeyCode::Up => {
-                                inner.send_message(Message::ScrollPanelUp());
+                                inner.send_message(Message::ScrollMuxBoxUp());
                                 "Up".to_string()
                             }
                             KeyCode::Left => {
-                                inner.send_message(Message::ScrollPanelLeft());
+                                inner.send_message(Message::ScrollMuxBoxLeft());
                                 "Left".to_string()
                             }
                             KeyCode::Right => {
-                                inner.send_message(Message::ScrollPanelRight());
+                                inner.send_message(Message::ScrollMuxBoxRight());
                                 "Right".to_string()
                             }
                             KeyCode::PageUp => {
                                 if modifiers.contains(KeyModifiers::SHIFT) {
-                                    inner.send_message(Message::ScrollPanelPageLeft());
+                                    inner.send_message(Message::ScrollMuxBoxPageLeft());
                                     "Shift+PageUp".to_string()
                                 } else {
-                                    inner.send_message(Message::ScrollPanelPageUp());
+                                    inner.send_message(Message::ScrollMuxBoxPageUp());
                                     "PageUp".to_string()
                                 }
                             }
                             KeyCode::PageDown => {
                                 if modifiers.contains(KeyModifiers::SHIFT) {
-                                    inner.send_message(Message::ScrollPanelPageRight());
+                                    inner.send_message(Message::ScrollMuxBoxPageRight());
                                     "Shift+PageDown".to_string()
                                 } else {
-                                    inner.send_message(Message::ScrollPanelPageDown());
+                                    inner.send_message(Message::ScrollMuxBoxPageDown());
                                     "PageDown".to_string()
                                 }
                             }
@@ -285,7 +285,7 @@ create_runnable!(
                                 if modifiers.contains(KeyModifiers::CONTROL) {
                                     match c {
                                         'c' => {
-                                            inner.send_message(Message::CopyFocusedPanelContent());
+                                            inner.send_message(Message::CopyFocusedMuxBoxContent());
                                             "Ctrl+c".to_string()
                                         }
                                         _ => format!("Ctrl+{}", c),
@@ -293,7 +293,7 @@ create_runnable!(
                                 } else if modifiers.contains(KeyModifiers::SUPER) {
                                     match c {
                                         'c' => {
-                                            inner.send_message(Message::CopyFocusedPanelContent());
+                                            inner.send_message(Message::CopyFocusedMuxBoxContent());
                                             "Cmd+c".to_string()
                                         }
                                         _ => format!("Cmd+{}", c),
@@ -310,22 +310,22 @@ create_runnable!(
                             KeyCode::Home => {
                                 if modifiers.contains(KeyModifiers::CONTROL) {
                                     // Ctrl+Home: scroll to top vertically
-                                    inner.send_message(Message::ScrollPanelToTop());
+                                    inner.send_message(Message::ScrollMuxBoxToTop());
                                     "Ctrl+Home".to_string()
                                 } else {
                                     // Home: scroll to beginning horizontally
-                                    inner.send_message(Message::ScrollPanelToBeginning());
+                                    inner.send_message(Message::ScrollMuxBoxToBeginning());
                                     "Home".to_string()
                                 }
                             }
                             KeyCode::End => {
                                 if modifiers.contains(KeyModifiers::CONTROL) {
                                     // Ctrl+End: scroll to bottom vertically
-                                    inner.send_message(Message::ScrollPanelToBottom());
+                                    inner.send_message(Message::ScrollMuxBoxToBottom());
                                     "Ctrl+End".to_string()
                                 } else {
                                     // End: scroll to end horizontally
-                                    inner.send_message(Message::ScrollPanelToEnd());
+                                    inner.send_message(Message::ScrollMuxBoxToEnd());
                                     "End".to_string()
                                 }
                             }

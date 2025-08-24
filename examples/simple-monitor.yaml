@@ -20,7 +20,7 @@ app:
           content: 'Welcome to Simple System Monitor'
           border: true
           
-        - id: 'cpu_panel'
+        - id: 'cpu_box'
           title: 'CPU Usage'
           position:
             x1: 5%
@@ -36,7 +36,7 @@ app:
             - ps aux --sort=-%cpu | head -5 | awk '{print $2, $3, $11}'
           border: true
           
-        - id: 'memory_panel'
+        - id: 'memory_box'
           title: 'Memory Usage'
           position:
             x1: 53%
@@ -52,7 +52,7 @@ app:
             - ps aux --sort=-%mem | head -5 | awk '{print $2, $4, $11}'
           border: true
           
-        - id: 'disk_panel'
+        - id: 'disk_box'
           title: 'Disk Usage'
           position:
             x1: 5%
@@ -64,7 +64,7 @@ app:
             - df -h | head -5
           border: true
           
-        - id: 'network_panel'
+        - id: 'network_box'
           title: 'Network Info'
           position:
             x1: 53%

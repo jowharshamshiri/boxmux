@@ -325,4 +325,4 @@ app:
           border_color: 'magenta'
           bg_color: 'black'
           fg_color: 'bright_magenta'
-          content: "Network Operations Center\\n\\nUse Network Tools panel to:\\n\\n• Test connectivity to external hosts\\n• Perform DNS lookups and resolution\\n• Scan for open ports on localhost\\n• Trace network routes\\n\\nOutput from network tools will appear here\\n\\nMonitoring:\\n• Network interfaces and IP addresses\\n• Active connections and listening ports\\n• Security status and firewall rules\\n• Real-time network statistics"
+          content: "Network Operations Center\\n\\nUse Network Tools box to:\\n\\n• Test connectivity to external hosts\\n• Perform DNS lookups and resolution\\n• Scan for open ports on localhost\\n• Trace network routes\\n\\nOutput from network tools will appear here\\n\\nMonitoring:\\n• Network interfaces and IP addresses\\n• Active connections and listening ports\\n• Security status and firewall rules\\n• Real-time network statistics"

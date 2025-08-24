@@ -17,22 +17,22 @@ echo ""
 # Wait for BoxMux to start
 sleep 2
 
-echo "2. Querying PTY status for all panels..."
-echo "   Query normal PTY panel:"
-./target/release/boxmux query_pty_status normal_pty 2>/dev/null || echo "   (Panel may not be started yet)"
+echo "2. Querying PTY status for all muxboxes..."
+echo "   Query normal PTY muxbox:"
+./target/release/boxmux query_pty_status normal_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
 
-echo "   Query error PTY panel:"
-./target/release/boxmux query_pty_status error_pty 2>/dev/null || echo "   (Panel may not be started yet)"
+echo "   Query error PTY muxbox:"
+./target/release/boxmux query_pty_status error_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
 
-echo "   Query dead PTY panel:"
-./target/release/boxmux query_pty_status dead_pty 2>/dev/null || echo "   (Panel may not be started yet)"
+echo "   Query dead PTY muxbox:"
+./target/release/boxmux query_pty_status dead_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
 echo ""
 
 echo "3. Demonstrating PTY process control..."
-echo "   Kill PTY process in normal_pty panel:"
+echo "   Kill PTY process in normal_pty muxbox:"
 ./target/release/boxmux kill_pty_process normal_pty 2>/dev/null || echo "   (May fail if process not running)"
 
-echo "   Restart PTY process in normal_pty panel:"
+echo "   Restart PTY process in normal_pty muxbox:"
 ./target/release/boxmux restart_pty_process normal_pty 2>/dev/null || echo "   (Restart command sent)"
 echo ""
 
@@ -47,9 +47,9 @@ kill $BOXMUX_PID 2>/dev/null
 echo ""
 
 echo "=== PTY Control Commands Available ==="
-echo "kill_pty_process <panel_id>    - Kill PTY process for a panel"
-echo "restart_pty_process <panel_id> - Restart PTY process for a panel" 
-echo "query_pty_status <panel_id>    - Get PTY process status and info"
+echo "kill_pty_process <muxbox_id>    - Kill PTY process for a muxbox"
+echo "restart_pty_process <muxbox_id> - Restart PTY process for a muxbox" 
+echo "query_pty_status <muxbox_id>    - Get PTY process status and info"
 echo ""
 
 echo "=== PTY Error State Indicators ==="

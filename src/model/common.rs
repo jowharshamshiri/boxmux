@@ -5,7 +5,7 @@ use crate::{
     draw_utils::{get_bg_color, get_fg_color},
     screen_bounds, screen_height, screen_width,
     utils::input_bounds_to_bounds,
-    AppContext, AppGraph, Layout, Message, Panel,
+    AppContext, AppGraph, Layout, Message, MuxBox,
 };
 use serde::{Deserialize, Serialize};
 
@@ -14,14 +14,14 @@ pub enum EntityType {
     AppContext,
     App,
     Layout,
-    Panel,
+    MuxBox,
 }
 
 // Represents a granular field update
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct FieldUpdate {
     pub entity_type: EntityType,   // The type of entity being updated
-    pub entity_id: Option<String>, // The ID of the entity (App, Layout, or Panel)
+    pub entity_id: Option<String>, // The ID of the entity (App, Layout, or MuxBox)
     pub field_name: String,        // The field name to be updated
     pub new_value: Value,          // The new value for the field
 }
@@ -38,7 +38,7 @@ pub trait Updatable {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
     pub frame_delay: u64,
-    pub locked: bool, // Disable panel resizing and moving when true
+    pub locked: bool, // Disable muxbox resizing and moving when true
 }
 
 impl Hash for Config {
@@ -81,45 +81,45 @@ impl Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum SocketFunction {
-    ReplacePanelContent {
-        panel_id: String,
+    ReplaceMuxBoxContent {
+        muxbox_id: String,
         success: bool,
         content: String,
     },
-    ReplacePanelScript {
-        panel_id: String,
+    ReplaceMuxBoxScript {
+        muxbox_id: String,
         script: Vec<String>,
     },
-    StopPanelRefresh {
-        panel_id: String,
+    StopMuxBoxRefresh {
+        muxbox_id: String,
     },
-    StartPanelRefresh {
-        panel_id: String,
+    StartMuxBoxRefresh {
+        muxbox_id: String,
     },
-    ReplacePanel {
-        panel_id: String,
-        new_panel: Panel,
+    ReplaceMuxBox {
+        muxbox_id: String,
+        new_muxbox: MuxBox,
     },
     SwitchActiveLayout {
         layout_id: String,
     },
-    AddPanel {
+    AddMuxBox {
         layout_id: String,
-        panel: Panel,
+        muxbox: MuxBox,
     },
-    RemovePanel {
-        panel_id: String,
+    RemoveMuxBox {
+        muxbox_id: String,
     },
     // F0137: Socket PTY Control - Kill and restart PTY processes
     KillPtyProcess {
-        panel_id: String,
+        muxbox_id: String,
     },
     RestartPtyProcess {
-        panel_id: String,
+        muxbox_id: String,
     },
     // F0138: Socket PTY Query - Get PTY status and info
     QueryPtyStatus {
-        panel_id: String,
+        muxbox_id: String,
     },
 }
 
@@ -130,113 +130,113 @@ pub fn run_socket_function(
     let app_context = app_context.clone();
     let mut messages = Vec::new();
     match socket_function {
-        SocketFunction::ReplacePanelContent {
-            panel_id,
+        SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id,
             success,
             content,
         } => {
-            messages.push(Message::PanelOutputUpdate(panel_id, success, content));
+            messages.push(Message::MuxBoxOutputUpdate(muxbox_id, success, content));
         }
-        SocketFunction::ReplacePanelScript { panel_id, script } => {
-            messages.push(Message::PanelScriptUpdate(panel_id, script));
+        SocketFunction::ReplaceMuxBoxScript { muxbox_id, script } => {
+            messages.push(Message::MuxBoxScriptUpdate(muxbox_id, script));
         }
-        SocketFunction::StopPanelRefresh { panel_id } => {
-            messages.push(Message::StopPanelRefresh(panel_id));
+        SocketFunction::StopMuxBoxRefresh { muxbox_id } => {
+            messages.push(Message::StopMuxBoxRefresh(muxbox_id));
         }
-        SocketFunction::StartPanelRefresh { panel_id } => {
-            messages.push(Message::StartPanelRefresh(panel_id));
+        SocketFunction::StartMuxBoxRefresh { muxbox_id } => {
+            messages.push(Message::StartMuxBoxRefresh(muxbox_id));
         }
-        SocketFunction::ReplacePanel {
-            panel_id,
-            new_panel,
+        SocketFunction::ReplaceMuxBox {
+            muxbox_id,
+            new_muxbox,
         } => {
-            messages.push(Message::ReplacePanel(panel_id, new_panel));
+            messages.push(Message::ReplaceMuxBox(muxbox_id, new_muxbox));
         }
         SocketFunction::SwitchActiveLayout { layout_id } => {
             messages.push(Message::SwitchActiveLayout(layout_id));
         }
-        SocketFunction::AddPanel { layout_id, panel } => {
-            messages.push(Message::AddPanel(layout_id, panel));
+        SocketFunction::AddMuxBox { layout_id, muxbox } => {
+            messages.push(Message::AddMuxBox(layout_id, muxbox));
         }
-        SocketFunction::RemovePanel { panel_id } => {
-            messages.push(Message::RemovePanel(panel_id));
+        SocketFunction::RemoveMuxBox { muxbox_id } => {
+            messages.push(Message::RemoveMuxBox(muxbox_id));
         }
         // F0137: Socket PTY Control - Kill and restart PTY processes
-        SocketFunction::KillPtyProcess { panel_id } => {
+        SocketFunction::KillPtyProcess { muxbox_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                match pty_manager.kill_pty_process(&panel_id) {
+                match pty_manager.kill_pty_process(&muxbox_id) {
                     Ok(_) => {
-                        messages.push(Message::PanelOutputUpdate(
-                            panel_id.clone(),
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            muxbox_id.clone(),
                             true,
-                            format!("PTY process killed for panel {}", panel_id),
+                            format!("PTY process killed for muxbox {}", muxbox_id),
                         ));
                     }
                     Err(err) => {
-                        messages.push(Message::PanelOutputUpdate(
-                            panel_id.clone(),
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            muxbox_id.clone(),
                             false,
                             format!("Failed to kill PTY process: {}", err),
                         ));
                     }
                 }
             } else {
-                messages.push(Message::PanelOutputUpdate(
-                    panel_id.clone(),
+                messages.push(Message::MuxBoxOutputUpdate(
+                    muxbox_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
             }
         }
-        SocketFunction::RestartPtyProcess { panel_id } => {
+        SocketFunction::RestartPtyProcess { muxbox_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                match pty_manager.restart_pty_process(&panel_id) {
+                match pty_manager.restart_pty_process(&muxbox_id) {
                     Ok(_) => {
-                        messages.push(Message::PanelOutputUpdate(
-                            panel_id.clone(),
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            muxbox_id.clone(),
                             true,
-                            format!("PTY process restarted for panel {}", panel_id),
+                            format!("PTY process restarted for muxbox {}", muxbox_id),
                         ));
                     }
                     Err(err) => {
-                        messages.push(Message::PanelOutputUpdate(
-                            panel_id.clone(),
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            muxbox_id.clone(),
                             false,
                             format!("Failed to restart PTY process: {}", err),
                         ));
                     }
                 }
             } else {
-                messages.push(Message::PanelOutputUpdate(
-                    panel_id.clone(),
+                messages.push(Message::MuxBoxOutputUpdate(
+                    muxbox_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
             }
         }
         // F0138: Socket PTY Query - Get PTY status and info
-        SocketFunction::QueryPtyStatus { panel_id } => {
+        SocketFunction::QueryPtyStatus { muxbox_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                if let Some(info) = pty_manager.get_detailed_process_info(&panel_id) {
+                if let Some(info) = pty_manager.get_detailed_process_info(&muxbox_id) {
                     let status_info = format!(
-                        "PTY Status - Panel: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
-                        info.panel_id, info.process_id, info.status, info.is_running, info.buffer_lines
+                        "PTY Status - MuxBox: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
+                        info.muxbox_id, info.process_id, info.status, info.is_running, info.buffer_lines
                     );
-                    messages.push(Message::PanelOutputUpdate(
-                        panel_id.clone(),
+                    messages.push(Message::MuxBoxOutputUpdate(
+                        muxbox_id.clone(),
                         true,
                         status_info,
                     ));
                 } else {
-                    messages.push(Message::PanelOutputUpdate(
-                        panel_id.clone(),
+                    messages.push(Message::MuxBoxOutputUpdate(
+                        muxbox_id.clone(),
                         false,
-                        format!("No PTY process found for panel {}", panel_id),
+                        format!("No PTY process found for muxbox {}", muxbox_id),
                     ));
                 }
             } else {
-                messages.push(Message::PanelOutputUpdate(
-                    panel_id.clone(),
+                messages.push(Message::MuxBoxOutputUpdate(
+                    muxbox_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
@@ -749,14 +749,14 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
     fn dfs(
         app_graph: &AppGraph,
         layout_id: &str,
-        panel: &Panel,
+        muxbox: &MuxBox,
         parent_bounds: Bounds,
         bounds_map: &mut HashMap<String, Bounds>,
     ) {
-        let bounds = panel.absolute_bounds(Some(&parent_bounds));
-        bounds_map.insert(panel.id.clone(), bounds.clone());
+        let bounds = muxbox.absolute_bounds(Some(&parent_bounds));
+        bounds_map.insert(muxbox.id.clone(), bounds.clone());
 
-        if let Some(children) = &panel.children {
+        if let Some(children) = &muxbox.children {
             for child in children {
                 dfs(app_graph, layout_id, child, bounds.clone(), bounds_map);
             }
@@ -765,11 +765,11 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
 
     let root_bounds = screen_bounds();
     if let Some(children) = &layout.children {
-        for panel in children {
+        for muxbox in children {
             dfs(
                 app_graph,
                 &layout.id,
-                panel,
+                muxbox,
                 root_bounds.clone(),
                 &mut bounds_map,
             );
@@ -783,35 +783,35 @@ pub fn adjust_bounds_with_constraints(
     layout: &Layout,
     mut bounds_map: HashMap<String, Bounds>,
 ) -> HashMap<String, Bounds> {
-    fn apply_constraints(panel: &Panel, bounds: &mut Bounds) {
-        if let Some(min_width) = panel.min_width {
+    fn apply_constraints(muxbox: &MuxBox, bounds: &mut Bounds) {
+        if let Some(min_width) = muxbox.min_width {
             if bounds.width() < min_width {
-                bounds.extend(min_width - bounds.width(), 0, panel.anchor.clone());
+                bounds.extend(min_width - bounds.width(), 0, muxbox.anchor.clone());
             }
         }
-        if let Some(min_height) = panel.min_height {
+        if let Some(min_height) = muxbox.min_height {
             if bounds.height() < min_height {
-                bounds.extend(0, min_height - bounds.height(), panel.anchor.clone());
+                bounds.extend(0, min_height - bounds.height(), muxbox.anchor.clone());
             }
         }
-        if let Some(max_width) = panel.max_width {
+        if let Some(max_width) = muxbox.max_width {
             if bounds.width() > max_width {
-                bounds.contract(bounds.width() - max_width, 0, panel.anchor.clone());
+                bounds.contract(bounds.width() - max_width, 0, muxbox.anchor.clone());
             }
         }
-        if let Some(max_height) = panel.max_height {
+        if let Some(max_height) = muxbox.max_height {
             if bounds.height() > max_height {
-                bounds.contract(0, bounds.height() - max_height, panel.anchor.clone());
+                bounds.contract(0, bounds.height() - max_height, muxbox.anchor.clone());
             }
         }
     }
 
-    fn dfs(panel: &Panel, bounds_map: &mut HashMap<String, Bounds>) -> Bounds {
-        let mut bounds = bounds_map.remove(&panel.id).unwrap();
-        apply_constraints(panel, &mut bounds);
-        bounds_map.insert(panel.id.clone(), bounds.clone());
+    fn dfs(muxbox: &MuxBox, bounds_map: &mut HashMap<String, Bounds>) -> Bounds {
+        let mut bounds = bounds_map.remove(&muxbox.id).unwrap();
+        apply_constraints(muxbox, &mut bounds);
+        bounds_map.insert(muxbox.id.clone(), bounds.clone());
 
-        if let Some(children) = &panel.children {
+        if let Some(children) = &muxbox.children {
             for child in children {
                 let child_bounds = dfs(child, bounds_map);
                 bounds.x2 = bounds.x2.max(child_bounds.x2);
@@ -823,11 +823,11 @@ pub fn adjust_bounds_with_constraints(
     }
 
     fn revalidate_children(
-        panel: &Panel,
+        muxbox: &MuxBox,
         bounds_map: &mut HashMap<String, Bounds>,
         parent_bounds: &Bounds,
     ) {
-        if let Some(children) = &panel.children {
+        if let Some(children) = &muxbox.children {
             for child in children {
                 if let Some(child_bounds) = bounds_map.get_mut(&child.id) {
                     // Ensure child bounds are within parent bounds
@@ -850,9 +850,9 @@ pub fn adjust_bounds_with_constraints(
     }
 
     if let Some(children) = &layout.children {
-        for panel in children {
-            let parent_bounds = dfs(panel, &mut bounds_map);
-            revalidate_children(panel, &mut bounds_map, &parent_bounds);
+        for muxbox in children {
+            let parent_bounds = dfs(muxbox, &mut bounds_map);
+            revalidate_children(muxbox, &mut bounds_map, &parent_bounds);
         }
     }
 
@@ -1352,13 +1352,13 @@ mod tests {
 
     // === SocketFunction Tests ===
 
-    /// Tests that run_socket_function() correctly handles ReplacePanelContent.
+    /// Tests that run_socket_function() correctly handles ReplaceMuxBoxContent.
     /// This test demonstrates socket function message processing.
     #[test]
-    fn test_run_socket_function_replace_panel_content() {
+    fn test_run_socket_function_replace_muxbox_content() {
         let app_context = create_test_app_context();
-        let socket_function = SocketFunction::ReplacePanelContent {
-            panel_id: "test_panel".to_string(),
+        let socket_function = SocketFunction::ReplaceMuxBoxContent {
+            muxbox_id: "test_muxbox".to_string(),
             success: true,
             content: "Test content".to_string(),
         };
@@ -1369,12 +1369,12 @@ mod tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
-            crate::Message::PanelOutputUpdate(panel_id, success, content) => {
-                assert_eq!(panel_id, "test_panel");
+            crate::Message::MuxBoxOutputUpdate(muxbox_id, success, content) => {
+                assert_eq!(muxbox_id, "test_muxbox");
                 assert_eq!(*success, true);
                 assert_eq!(content, "Test content");
             }
-            _ => panic!("Expected PanelOutputUpdate message"),
+            _ => panic!("Expected MuxBoxOutputUpdate message"),
         }
     }
 

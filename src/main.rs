@@ -11,7 +11,7 @@ use boxmux_lib::thread_manager;
 use boxmux_lib::DrawLoop;
 use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
-use boxmux_lib::Panel;
+use boxmux_lib::MuxBox;
 use boxmux_lib::SocketFunction;
 use clap::{Arg, Command};
 // Removed manual debug logging - using env_logger instead
@@ -29,20 +29,20 @@ lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
 }
 
-fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
+fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
     let active_layout = app_context.app.get_active_layout();
-    let mut non_threaded_panels: Vec<String> = vec![];
+    let mut non_threaded_muxboxes: Vec<String> = vec![];
 
     if let Some(layout) = active_layout {
-        for panel in layout.get_all_panels() {
-            if panel.script.is_some() {
-                let panel_id = panel.id.clone();
+        for muxbox in layout.get_all_muxboxes() {
+            if muxbox.script.is_some() {
+                let muxbox_id = muxbox.id.clone();
 
-                if panel.thread.unwrap_or(false) {
-                    let vec_fn = move || vec![panel_id.clone()];
+                if muxbox.thread.unwrap_or(false) {
+                    let vec_fn = move || vec![muxbox_id.clone()];
 
                     create_runnable_with_dynamic_input!(
-                        PanelRefreshLoop,
+                        MuxBoxRefreshLoop,
                         Box::new(vec_fn),
                         |_inner: &mut RunnableImpl,
                          _app_context: AppContext,
@@ -57,26 +57,26 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             let mut app_context_unwrapped = app_context.clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
                             let libs = app_context_unwrapped.app.libs.clone();
-                            let panel = app_context_unwrapped
+                            let muxbox = app_context_unwrapped
                                 .app
-                                .get_panel_by_id_mut(&vec[0])
+                                .get_muxbox_by_id_mut(&vec[0])
                                 .unwrap();
 
-                            // Check if panel should use PTY
-                            let use_pty = panel.pty.unwrap_or(false);
+                            // Check if muxbox should use PTY
+                            let use_pty = muxbox.pty.unwrap_or(false);
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
                             match boxmux_lib::utils::run_script_with_pty(
                                 libs,
-                                panel.script.clone().unwrap().as_ref(),
+                                muxbox.script.clone().unwrap().as_ref(),
                                 use_pty,
                                 app_context_unwrapped
                                     .pty_manager
                                     .as_ref()
                                     .map(|arc| arc.as_ref()),
                                 if use_pty {
-                                    Some(panel.id.clone())
+                                    Some(muxbox.id.clone())
                                 } else {
                                     None
                                 },
@@ -86,37 +86,37 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     None
                                 },
                             ) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
+                                Ok(output) => inner.send_message(Message::MuxBoxOutputUpdate(
+                                    muxbox.id.clone(),
                                     true,
                                     output,
                                 )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel.id.clone(),
+                                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
+                                    muxbox.id.clone(),
                                     false,
                                     e.to_string(),
                                 )),
                             }
                             std::thread::sleep(std::time::Duration::from_millis(
-                                panel.calc_refresh_interval(&app_context, &app_graph),
+                                muxbox.calc_refresh_interval(&app_context, &app_graph),
                             ));
                             (true, app_context_unwrapped)
                         }
                     );
 
-                    let panel_refresh_loop =
-                        PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-                    manager.spawn_thread(panel_refresh_loop);
+                    let muxbox_refresh_loop =
+                        MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+                    manager.spawn_thread(muxbox_refresh_loop);
                 } else {
-                    non_threaded_panels.push(panel_id.clone());
+                    non_threaded_muxboxes.push(muxbox_id.clone());
                 }
             }
         }
-        if !non_threaded_panels.is_empty() {
-            let vec_fn = move || non_threaded_panels.clone();
+        if !non_threaded_muxboxes.is_empty() {
+            let vec_fn = move || non_threaded_muxboxes.clone();
 
             create_runnable_with_dynamic_input!(
-                PanelRefreshLoop,
+                MuxBoxRefreshLoop,
                 Box::new(vec_fn),
                 |_inner: &mut RunnableImpl,
                  _app_context: AppContext,
@@ -132,35 +132,35 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
-                    for panel_id in vec.iter() {
+                    for muxbox_id in vec.iter() {
                         let libs = app_context_unwrapped.app.libs.clone();
-                        let panel = app_context_unwrapped
+                        let muxbox = app_context_unwrapped
                             .app
-                            .get_panel_by_id_mut(panel_id)
+                            .get_muxbox_by_id_mut(muxbox_id)
                             .unwrap();
-                        let refresh_interval = panel.refresh_interval.unwrap_or(1000);
+                        let refresh_interval = muxbox.refresh_interval.unwrap_or(1000);
 
                         let last_execution_time = last_execution_times
-                            .entry(panel_id.clone())
+                            .entry(muxbox_id.clone())
                             .or_insert(Instant::now());
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            // Check if panel should use PTY
-                            let use_pty = panel.pty.unwrap_or(false);
+                            // Check if muxbox should use PTY
+                            let use_pty = muxbox.pty.unwrap_or(false);
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
                             match boxmux_lib::utils::run_script_with_pty(
                                 libs,
-                                panel.script.clone().unwrap().as_ref(),
+                                muxbox.script.clone().unwrap().as_ref(),
                                 use_pty,
                                 app_context_unwrapped
                                     .pty_manager
                                     .as_ref()
                                     .map(|arc| arc.as_ref()),
                                 if use_pty {
-                                    Some(panel.id.clone())
+                                    Some(muxbox.id.clone())
                                 } else {
                                     None
                                 },
@@ -170,13 +170,13 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     None
                                 },
                             ) {
-                                Ok(output) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
+                                Ok(output) => inner.send_message(Message::MuxBoxOutputUpdate(
+                                    muxbox_id.clone(),
                                     true,
                                     output,
                                 )),
-                                Err(e) => inner.send_message(Message::PanelOutputUpdate(
-                                    panel_id.clone(),
+                                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
+                                    muxbox_id.clone(),
                                     false,
                                     e.to_string(),
                                 )),
@@ -194,8 +194,8 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                 }
             );
 
-            let panel_refresh_loop = PanelRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-            manager.spawn_thread(panel_refresh_loop);
+            let muxbox_refresh_loop = MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+            manager.spawn_thread(muxbox_refresh_loop);
         }
     }
 }
@@ -348,42 +348,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("lock")
                 .long("lock")
                 .action(clap::ArgAction::SetTrue)
-                .help("Disable panel resizing and moving"),
+                .help("Disable muxbox resizing and moving"),
         )
         .subcommand(
-            Command::new("stop_panel_refresh")
-                .about("Stops the refresh of the panel")
+            Command::new("stop_muxbox_refresh")
+                .about("Stops the refresh of the muxbox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to stop the refresh of"),
+                        .help("The muxbox id to stop the refresh of"),
                 ),
         )
         .subcommand(
-            Command::new("start_panel_refresh")
-                .about("Starts the refresh of the panel")
+            Command::new("start_muxbox_refresh")
+                .about("Starts the refresh of the muxbox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to start the refresh of"),
+                        .help("The muxbox id to start the refresh of"),
                 ),
         )
         .subcommand(
-            Command::new("replace_panel")
-                .about("Replaces the panel with the provided Panel")
+            Command::new("replace_muxbox")
+                .about("Replaces the muxbox with the provided MuxBox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to update"),
+                        .help("The muxbox id to update"),
                 )
                 .arg(
-                    Arg::new("new_panel_json")
+                    Arg::new("new_muxbox_json")
                         .required(true)
                         .index(2)
-                        .help("The new panel to update with"),
+                        .help("The new muxbox to update with"),
                 ),
         )
         .subcommand(
@@ -397,29 +397,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            Command::new("update_panel_script")
-                .about("Updates the panel script")
+            Command::new("update_muxbox_script")
+                .about("Updates the muxbox script")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to update the script of"),
+                        .help("The muxbox id to update the script of"),
                 )
                 .arg(
-                    Arg::new("new_panel_script")
+                    Arg::new("new_muxbox_script")
                         .required(true)
                         .index(2)
-                        .help("The new script to update the panel with"),
+                        .help("The new script to update the muxbox with"),
                 ),
         )
         .subcommand(
-            Command::new("update_panel_content")
-                .about("Updates the panel content")
+            Command::new("update_muxbox_content")
+                .about("Updates the muxbox content")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to update the content of"),
+                        .help("The muxbox id to update the content of"),
                 )
                 .arg(
                     Arg::new("success")
@@ -428,68 +428,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("Whether the content is a success or not"),
                 )
                 .arg(
-                    Arg::new("new_panel_content")
+                    Arg::new("new_muxbox_content")
                         .required(true)
                         .index(3)
-                        .help("The new content to update the panel with"),
+                        .help("The new content to update the muxbox with"),
                 ),
         )
         .subcommand(
-            Command::new("add_panel")
-                .about("Adds a panel to a layout")
+            Command::new("add_muxbox")
+                .about("Adds a muxbox to a layout")
                 .arg(
                     Arg::new("layout_id")
                         .required(true)
                         .index(1)
-                        .help("The layout id to add the panel to"),
+                        .help("The layout id to add the muxbox to"),
                 )
                 .arg(
-                    Arg::new("panel_json")
+                    Arg::new("muxbox_json")
                         .required(true)
                         .index(2)
-                        .help("The panel to add to the layout"),
+                        .help("The muxbox to add to the layout"),
                 ),
         )
         .subcommand(
-            Command::new("remove_panel")
-                .about("Removes a panel from its layout")
+            Command::new("remove_muxbox")
+                .about("Removes a muxbox from its layout")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to remove from its layout"),
+                        .help("The muxbox id to remove from its layout"),
                 ),
         )
         // F0137: Socket PTY Control - Kill and restart PTY processes
         .subcommand(
             Command::new("kill_pty_process")
-                .about("Kills a PTY process for a panel")
+                .about("Kills a PTY process for a muxbox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id with the PTY process to kill"),
+                        .help("The muxbox id with the PTY process to kill"),
                 ),
         )
         .subcommand(
             Command::new("restart_pty_process")
-                .about("Restarts a PTY process for a panel")
+                .about("Restarts a PTY process for a muxbox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id with the PTY process to restart"),
+                        .help("The muxbox id with the PTY process to restart"),
                 ),
         )
         // F0138: Socket PTY Query - Get PTY status and info
         .subcommand(
             Command::new("query_pty_status")
-                .about("Gets PTY process status for a panel")
+                .about("Gets PTY process status for a muxbox")
                 .arg(
-                    Arg::new("panel_id")
+                    Arg::new("muxbox_id")
                         .required(true)
                         .index(1)
-                        .help("The panel id to query PTY status for"),
+                        .help("The muxbox id to query PTY status for"),
                 ),
         )
         .get_matches();
@@ -497,12 +497,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging framework (F0161/F0162)
     initialize_logging(&matches)?;
 
-    // Handle the stop_panel_refresh subcommand
-    if let Some(matches) = matches.subcommand_matches("stop_panel_refresh") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+    // Handle the stop_muxbox_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("stop_muxbox_refresh") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::StopPanelRefresh {
-                panel_id: panel_id.clone(),
+            let socket_function = SocketFunction::StopMuxBoxRefresh {
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -512,16 +512,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for stop_panel_refresh command".into());
+            return Err("MuxBox ID is required for stop_muxbox_refresh command".into());
         }
     }
 
-    // Handle the start_panel_refresh subcommand
-    if let Some(matches) = matches.subcommand_matches("start_panel_refresh") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+    // Handle the start_muxbox_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("start_muxbox_refresh") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::StartPanelRefresh {
-                panel_id: panel_id.clone(),
+            let socket_function = SocketFunction::StartMuxBoxRefresh {
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -531,20 +531,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for start_panel_refresh command".into());
+            return Err("MuxBox ID is required for start_muxbox_refresh command".into());
         }
     }
 
-    // Handle the replace_panel subcommand
-    if let Some(matches) = matches.subcommand_matches("replace_panel") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
-            if let Some(new_panel_json) = matches.get_one::<String>("new_panel_json") {
+    // Handle the replace_muxbox subcommand
+    if let Some(matches) = matches.subcommand_matches("replace_muxbox") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+            if let Some(new_muxbox_json) = matches.get_one::<String>("new_muxbox_json") {
                 // Construct the enum variant using the struct syntax
-                let submitted_panel = serde_json::from_str::<Panel>(new_panel_json)?;
+                let submitted_muxbox = serde_json::from_str::<MuxBox>(new_muxbox_json)?;
 
-                let socket_function = SocketFunction::ReplacePanel {
-                    panel_id: panel_id.clone(),
-                    new_panel: submitted_panel,
+                let socket_function = SocketFunction::ReplaceMuxBox {
+                    muxbox_id: muxbox_id.clone(),
+                    new_muxbox: submitted_muxbox,
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -554,10 +554,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("New Panel JSON is required for replace_panel command".into());
+                return Err("New MuxBox JSON is required for replace_muxbox command".into());
             }
         } else {
-            return Err("Panel ID is required for replace_panel command".into());
+            return Err("MuxBox ID is required for replace_muxbox command".into());
         }
     }
 
@@ -580,16 +580,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Handle the update_panel_script subcommand
-    if let Some(matches) = matches.subcommand_matches("update_panel_script") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
-            if let Some(new_panel_script) = matches.get_one::<String>("new_panel_script") {
-                let new_panel_script = serde_json::from_str::<Vec<String>>(new_panel_script)?;
+    // Handle the update_muxbox_script subcommand
+    if let Some(matches) = matches.subcommand_matches("update_muxbox_script") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+            if let Some(new_muxbox_script) = matches.get_one::<String>("new_muxbox_script") {
+                let new_muxbox_script = serde_json::from_str::<Vec<String>>(new_muxbox_script)?;
 
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::ReplacePanelScript {
-                    panel_id: panel_id.clone(),
-                    script: new_panel_script,
+                let socket_function = SocketFunction::ReplaceMuxBoxScript {
+                    muxbox_id: muxbox_id.clone(),
+                    script: new_muxbox_script,
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -599,26 +599,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("New Panel Script is required for update_panel_script command".into());
+                return Err("New MuxBox Script is required for update_muxbox_script command".into());
             }
         } else {
-            return Err("Panel ID is required for update_panel_script command".into());
+            return Err("MuxBox ID is required for update_muxbox_script command".into());
         }
     }
 
-    // Handle the update_panel_content subcommand
-    if let Some(matches) = matches.subcommand_matches("update_panel_content") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
-            if let Some(new_panel_content) = matches.get_one::<String>("new_panel_content") {
+    // Handle the update_muxbox_content subcommand
+    if let Some(matches) = matches.subcommand_matches("update_muxbox_content") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+            if let Some(new_muxbox_content) = matches.get_one::<String>("new_muxbox_content") {
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::ReplacePanelContent {
-                    panel_id: panel_id.clone(),
+                let socket_function = SocketFunction::ReplaceMuxBoxContent {
+                    muxbox_id: muxbox_id.clone(),
                     success: matches
                         .get_one::<String>("success")
                         .unwrap()
                         .parse::<bool>()
                         .unwrap(),
-                    content: new_panel_content.clone(),
+                    content: new_muxbox_content.clone(),
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -629,24 +629,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             } else {
                 return Err(
-                    "New Panel Content is required for update_panel_content command".into(),
+                    "New MuxBox Content is required for update_muxbox_content command".into(),
                 );
             }
         } else {
-            return Err("Panel ID is required for update_panel_content command".into());
+            return Err("MuxBox ID is required for update_muxbox_content command".into());
         }
     }
 
-    // Handle the add_panel subcommand
-    if let Some(matches) = matches.subcommand_matches("add_panel") {
+    // Handle the add_muxbox subcommand
+    if let Some(matches) = matches.subcommand_matches("add_muxbox") {
         if let Some(layout_id) = matches.get_one::<String>("layout_id") {
-            if let Some(panel_json) = matches.get_one::<String>("panel_json") {
-                let submitted_panel = serde_json::from_str::<Panel>(panel_json)?;
+            if let Some(muxbox_json) = matches.get_one::<String>("muxbox_json") {
+                let submitted_muxbox = serde_json::from_str::<MuxBox>(muxbox_json)?;
 
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::AddPanel {
+                let socket_function = SocketFunction::AddMuxBox {
                     layout_id: layout_id.to_string(),
-                    panel: submitted_panel,
+                    muxbox: submitted_muxbox,
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -656,19 +656,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("Panel JSON is required for add_panel command".into());
+                return Err("MuxBox JSON is required for add_muxbox command".into());
             }
         } else {
-            return Err("Layout ID is required for add_panel command".into());
+            return Err("Layout ID is required for add_muxbox command".into());
         }
     }
 
-    // Handle the remove_panel subcommand
-    if let Some(matches) = matches.subcommand_matches("remove_panel") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+    // Handle the remove_muxbox subcommand
+    if let Some(matches) = matches.subcommand_matches("remove_muxbox") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::RemovePanel {
-                panel_id: panel_id.clone(),
+            let socket_function = SocketFunction::RemoveMuxBox {
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -678,15 +678,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for remove_panel command".into());
+            return Err("MuxBox ID is required for remove_muxbox command".into());
         }
     }
 
     // F0137: Socket PTY Control - Handle kill_pty_process subcommand
     if let Some(matches) = matches.subcommand_matches("kill_pty_process") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             let socket_function = SocketFunction::KillPtyProcess {
-                panel_id: panel_id.clone(),
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -694,15 +694,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for kill_pty_process command".into());
+            return Err("MuxBox ID is required for kill_pty_process command".into());
         }
     }
 
     // F0137: Socket PTY Control - Handle restart_pty_process subcommand
     if let Some(matches) = matches.subcommand_matches("restart_pty_process") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             let socket_function = SocketFunction::RestartPtyProcess {
-                panel_id: panel_id.clone(),
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -710,15 +710,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for restart_pty_process command".into());
+            return Err("MuxBox ID is required for restart_pty_process command".into());
         }
     }
 
     // F0138: Socket PTY Query - Handle query_pty_status subcommand
     if let Some(matches) = matches.subcommand_matches("query_pty_status") {
-        if let Some(panel_id) = matches.get_one::<String>("panel_id") {
+        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
             let socket_function = SocketFunction::QueryPtyStatus {
-                panel_id: panel_id.clone(),
+                muxbox_id: muxbox_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -726,7 +726,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("Panel ID is required for query_pty_status command".into());
+            return Err("MuxBox ID is required for query_pty_status command".into());
         }
     }
 
@@ -798,7 +798,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _resize_loop_uuid = manager.spawn_thread(ResizeLoop::new(app_context.clone()));
     let _socket_loop_uuid = manager.spawn_thread(SocketLoop::new(app_context.clone()));
 
-    run_panel_threads(&mut manager, &app_context);
+    run_muxbox_threads(&mut manager, &app_context);
 
     manager.run();
 

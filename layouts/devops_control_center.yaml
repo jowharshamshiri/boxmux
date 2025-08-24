@@ -89,10 +89,10 @@ app:
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "Select a service from the left panel to view details"
+          content: "Select a service from the left box to view details"
 
         # System metrics
-        - id: 'metrics_panel'
+        - id: 'metrics_box'
           title: 'System Metrics'
           position:
             x1: "62%"
@@ -149,7 +149,7 @@ app:
             - "  echo \"$(date): INFO Backup process completed\""
             - "fi"
 
-        # Quick actions panel
+        # Quick actions box
         - id: 'quick_actions'
           title: 'Quick Actions'
           position:

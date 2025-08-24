@@ -139,12 +139,12 @@ title: BoxMux - YAML-driven Terminal UI Framework
     <div class="cards-grid">
       <div class="feature-card">
         <h3>Core Framework</h3>
-        <p>YAML configuration system with multi-layout support, panel hierarchy, and real-time rendering.</p>
+        <p>YAML configuration system with multi-layout support, box hierarchy, and real-time rendering.</p>
       </div>
       
       <div class="feature-card">
         <h3>UI Components</h3>
-        <p>Flexible panel positioning, 16 ANSI colors, borders, text rendering, interactive menus, and focus management.</p>
+        <p>Flexible box positioning, 16 ANSI colors, borders, text rendering, interactive menus, and focus management.</p>
       </div>
       
       <div class="feature-card">
@@ -154,12 +154,12 @@ title: BoxMux - YAML-driven Terminal UI Framework
       
       <div class="feature-card">
         <h3>Socket API</h3>
-        <p>Unix socket server for remote control - update panels, switch layouts, manage refresh cycles.</p>
+        <p>Unix socket server for remote control - update boxes, switch layouts, manage refresh cycles.</p>
       </div>
       
       <div class="feature-card">
         <h3>Data Visualization</h3>
-        <p>Unicode charts (bar/line/histogram), layout engine, table panels with CSV/JSON parsing, sorting, filtering.</p>
+        <p>Unicode charts (bar/line/histogram), layout engine, table boxes with CSV/JSON parsing, sorting, filtering.</p>
       </div>
       
       <div class="feature-card">

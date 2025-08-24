@@ -12,7 +12,7 @@ This document provides a reference for BoxMux YAML configuration files.
 - [File Structure](#file-structure)
 - [Application Configuration](#application-configuration)
 - [Layout Configuration](#layout-configuration)
-- [Panel Configuration](#panel-configuration)
+- [MuxBox Configuration](#box-configuration)
 - [Position Configuration](#position-configuration)
 - [Choice Configuration](#choice-configuration)
 - [PTY Configuration](#pty-configuration)
@@ -100,7 +100,7 @@ Layouts define the overall structure and appearance of your interface.
 | `selected_menu_fg_color` | `string` | No | `"black"` | Selected menu item text color |
 | `selected_menu_bg_color` | `string` | No | `"white"` | Selected menu item background color |
 | `fill_char` | `char` | No | `' '` | Character used to fill empty space |
-| `children` | `array[Panel]` | No | `[]` | List of child panels |
+| `children` | `array[MuxBox]` | No | `[]` | List of child boxes |
 
 ### Example Layout
 
@@ -118,32 +118,32 @@ app:
       border_color: 'green'
       children:
         - id: 'header'
-          # ... panel configuration
+          # ... box configuration
 ```
 
-## Panel Configuration
+## MuxBox Configuration
 
-Panels are the building blocks of your interface. They can contain content, menus, or other panels.
+MuxBoxes are the building blocks of your interface. They can contain content, menus, or other boxes.
 
-### Panel Properties
+### MuxBox Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `id` | `string` | Yes | - | Unique identifier for the panel |
-| `title` | `string` | No | - | Panel title shown in title bar |
-| `position` | `Position` | Yes | - | Panel position and size |
+| `id` | `string` | Yes | - | Unique identifier for the box |
+| `title` | `string` | No | - | MuxBox title shown in title bar |
+| `position` | `Position` | Yes | - | MuxBox position and size |
 | `content` | `string` | No | - | Static text content |
 | `border` | `boolean` | No | `true` | Whether to show border |
 | `tab_order` | `string` | No | - | Tab navigation order (numeric string) |
-| `next_focus_id` | `string` | No | - | ID of next panel for custom navigation |
+| `next_focus_id` | `string` | No | - | ID of next box for custom navigation |
 | `refresh_interval` | `number` | No | - | Auto-refresh interval in milliseconds |
 | `script` | `array[string]` | No | - | Shell commands to execute |
 | `pty` | `boolean` | No | `false` | Enable PTY (pseudo-terminal) for interactive programs |
 | `choices` | `array[Choice]` | No | - | Interactive menu choices |
-| `redirect_output` | `string` | No | - | Panel ID to redirect script output to |
+| `redirect_output` | `string` | No | - | MuxBox ID to redirect script output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 | `on_keypress` | `object` | No | - | Keyboard event handlers |
-| `variables` | `object` | No | - | Panel-local variables for template substitution |
+| `variables` | `object` | No | - | MuxBox-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
 | `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
@@ -154,11 +154,11 @@ Panels are the building blocks of your interface. They can contain content, menu
 | `min_height` | `number` | No | - | Minimum height in characters |
 | `max_width` | `number` | No | - | Maximum width in characters |
 | `max_height` | `number` | No | - | Maximum height in characters |
-| `children` | `array[Panel]` | No | `[]` | List of child panels |
+| `children` | `array[MuxBox]` | No | `[]` | List of child boxes |
 
 ### Styling Properties
 
-All layout-level styling properties can be overridden at the panel level:
+All layout-level styling properties can be overridden at the box level:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -177,7 +177,7 @@ All layout-level styling properties can be overridden at the panel level:
 
 ## Position Configuration
 
-Positions define where panels appear on screen using percentage-based coordinates.
+Positions define where boxes appear on screen using percentage-based coordinates.
 
 ### Position Properties
 
@@ -227,7 +227,7 @@ position: { x1: 25%, y1: 25%, x2: 75%, y2: 75% }
 
 ## Choice Configuration
 
-Choices create interactive menu items within panels.
+Choices create interactive menu items within boxes.
 
 ### Choice Properties
 
@@ -237,7 +237,7 @@ Choices create interactive menu items within panels.
 | `content` | `string` | Yes | - | Text displayed in the menu |
 | `script` | `array[string]` | No | - | Commands to execute when selected |
 | `thread` | `boolean` | No | `false` | Whether to run script in background thread |
-| `redirect_output` | `string` | No | - | Panel ID to send output to |
+| `redirect_output` | `string` | No | - | MuxBox ID to send output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 
 ### Choice Example
@@ -262,9 +262,9 @@ choices:
 
 ## PTY Configuration
 
-PTY (pseudo-terminal) enables running interactive terminal programs within panels.
+PTY (pseudo-terminal) enables running interactive terminal programs within boxes.
 
-### PTY Panel Fields
+### PTY MuxBox Fields
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -327,7 +327,7 @@ app:
 
 ## Mouse Configuration
 
-Mouse interaction for clicking panels and menu items.
+Mouse interaction for clicking boxes and menu items.
 
 ### Application Mouse Settings
 
@@ -339,7 +339,7 @@ Mouse interaction for clicking panels and menu items.
 
 ```yaml
 app:
-  mouse_enabled: true  # Allow clicking panels and menu items
+  mouse_enabled: true  # Allow clicking boxes and menu items
   layouts:
     - id: 'main'
       children:
@@ -403,7 +403,7 @@ border_color: 'cyan'
 
 ## Script Configuration
 
-Scripts define commands that panels can execute.
+Scripts define commands that boxes can execute.
 
 ### Script Properties
 
@@ -566,7 +566,7 @@ table_data: |
     headers: ['Setting', 'Value', 'Description']
     show_row_numbers: true
   table_data: |
-    refresh_rate,1000ms,Panel refresh interval
+    refresh_rate,1000ms,MuxBox refresh interval
     socket_path,/tmp/boxmux.sock,Unix socket location
     log_level,info,Application log level
 ```
@@ -663,7 +663,7 @@ title_position: 'end'      # Right-aligned
 
 ### Anchoring
 
-Control how panels are anchored:
+Control how boxes are anchored:
 
 ```yaml
 anchor: 'TopLeft'      # Default
@@ -681,7 +681,7 @@ Control how content overflow is handled:
 overflow_behavior: 'scroll'      # Default: enable scrolling
 overflow_behavior: 'fill'        # Fill with solid block
 overflow_behavior: 'cross_out'   # Cross out with X's
-overflow_behavior: 'removed'     # Hide the panel
+overflow_behavior: 'removed'     # Hide the box
 ```
 
 ## Variable System
@@ -701,14 +701,14 @@ Variables use the following patterns:
 
 Variables are resolved in strict hierarchical order:
 
-1. **Panel-specific variables** (highest precedence, most granular)
-2. **Parent panel variables** (inherited through panel hierarchy) 
+1. **MuxBox-specific variables** (highest precedence, most granular)
+2. **Parent box variables** (inherited through box hierarchy) 
 3. **Layout-level variables** (layout scope)
 4. **Application-global variables** (app-wide scope)
 5. **Environment variables** (system fallback)
 6. **Default values** (built-in fallbacks, lowest precedence)
 
-This hierarchical approach allows child panels to override parent settings while providing sensible fallbacks.
+This hierarchical approach allows child boxes to override parent settings while providing sensible fallbacks.
 
 ### Variable Declaration
 
@@ -725,12 +725,12 @@ app:
     DEFAULT_USER: "admin"
 ```
 
-#### Panel-level Variables
+#### MuxBox-level Variables
 
-Define panel-specific variables that override global settings:
+Define box-specific variables that override global settings:
 
 ```yaml
-- id: 'web_server_panel'
+- id: 'web_server_box'
   variables:
     SERVICE_NAME: "nginx"
     PORT: "80"
@@ -743,7 +743,7 @@ Define panel-specific variables that override global settings:
 
 ### Variable Inheritance
 
-Child panels automatically inherit variables from their parents, creating a natural configuration hierarchy:
+Child boxes automatically inherit variables from their parents, creating a natural configuration hierarchy:
 
 ```yaml
 app:
@@ -753,11 +753,11 @@ app:
   layouts:
     - id: 'monitoring'
       children:
-        - id: 'parent_panel'
+        - id: 'parent_box'
           variables:
             SERVICE_GROUP: "web-services"
           children:
-            - id: 'child_panel'
+            - id: 'child_box'
               variables:
                 SERVICE_NAME: "api-gateway"
               title: '${SERVICE_NAME} in ${SERVICE_GROUP} (${ENVIRONMENT})'
@@ -769,7 +769,7 @@ app:
 Variables work in all configuration fields:
 
 ```yaml
-- id: 'dynamic_panel'
+- id: 'dynamic_box'
   variables:
     SERVICE: "database"
     LOG_FILE: "/var/log/postgresql.log"
@@ -801,7 +801,7 @@ app:
     - id: 'deployment_dashboard'
       title: 'Deployment Dashboard - ${ENVIRONMENT}'
       children:
-        - id: 'database_panel'
+        - id: 'database_box'
           variables:
             SERVICE_NAME: "PostgreSQL"
           title: '${SERVICE_NAME} Status'
@@ -809,7 +809,7 @@ app:
             - echo "Connecting to ${DB_HOST}..."
             - pg_isready -h ${DB_HOST}
             
-        - id: 'api_panel'
+        - id: 'api_box'
           variables:
             SERVICE_NAME: "API Gateway"
           title: '${SERVICE_NAME} Health'
@@ -885,7 +885,7 @@ app:
     LOG_LEVEL: "info"  # Overridden by $LOG_LEVEL if set
     
   layouts:
-    - id: 'app_panel'
+    - id: 'app_box'
       script:
         - echo "Running with LOG_LEVEL=${LOG_LEVEL}"
         - echo "User: ${USER:unknown}"          # Uses $USER or "unknown"
@@ -904,7 +904,7 @@ The variable system provides clear error messages for common issues:
 
 1. **Use hierarchical variables** for environment-specific configurations
 2. **Provide meaningful defaults** to prevent empty substitutions
-3. **Group related variables** at appropriate levels (app/layout/panel)
+3. **Group related variables** at appropriate levels (app/layout/box)
 4. **Use descriptive variable names** that indicate their scope and purpose
 5. **Leverage inheritance** to reduce configuration duplication
 
@@ -919,9 +919,9 @@ app:
     - id: 'main'
       title: '${APP_NAME} v${VERSION:1.0}'
       children:
-        - id: 'panel1'
+        - id: 'box1'
           variables:
-            LOCAL_VAR: "panel-specific"
+            LOCAL_VAR: "box-specific"
           script:
             - echo "User: ${USER:unknown}"
             - echo "App: ${APP_NAME}"
@@ -937,8 +937,8 @@ For detailed documentation, see [Variable System Guide](variables.md).
 
 - `app.layouts` must contain at least one layout
 - Each layout must have a unique `id`
-- Each panel must have a unique `id` within its layout
-- Each panel must have a `position`
+- Each box must have a unique `id` within its layout
+- Each box must have a `position`
 - Each choice must have a unique `id` and `content`
 
 ### ID Naming Rules
@@ -953,7 +953,7 @@ For detailed documentation, see [Variable System Guide](variables.md).
 - All position values must be valid percentages or numbers
 - `x1` must be less than `x2`
 - `y1` must be less than `y2`
-- Positions should not create zero-width or zero-height panels
+- Positions should not create zero-width or zero-height boxes
 
 ### Color Validation
 
@@ -1058,7 +1058,7 @@ app:
 
 ## Best Practices
 
-1. **Use meaningful IDs**: Choose descriptive names for layouts, panels, and choices
+1. **Use meaningful IDs**: Choose descriptive names for layouts, boxes, and choices
 2. **Plan your layout**: Sketch your interface before writing YAML
 3. **Test incrementally**: Start with simple configurations and add complexity
 4. **Use consistent styling**: Define colors at the layout level when possible
@@ -1112,11 +1112,11 @@ children:
 
 ## Clipboard Configuration
 
-Enable clipboard integration for copying panel content:
+Enable clipboard integration for copying box content:
 
 ```yaml
-# Enable clipboard for specific panel
-- id: 'results_panel'
+# Enable clipboard for specific box
+- id: 'results_box'
   title: 'Command Results'
   clipboard_enabled: true
   script:
@@ -1136,7 +1136,7 @@ app:
 Advanced scrolling features with position preservation and navigation:
 
 ```yaml
-# Enhanced scrolling panel
+# Enhanced scrolling box
 - id: 'scrollable_content'
   title: 'Large Output'
   scroll: true
@@ -1162,7 +1162,7 @@ Advanced scrolling features with position preservation and navigation:
 Configure performance monitoring and optimization:
 
 ```yaml
-# Performance monitoring panel
+# Performance monitoring box
 - id: 'performance'
   title: 'System Performance'
   performance_monitoring: true

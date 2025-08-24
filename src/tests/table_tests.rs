@@ -3,7 +3,7 @@ mod table_tests {
     use super::*;
     use crate::model::app::App;
     use crate::model::common::Bounds;
-    use crate::model::panel::Panel;
+    use crate::model::muxbox::MuxBox;
     use crate::table::*;
     use crate::{AppContext, Config};
     use std::collections::HashMap;
@@ -308,13 +308,13 @@ mod table_tests {
     }
 
     #[test]
-    fn test_panel_table_integration() {
-        let mut panel = Panel::default();
-        panel.id = "test_table_panel".to_string();
-        panel.title = Some("Employee Data".to_string());
+    fn test_muxbox_table_integration() {
+        let mut muxbox = MuxBox::default();
+        muxbox.id = "test_table_muxbox".to_string();
+        muxbox.title = Some("Employee Data".to_string());
 
         // Set table data as CSV
-        panel.table_data = Some(
+        muxbox.table_data = Some(
             "Name,Age,Department\nAlice,25,Engineering\nBob,30,Marketing\nCharlie,35,Sales"
                 .to_string(),
         );
@@ -331,10 +331,10 @@ mod table_tests {
             serde_json::Value::String("double".to_string()),
         );
         table_config.insert("zebra_striping".to_string(), serde_json::Value::Bool(true));
-        panel.table_config = Some(table_config);
+        muxbox.table_config = Some(table_config);
 
         let bounds = Bounds::new(0, 0, 50, 20);
-        let table_content = panel.generate_table_content(&bounds);
+        let table_content = muxbox.generate_table_content(&bounds);
 
         assert!(table_content.is_some());
         let content = table_content.unwrap();
@@ -345,12 +345,12 @@ mod table_tests {
     }
 
     #[test]
-    fn test_panel_table_json_data() {
-        let mut panel = Panel::default();
-        panel.id = "json_table_panel".to_string();
+    fn test_muxbox_table_json_data() {
+        let mut muxbox = MuxBox::default();
+        muxbox.id = "json_table_muxbox".to_string();
 
         // Set table data as JSON
-        panel.table_data = Some(
+        muxbox.table_data = Some(
             r#"[
             {"product": "Laptop", "price": 999, "in_stock": true},
             {"product": "Mouse", "price": 25, "in_stock": false},
@@ -375,10 +375,10 @@ mod table_tests {
             ),
         );
 
-        panel.table_config = Some(table_config);
+        muxbox.table_config = Some(table_config);
 
         let bounds = Bounds::new(0, 0, 60, 15);
-        let table_content = panel.generate_table_content(&bounds);
+        let table_content = muxbox.generate_table_content(&bounds);
 
         assert!(table_content.is_some());
         let content = table_content.unwrap();
@@ -390,9 +390,9 @@ mod table_tests {
     }
 
     #[test]
-    fn test_panel_table_pagination_config() {
-        let mut panel = Panel::default();
-        panel.table_data =
+    fn test_muxbox_table_pagination_config() {
+        let mut muxbox = MuxBox::default();
+        muxbox.table_data =
             Some("ID,Name\n1,One\n2,Two\n3,Three\n4,Four\n5,Five\n6,Six".to_string());
 
         let mut table_config = HashMap::new();
@@ -405,10 +405,10 @@ mod table_tests {
             serde_json::Value::Number(serde_json::Number::from(1)),
         );
         table_config.insert("show_page_info".to_string(), serde_json::Value::Bool(true));
-        panel.table_config = Some(table_config);
+        muxbox.table_config = Some(table_config);
 
         let bounds = Bounds::new(0, 0, 40, 10);
-        let table_content = panel.generate_table_content(&bounds);
+        let table_content = muxbox.generate_table_content(&bounds);
 
         assert!(table_content.is_some());
         let content = table_content.unwrap();

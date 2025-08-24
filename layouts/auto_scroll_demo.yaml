@@ -3,7 +3,7 @@ app:
     - id: "main"
       root: true
       children:
-        - id: "static_panel"
+        - id: "static_box"
           title: "Static Content (No Auto-Scroll)"
           position:
             x1: "0%"
@@ -30,7 +30,7 @@ app:
             Use arrow keys to scroll manually.
           border: true
           
-        - id: "auto_scroll_panel"
+        - id: "auto_scroll_box"
           title: "Auto-Scroll Logs (auto_scroll_bottom: true)"
           position:
             x1: "50%"

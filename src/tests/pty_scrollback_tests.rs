@@ -1,5 +1,5 @@
 use crate::circular_buffer::CircularBuffer;
-use crate::model::panel::Panel;
+use crate::model::muxbox::MuxBox;
 use crate::pty_manager::PtyManager;
 use crate::AppContext;
 use std::collections::HashMap;
@@ -13,10 +13,10 @@ mod pty_scrollback_tests {
     use super::*;
 
     #[test]
-    fn test_pty_panel_scrollback_content_retrieval() {
-        // Create PTY manager and panel
+    fn test_pty_muxbox_scrollback_content_retrieval() {
+        // Create PTY manager and muxbox
         let pty_manager = PtyManager::new().unwrap();
-        let mut panel = create_test_pty_panel();
+        let mut muxbox = create_test_pty_muxbox();
 
         // Add content to circular buffer
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
@@ -28,18 +28,18 @@ mod pty_scrollback_tests {
         }
 
         // Add PTY process with buffer using test helper
-        pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
+        pty_manager.add_test_pty_process(muxbox.id.clone(), buffer.clone());
 
         // Test scrollback content retrieval
-        let content = panel.get_scrollback_content(&pty_manager);
+        let content = muxbox.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         assert_eq!(content.unwrap(), "Line 1\nLine 2\nLine 3");
     }
 
     #[test]
-    fn test_pty_panel_scrollback_line_range() {
+    fn test_pty_muxbox_scrollback_line_range() {
         let pty_manager = PtyManager::new().unwrap();
-        let panel = create_test_pty_panel();
+        let muxbox = create_test_pty_muxbox();
 
         // Create buffer with multiple lines
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
@@ -51,10 +51,10 @@ mod pty_scrollback_tests {
         }
 
         // Add PTY process using test helper
-        pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
+        pty_manager.add_test_pty_process(muxbox.id.clone(), buffer.clone());
 
         // Test line range retrieval
-        let lines = panel.get_scrollback_lines(&pty_manager, 2, 3);
+        let lines = muxbox.get_scrollback_lines(&pty_manager, 2, 3);
         assert!(lines.is_some());
         let lines = lines.unwrap();
         assert_eq!(lines.len(), 3);
@@ -64,9 +64,9 @@ mod pty_scrollback_tests {
     }
 
     #[test]
-    fn test_pty_panel_scrollback_line_count() {
+    fn test_pty_muxbox_scrollback_line_count() {
         let pty_manager = PtyManager::new().unwrap();
-        let panel = create_test_pty_panel();
+        let muxbox = create_test_pty_muxbox();
 
         // Create buffer with known number of lines
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
@@ -78,41 +78,41 @@ mod pty_scrollback_tests {
         }
 
         // Add PTY process using test helper
-        pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
+        pty_manager.add_test_pty_process(muxbox.id.clone(), buffer.clone());
 
         // Test line count
-        let count = panel.get_scrollback_line_count(&pty_manager);
+        let count = muxbox.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 15);
     }
 
     #[test]
-    fn test_regular_panel_scrollback_fallback() {
+    fn test_regular_muxbox_scrollback_fallback() {
         let pty_manager = PtyManager::new().unwrap();
-        let mut panel = create_test_regular_panel();
-        panel.content = Some("Line 1\nLine 2\nLine 3\nLine 4".to_string());
+        let mut muxbox = create_test_regular_muxbox();
+        muxbox.content = Some("Line 1\nLine 2\nLine 3\nLine 4".to_string());
 
-        // Test fallback to regular content for non-PTY panels
-        let content = panel.get_scrollback_content(&pty_manager);
+        // Test fallback to regular content for non-PTY muxboxes
+        let content = muxbox.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         assert_eq!(content.unwrap(), "Line 1\nLine 2\nLine 3\nLine 4");
 
-        // Test line range for regular panels
-        let lines = panel.get_scrollback_lines(&pty_manager, 1, 2);
+        // Test line range for regular muxboxes
+        let lines = muxbox.get_scrollback_lines(&pty_manager, 1, 2);
         assert!(lines.is_some());
         let lines = lines.unwrap();
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], "Line 2");
         assert_eq!(lines[1], "Line 3");
 
-        // Test line count for regular panels
-        let count = panel.get_scrollback_line_count(&pty_manager);
+        // Test line count for regular muxboxes
+        let count = muxbox.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 4);
     }
 
     #[test]
     fn test_pty_scrollback_with_circular_buffer_overflow() {
         let pty_manager = PtyManager::new().unwrap();
-        let panel = create_test_pty_panel();
+        let muxbox = create_test_pty_muxbox();
 
         // Create small buffer to test overflow behavior
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(5)));
@@ -125,13 +125,13 @@ mod pty_scrollback_tests {
         }
 
         // Add PTY process using test helper
-        pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
+        pty_manager.add_test_pty_process(muxbox.id.clone(), buffer.clone());
 
         // Should only have last 5 lines due to circular buffer limit
-        let count = panel.get_scrollback_line_count(&pty_manager);
+        let count = muxbox.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 5);
 
-        let content = panel.get_scrollback_content(&pty_manager);
+        let content = muxbox.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         // Should contain only the last 5 lines (6-10)
         assert_eq!(content.unwrap(), "Line 6\nLine 7\nLine 8\nLine 9\nLine 10");
@@ -140,49 +140,49 @@ mod pty_scrollback_tests {
     #[test]
     fn test_pty_scrollback_empty_buffer() {
         let pty_manager = PtyManager::new().unwrap();
-        let panel = create_test_pty_panel();
+        let muxbox = create_test_pty_muxbox();
 
         // Create empty buffer
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
 
         // Add PTY process using test helper
-        pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
+        pty_manager.add_test_pty_process(muxbox.id.clone(), buffer.clone());
 
         // Test empty buffer handling
-        let content = panel.get_scrollback_content(&pty_manager);
+        let content = muxbox.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         assert_eq!(content.unwrap(), "");
 
-        let count = panel.get_scrollback_line_count(&pty_manager);
+        let count = muxbox.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 0);
 
-        let lines = panel.get_scrollback_lines(&pty_manager, 0, 5);
+        let lines = muxbox.get_scrollback_lines(&pty_manager, 0, 5);
         assert!(lines.is_none());
     }
 
     #[test]
-    fn test_pty_scrollback_non_existent_panel() {
+    fn test_pty_scrollback_non_existent_muxbox() {
         let pty_manager = PtyManager::new().unwrap();
-        let panel = create_test_pty_panel();
+        let muxbox = create_test_pty_muxbox();
 
-        // Don't add the panel to PTY manager
+        // Don't add the muxbox to PTY manager
 
-        // Test handling of non-existent PTY panel
-        let content = panel.get_scrollback_content(&pty_manager);
+        // Test handling of non-existent PTY muxbox
+        let content = muxbox.get_scrollback_content(&pty_manager);
         assert!(content.is_none());
 
-        let count = panel.get_scrollback_line_count(&pty_manager);
+        let count = muxbox.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 0);
 
-        let lines = panel.get_scrollback_lines(&pty_manager, 0, 5);
+        let lines = muxbox.get_scrollback_lines(&pty_manager, 0, 5);
         assert!(lines.is_none());
     }
 
     // Helper functions
-    fn create_test_pty_panel() -> Panel {
-        Panel {
-            id: "test_pty_panel".to_string(),
-            title: Some("Test PTY Panel".to_string()),
+    fn create_test_pty_muxbox() -> MuxBox {
+        MuxBox {
+            id: "test_pty_muxbox".to_string(),
+            title: Some("Test PTY MuxBox".to_string()),
             position: crate::model::common::InputBounds {
                 x1: "0%".to_string(),
                 y1: "0%".to_string(),
@@ -247,7 +247,7 @@ mod pty_scrollback_tests {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
-            pty: Some(true), // This is a PTY panel
+            pty: Some(true), // This is a PTY muxbox
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,
@@ -255,10 +255,10 @@ mod pty_scrollback_tests {
         }
     }
 
-    fn create_test_regular_panel() -> Panel {
-        let mut panel = create_test_pty_panel();
-        panel.id = "test_regular_panel".to_string();
-        panel.pty = Some(false); // This is not a PTY panel
-        panel
+    fn create_test_regular_muxbox() -> MuxBox {
+        let mut muxbox = create_test_pty_muxbox();
+        muxbox.id = "test_regular_muxbox".to_string();
+        muxbox.pty = Some(false); // This is not a PTY muxbox
+        muxbox
     }
 }

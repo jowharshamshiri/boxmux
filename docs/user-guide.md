@@ -87,19 +87,19 @@ app:
 
 ## Core Concepts
 
-### 1. Layouts and Panels
+### 1. Layouts and MuxBoxes
 
-**Layouts** define the overall structure of your interface. **Panels** are the building blocks within layouts.
+**Layouts** define the overall structure of your interface. **MuxBoxes** are the building blocks within layouts.
 
 ```yaml
 app:
   layouts:                    # List of layout definitions
     - id: 'main'             # Unique layout identifier
       root: true             # This is the main layout
-      children:              # Panels within this layout
-        - id: 'panel1'       # Unique panel identifier
-          title: 'Panel'     # Panel title
-          position:          # Panel position and size
+      children:              # MuxBoxes within this layout
+        - id: 'box1'       # Unique box identifier
+          title: 'MuxBox'     # MuxBox title
+          position:          # MuxBox position and size
             x1: 10%          # Left edge (percentage of parent)
             y1: 10%          # Top edge
             x2: 90%          # Right edge
@@ -134,13 +134,13 @@ position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
 Create interactive menus with choices:
 
 ```yaml
-- id: 'menu_panel'
+- id: 'menu_box'
   tab_order: '1'           # Enable keyboard navigation
   choices:
     - id: 'action1'
       content: 'Menu Option 1'
       script: ['command to execute']
-      redirect_output: 'output_panel'  # Send results to another panel
+      redirect_output: 'output_box'  # Send results to another box
     - id: 'action2'
       content: 'Menu Option 2'
       script: ['another command']
@@ -151,7 +151,7 @@ Create interactive menus with choices:
 Add live data with refresh intervals:
 
 ```yaml
-- id: 'live_panel'
+- id: 'live_box'
   title: 'Live Data'
   refresh_interval: 2000   # Update every 2 seconds
   script:
@@ -202,7 +202,7 @@ app:
 
 #### Hierarchical Variables
 
-Child panels inherit and can override parent variables:
+Child boxes inherit and can override parent variables:
 
 ```yaml
 app:
@@ -304,7 +304,7 @@ app:
   title_bg_color: 'blue'
   selected_bg_color: 'bright_blue'
   border_color: 'green'
-  # ... children panels inherit these styles
+  # ... children boxes inherit these styles
 ```
 
 ## Common Patterns
@@ -347,7 +347,7 @@ children:
 
 ## PTY Features
 
-PTY (pseudo-terminal) features enable running interactive terminal programs directly within BoxMux panels.
+PTY (pseudo-terminal) features enable running interactive terminal programs directly within BoxMux boxes.
 
 ### When to Use PTY
 
@@ -356,7 +356,7 @@ Use PTY for interactive programs that require:
 - Terminal control sequences (colors, cursor movement)
 - Process interaction (ssh sessions, database shells)
 
-### PTY Panel Example
+### PTY MuxBox Example
 
 ```yaml
 # Interactive system monitor
@@ -380,7 +380,7 @@ Use PTY for interactive programs that require:
 
 ```yaml
 # Interactive menu choices
-- id: 'admin_panel'
+- id: 'admin_box'
   title: 'Administration'
   choices:
     - id: 'edit_config'
@@ -623,16 +623,16 @@ app:
 ### 1. Planning and Design
 
 - **Sketch first**: Plan your layout before writing YAML
-- **Start simple**: Begin with basic panels and add complexity
+- **Start simple**: Begin with basic boxes and add complexity
 - **Consider screen sizes**: Test on different terminal sizes
-- **Group related content**: Keep related functions in nearby panels
+- **Group related content**: Keep related functions in nearby boxes
 
 ### 2. Configuration Organization
 
 ```yaml
 # Use meaningful IDs
 - id: 'cpu_monitor'        # Good: descriptive
-- id: 'panel1'             # Bad: generic
+- id: 'box1'             # Bad: generic
 
 # Consistent styling
 app:
@@ -641,7 +641,7 @@ app:
       # Define colors once at layout level
       bg_color: 'black'
       fg_color: 'white'
-      # Panels inherit these styles
+      # MuxBoxes inherit these styles
 ```
 
 ### 3. Performance Optimization
@@ -718,7 +718,7 @@ script:
 ### Output Redirection Patterns
 
 ```yaml
-# Menu with shared output panel
+# Menu with shared output box
 - id: 'actions'
   choices:
     - id: 'action1'
@@ -733,7 +733,7 @@ script:
   content: 'Select an action'
 ```
 
-### Nested Panel Hierarchies
+### Nested MuxBox Hierarchies
 
 ```yaml
 # Complex nested structure
@@ -783,7 +783,7 @@ script:
 
 BoxMux includes additional features:
 
-- **Clipboard Integration**: Ctrl+C copies panel content with visual feedback
+- **Clipboard Integration**: Ctrl+C copies box content with visual feedback
 - **Enhanced Scrolling**: Position preservation, page navigation, visual indicators
 - **Performance Monitoring**: Built-in benchmarking and performance tracking
 - **Schema Validation**: JSON Schema validation with detailed error reporting

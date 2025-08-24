@@ -1,9 +1,9 @@
-// F0189/F0190: Panel Border Dragging and YAML Persistence Tests
+// F0189/F0190: MuxBox Border Dragging and YAML Persistence Tests
 
 #[cfg(test)]
 mod tests {
     use crate::draw_loop::{detect_resize_edge, calculate_new_bounds, ResizeEdge};
-    use crate::model::app::{save_panel_bounds_to_yaml, update_panel_bounds_recursive};
+    use crate::model::app::{save_muxbox_bounds_to_yaml, update_muxbox_bounds_recursive};
     use crate::model::common::InputBounds;
     use crate::tests::test_utils::TestDataFactory;
     use std::fs;
@@ -11,8 +11,8 @@ mod tests {
 
     #[test]
     fn test_resize_edge_detection() {
-        let mut panel = TestDataFactory::create_test_panel("test");
-        panel.position = InputBounds {
+        let mut muxbox = TestDataFactory::create_test_muxbox("test");
+        muxbox.position = InputBounds {
             x1: "10%".to_string(),
             y1: "10%".to_string(),
             x2: "50%".to_string(),
@@ -20,29 +20,29 @@ mod tests {
         };
 
         // Debug the actual bounds
-        let bounds = panel.bounds();
-        println!("Panel bounds: ({}, {}) to ({}, {})", bounds.x1, bounds.y1, bounds.x2, bounds.y2);
+        let bounds = muxbox.bounds();
+        println!("MuxBox bounds: ({}, {}) to ({}, {})", bounds.x1, bounds.y1, bounds.x2, bounds.y2);
         
         // Test corner detection (only resize method supported)
-        let corner = detect_resize_edge(&panel, bounds.x2 as u16, bounds.y2 as u16);
+        let corner = detect_resize_edge(&muxbox, bounds.x2 as u16, bounds.y2 as u16);
         assert_eq!(corner, Some(ResizeEdge::BottomRight));
         
         // Test corner tolerance - should work 1 pixel before the exact corner
         if bounds.x2 > 0 && bounds.y2 > 0 {
-            let corner_near = detect_resize_edge(&panel, (bounds.x2 - 1) as u16, (bounds.y2 - 1) as u16);
+            let corner_near = detect_resize_edge(&muxbox, (bounds.x2 - 1) as u16, (bounds.y2 - 1) as u16);
             assert_eq!(corner_near, Some(ResizeEdge::BottomRight));
         }
 
         // Test that right edge no longer supports resize
-        let right_edge = detect_resize_edge(&panel, bounds.x2 as u16, (bounds.y1 + bounds.height()/2) as u16);
+        let right_edge = detect_resize_edge(&muxbox, bounds.x2 as u16, (bounds.y1 + bounds.height()/2) as u16);
         assert_eq!(right_edge, None); // Should be None - right edge resize removed
 
         // Test that bottom edge no longer supports resize
-        let bottom_edge = detect_resize_edge(&panel, (bounds.x1 + bounds.width()/2) as u16, bounds.y2 as u16);
+        let bottom_edge = detect_resize_edge(&muxbox, (bounds.x1 + bounds.width()/2) as u16, bounds.y2 as u16);
         assert_eq!(bottom_edge, None); // Should be None - bottom edge resize removed
 
-        // Test no resize area (panel interior)
-        let no_edge = detect_resize_edge(&panel, (bounds.x1 + bounds.width()/4) as u16, (bounds.y1 + bounds.height()/4) as u16);
+        // Test no resize area (muxbox interior)
+        let no_edge = detect_resize_edge(&muxbox, (bounds.x1 + bounds.width()/4) as u16, (bounds.y1 + bounds.height()/4) as u16);
         assert_eq!(no_edge, None);
     }
 
@@ -77,18 +77,18 @@ mod tests {
 layouts:
   - id: "test_layout"
     children:
-      - id: "panel1"
+      - id: "muxbox1"
         x1: "10%"
         y1: "10%"
         x2: "50%"
         y2: "50%"
-        content: "Test panel"
-      - id: "panel2"
+        content: "Test muxbox"
+      - id: "muxbox2"
         x1: "60%"
         y1: "10%"
         x2: "90%"
         y2: "50%"
-        content: "Another panel"
+        content: "Another muxbox"
 "#;
 
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -102,9 +102,9 @@ layouts:
         };
 
         // Test saving bounds
-        let result = save_panel_bounds_to_yaml(
+        let result = save_muxbox_bounds_to_yaml(
             temp_file.path().to_str().unwrap(),
-            "panel1",
+            "muxbox1",
             &new_bounds,
         );
         assert!(result.is_ok());
@@ -121,18 +121,18 @@ layouts:
 layouts:
   - id: "test_layout"
     children:
-      - id: "parent_panel"
+      - id: "parent_muxbox"
         x1: "0%"
         y1: "0%"
         x2: "100%"
         y2: "100%"
         children:
-          - id: "nested_panel"
+          - id: "nested_muxbox"
             x1: "20%"
             y1: "20%"
             x2: "80%"
             y2: "80%"
-            content: "Nested panel"
+            content: "Nested muxbox"
 "#;
 
         let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(yaml_content).unwrap();
@@ -143,7 +143,7 @@ layouts:
             y2: "90%".to_string(),
         };
 
-        let result = update_panel_bounds_recursive(&mut yaml_value, "nested_panel", &new_bounds);
+        let result = update_muxbox_bounds_recursive(&mut yaml_value, "nested_muxbox", &new_bounds);
         assert!(result.is_ok());
         assert!(result.unwrap());
 
@@ -154,12 +154,12 @@ layouts:
     }
 
     #[test]
-    fn test_nonexistent_panel_bounds_update() {
+    fn test_nonexistent_muxbox_bounds_update() {
         let yaml_content = r#"
 layouts:
   - id: "test_layout"
     children:
-      - id: "panel1"
+      - id: "muxbox1"
         x1: "10%"
         y1: "10%"
         x2: "50%"
@@ -174,7 +174,7 @@ layouts:
             y2: "60%".to_string(),
         };
 
-        let result = update_panel_bounds_recursive(&mut yaml_value, "nonexistent", &new_bounds);
+        let result = update_muxbox_bounds_recursive(&mut yaml_value, "nonexistent", &new_bounds);
         assert!(result.is_ok());
         assert!(!result.unwrap()); // Should return false (not found)
     }

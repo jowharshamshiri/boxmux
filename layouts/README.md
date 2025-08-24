@@ -18,7 +18,7 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 **Features**:
 - **Auto-Scroll**: Automatic scroll-to-bottom for new content updates
 - **Hotkey Actions**: Direct keyboard shortcuts to trigger commands without menu navigation
-- **Mouse Click Support**: Click on panels and menu items for immediate execution and selection
+- **Mouse Click Support**: Click on boxes and menu items for immediate execution and selection
 - **Enhanced Interaction**: Improved user experience with immediate visual feedback
 
 **Key Innovation**: Uses `auto_scroll_bottom: true` and direct interaction methods for enhanced UX
@@ -94,16 +94,16 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 - **YAML-Driven Configuration**: Declarative interface design
 - **Multi-threaded Architecture**: Efficient concurrent operations
 - **Real-time Updates**: Live data refresh with configurable intervals
-- **Interactive Panels**: Choice-based navigation and command execution
+- **Interactive MuxBoxes**: Choice-based navigation and command execution
 - **Professional Themes**: Industry-standard color schemes
 - **Cross-platform Support**: macOS and Linux compatibility
 
 ### ✅ Advanced Features
 - **Script Integration**: Shell command execution with output capture
-- **Output Redirection**: Route command results between panels
+- **Output Redirection**: Route command results between boxes
 - **Flexible Layouts**: Percentage-based positioning and sizing
-- **Tab Navigation**: Keyboard-driven panel selection
-- **Border Customization**: Visual panel separation and theming
+- **Tab Navigation**: Keyboard-driven box selection
+- **Border Customization**: Visual box separation and theming
 - **Content Management**: Dynamic text updates and formatting
 
 ### ✅ Professional Quality
@@ -134,10 +134,10 @@ boxmux layouts/devops_control_center.yaml --frame_delay 50
 
 Each showcase demonstrates different BoxMux patterns:
 
-1. **Panel Layouts**: From simple 2-panel to complex multi-nested hierarchies
+1. **MuxBox Layouts**: From simple 2-box to complex multi-nested hierarchies
 2. **Color Themes**: Professional color schemes for different domains
 3. **Script Integration**: Real system commands with proper error handling
-4. **Interactive Navigation**: Choice panels with dynamic content updates
+4. **Interactive Navigation**: Choice boxes with dynamic content updates
 5. **Real-time Monitoring**: Automatic refresh intervals for live data
 
 Use these showcases as templates for your own professional dashboards!

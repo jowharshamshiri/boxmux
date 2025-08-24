@@ -50,9 +50,9 @@ command: '$HOME/scripts/deploy.sh'
 Variables work in all string and string array fields:
 
 ```yaml
-- id: 'dynamic_panel'
-  title: '${SERVICE_NAME} Monitor'          # Panel titles
-  content: 'Status: ${SERVICE_STATUS}'      # Panel content
+- id: 'dynamic_box'
+  title: '${SERVICE_NAME} Monitor'          # MuxBox titles
+  content: 'Status: ${SERVICE_STATUS}'      # MuxBox content
   script:                                   # Script commands
     - 'systemctl status ${SERVICE_NAME}'
     - 'journalctl -u ${SERVICE_NAME} -n 10'
@@ -68,8 +68,8 @@ Variables are resolved in strict hierarchical order, allowing fine-grained contr
 
 ### Precedence Order (Highest to Lowest)
 
-1. **Panel-specific variables** - Most granular control
-2. **Parent panel variables** - Inherited through panel hierarchy
+1. **MuxBox-specific variables** - Most granular control
+2. **Parent box variables** - Inherited through box hierarchy
 3. **Layout-level variables** - Layout scope (future enhancement)
 4. **Application-global variables** - App-wide scope
 5. **Environment variables** - System fallback
@@ -444,7 +444,7 @@ app:
     # DATABASE_PASSWORD: "secret123"  # NEVER: Use $DATABASE_PASSWORD instead
     
   layouts:
-    - id: 'database_panel'
+    - id: 'database_box'
       script:
         # Reference secrets via environment variables
         - 'psql -h ${DATABASE_HOST} -p ${DATABASE_PORT} -U ${DATABASE_USER} ${DATABASE_NAME}'
@@ -546,9 +546,9 @@ script:
 Add debug output to understand variable resolution:
 
 ```yaml
-- id: 'debug_panel'
+- id: 'debug_box'
   variables:
-    LOCAL_VAR: "panel_value"
+    LOCAL_VAR: "box_value"
   script:
     - 'echo "=== Variable Resolution Debug ==="'
     - 'echo "LOCAL_VAR: ${LOCAL_VAR}"'

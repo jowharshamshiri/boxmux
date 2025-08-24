@@ -2,15 +2,15 @@
   "version": "1.0.0",
   "channels": {
     "boxmux-control": {
-      "description": "BoxMux control channel for managing panels and layouts",
+      "description": "BoxMux control channel for managing boxes and layouts",
       "commands": {
-        "replace-panel-content": {
-          "description": "Replace the content of a specific panel",
+        "replace-box-content": {
+          "description": "Replace the content of a specific box",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to update",
+              "description": "The ID of the box to update",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
@@ -24,7 +24,7 @@
             "content": {
               "type": "string",
               "required": true,
-              "description": "The new content for the panel",
+              "description": "The new content for the box",
               "validation": {
                 "maxLength": 1000000
               }
@@ -44,13 +44,13 @@
             }
           }
         },
-        "replace-panel-script": {
-          "description": "Replace the script commands for a specific panel",
+        "replace-box-script": {
+          "description": "Replace the script commands for a specific box",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to update",
+              "description": "The ID of the box to update",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
@@ -85,13 +85,13 @@
             }
           }
         },
-        "stop-panel-refresh": {
-          "description": "Stop automatic refresh for a specific panel",
+        "stop-box-refresh": {
+          "description": "Stop automatic refresh for a specific box",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to stop refreshing",
+              "description": "The ID of the box to stop refreshing",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
@@ -112,13 +112,13 @@
             }
           }
         },
-        "start-panel-refresh": {
-          "description": "Start automatic refresh for a specific panel",
+        "start-box-refresh": {
+          "description": "Start automatic refresh for a specific box",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to start refreshing",
+              "description": "The ID of the box to start refreshing",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
@@ -139,22 +139,22 @@
             }
           }
         },
-        "replace-panel": {
-          "description": "Replace an entire panel with a new panel definition",
+        "replace-box": {
+          "description": "Replace an entire box with a new box definition",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to replace",
+              "description": "The ID of the box to replace",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
               }
             },
-            "new_panel": {
+            "new_box": {
               "type": "object",
               "required": true,
-              "description": "The new panel definition object",
+              "description": "The new box definition object",
               "validation": {
                 "maxDataSize": 100000
               }
@@ -201,22 +201,22 @@
             }
           }
         },
-        "add-panel": {
-          "description": "Add a new panel to a specific layout",
+        "add-box": {
+          "description": "Add a new box to a specific layout",
           "args": {
             "layout_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the layout to add the panel to",
+              "description": "The ID of the layout to add the box to",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
               }
             },
-            "panel": {
+            "box": {
               "type": "object",
               "required": true,
-              "description": "The panel definition object to add",
+              "description": "The box definition object to add",
               "validation": {
                 "maxDataSize": 100000
               }
@@ -236,13 +236,13 @@
             }
           }
         },
-        "remove-panel": {
-          "description": "Remove a panel from the current layout",
+        "remove-box": {
+          "description": "Remove a box from the current layout",
           "args": {
-            "panel_id": {
+            "box_id": {
               "type": "string",
               "required": true,
-              "description": "The ID of the panel to remove",
+              "description": "The ID of the box to remove",
               "validation": {
                 "minLength": 1,
                 "maxLength": 256
