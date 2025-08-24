@@ -23,19 +23,19 @@ mod tests {
         let bounds = panel.bounds();
         println!("Panel bounds: ({}, {}) to ({}, {})", bounds.x1, bounds.y1, bounds.x2, bounds.y2);
         
-        // Test right edge detection
-        let right_edge = detect_resize_edge(&panel, bounds.x2 as u16, (bounds.y1 + bounds.height()/2) as u16);
-        assert_eq!(right_edge, Some(ResizeEdge::Right));
-
-        // Test bottom edge detection
-        let bottom_edge = detect_resize_edge(&panel, (bounds.x1 + bounds.width()/2) as u16, bounds.y2 as u16);
-        assert_eq!(bottom_edge, Some(ResizeEdge::Bottom));
-
-        // Test corner detection
+        // Test corner detection (only resize method supported)
         let corner = detect_resize_edge(&panel, bounds.x2 as u16, bounds.y2 as u16);
         assert_eq!(corner, Some(ResizeEdge::BottomRight));
 
-        // Test no edge
+        // Test that right edge no longer supports resize
+        let right_edge = detect_resize_edge(&panel, bounds.x2 as u16, (bounds.y1 + bounds.height()/2) as u16);
+        assert_eq!(right_edge, None); // Should be None - right edge resize removed
+
+        // Test that bottom edge no longer supports resize
+        let bottom_edge = detect_resize_edge(&panel, (bounds.x1 + bounds.width()/2) as u16, bounds.y2 as u16);
+        assert_eq!(bottom_edge, None); // Should be None - bottom edge resize removed
+
+        // Test no resize area (panel interior)
         let no_edge = detect_resize_edge(&panel, (bounds.x1 + bounds.width()/4) as u16, (bounds.y1 + bounds.height()/4) as u16);
         assert_eq!(no_edge, None);
     }
@@ -49,30 +49,20 @@ mod tests {
             y2: "50%".to_string(),
         };
 
-        // Test right edge resize
+        // Test corner resize (only resize method supported)
         let new_bounds = calculate_new_bounds(
             &original_bounds,
-            &ResizeEdge::Right,
-            50, 30, // start position
-            60, 30, // current position (10 pixels right)
+            &ResizeEdge::BottomRight,
+            50, 50, // start position (corner)
+            60, 60, // current position (10 pixels right and down)
             100, 100, // terminal size
         );
         
-        // Should increase x2 by 10% (10 pixels out of 100)
-        assert_eq!(new_bounds.x2, "60%");
-        assert_eq!(new_bounds.y2, "50%"); // unchanged
-
-        // Test bottom edge resize
-        let new_bounds = calculate_new_bounds(
-            &original_bounds,
-            &ResizeEdge::Bottom,
-            30, 50, // start position
-            30, 60, // current position (10 pixels down)
-            100, 100, // terminal size
-        );
-        
-        assert_eq!(new_bounds.x2, "50%"); // unchanged
-        assert_eq!(new_bounds.y2, "60%");
+        // Should increase both x2 and y2 by 10% (10 pixels out of 100)
+        assert_eq!(new_bounds.x2, "60%"); // x2 increased by 10%
+        assert_eq!(new_bounds.y2, "60%"); // y2 increased by 10%
+        assert_eq!(new_bounds.x1, "10%"); // x1 unchanged
+        assert_eq!(new_bounds.y1, "10%"); // y1 unchanged
     }
 
     #[test]

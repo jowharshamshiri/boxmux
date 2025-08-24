@@ -86,3 +86,6 @@ pub mod socket_pty_control_tests;
 
 #[cfg(test)]
 pub mod panel_resize_tests;
+
+#[cfg(test)]
+pub mod panel_move_tests;
