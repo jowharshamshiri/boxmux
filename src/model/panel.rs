@@ -2827,11 +2827,11 @@ mod tests {
         let bounds = panel.bounds();
         let screen_bounds = crate::utils::screen_bounds();
 
-        // Calculate expected values using the same logic as parse_percentage
-        let expected_x1 = (0.25 * screen_bounds.width() as f64).round() as usize;
-        let expected_y1 = (0.50 * screen_bounds.height() as f64).round() as usize;
-        let expected_x2 = (0.75 * screen_bounds.width() as f64).round() as usize;
-        let expected_y2 = (1.00 * screen_bounds.height() as f64).round() as usize;
+        // Calculate expected values using the new coordinate mapping logic
+        let expected_x1 = (0.25 * (screen_bounds.width() - 1) as f64).round() as usize;
+        let expected_y1 = (0.50 * (screen_bounds.height() - 1) as f64).round() as usize;
+        let expected_x2 = (0.75 * (screen_bounds.width() - 1) as f64).round() as usize;
+        let expected_y2 = screen_bounds.height() - 1; // 100% maps to last coordinate
 
         // Test that bounds are calculated correctly relative to screen size
         assert_eq!(bounds.x1, expected_x1, "x1 should be 25% of screen width");
@@ -2870,8 +2870,8 @@ mod tests {
 
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
-        assert_eq!(bounds.x2, 75);
-        assert_eq!(bounds.y2, 200);
+        assert_eq!(bounds.x2, 74); // 75% of 0-99 range = 74
+        assert_eq!(bounds.y2, 199); // 100% of 0-199 range = 199
     }
 
     /// Tests that Panel::update_bounds_absolutely() updates position correctly.

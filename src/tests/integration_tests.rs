@@ -173,10 +173,10 @@ mod tests {
         let result_bounds = input_bounds_to_bounds(&input_bounds, &parent_bounds);
 
         // Should calculate percentages correctly
-        assert_eq!(result_bounds.x1, 10); // 10% of 100
-        assert_eq!(result_bounds.y1, 10); // 20% of 50
-        assert_eq!(result_bounds.x2, 90); // 90% of 100
-        assert_eq!(result_bounds.y2, 40); // 80% of 50
+        assert_eq!(result_bounds.x1, 10); // 10% of 0-99 range = 10
+        assert_eq!(result_bounds.y1, 10); // 20% of 0-49 range = 10
+        assert_eq!(result_bounds.x2, 89); // 90% of 0-99 range = 89
+        assert_eq!(result_bounds.y2, 39); // 80% of 0-49 range = 39
 
         // Test absolute bounds
         let input_bounds = TestDataFactory::create_input_bounds("5", "10", "95", "45");

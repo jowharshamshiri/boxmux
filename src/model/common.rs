@@ -1215,8 +1215,8 @@ mod tests {
 
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
-        assert_eq!(bounds.x2, 75);
-        assert_eq!(bounds.y2, 200);
+        assert_eq!(bounds.x2, 74); // 75% of 0-99 range = 74
+        assert_eq!(bounds.y2, 199); // 100% of 0-199 range = 199
     }
 
     // === Anchor Tests ===

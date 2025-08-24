@@ -68,7 +68,15 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
         match value.trim_end_matches('%').parse::<f64>() {
             Ok(percentage) => {
                 let normalized = percentage.max(0.0).min(100.0) / 100.0;
-                (normalized * total as f64).round() as usize
+                // Fix: Map 0-100% to coordinate space 0 to (total-1)
+                // This ensures 100% maps to the last displayable coordinate
+                if total == 0 {
+                    0
+                } else if percentage >= 100.0 {
+                    total - 1  // 100% maps to last valid coordinate
+                } else {
+                    (normalized * (total - 1) as f64).round() as usize
+                }
             }
             Err(_) => 0, // Default to 0 for invalid percentage values
         }
@@ -754,10 +762,10 @@ mod tests {
         let input_bounds = create_test_input_bounds("50%", "25%", "75%", "50%");
         let result = input_bounds_to_bounds(&input_bounds, &parent_bounds);
 
-        assert_eq!(result.x1, 60); // 10 + 50% of 100
-        assert_eq!(result.y1, 45); // 20 + 25% of 100
-        assert_eq!(result.x2, 85); // 10 + 75% of 100
-        assert_eq!(result.y2, 70); // 20 + 50% of 100
+        assert_eq!(result.x1, 60); // 10 + 50% of 100 = 10 + 50 = 60
+        assert_eq!(result.y1, 45); // 20 + 25% of 100 = 20 + 25 = 45
+        assert_eq!(result.x2, 84); // 10 + 75% of 0-99 range = 10 + 74 = 84
+        assert_eq!(result.y2, 70); // 20 + 50% of 0-99 range = 20 + 50 = 70
     }
 
     /// Tests that input_bounds_to_bounds() correctly converts absolute bounds.
@@ -792,11 +800,11 @@ mod tests {
     /// This test demonstrates the percentage parsing feature.
     #[test]
     fn test_parse_percentage() {
-        assert_eq!(parse_percentage("50%", 100), 50);
-        assert_eq!(parse_percentage("25%", 200), 50);
+        assert_eq!(parse_percentage("50%", 100), 50); // 50% of range 0-99 = 50
+        assert_eq!(parse_percentage("25%", 200), 50); // 25% of range 0-199 = 50
         assert_eq!(parse_percentage("0%", 100), 0);
-        assert_eq!(parse_percentage("100%", 100), 100);
-        assert_eq!(parse_percentage("33.5%", 100), 34); // rounded
+        assert_eq!(parse_percentage("100%", 100), 99); // 100% maps to last coordinate
+        assert_eq!(parse_percentage("33.5%", 100), 33); // 33.5% of 0-99 range
     }
 
     /// Tests that parse_percentage() correctly parses absolute values.
