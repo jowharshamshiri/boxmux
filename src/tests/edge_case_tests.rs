@@ -254,8 +254,8 @@ mod tests {
     #[test]
     fn test_socket_function_edge_cases() {
         // Test with empty muxbox ID
-        let empty_id_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "".to_string(),
+        let empty_id_function = SocketFunction::ReplaceBoxContent {
+            box_id: "".to_string(),
             success: true,
             content: "content".to_string(),
         };
@@ -265,8 +265,8 @@ mod tests {
 
         // Test with extremely long content
         let huge_content = "x".repeat(1_000_000);
-        let huge_content_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "test".to_string(),
+        let huge_content_function = SocketFunction::ReplaceBoxContent {
+            box_id: "test".to_string(),
             success: true,
             content: huge_content,
         };
@@ -276,8 +276,8 @@ mod tests {
 
         // Test with special characters in content
         let special_content = "Special chars: ñáéíóú 中文 🚀 \n\r\t\\\"'";
-        let special_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "special".to_string(),
+        let special_function = SocketFunction::ReplaceBoxContent {
+            box_id: "special".to_string(),
             success: true,
             content: special_content.to_string(),
         };

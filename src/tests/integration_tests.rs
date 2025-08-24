@@ -54,8 +54,8 @@ mod tests {
             "MuxBoxOutputUpdate"
         ));
 
-        if let Message::MuxBoxOutputUpdate(muxbox_id, success, content) = message {
-            assert_eq!(muxbox_id, "test_muxbox");
+        if let Message::MuxBoxOutputUpdate(box_id, success, content) = message {
+            assert_eq!(box_id, "test_muxbox");
             assert_eq!(success, true);
             assert_eq!(content, "Updated via socket");
         }
@@ -79,8 +79,8 @@ mod tests {
             "MuxBoxScriptUpdate"
         ));
 
-        if let Message::MuxBoxScriptUpdate(muxbox_id, script) = message {
-            assert_eq!(muxbox_id, "script_muxbox");
+        if let Message::MuxBoxScriptUpdate(box_id, script) = message {
+            assert_eq!(box_id, "script_muxbox");
             assert_eq!(script, script_commands);
         }
     }
@@ -89,8 +89,8 @@ mod tests {
     #[test]
     fn test_socket_function_handling() {
         // Test SocketFunction processing directly
-        let socket_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "test_muxbox".to_string(),
+        let socket_function = SocketFunction::ReplaceBoxContent {
+            box_id: "test_muxbox".to_string(),
             success: true,
             content: "test content".to_string(),
         };
@@ -104,8 +104,8 @@ mod tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
-            Message::MuxBoxOutputUpdate(muxbox_id, success, content) => {
-                assert_eq!(muxbox_id, "test_muxbox");
+            Message::MuxBoxOutputUpdate(box_id, success, content) => {
+                assert_eq!(box_id, "test_muxbox");
                 assert_eq!(*success, true);
                 assert_eq!(content, "test content");
             }
@@ -142,11 +142,11 @@ mod tests {
         for socket_function in functions {
             // Convert socket function to message and send to channel
             let message = match socket_function {
-                SocketFunction::ReplaceMuxBoxContent {
-                    muxbox_id,
+                SocketFunction::ReplaceBoxContent {
+                    box_id,
                     success,
                     content,
-                } => Message::MuxBoxOutputUpdate(muxbox_id, success, content),
+                } => Message::MuxBoxOutputUpdate(box_id, success, content),
                 _ => panic!("Unexpected socket function type"),
             };
             tx.send((test_uuid, message))
@@ -257,19 +257,19 @@ mod tests {
 
         // Add muxbox via socket function
         let new_muxbox = TestDataFactory::create_custom_muxbox("new_muxbox", "New muxbox content");
-        let add_function = SocketFunction::AddMuxBox {
+        let add_function = SocketFunction::AddBox {
             layout_id: "test_layout".to_string(),
             muxbox: new_muxbox.clone(),
         };
 
         let message = IntegrationTestUtils::simulate_socket_to_app_workflow(add_function).unwrap();
-        assert!(TestAssertions::assert_message_type(&message, "AddMuxBox"));
+        assert!(TestAssertions::assert_message_type(&message, "AddBox"));
 
         // Test muxbox replacement
         let updated_muxbox = TestDataFactory::create_custom_muxbox("new_muxbox", "Updated content");
-        let replace_function = SocketFunction::ReplaceMuxBox {
-            muxbox_id: "new_muxbox".to_string(),
-            new_muxbox: updated_muxbox,
+        let replace_function = SocketFunction::ReplaceBox {
+            box_id: "new_muxbox".to_string(),
+            new_box: updated_muxbox,
         };
 
         let message =
@@ -280,13 +280,13 @@ mod tests {
         ));
 
         // Test muxbox removal
-        let remove_function = SocketFunction::RemoveMuxBox {
-            muxbox_id: "new_muxbox".to_string(),
+        let remove_function = SocketFunction::RemoveBox {
+            box_id: "new_muxbox".to_string(),
         };
 
         let message =
             IntegrationTestUtils::simulate_socket_to_app_workflow(remove_function).unwrap();
-        assert!(TestAssertions::assert_message_type(&message, "RemoveMuxBox"));
+        assert!(TestAssertions::assert_message_type(&message, "RemoveBox"));
     }
 
     /// Test error recovery scenarios

@@ -146,8 +146,8 @@ impl TestDataFactory {
     }
 
     /// Create a test layout marked as root
-    pub fn create_root_layout(id: &str, muxboxes: Option<Vec<MuxBox>>) -> Layout {
-        let mut layout = Self::create_test_layout(id, muxboxes);
+    pub fn create_root_layout(id: &str, boxes: Option<Vec<MuxBox>>) -> Layout {
+        let mut layout = Self::create_test_layout(id, boxes);
         layout.root = Some(true);
         layout
     }
@@ -212,12 +212,12 @@ impl TestDataFactory {
 
     /// Create socket function for testing
     pub fn create_socket_function_replace_content(
-        muxbox_id: &str,
+        box_id: &str,
         content: &str,
         success: bool,
     ) -> SocketFunction {
-        SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: muxbox_id.to_string(),
+        SocketFunction::ReplaceBoxContent {
+            box_id: box_id.to_string(),
             success,
             content: content.to_string(),
         }
@@ -225,11 +225,11 @@ impl TestDataFactory {
 
     /// Create socket function for testing script replacement
     pub fn create_socket_function_replace_script(
-        muxbox_id: &str,
+        box_id: &str,
         script: Vec<String>,
     ) -> SocketFunction {
-        SocketFunction::ReplaceMuxBoxScript {
-            muxbox_id: muxbox_id.to_string(),
+        SocketFunction::ReplaceBoxScript {
+            box_id: box_id.to_string(),
             script,
         }
     }
@@ -239,16 +239,16 @@ impl TestDataFactory {
 pub struct TestAssertions;
 
 impl TestAssertions {
-    /// Assert that a muxbox exists in a layout with specific properties
-    pub fn assert_muxbox_exists_in_layout(layout: &Layout, muxbox_id: &str) -> bool {
+    /// Assert that a box exists in a layout with specific properties
+    pub fn assert_box_exists_in_layout(layout: &Layout, box_id: &str) -> bool {
         layout
             .children
             .as_ref()
-            .map_or(false, |muxboxes| muxboxes.iter().any(|p| p.id == muxbox_id))
+            .map_or(false, |boxes| boxes.iter().any(|p| p.id == box_id))
     }
 
-    /// Assert that a muxbox has specific content
-    pub fn assert_muxbox_has_content(muxbox: &MuxBox, expected_content: &str) -> bool {
+    /// Assert that a box has specific content
+    pub fn assert_box_has_content(muxbox: &MuxBox, expected_content: &str) -> bool {
         muxbox.content.as_ref().map(|c| c.as_str()) == Some(expected_content)
     }
 
@@ -268,12 +268,12 @@ impl TestAssertions {
         match (message, expected_type) {
             (Message::MuxBoxOutputUpdate(_, _, _), "MuxBoxOutputUpdate") => true,
             (Message::MuxBoxScriptUpdate(_, _), "MuxBoxScriptUpdate") => true,
-            (Message::StopMuxBoxRefresh(_), "StopMuxBoxRefresh") => true,
-            (Message::StartMuxBoxRefresh(_), "StartMuxBoxRefresh") => true,
+            (Message::StopBoxRefresh(_), "StopBoxRefresh") => true,
+            (Message::StartBoxRefresh(_), "StartBoxRefresh") => true,
             (Message::SwitchActiveLayout(_), "SwitchActiveLayout") => true,
             (Message::ReplaceMuxBox(_, _), "ReplaceMuxBox") => true,
-            (Message::AddMuxBox(_, _), "AddMuxBox") => true,
-            (Message::RemoveMuxBox(_), "RemoveMuxBox") => true,
+            (Message::AddBox(_, _), "AddBox") => true,
+            (Message::RemoveBox(_), "RemoveBox") => true,
             _ => false,
         }
     }
@@ -393,34 +393,34 @@ impl IntegrationTestUtils {
 
         // This would normally go through the socket handler
         let boxmux_message = match socket_function {
-            SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id,
+            SocketFunction::ReplaceBoxContent {
+                box_id,
                 success,
                 content,
-            } => Message::MuxBoxOutputUpdate(muxbox_id, success, content),
-            SocketFunction::ReplaceMuxBoxScript { muxbox_id, script } => {
-                Message::MuxBoxScriptUpdate(muxbox_id, script)
+            } => Message::MuxBoxOutputUpdate(box_id, success, content),
+            SocketFunction::ReplaceBoxScript { box_id, script } => {
+                Message::MuxBoxScriptUpdate(box_id, script)
             }
-            SocketFunction::StopMuxBoxRefresh { muxbox_id } => Message::StopMuxBoxRefresh(muxbox_id),
-            SocketFunction::StartMuxBoxRefresh { muxbox_id } => Message::StartMuxBoxRefresh(muxbox_id),
-            SocketFunction::ReplaceMuxBox {
-                muxbox_id,
-                new_muxbox,
-            } => Message::ReplaceMuxBox(muxbox_id, new_muxbox),
+            SocketFunction::StopBoxRefresh { box_id } => Message::StopBoxRefresh(box_id),
+            SocketFunction::StartBoxRefresh { box_id } => Message::StartBoxRefresh(box_id),
+            SocketFunction::ReplaceBox {
+                box_id,
+                new_box,
+            } => Message::ReplaceMuxBox(box_id, new_box),
             SocketFunction::SwitchActiveLayout { layout_id } => {
                 Message::SwitchActiveLayout(layout_id)
             }
-            SocketFunction::AddMuxBox { layout_id, muxbox } => Message::AddMuxBox(layout_id, muxbox),
-            SocketFunction::RemoveMuxBox { muxbox_id } => Message::RemoveMuxBox(muxbox_id),
+            SocketFunction::AddBox { layout_id, muxbox } => Message::AddBox(layout_id, muxbox),
+            SocketFunction::RemoveBox { box_id } => Message::RemoveBox(box_id),
             // F0137/F0138: Socket PTY Control and Query patterns
-            SocketFunction::KillPtyProcess { muxbox_id } => {
-                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY process killed".to_string())
+            SocketFunction::KillPtyProcess { box_id } => {
+                Message::MuxBoxOutputUpdate(box_id, true, "PTY process killed".to_string())
             }
-            SocketFunction::RestartPtyProcess { muxbox_id } => {
-                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY process restarted".to_string())
+            SocketFunction::RestartPtyProcess { box_id } => {
+                Message::MuxBoxOutputUpdate(box_id, true, "PTY process restarted".to_string())
             }
-            SocketFunction::QueryPtyStatus { muxbox_id } => {
-                Message::MuxBoxOutputUpdate(muxbox_id, true, "PTY status queried".to_string())
+            SocketFunction::QueryPtyStatus { box_id } => {
+                Message::MuxBoxOutputUpdate(box_id, true, "PTY status queried".to_string())
             }
         };
 
@@ -464,11 +464,11 @@ mod tests {
     #[test]
     fn test_assertions_work_correctly() {
         let muxbox = TestDataFactory::create_test_muxbox("test");
-        assert!(TestAssertions::assert_muxbox_has_content(
+        assert!(TestAssertions::assert_box_has_content(
             &muxbox,
             "Test content"
         ));
-        assert!(!TestAssertions::assert_muxbox_has_content(
+        assert!(!TestAssertions::assert_box_has_content(
             &muxbox,
             "Wrong content"
         ));

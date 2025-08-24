@@ -39,7 +39,7 @@ mod socket_pty_control_tests {
         }
 
         let socket_function = SocketFunction::KillPtyProcess {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -49,10 +49,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a message about the kill attempt
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "test_muxbox");
+            assert_eq!(box_id, "test_muxbox");
             // In test environment, killing a fake PID might fail, but the attempt should be made
             // So we check that we got a message about the kill attempt
             assert!(message.contains("kill") || message.contains("Kill"));
@@ -78,7 +78,7 @@ mod socket_pty_control_tests {
         }
 
         let socket_function = SocketFunction::KillPtyProcess {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -88,10 +88,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "test_muxbox");
+            assert_eq!(box_id, "test_muxbox");
             assert!(!success);
             assert!(message.contains("cannot be killed"));
         } else {
@@ -104,7 +104,7 @@ mod socket_pty_control_tests {
         let app_context = create_test_app_context_with_pty();
 
         let socket_function = SocketFunction::KillPtyProcess {
-            muxbox_id: "non_existent".to_string(),
+            box_id: "non_existent".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -114,10 +114,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "non_existent");
+            assert_eq!(box_id, "non_existent");
             assert!(!success);
             assert!(message.contains("PTY not found"));
         } else {
@@ -141,7 +141,7 @@ mod socket_pty_control_tests {
         }
 
         let socket_function = SocketFunction::RestartPtyProcess {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -151,10 +151,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a success message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "test_muxbox");
+            assert_eq!(box_id, "test_muxbox");
             assert!(*success);
             assert!(message.contains("restarted"));
         } else {
@@ -175,7 +175,7 @@ mod socket_pty_control_tests {
         let app_context = create_test_app_context_with_pty();
 
         let socket_function = SocketFunction::RestartPtyProcess {
-            muxbox_id: "non_existent".to_string(),
+            box_id: "non_existent".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -185,10 +185,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "non_existent");
+            assert_eq!(box_id, "non_existent");
             assert!(!success);
             assert!(message.contains("PTY not found"));
         } else {
@@ -219,7 +219,7 @@ mod socket_pty_control_tests {
         }
 
         let socket_function = SocketFunction::QueryPtyStatus {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -229,10 +229,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a success message with status info
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "test_muxbox");
+            assert_eq!(box_id, "test_muxbox");
             assert!(*success);
             assert!(message.contains("PTY Status"));
             assert!(message.contains("test_muxbox"));
@@ -249,7 +249,7 @@ mod socket_pty_control_tests {
         let app_context = create_test_app_context_with_pty();
 
         let socket_function = SocketFunction::QueryPtyStatus {
-            muxbox_id: "non_existent".to_string(),
+            box_id: "non_existent".to_string(),
         };
 
         let result = run_socket_function(socket_function, &app_context);
@@ -259,10 +259,10 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(muxbox_id, success, message) =
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
             &messages[0]
         {
-            assert_eq!(muxbox_id, "non_existent");
+            assert_eq!(box_id, "non_existent");
             assert!(!success);
             assert!(message.contains("No PTY process found"));
         } else {
@@ -278,7 +278,7 @@ mod socket_pty_control_tests {
 
         // Test kill command without PTY manager
         let kill_function = SocketFunction::KillPtyProcess {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(kill_function, &app_context);
@@ -295,7 +295,7 @@ mod socket_pty_control_tests {
 
         // Test restart command without PTY manager
         let restart_function = SocketFunction::RestartPtyProcess {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(restart_function, &app_context);
@@ -312,7 +312,7 @@ mod socket_pty_control_tests {
 
         // Test query command without PTY manager
         let query_function = SocketFunction::QueryPtyStatus {
-            muxbox_id: "test_muxbox".to_string(),
+            box_id: "test_muxbox".to_string(),
         };
 
         let result = run_socket_function(query_function, &app_context);
