@@ -348,42 +348,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("lock")
                 .long("lock")
                 .action(clap::ArgAction::SetTrue)
-                .help("Disable muxbox resizing and moving"),
+                .help("Disable box resizing and moving"),
         )
         .subcommand(
-            Command::new("stop_muxbox_refresh")
-                .about("Stops the refresh of the muxbox")
+            Command::new("stop_box_refresh")
+                .about("Stops the refresh of the box")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to stop the refresh of"),
+                        .help("The box id to stop the refresh of"),
                 ),
         )
         .subcommand(
-            Command::new("start_muxbox_refresh")
-                .about("Starts the refresh of the muxbox")
+            Command::new("start_box_refresh")
+                .about("Starts the refresh of the box")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to start the refresh of"),
+                        .help("The box id to start the refresh of"),
                 ),
         )
         .subcommand(
-            Command::new("replace_muxbox")
-                .about("Replaces the muxbox with the provided MuxBox")
+            Command::new("replace_box")
+                .about("Replaces the box with the provided MuxBox")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to update"),
+                        .help("The box id to update"),
                 )
                 .arg(
-                    Arg::new("new_muxbox_json")
+                    Arg::new("new_box_json")
                         .required(true)
                         .index(2)
-                        .help("The new muxbox to update with"),
+                        .help("The new box to update with"),
                 ),
         )
         .subcommand(
@@ -397,29 +397,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
-            Command::new("update_muxbox_script")
-                .about("Updates the muxbox script")
+            Command::new("update_box_script")
+                .about("Updates the box script")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to update the script of"),
+                        .help("The box id to update the script of"),
                 )
                 .arg(
-                    Arg::new("new_muxbox_script")
+                    Arg::new("new_box_script")
                         .required(true)
                         .index(2)
-                        .help("The new script to update the muxbox with"),
+                        .help("The new script to update the box with"),
                 ),
         )
         .subcommand(
-            Command::new("update_muxbox_content")
-                .about("Updates the muxbox content")
+            Command::new("update_box_content")
+                .about("Updates the box content")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to update the content of"),
+                        .help("The box id to update the content of"),
                 )
                 .arg(
                     Arg::new("success")
@@ -428,68 +428,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("Whether the content is a success or not"),
                 )
                 .arg(
-                    Arg::new("new_muxbox_content")
+                    Arg::new("new_box_content")
                         .required(true)
                         .index(3)
-                        .help("The new content to update the muxbox with"),
+                        .help("The new content to update the box with"),
                 ),
         )
         .subcommand(
-            Command::new("add_muxbox")
-                .about("Adds a muxbox to a layout")
+            Command::new("add_box")
+                .about("Adds a box to a layout")
                 .arg(
                     Arg::new("layout_id")
                         .required(true)
                         .index(1)
-                        .help("The layout id to add the muxbox to"),
+                        .help("The layout id to add the box to"),
                 )
                 .arg(
                     Arg::new("muxbox_json")
                         .required(true)
                         .index(2)
-                        .help("The muxbox to add to the layout"),
+                        .help("The box to add to the layout"),
                 ),
         )
         .subcommand(
-            Command::new("remove_muxbox")
-                .about("Removes a muxbox from its layout")
+            Command::new("remove_box")
+                .about("Removes a box from its layout")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to remove from its layout"),
+                        .help("The box id to remove from its layout"),
                 ),
         )
         // F0137: Socket PTY Control - Kill and restart PTY processes
         .subcommand(
             Command::new("kill_pty_process")
-                .about("Kills a PTY process for a muxbox")
+                .about("Kills a PTY process for a box")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id with the PTY process to kill"),
+                        .help("The box id with the PTY process to kill"),
                 ),
         )
         .subcommand(
             Command::new("restart_pty_process")
-                .about("Restarts a PTY process for a muxbox")
+                .about("Restarts a PTY process for a box")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id with the PTY process to restart"),
+                        .help("The box id with the PTY process to restart"),
                 ),
         )
         // F0138: Socket PTY Query - Get PTY status and info
         .subcommand(
             Command::new("query_pty_status")
-                .about("Gets PTY process status for a muxbox")
+                .about("Gets PTY process status for a box")
                 .arg(
-                    Arg::new("muxbox_id")
+                    Arg::new("box_id")
                         .required(true)
                         .index(1)
-                        .help("The muxbox id to query PTY status for"),
+                        .help("The box id to query PTY status for"),
                 ),
         )
         .get_matches();
@@ -497,12 +497,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging framework (F0161/F0162)
     initialize_logging(&matches)?;
 
-    // Handle the stop_muxbox_refresh subcommand
-    if let Some(matches) = matches.subcommand_matches("stop_muxbox_refresh") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+    // Handle the stop_box_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("stop_box_refresh") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::StopMuxBoxRefresh {
-                muxbox_id: muxbox_id.clone(),
+            let socket_function = SocketFunction::StopBoxRefresh {
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -512,16 +512,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for stop_muxbox_refresh command".into());
+            return Err("Box ID is required for stop_box_refresh command".into());
         }
     }
 
-    // Handle the start_muxbox_refresh subcommand
-    if let Some(matches) = matches.subcommand_matches("start_muxbox_refresh") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+    // Handle the start_box_refresh subcommand
+    if let Some(matches) = matches.subcommand_matches("start_box_refresh") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::StartMuxBoxRefresh {
-                muxbox_id: muxbox_id.clone(),
+            let socket_function = SocketFunction::StartBoxRefresh {
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -531,20 +531,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for start_muxbox_refresh command".into());
+            return Err("Box ID is required for start_box_refresh command".into());
         }
     }
 
-    // Handle the replace_muxbox subcommand
-    if let Some(matches) = matches.subcommand_matches("replace_muxbox") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
-            if let Some(new_muxbox_json) = matches.get_one::<String>("new_muxbox_json") {
+    // Handle the replace_box subcommand
+    if let Some(matches) = matches.subcommand_matches("replace_box") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(new_box_json) = matches.get_one::<String>("new_box_json") {
                 // Construct the enum variant using the struct syntax
-                let submitted_muxbox = serde_json::from_str::<MuxBox>(new_muxbox_json)?;
+                let submitted_box = serde_json::from_str::<MuxBox>(new_box_json)?;
 
-                let socket_function = SocketFunction::ReplaceMuxBox {
-                    muxbox_id: muxbox_id.clone(),
-                    new_muxbox: submitted_muxbox,
+                let socket_function = SocketFunction::ReplaceBox {
+                    box_id: box_id.clone(),
+                    new_box: submitted_box,
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -554,10 +554,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("New MuxBox JSON is required for replace_muxbox command".into());
+                return Err("New Box JSON is required for replace_box command".into());
             }
         } else {
-            return Err("MuxBox ID is required for replace_muxbox command".into());
+            return Err("Box ID is required for replace_box command".into());
         }
     }
 
@@ -580,16 +580,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Handle the update_muxbox_script subcommand
-    if let Some(matches) = matches.subcommand_matches("update_muxbox_script") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
-            if let Some(new_muxbox_script) = matches.get_one::<String>("new_muxbox_script") {
-                let new_muxbox_script = serde_json::from_str::<Vec<String>>(new_muxbox_script)?;
+    // Handle the update_box_script subcommand
+    if let Some(matches) = matches.subcommand_matches("update_box_script") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(new_box_script) = matches.get_one::<String>("new_box_script") {
+                let new_box_script = serde_json::from_str::<Vec<String>>(new_box_script)?;
 
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::ReplaceMuxBoxScript {
-                    muxbox_id: muxbox_id.clone(),
-                    script: new_muxbox_script,
+                let socket_function = SocketFunction::ReplaceBoxScript {
+                    box_id: box_id.clone(),
+                    script: new_box_script,
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -599,26 +599,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("New MuxBox Script is required for update_muxbox_script command".into());
+                return Err("New Box Script is required for update_box_script command".into());
             }
         } else {
-            return Err("MuxBox ID is required for update_muxbox_script command".into());
+            return Err("Box ID is required for update_box_script command".into());
         }
     }
 
-    // Handle the update_muxbox_content subcommand
-    if let Some(matches) = matches.subcommand_matches("update_muxbox_content") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
-            if let Some(new_muxbox_content) = matches.get_one::<String>("new_muxbox_content") {
+    // Handle the update_box_content subcommand
+    if let Some(matches) = matches.subcommand_matches("update_box_content") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(new_box_content) = matches.get_one::<String>("new_box_content") {
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::ReplaceMuxBoxContent {
-                    muxbox_id: muxbox_id.clone(),
+                let socket_function = SocketFunction::ReplaceBoxContent {
+                    box_id: box_id.clone(),
                     success: matches
                         .get_one::<String>("success")
                         .unwrap()
                         .parse::<bool>()
                         .unwrap(),
-                    content: new_muxbox_content.clone(),
+                    content: new_box_content.clone(),
                 };
 
                 let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -629,22 +629,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             } else {
                 return Err(
-                    "New MuxBox Content is required for update_muxbox_content command".into(),
+                    "New Box Content is required for update_box_content command".into(),
                 );
             }
         } else {
-            return Err("MuxBox ID is required for update_muxbox_content command".into());
+            return Err("Box ID is required for update_box_content command".into());
         }
     }
 
-    // Handle the add_muxbox subcommand
-    if let Some(matches) = matches.subcommand_matches("add_muxbox") {
+    // Handle the add_box subcommand
+    if let Some(matches) = matches.subcommand_matches("add_box") {
         if let Some(layout_id) = matches.get_one::<String>("layout_id") {
             if let Some(muxbox_json) = matches.get_one::<String>("muxbox_json") {
                 let submitted_muxbox = serde_json::from_str::<MuxBox>(muxbox_json)?;
 
                 // Construct the enum variant using the struct syntax
-                let socket_function = SocketFunction::AddMuxBox {
+                let socket_function = SocketFunction::AddBox {
                     layout_id: layout_id.to_string(),
                     muxbox: submitted_muxbox,
                 };
@@ -656,19 +656,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err("MuxBox JSON is required for add_muxbox command".into());
+                return Err("Box JSON is required for add_box command".into());
             }
         } else {
-            return Err("Layout ID is required for add_muxbox command".into());
+            return Err("Layout ID is required for add_box command".into());
         }
     }
 
-    // Handle the remove_muxbox subcommand
-    if let Some(matches) = matches.subcommand_matches("remove_muxbox") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+    // Handle the remove_box subcommand
+    if let Some(matches) = matches.subcommand_matches("remove_box") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             // Construct the enum variant using the struct syntax
-            let socket_function = SocketFunction::RemoveMuxBox {
-                muxbox_id: muxbox_id.clone(),
+            let socket_function = SocketFunction::RemoveBox {
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -678,15 +678,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for remove_muxbox command".into());
+            return Err("Box ID is required for remove_box command".into());
         }
     }
 
     // F0137: Socket PTY Control - Handle kill_pty_process subcommand
     if let Some(matches) = matches.subcommand_matches("kill_pty_process") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             let socket_function = SocketFunction::KillPtyProcess {
-                muxbox_id: muxbox_id.clone(),
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -694,15 +694,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for kill_pty_process command".into());
+            return Err("Box ID is required for kill_pty_process command".into());
         }
     }
 
     // F0137: Socket PTY Control - Handle restart_pty_process subcommand
     if let Some(matches) = matches.subcommand_matches("restart_pty_process") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             let socket_function = SocketFunction::RestartPtyProcess {
-                muxbox_id: muxbox_id.clone(),
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -710,15 +710,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for restart_pty_process command".into());
+            return Err("Box ID is required for restart_pty_process command".into());
         }
     }
 
     // F0138: Socket PTY Query - Handle query_pty_status subcommand
     if let Some(matches) = matches.subcommand_matches("query_pty_status") {
-        if let Some(muxbox_id) = matches.get_one::<String>("muxbox_id") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
             let socket_function = SocketFunction::QueryPtyStatus {
-                muxbox_id: muxbox_id.clone(),
+                box_id: box_id.clone(),
             };
 
             let socket_function_json = serde_json::to_string(&socket_function)?;
@@ -726,7 +726,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         } else {
-            return Err("MuxBox ID is required for query_pty_status command".into());
+            return Err("Box ID is required for query_pty_status command".into());
         }
     }
 

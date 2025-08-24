@@ -81,45 +81,45 @@ impl Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum SocketFunction {
-    ReplaceMuxBoxContent {
-        muxbox_id: String,
+    ReplaceBoxContent {
+        box_id: String,
         success: bool,
         content: String,
     },
-    ReplaceMuxBoxScript {
-        muxbox_id: String,
+    ReplaceBoxScript {
+        box_id: String,
         script: Vec<String>,
     },
-    StopMuxBoxRefresh {
-        muxbox_id: String,
+    StopBoxRefresh {
+        box_id: String,
     },
-    StartMuxBoxRefresh {
-        muxbox_id: String,
+    StartBoxRefresh {
+        box_id: String,
     },
-    ReplaceMuxBox {
-        muxbox_id: String,
-        new_muxbox: MuxBox,
+    ReplaceBox {
+        box_id: String,
+        new_box: MuxBox,
     },
     SwitchActiveLayout {
         layout_id: String,
     },
-    AddMuxBox {
+    AddBox {
         layout_id: String,
         muxbox: MuxBox,
     },
-    RemoveMuxBox {
-        muxbox_id: String,
+    RemoveBox {
+        box_id: String,
     },
     // F0137: Socket PTY Control - Kill and restart PTY processes
     KillPtyProcess {
-        muxbox_id: String,
+        box_id: String,
     },
     RestartPtyProcess {
-        muxbox_id: String,
+        box_id: String,
     },
     // F0138: Socket PTY Query - Get PTY status and info
     QueryPtyStatus {
-        muxbox_id: String,
+        box_id: String,
     },
 }
 
@@ -130,51 +130,51 @@ pub fn run_socket_function(
     let app_context = app_context.clone();
     let mut messages = Vec::new();
     match socket_function {
-        SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id,
+        SocketFunction::ReplaceBoxContent {
+            box_id,
             success,
             content,
         } => {
-            messages.push(Message::MuxBoxOutputUpdate(muxbox_id, success, content));
+            messages.push(Message::MuxBoxOutputUpdate(box_id, success, content));
         }
-        SocketFunction::ReplaceMuxBoxScript { muxbox_id, script } => {
-            messages.push(Message::MuxBoxScriptUpdate(muxbox_id, script));
+        SocketFunction::ReplaceBoxScript { box_id, script } => {
+            messages.push(Message::MuxBoxScriptUpdate(box_id, script));
         }
-        SocketFunction::StopMuxBoxRefresh { muxbox_id } => {
-            messages.push(Message::StopMuxBoxRefresh(muxbox_id));
+        SocketFunction::StopBoxRefresh { box_id } => {
+            messages.push(Message::StopBoxRefresh(box_id));
         }
-        SocketFunction::StartMuxBoxRefresh { muxbox_id } => {
-            messages.push(Message::StartMuxBoxRefresh(muxbox_id));
+        SocketFunction::StartBoxRefresh { box_id } => {
+            messages.push(Message::StartBoxRefresh(box_id));
         }
-        SocketFunction::ReplaceMuxBox {
-            muxbox_id,
-            new_muxbox,
+        SocketFunction::ReplaceBox {
+            box_id,
+            new_box,
         } => {
-            messages.push(Message::ReplaceMuxBox(muxbox_id, new_muxbox));
+            messages.push(Message::ReplaceMuxBox(box_id, new_box));
         }
         SocketFunction::SwitchActiveLayout { layout_id } => {
             messages.push(Message::SwitchActiveLayout(layout_id));
         }
-        SocketFunction::AddMuxBox { layout_id, muxbox } => {
-            messages.push(Message::AddMuxBox(layout_id, muxbox));
+        SocketFunction::AddBox { layout_id, muxbox } => {
+            messages.push(Message::AddBox(layout_id, muxbox));
         }
-        SocketFunction::RemoveMuxBox { muxbox_id } => {
-            messages.push(Message::RemoveMuxBox(muxbox_id));
+        SocketFunction::RemoveBox { box_id } => {
+            messages.push(Message::RemoveBox(box_id));
         }
         // F0137: Socket PTY Control - Kill and restart PTY processes
-        SocketFunction::KillPtyProcess { muxbox_id } => {
+        SocketFunction::KillPtyProcess { box_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                match pty_manager.kill_pty_process(&muxbox_id) {
+                match pty_manager.kill_pty_process(&box_id) {
                     Ok(_) => {
                         messages.push(Message::MuxBoxOutputUpdate(
-                            muxbox_id.clone(),
+                            box_id.clone(),
                             true,
-                            format!("PTY process killed for muxbox {}", muxbox_id),
+                            format!("PTY process killed for box {}", box_id),
                         ));
                     }
                     Err(err) => {
                         messages.push(Message::MuxBoxOutputUpdate(
-                            muxbox_id.clone(),
+                            box_id.clone(),
                             false,
                             format!("Failed to kill PTY process: {}", err),
                         ));
@@ -182,25 +182,25 @@ pub fn run_socket_function(
                 }
             } else {
                 messages.push(Message::MuxBoxOutputUpdate(
-                    muxbox_id.clone(),
+                    box_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
             }
         }
-        SocketFunction::RestartPtyProcess { muxbox_id } => {
+        SocketFunction::RestartPtyProcess { box_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                match pty_manager.restart_pty_process(&muxbox_id) {
+                match pty_manager.restart_pty_process(&box_id) {
                     Ok(_) => {
                         messages.push(Message::MuxBoxOutputUpdate(
-                            muxbox_id.clone(),
+                            box_id.clone(),
                             true,
-                            format!("PTY process restarted for muxbox {}", muxbox_id),
+                            format!("PTY process restarted for box {}", box_id),
                         ));
                     }
                     Err(err) => {
                         messages.push(Message::MuxBoxOutputUpdate(
-                            muxbox_id.clone(),
+                            box_id.clone(),
                             false,
                             format!("Failed to restart PTY process: {}", err),
                         ));
@@ -208,35 +208,35 @@ pub fn run_socket_function(
                 }
             } else {
                 messages.push(Message::MuxBoxOutputUpdate(
-                    muxbox_id.clone(),
+                    box_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
             }
         }
         // F0138: Socket PTY Query - Get PTY status and info
-        SocketFunction::QueryPtyStatus { muxbox_id } => {
+        SocketFunction::QueryPtyStatus { box_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
-                if let Some(info) = pty_manager.get_detailed_process_info(&muxbox_id) {
+                if let Some(info) = pty_manager.get_detailed_process_info(&box_id) {
                     let status_info = format!(
-                        "PTY Status - MuxBox: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
+                        "PTY Status - Box: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
                         info.muxbox_id, info.process_id, info.status, info.is_running, info.buffer_lines
                     );
                     messages.push(Message::MuxBoxOutputUpdate(
-                        muxbox_id.clone(),
+                        box_id.clone(),
                         true,
                         status_info,
                     ));
                 } else {
                     messages.push(Message::MuxBoxOutputUpdate(
-                        muxbox_id.clone(),
+                        box_id.clone(),
                         false,
-                        format!("No PTY process found for muxbox {}", muxbox_id),
+                        format!("No PTY process found for box {}", box_id),
                     ));
                 }
             } else {
                 messages.push(Message::MuxBoxOutputUpdate(
-                    muxbox_id.clone(),
+                    box_id.clone(),
                     false,
                     "PTY manager not available".to_string(),
                 ));
@@ -1352,13 +1352,13 @@ mod tests {
 
     // === SocketFunction Tests ===
 
-    /// Tests that run_socket_function() correctly handles ReplaceMuxBoxContent.
+    /// Tests that run_socket_function() correctly handles ReplaceBoxContent.
     /// This test demonstrates socket function message processing.
     #[test]
     fn test_run_socket_function_replace_muxbox_content() {
         let app_context = create_test_app_context();
-        let socket_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "test_muxbox".to_string(),
+        let socket_function = SocketFunction::ReplaceBoxContent {
+            box_id: "test_muxbox".to_string(),
             success: true,
             content: "Test content".to_string(),
         };

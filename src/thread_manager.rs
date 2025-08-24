@@ -38,8 +38,8 @@ pub enum Message {
     MuxBoxOutputUpdate(String, bool, String),
     MuxBoxScriptUpdate(String, Vec<String>),
     ReplaceMuxBox(String, MuxBox),
-    StopMuxBoxRefresh(String),
-    StartMuxBoxRefresh(String),
+    StopBoxRefresh(String),
+    StartBoxRefresh(String),
     SwitchActiveLayout(String),
     KeyPress(String),
     ExecuteHotKeyChoice(String),
@@ -55,8 +55,8 @@ pub enum Message {
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, muxbox_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, muxbox_id, result
     ExternalMessage(String),
-    AddMuxBox(String, MuxBox),
-    RemoveMuxBox(String),
+    AddBox(String, MuxBox),
+    RemoveBox(String),
 }
 
 impl Hash for Message {
@@ -189,22 +189,22 @@ impl Hash for Message {
                 msg.hash(state);
             }
             Message::Start => "start".hash(state),
-            Message::StopMuxBoxRefresh(muxbox_id) => {
-                "stop_muxbox_refresh".hash(state);
-                muxbox_id.hash(state);
+            Message::StopBoxRefresh(box_id) => {
+                "stop_box_refresh".hash(state);
+                box_id.hash(state);
             }
-            Message::StartMuxBoxRefresh(muxbox_id) => {
-                "start_muxbox_refresh".hash(state);
-                muxbox_id.hash(state);
+            Message::StartBoxRefresh(box_id) => {
+                "start_box_refresh".hash(state);
+                box_id.hash(state);
             }
-            Message::AddMuxBox(muxbox_id, muxbox) => {
-                "add_muxbox".hash(state);
-                muxbox_id.hash(state);
+            Message::AddBox(box_id, muxbox) => {
+                "add_box".hash(state);
+                box_id.hash(state);
                 muxbox.hash(state);
             }
-            Message::RemoveMuxBox(muxbox_id) => {
-                "remove_muxbox".hash(state);
-                muxbox_id.hash(state);
+            Message::RemoveBox(box_id) => {
+                "remove_box".hash(state);
+                box_id.hash(state);
             }
         }
     }
@@ -1992,36 +1992,36 @@ mod tests {
         }
     }
 
-    /// Tests that Message::AddMuxBox contains correct data.
-    /// This test demonstrates the muxbox addition message feature.
+    /// Tests that Message::AddBox contains correct data.
+    /// This test demonstrates the box addition message feature.
     #[test]
-    fn test_message_add_muxbox() {
-        let muxbox_id = "test_muxbox".to_string();
-        let muxbox = create_test_muxbox("new_muxbox");
+    fn test_message_add_box() {
+        let box_id = "test_box".to_string();
+        let muxbox = create_test_muxbox("new_box");
 
-        let message = Message::AddMuxBox(muxbox_id.clone(), muxbox.clone());
+        let message = Message::AddBox(box_id.clone(), muxbox.clone());
 
         match message {
-            Message::AddMuxBox(id, new_muxbox) => {
-                assert_eq!(id, muxbox_id);
+            Message::AddBox(id, new_muxbox) => {
+                assert_eq!(id, box_id);
                 assert_eq!(new_muxbox.id, muxbox.id);
             }
-            _ => panic!("Expected AddMuxBox message"),
+            _ => panic!("Expected AddBox message"),
         }
     }
 
-    /// Tests that Message::RemoveMuxBox contains correct data.
-    /// This test demonstrates the muxbox removal message feature.
+    /// Tests that Message::RemoveBox contains correct data.
+    /// This test demonstrates the box removal message feature.
     #[test]
-    fn test_message_remove_muxbox() {
-        let muxbox_id = "test_muxbox".to_string();
-        let message = Message::RemoveMuxBox(muxbox_id.clone());
+    fn test_message_remove_box() {
+        let box_id = "test_box".to_string();
+        let message = Message::RemoveBox(box_id.clone());
 
         match message {
-            Message::RemoveMuxBox(id) => {
-                assert_eq!(id, muxbox_id);
+            Message::RemoveBox(id) => {
+                assert_eq!(id, box_id);
             }
-            _ => panic!("Expected RemoveMuxBox message"),
+            _ => panic!("Expected RemoveBox message"),
         }
     }
 
@@ -2084,27 +2084,27 @@ mod tests {
         assert_ne!(next_muxbox, previous_muxbox);
     }
 
-    /// Tests that muxbox refresh messages are created correctly.
-    /// This test demonstrates the muxbox refresh message feature.
+    /// Tests that box refresh messages are created correctly.
+    /// This test demonstrates the box refresh message feature.
     #[test]
-    fn test_muxbox_refresh_messages() {
-        let muxbox_id = "test_muxbox".to_string();
-        let start_refresh = Message::StartMuxBoxRefresh(muxbox_id.clone());
-        let stop_refresh = Message::StopMuxBoxRefresh(muxbox_id.clone());
-        let event_refresh = Message::MuxBoxEventRefresh(muxbox_id.clone());
+    fn test_box_refresh_messages() {
+        let box_id = "test_box".to_string();
+        let start_refresh = Message::StartBoxRefresh(box_id.clone());
+        let stop_refresh = Message::StopBoxRefresh(box_id.clone());
+        let event_refresh = Message::MuxBoxEventRefresh(box_id.clone());
 
         match start_refresh {
-            Message::StartMuxBoxRefresh(id) => assert_eq!(id, muxbox_id),
-            _ => panic!("Expected StartMuxBoxRefresh"),
+            Message::StartBoxRefresh(id) => assert_eq!(id, box_id),
+            _ => panic!("Expected StartBoxRefresh"),
         }
 
         match stop_refresh {
-            Message::StopMuxBoxRefresh(id) => assert_eq!(id, muxbox_id),
-            _ => panic!("Expected StopMuxBoxRefresh"),
+            Message::StopBoxRefresh(id) => assert_eq!(id, box_id),
+            _ => panic!("Expected StopBoxRefresh"),
         }
 
         match event_refresh {
-            Message::MuxBoxEventRefresh(id) => assert_eq!(id, muxbox_id),
+            Message::MuxBoxEventRefresh(id) => assert_eq!(id, box_id),
             _ => panic!("Expected MuxBoxEventRefresh"),
         }
     }

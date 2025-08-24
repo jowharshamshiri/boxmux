@@ -43,8 +43,8 @@ mod tests {
         // Test JSON serialization/deserialization of socket functions
         // This verifies the core JSON processing logic
 
-        let socket_function = SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "test_muxbox".to_string(),
+        let socket_function = SocketFunction::ReplaceBoxContent {
+            box_id: "test_box".to_string(),
             success: true,
             content: "Socket test content".to_string(),
         };
@@ -59,8 +59,8 @@ mod tests {
         let json_string = json_result.unwrap();
         assert!(!json_string.is_empty(), "JSON string should not be empty");
         assert!(
-            json_string.contains("test_muxbox"),
-            "JSON should contain muxbox ID"
+            json_string.contains("test_box"),
+            "JSON should contain box ID"
         );
         assert!(
             json_string.contains("Socket test content"),
@@ -100,18 +100,18 @@ mod tests {
         // rather than actual socket connections which are environment-dependent
 
         let functions = vec![
-            SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id: "muxbox1".to_string(),
+            SocketFunction::ReplaceBoxContent {
+                box_id: "box1".to_string(),
                 success: true,
                 content: "concurrent content 1".to_string(),
             },
-            SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id: "muxbox2".to_string(),
+            SocketFunction::ReplaceBoxContent {
+                box_id: "box2".to_string(),
                 success: true,
                 content: "concurrent content 2".to_string(),
             },
-            SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id: "muxbox3".to_string(),
+            SocketFunction::ReplaceBoxContent {
+                box_id: "box3".to_string(),
                 success: true,
                 content: "concurrent content 3".to_string(),
             },
@@ -211,26 +211,26 @@ mod tests {
     fn test_socket_cli_integration() {
         // Test that socket functions can be serialized and sent as expected by CLI
         let socket_functions = vec![
-            SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id: "muxbox1".to_string(),
+            SocketFunction::ReplaceBoxContent {
+                box_id: "box1".to_string(),
                 success: true,
                 content: "CLI test content".to_string(),
             },
-            SocketFunction::ReplaceMuxBoxScript {
-                muxbox_id: "muxbox2".to_string(),
+            SocketFunction::ReplaceBoxScript {
+                box_id: "box2".to_string(),
                 script: vec!["echo hello".to_string(), "date".to_string()],
             },
-            SocketFunction::StopMuxBoxRefresh {
-                muxbox_id: "muxbox3".to_string(),
+            SocketFunction::StopBoxRefresh {
+                box_id: "box3".to_string(),
             },
-            SocketFunction::StartMuxBoxRefresh {
-                muxbox_id: "muxbox4".to_string(),
+            SocketFunction::StartBoxRefresh {
+                box_id: "box4".to_string(),
             },
             SocketFunction::SwitchActiveLayout {
                 layout_id: "new_layout".to_string(),
             },
-            SocketFunction::RemoveMuxBox {
-                muxbox_id: "muxbox5".to_string(),
+            SocketFunction::RemoveBox {
+                box_id: "box5".to_string(),
             },
         ];
 
@@ -268,8 +268,8 @@ mod tests {
         // and sent to the thread manager. Since we can't easily intercept the actual thread
         // manager messages, we test the conversion logic separately.
 
-        let json_message = serde_json::to_string(&SocketFunction::ReplaceMuxBoxContent {
-            muxbox_id: "test_muxbox".to_string(),
+        let json_message = serde_json::to_string(&SocketFunction::ReplaceBoxContent {
+            box_id: "test_box".to_string(),
             success: true,
             content: "test content".to_string(),
         })
@@ -307,8 +307,8 @@ mod tests {
         let mut successful_operations = 0;
 
         for i in 0..num_operations {
-            let socket_function = SocketFunction::ReplaceMuxBoxContent {
-                muxbox_id: format!("perf_muxbox_{}", i),
+            let socket_function = SocketFunction::ReplaceBoxContent {
+                box_id: format!("perf_box_{}", i),
                 success: true,
                 content: format!("performance test content {}", i),
             };
