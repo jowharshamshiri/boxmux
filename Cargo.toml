@@ -81,14 +81,14 @@ path = "src/lib.rs"
 
 [package]
 authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
-categories = ["command-line-utilities"]
-description = "BoxMux is a framework for building terminal user interfaces using YAML configuration files."
+categories = ["command-line-utilities", "development-tools"]
+description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
 documentation = "https://docs.rs/boxmux"
 edition = "2021"
 homepage = "https://boxmux.com"
-keywords = ["terminal", "cli", "tui", "yaml", "configuration"]
+keywords = ["terminal", "tui", "yaml", "dashboard", "pty"]
 license = "MIT"
 name = "boxmux"
 readme = "README.md"
 repository = "https://github.com/jowharshamshiri/boxmux"
-version = "0.143.196999"
+version = "0.144.197284"
