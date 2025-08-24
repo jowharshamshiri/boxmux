@@ -16,11 +16,11 @@ use crossterm::{terminal::size, execute};
 use std::io::Stdout;
 
 pub fn screen_width() -> usize {
-    size().unwrap().0 as usize
+    size().unwrap_or((80, 24)).0 as usize
 }
 
 pub fn screen_height() -> usize {
-    size().unwrap().1 as usize
+    size().unwrap_or((80, 24)).1 as usize
 }
 
 pub fn screen_bounds() -> Bounds {
