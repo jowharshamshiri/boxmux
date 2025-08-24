@@ -25,9 +25,9 @@ BoxMux provides mouse interaction for navigation and control.
 
 ### Features
 
-- **MuxBox Selection**: Click to select and focus boxes
+- **Box Selection**: Click to select and focus boxes
 - **Menu Activation**: Click menu items to trigger actions
-- **Parent MuxBox Auto-selection**: Menu clicks automatically select parent box
+- **Parent Box Auto-selection**: Menu clicks automatically select parent box
 - **Scrollable Content**: Auto-selectability for boxes with scrollable content
 - **Non-blocking Execution**: Threaded execution prevents UI freezing
 - **Visual Feedback**: Immediate visual feedback on clicks
@@ -61,7 +61,7 @@ app:
 
 - **Single Click**: Select box and focus for keyboard input
 - **Menu Clicks**: Execute choice action and redirect output to target box
-- **MuxBox Focus**: Enable keyboard scrolling and input routing
+- **Box Focus**: Enable keyboard scrolling and input routing
 - **Visual Indicators**: Focused boxes show distinct border colors
 
 ## Hot Key Actions
@@ -166,7 +166,7 @@ Page Up/Down  - Page-based scrolling
 ### Navigation Configuration
 
 ```yaml
-# MuxBox with enhanced navigation
+# Box with enhanced navigation
 - id: 'large_content'
   title: 'Large Content (Home/End/Ctrl+Home/End navigation)'
   position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
@@ -259,7 +259,7 @@ BoxMux provides advanced scrolling capabilities with position preservation and n
 ### Configuration
 
 ```yaml
-# MuxBox with enhanced scrolling
+# Box with enhanced scrolling
 - id: 'scrollable_output'
   title: 'Large Output'
   position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
@@ -320,7 +320,7 @@ BoxMux tracks performance metrics for core operations:
       echo "Memory Usage: $(ps -o rss= -p $$) KB"
       echo "CPU Usage: $(ps -o %cpu= -p $$)%"
       echo "Uptime: $(uptime -p)"
-      echo "Active MuxBoxes: $(pgrep -f boxmux | wc -l)"
+      echo "Active Boxes: $(pgrep -f boxmux | wc -l)"
 ```
 
 ### Performance Testing
@@ -412,7 +412,7 @@ BoxMux supports comprehensive socket API:
 
 ```bash
 # Update box content
-echo '{"UpdateMuxBox": {"box_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
+echo '{"UpdateBox": {"box_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
 
 # Replace box script
 echo '{"ReplaceScript": {"box_id": "monitor", "script": ["uptime"]}}' | nc -U /tmp/boxmux.sock
@@ -421,7 +421,7 @@ echo '{"ReplaceScript": {"box_id": "monitor", "script": ["uptime"]}}' | nc -U /t
 echo '{"SwitchLayout": {"layout_id": "dashboard"}}' | nc -U /tmp/boxmux.sock
 
 # Add new box
-echo '{"AddMuxBox": {"parent_id": "main", "box": {...}}}' | nc -U /tmp/boxmux.sock
+echo '{"AddBox": {"parent_id": "main", "box": {...}}}' | nc -U /tmp/boxmux.sock
 
 # Control refresh
 echo '{"StartRefresh": {"box_id": "logs"}}' | nc -U /tmp/boxmux.sock

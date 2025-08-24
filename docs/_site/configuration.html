@@ -68,7 +68,7 @@
   <li><a href="#file-structure">File Structure</a></li>
   <li><a href="#application-configuration">Application Configuration</a></li>
   <li><a href="#layout-configuration">Layout Configuration</a></li>
-  <li><a href="#muxbox-configuration">MuxBox Configuration</a></li>
+  <li><a href="#box-configuration">Box Configuration</a></li>
   <li><a href="#position-configuration">Position Configuration</a></li>
   <li><a href="#choice-configuration">Choice Configuration</a></li>
   <li><a href="#color-reference">Color Reference</a></li>
@@ -297,10 +297,10 @@
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">children</code></td>
-      <td><code class="language-plaintext highlighter-rouge">array[MuxBox]</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Box]</code></td>
       <td>No</td>
       <td><code class="language-plaintext highlighter-rouge">[]</code></td>
-      <td>List of child muxboxes</td>
+      <td>List of child boxes</td>
     </tr>
   </tbody>
 </table>
@@ -334,14 +334,14 @@
       <span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">green'</span>
       <span class="na">children</span><span class="pi">:</span>
         <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">header'</span>
-          <span class="c1"># ... muxbox configuration</span>
+          <span class="c1"># ... box configuration</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
-<h2 id="muxbox-configuration">MuxBox Configuration</h2>
+<h2 id="box-configuration">Box Configuration</h2>
 
-<p>MuxBoxes are the building blocks of your interface. They can contain content, menus, or other muxboxes.</p>
+<p>Boxes are the building blocks of your interface. They can contain content, menus, or other boxes.</p>
 
-<h3 id="muxbox-properties">MuxBox Properties</h3>
+<h3 id="box-properties">Box Properties</h3>
 
 <table>
   <thead>
@@ -359,21 +359,21 @@
       <td><code class="language-plaintext highlighter-rouge">string</code></td>
       <td>Yes</td>
       <td>-</td>
-      <td>Unique identifier for the muxbox</td>
+      <td>Unique identifier for the box</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">title</code></td>
       <td><code class="language-plaintext highlighter-rouge">string</code></td>
       <td>No</td>
       <td>-</td>
-      <td>MuxBox title shown in title bar</td>
+      <td>Box title shown in title bar</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">position</code></td>
       <td><code class="language-plaintext highlighter-rouge">Position</code></td>
       <td>Yes</td>
       <td>-</td>
-      <td>MuxBox position and size</td>
+      <td>Box position and size</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">content</code></td>
@@ -401,7 +401,7 @@
       <td><code class="language-plaintext highlighter-rouge">string</code></td>
       <td>No</td>
       <td>-</td>
-      <td>ID of next muxbox for custom navigation</td>
+      <td>ID of next box for custom navigation</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">refresh_interval</code></td>
@@ -429,7 +429,7 @@
       <td><code class="language-plaintext highlighter-rouge">string</code></td>
       <td>No</td>
       <td>-</td>
-      <td>MuxBox ID to redirect script output to</td>
+      <td>Box ID to redirect script output to</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">append_output</code></td>
@@ -450,7 +450,7 @@
       <td><code class="language-plaintext highlighter-rouge">object</code></td>
       <td>No</td>
       <td>-</td>
-      <td>MuxBox-local variables for template substitution</td>
+      <td>Box-local variables for template substitution</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">overflow_behavior</code></td>
@@ -496,17 +496,17 @@
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">children</code></td>
-      <td><code class="language-plaintext highlighter-rouge">array[MuxBox]</code></td>
+      <td><code class="language-plaintext highlighter-rouge">array[Box]</code></td>
       <td>No</td>
       <td><code class="language-plaintext highlighter-rouge">[]</code></td>
-      <td>List of child muxboxes</td>
+      <td>List of child boxes</td>
     </tr>
   </tbody>
 </table>
 
 <h3 id="styling-properties">Styling Properties</h3>
 
-<p>All layout-level styling properties can be overridden at the muxbox level:</p>
+<p>All layout-level styling properties can be overridden at the box level:</p>
 
 <table>
   <thead>
@@ -595,7 +595,7 @@
 
 <h2 id="position-configuration">Position Configuration</h2>
 
-<p>Positions define where muxboxes appear on screen using percentage-based coordinates.</p>
+<p>Positions define where boxes appear on screen using percentage-based coordinates.</p>
 
 <h3 id="position-properties">Position Properties</h3>
 
@@ -700,7 +700,7 @@
 
 <h2 id="choice-configuration">Choice Configuration</h2>
 
-<p>Choices create interactive menu items within muxboxes.</p>
+<p>Choices create interactive menu items within boxes.</p>
 
 <h3 id="choice-properties">Choice Properties</h3>
 
@@ -748,7 +748,7 @@
       <td><code class="language-plaintext highlighter-rouge">string</code></td>
       <td>No</td>
       <td>-</td>
-      <td>MuxBox ID to send output to</td>
+      <td>Box ID to send output to</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">append_output</code></td>
@@ -865,7 +865,7 @@
 
 <h2 id="script-configuration">Script Configuration</h2>
 
-<p>Scripts define commands that muxboxes can execute.</p>
+<p>Scripts define commands that boxes can execute.</p>
 
 <h3 id="script-properties">Script Properties</h3>
 
@@ -972,7 +972,7 @@
 
 <h3 id="anchoring">Anchoring</h3>
 
-<p>Control how muxboxes are anchored:</p>
+<p>Control how boxes are anchored:</p>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2
@@ -997,7 +997,7 @@
 </pre></td><td class="rouge-code"><pre><span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">scroll'</span>      <span class="c1"># Default: enable scrolling</span>
 <span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">fill'</span>        <span class="c1"># Fill with solid block</span>
 <span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">cross_out'</span>   <span class="c1"># Cross out with X's</span>
-<span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">removed'</span>     <span class="c1"># Hide the muxbox</span>
+<span class="na">overflow_behavior</span><span class="pi">:</span> <span class="s1">'</span><span class="s">removed'</span>     <span class="c1"># Hide the box</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
 <h2 id="variable-system">Variable System</h2>
@@ -1020,15 +1020,15 @@
 <p>Variables are resolved in strict hierarchical order:</p>
 
 <ol>
-  <li><strong>MuxBox-specific variables</strong> (highest precedence, most granular)</li>
-  <li><strong>Parent muxbox variables</strong> (inherited through muxbox hierarchy)</li>
+  <li><strong>Box-specific variables</strong> (highest precedence, most granular)</li>
+  <li><strong>Parent box variables</strong> (inherited through box hierarchy)</li>
   <li><strong>Layout-level variables</strong> (layout scope)</li>
   <li><strong>Application-global variables</strong> (app-wide scope)</li>
   <li><strong>Environment variables</strong> (system fallback)</li>
   <li><strong>Default values</strong> (built-in fallbacks, lowest precedence)</li>
 </ol>
 
-<p>This hierarchical approach allows child muxboxes to override parent settings while providing sensible fallbacks.</p>
+<p>This hierarchical approach allows child boxes to override parent settings while providing sensible fallbacks.</p>
 
 <h3 id="variable-declaration">Variable Declaration</h3>
 
@@ -1050,9 +1050,9 @@
     <span class="na">DEFAULT_USER</span><span class="pi">:</span> <span class="s2">"</span><span class="s">admin"</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
-<h4 id="muxbox-level-variables">MuxBox-level Variables</h4>
+<h4 id="box-level-variables">Box-level Variables</h4>
 
-<p>Define muxbox-specific variables that override global settings:</p>
+<p>Define box-specific variables that override global settings:</p>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2
@@ -1063,7 +1063,7 @@
 7
 8
 9
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web_server_muxbox'</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">web_server_box'</span>
   <span class="na">variables</span><span class="pi">:</span>
     <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">nginx"</span>
     <span class="na">PORT</span><span class="pi">:</span> <span class="s2">"</span><span class="s">80"</span>
@@ -1076,7 +1076,7 @@
 
 <h3 id="variable-inheritance">Variable Inheritance</h3>
 
-<p>Child muxboxes automatically inherit variables from their parents, creating a natural configuration hierarchy:</p>
+<p>Child boxes automatically inherit variables from their parents, creating a natural configuration hierarchy:</p>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2
@@ -1101,11 +1101,11 @@
   <span class="na">layouts</span><span class="pi">:</span>
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">monitoring'</span>
       <span class="na">children</span><span class="pi">:</span>
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">parent_muxbox'</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">parent_box'</span>
           <span class="na">variables</span><span class="pi">:</span>
             <span class="na">SERVICE_GROUP</span><span class="pi">:</span> <span class="s2">"</span><span class="s">web-services"</span>
           <span class="na">children</span><span class="pi">:</span>
-            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">child_muxbox'</span>
+            <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">child_box'</span>
               <span class="na">variables</span><span class="pi">:</span>
                 <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">api-gateway"</span>
               <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">${SERVICE_GROUP}</span><span class="nv"> </span><span class="s">(${ENVIRONMENT})'</span>
@@ -1131,7 +1131,7 @@
 13
 14
 15
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dynamic_muxbox'</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dynamic_box'</span>
   <span class="na">variables</span><span class="pi">:</span>
     <span class="na">SERVICE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">database"</span>
     <span class="na">LOG_FILE</span><span class="pi">:</span> <span class="s2">"</span><span class="s">/var/log/postgresql.log"</span>
@@ -1186,7 +1186,7 @@
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">deployment_dashboard'</span>
       <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Deployment</span><span class="nv"> </span><span class="s">Dashboard</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">${ENVIRONMENT}'</span>
       <span class="na">children</span><span class="pi">:</span>
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">database_muxbox'</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">database_box'</span>
           <span class="na">variables</span><span class="pi">:</span>
             <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">PostgreSQL"</span>
           <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Status'</span>
@@ -1194,7 +1194,7 @@
             <span class="pi">-</span> <span class="s">echo "Connecting to ${DB_HOST}..."</span>
             <span class="pi">-</span> <span class="s">pg_isready -h ${DB_HOST}</span>
             
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">api_muxbox'</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">api_box'</span>
           <span class="na">variables</span><span class="pi">:</span>
             <span class="na">SERVICE_NAME</span><span class="pi">:</span> <span class="s2">"</span><span class="s">API</span><span class="nv"> </span><span class="s">Gateway"</span>
           <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Health'</span>
@@ -1325,7 +1325,7 @@
     <span class="na">LOG_LEVEL</span><span class="pi">:</span> <span class="s2">"</span><span class="s">info"</span>  <span class="c1"># Overridden by $LOG_LEVEL if set</span>
     
   <span class="na">layouts</span><span class="pi">:</span>
-    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">app_muxbox'</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">app_box'</span>
       <span class="na">script</span><span class="pi">:</span>
         <span class="pi">-</span> <span class="s">echo "Running with LOG_LEVEL=${LOG_LEVEL}"</span>
         <span class="pi">-</span> <span class="s">echo "User</span><span class="err">:</span> <span class="s">${USER:unknown}"</span>          <span class="c1"># Uses $USER or "unknown"</span>
@@ -1347,7 +1347,7 @@
 <ol>
   <li><strong>Use hierarchical variables</strong> for environment-specific configurations</li>
   <li><strong>Provide meaningful defaults</strong> to prevent empty substitutions</li>
-  <li><strong>Group related variables</strong> at appropriate levels (app/layout/muxbox)</li>
+  <li><strong>Group related variables</strong> at appropriate levels (app/layout/box)</li>
   <li><strong>Use descriptive variable names</strong> that indicate their scope and purpose</li>
   <li><strong>Leverage inheritance</strong> to reduce configuration duplication</li>
 </ol>
@@ -1378,9 +1378,9 @@
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>
       <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${APP_NAME}</span><span class="nv"> </span><span class="s">v${VERSION:1.0}'</span>
       <span class="na">children</span><span class="pi">:</span>
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">muxbox1'</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">box1'</span>
           <span class="na">variables</span><span class="pi">:</span>
-            <span class="na">LOCAL_VAR</span><span class="pi">:</span> <span class="s2">"</span><span class="s">muxbox-specific"</span>
+            <span class="na">LOCAL_VAR</span><span class="pi">:</span> <span class="s2">"</span><span class="s">box-specific"</span>
           <span class="na">script</span><span class="pi">:</span>
             <span class="pi">-</span> <span class="s">echo "User</span><span class="err">:</span> <span class="s">${USER:unknown}"</span>
             <span class="pi">-</span> <span class="s">echo "App</span><span class="err">:</span> <span class="s">${APP_NAME}"</span>
@@ -1397,8 +1397,8 @@
 <ul>
   <li><code class="language-plaintext highlighter-rouge">app.layouts</code> must contain at least one layout</li>
   <li>Each layout must have a unique <code class="language-plaintext highlighter-rouge">id</code></li>
-  <li>Each muxbox must have a unique <code class="language-plaintext highlighter-rouge">id</code> within its layout</li>
-  <li>Each muxbox must have a <code class="language-plaintext highlighter-rouge">position</code></li>
+  <li>Each box must have a unique <code class="language-plaintext highlighter-rouge">id</code> within its layout</li>
+  <li>Each box must have a <code class="language-plaintext highlighter-rouge">position</code></li>
   <li>Each choice must have a unique <code class="language-plaintext highlighter-rouge">id</code> and <code class="language-plaintext highlighter-rouge">content</code></li>
 </ul>
 
@@ -1417,7 +1417,7 @@
   <li>All position values must be valid percentages or numbers</li>
   <li><code class="language-plaintext highlighter-rouge">x1</code> must be less than <code class="language-plaintext highlighter-rouge">x2</code></li>
   <li><code class="language-plaintext highlighter-rouge">y1</code> must be less than <code class="language-plaintext highlighter-rouge">y2</code></li>
-  <li>Positions should not create zero-width or zero-height muxboxes</li>
+  <li>Positions should not create zero-width or zero-height boxes</li>
 </ul>
 
 <h3 id="color-validation">Color Validation</h3>
@@ -1607,7 +1607,7 @@
 <h2 id="best-practices-1">Best Practices</h2>
 
 <ol>
-  <li><strong>Use meaningful IDs</strong>: Choose descriptive names for layouts, muxboxes, and choices</li>
+  <li><strong>Use meaningful IDs</strong>: Choose descriptive names for layouts, boxes, and choices</li>
   <li><strong>Plan your layout</strong>: Sketch your interface before writing YAML</li>
   <li><strong>Test incrementally</strong>: Start with simple configurations and add complexity</li>
   <li><strong>Use consistent styling</strong>: Define colors at the layout level when possible</li>

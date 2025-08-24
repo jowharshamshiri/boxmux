@@ -17,7 +17,7 @@ echo ""
 # Wait for BoxMux to start
 sleep 2
 
-echo "2. Querying PTY status for all muxboxes..."
+echo "2. Querying PTY status for all boxes..."
 echo "   Query normal PTY muxbox:"
 ./target/release/boxmux query_pty_status normal_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
 

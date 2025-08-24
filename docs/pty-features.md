@@ -231,7 +231,7 @@ Switch between PTY and regular boxes:
 
 - **Tab/Shift+Tab**: Navigate between focusable boxes
 - **Mouse Click**: Focus PTY box and enable input routing
-- **MuxBox Selection**: Visual indicators show which box receives input
+- **Box Selection**: Visual indicators show which box receives input
 
 ### Scrollback Navigation
 
@@ -244,13 +244,13 @@ PTY boxes maintain scrollback history:
 
 ## Visual Indicators
 
-### MuxBox Title Indicators
+### Box Title Indicators
 
 PTY boxes display special visual indicators:
 
 ```
-Regular MuxBox:      "System Info"
-PTY MuxBox:          "Interactive Top ⚡" 
+Regular Box:      "System Info"
+PTY Box:          "Interactive Top ⚡" 
 PTY with Process:   "SSH Session ⚡ [PID: 12345, Running]"
 PTY Error State:    "Failed Process ⚡ [Process Stopped]"
 ```
@@ -261,7 +261,7 @@ PTY boxes use distinct border colors:
 
 - **PTY Active**: Bright cyan borders
 - **PTY Error**: Red borders with error indicators
-- **Regular MuxBox**: Standard border colors
+- **Regular Box**: Standard border colors
 
 ### Status Information
 
@@ -324,7 +324,7 @@ BoxMux tracks PTY failures and avoids repeated attempts:
 
 - **Failure Threshold**: After 3 consecutive failures, avoid PTY for that box
 - **Success Recovery**: Clear failure count on successful PTY startup
-- **MuxBox-Specific**: Failure tracking per box, not global
+- **Box-Specific**: Failure tracking per box, not global
 
 ### Error States
 
@@ -342,7 +342,7 @@ PTY boxes can be in various error states:
 
 Manual recovery options:
 
-- **MuxBox Restart**: Kill and restart PTY process
+- **Box Restart**: Kill and restart PTY process
 - **Configuration Reload**: Reload YAML with updated settings
 - **Fallback Mode**: Disable PTY and use regular execution
 

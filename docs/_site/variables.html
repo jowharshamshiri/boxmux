@@ -128,9 +128,9 @@
 8
 9
 10
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dynamic_muxbox'</span>
-  <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Monitor'</span>          <span class="c1"># MuxBox titles</span>
-  <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Status:</span><span class="nv"> </span><span class="s">${SERVICE_STATUS}'</span>      <span class="c1"># MuxBox content</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">dynamic_box'</span>
+  <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">Monitor'</span>          <span class="c1"># Box titles</span>
+  <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Status:</span><span class="nv"> </span><span class="s">${SERVICE_STATUS}'</span>      <span class="c1"># Box content</span>
   <span class="na">script</span><span class="pi">:</span>                                   <span class="c1"># Script commands</span>
     <span class="pi">-</span> <span class="s1">'</span><span class="s">systemctl</span><span class="nv"> </span><span class="s">status</span><span class="nv"> </span><span class="s">${SERVICE_NAME}'</span>
     <span class="pi">-</span> <span class="s1">'</span><span class="s">journalctl</span><span class="nv"> </span><span class="s">-u</span><span class="nv"> </span><span class="s">${SERVICE_NAME}</span><span class="nv"> </span><span class="s">-n</span><span class="nv"> </span><span class="s">10'</span>
@@ -147,8 +147,8 @@
 <h3 id="precedence-order-highest-to-lowest">Precedence Order (Highest to Lowest)</h3>
 
 <ol>
-  <li><strong>MuxBox-specific variables</strong> - Most granular control</li>
-  <li><strong>Parent muxbox variables</strong> - Inherited through muxbox hierarchy</li>
+  <li><strong>Box-specific variables</strong> - Most granular control</li>
+  <li><strong>Parent box variables</strong> - Inherited through box hierarchy</li>
   <li><strong>Layout-level variables</strong> - Layout scope (future enhancement)</li>
   <li><strong>Application-global variables</strong> - App-wide scope</li>
   <li><strong>Environment variables</strong> - System fallback</li>
@@ -820,7 +820,7 @@
     <span class="c1"># DATABASE_PASSWORD: "secret123"  # NEVER: Use $DATABASE_PASSWORD instead</span>
     
   <span class="na">layouts</span><span class="pi">:</span>
-    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">database_muxbox'</span>
+    <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">database_box'</span>
       <span class="na">script</span><span class="pi">:</span>
         <span class="c1"># Reference secrets via environment variables</span>
         <span class="pi">-</span> <span class="s1">'</span><span class="s">psql</span><span class="nv"> </span><span class="s">-h</span><span class="nv"> </span><span class="s">${DATABASE_HOST}</span><span class="nv"> </span><span class="s">-p</span><span class="nv"> </span><span class="s">${DATABASE_PORT}</span><span class="nv"> </span><span class="s">-U</span><span class="nv"> </span><span class="s">${DATABASE_USER}</span><span class="nv"> </span><span class="s">${DATABASE_NAME}'</span>
@@ -987,9 +987,9 @@
 8
 9
 10
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">debug_muxbox'</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">debug_box'</span>
   <span class="na">variables</span><span class="pi">:</span>
-    <span class="na">LOCAL_VAR</span><span class="pi">:</span> <span class="s2">"</span><span class="s">muxbox_value"</span>
+    <span class="na">LOCAL_VAR</span><span class="pi">:</span> <span class="s2">"</span><span class="s">box_value"</span>
   <span class="na">script</span><span class="pi">:</span>
     <span class="pi">-</span> <span class="s1">'</span><span class="s">echo</span><span class="nv"> </span><span class="s">"===</span><span class="nv"> </span><span class="s">Variable</span><span class="nv"> </span><span class="s">Resolution</span><span class="nv"> </span><span class="s">Debug</span><span class="nv"> </span><span class="s">==="'</span>
     <span class="pi">-</span> <span class="s1">'</span><span class="s">echo</span><span class="nv"> </span><span class="s">"LOCAL_VAR:</span><span class="nv"> </span><span class="s">${LOCAL_VAR}"'</span>
