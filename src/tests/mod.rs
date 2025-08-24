@@ -83,3 +83,6 @@ pub mod pty_error_states_tests;
 
 #[cfg(test)]
 pub mod socket_pty_control_tests;
+
+#[cfg(test)]
+pub mod panel_resize_tests;

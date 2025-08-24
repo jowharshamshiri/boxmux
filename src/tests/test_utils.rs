@@ -206,6 +206,7 @@ impl TestDataFactory {
                 crate::plugin::PluginRegistry::new(),
             )),
             pty_manager: None,
+            yaml_file_path: None,
         }
     }
 

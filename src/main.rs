@@ -763,9 +763,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let app_context = if let Some(pty_mgr) = pty_manager.as_ref() {
-        AppContext::new_with_pty(app, config, pty_mgr.clone())
+        AppContext::new_with_pty_and_yaml(app, config, pty_mgr.clone(), yaml_path.to_str().unwrap().to_string())
     } else {
-        AppContext::new(app, config)
+        AppContext::new_with_yaml_path(app, config, yaml_path.to_str().unwrap().to_string())
     };
 
     //create alternate screen in terminal and clear it
