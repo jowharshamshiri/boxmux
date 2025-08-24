@@ -1,14 +1,14 @@
 //! Test utilities and data factories for BoxMux
-//! 
+//!
 //! This module provides common test utilities, data factories, and helper functions
 //! to make writing tests easier and more consistent across the codebase.
 
-use crate::model::common::{InputBounds, Bounds, SocketFunction, Anchor};
-use crate::Config;
 use crate::model::app::{App, AppContext};
+use crate::model::common::{Anchor, Bounds, InputBounds, SocketFunction};
 use crate::model::layout::Layout;
 use crate::model::panel::Panel;
 use crate::thread_manager::Message;
+use crate::Config;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -157,7 +157,7 @@ impl TestDataFactory {
     pub fn create_test_app() -> App {
         let panel = Self::create_test_panel("test_panel");
         let layout = Self::create_root_layout("test_layout", Some(vec![panel]));
-        
+
         let mut app = App::new();
         app.layouts = vec![layout];
         app.libs = None;
@@ -171,11 +171,11 @@ impl TestDataFactory {
         let panel1 = Self::create_test_panel("panel1");
         let panel2 = Self::create_test_panel("panel2");
         let panel3 = Self::create_test_panel("panel3");
-        
+
         let layout1 = Self::create_root_layout("layout1", Some(vec![panel1]));
         let layout2 = Self::create_test_layout("layout2", Some(vec![panel2]));
         let layout3 = Self::create_test_layout("layout3", Some(vec![panel3]));
-        
+
         let mut app = App::new();
         app.layouts = vec![layout1, layout2, layout3];
         app.libs = None;
@@ -203,13 +203,19 @@ impl TestDataFactory {
         AppContext {
             app: Self::create_test_app(),
             config: Config::default(),
-            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugin::PluginRegistry::new(),
+            )),
             pty_manager: None,
         }
     }
 
     /// Create socket function for testing
-    pub fn create_socket_function_replace_content(panel_id: &str, content: &str, success: bool) -> SocketFunction {
+    pub fn create_socket_function_replace_content(
+        panel_id: &str,
+        content: &str,
+        success: bool,
+    ) -> SocketFunction {
         SocketFunction::ReplacePanelContent {
             panel_id: panel_id.to_string(),
             success,
@@ -218,7 +224,10 @@ impl TestDataFactory {
     }
 
     /// Create socket function for testing script replacement
-    pub fn create_socket_function_replace_script(panel_id: &str, script: Vec<String>) -> SocketFunction {
+    pub fn create_socket_function_replace_script(
+        panel_id: &str,
+        script: Vec<String>,
+    ) -> SocketFunction {
         SocketFunction::ReplacePanelScript {
             panel_id: panel_id.to_string(),
             script,
@@ -232,7 +241,10 @@ pub struct TestAssertions;
 impl TestAssertions {
     /// Assert that a panel exists in a layout with specific properties
     pub fn assert_panel_exists_in_layout(layout: &Layout, panel_id: &str) -> bool {
-        layout.children.as_ref().map_or(false, |panels| panels.iter().any(|p| p.id == panel_id))
+        layout
+            .children
+            .as_ref()
+            .map_or(false, |panels| panels.iter().any(|p| p.id == panel_id))
     }
 
     /// Assert that a panel has specific content
@@ -293,7 +305,10 @@ impl PerformanceTestUtils {
         F: FnMut() -> R,
     {
         let duration = Self::benchmark_function(iterations, func);
-        println!("{}: {} iterations took {:?}", operation_name, iterations, duration);
+        println!(
+            "{}: {} iterations took {:?}",
+            operation_name, iterations, duration
+        );
         assert!(
             duration <= max_duration,
             "{} performance regression: {:?} > {:?}",
@@ -330,7 +345,8 @@ impl MockUtils {
     pub fn create_test_uuids(count: usize) -> Vec<Uuid> {
         (0..count)
             .map(|i| {
-                Uuid::parse_str(&format!("12345678-1234-5678-9012-12345678901{:01}", i % 10)).unwrap()
+                Uuid::parse_str(&format!("12345678-1234-5678-9012-12345678901{:01}", i % 10))
+                    .unwrap()
             })
             .collect()
     }
@@ -374,33 +390,28 @@ impl IntegrationTestUtils {
     ) -> Result<Message, Box<dyn std::error::Error>> {
         let (tx, rx) = std::sync::mpsc::channel();
         let test_uuid = MockUtils::create_test_uuid();
-        
+
         // This would normally go through the socket handler
         let boxmux_message = match socket_function {
-            SocketFunction::ReplacePanelContent { panel_id, success, content } => {
-                Message::PanelOutputUpdate(panel_id, success, content)
-            }
+            SocketFunction::ReplacePanelContent {
+                panel_id,
+                success,
+                content,
+            } => Message::PanelOutputUpdate(panel_id, success, content),
             SocketFunction::ReplacePanelScript { panel_id, script } => {
                 Message::PanelScriptUpdate(panel_id, script)
             }
-            SocketFunction::StopPanelRefresh { panel_id } => {
-                Message::StopPanelRefresh(panel_id)
-            }
-            SocketFunction::StartPanelRefresh { panel_id } => {
-                Message::StartPanelRefresh(panel_id)
-            }
-            SocketFunction::ReplacePanel { panel_id, new_panel } => {
-                Message::ReplacePanel(panel_id, new_panel)
-            }
+            SocketFunction::StopPanelRefresh { panel_id } => Message::StopPanelRefresh(panel_id),
+            SocketFunction::StartPanelRefresh { panel_id } => Message::StartPanelRefresh(panel_id),
+            SocketFunction::ReplacePanel {
+                panel_id,
+                new_panel,
+            } => Message::ReplacePanel(panel_id, new_panel),
             SocketFunction::SwitchActiveLayout { layout_id } => {
                 Message::SwitchActiveLayout(layout_id)
             }
-            SocketFunction::AddPanel { layout_id, panel } => {
-                Message::AddPanel(layout_id, panel)
-            }
-            SocketFunction::RemovePanel { panel_id } => {
-                Message::RemovePanel(panel_id)
-            }
+            SocketFunction::AddPanel { layout_id, panel } => Message::AddPanel(layout_id, panel),
+            SocketFunction::RemovePanel { panel_id } => Message::RemovePanel(panel_id),
             // F0137/F0138: Socket PTY Control and Query patterns
             SocketFunction::KillPtyProcess { panel_id } => {
                 Message::PanelOutputUpdate(panel_id, true, "PTY process killed".to_string())
@@ -412,7 +423,7 @@ impl IntegrationTestUtils {
                 Message::PanelOutputUpdate(panel_id, true, "PTY status queried".to_string())
             }
         };
-        
+
         tx.send((test_uuid, boxmux_message))?;
         let (_, message) = rx.recv()?;
         Ok(message)
@@ -453,8 +464,14 @@ mod tests {
     #[test]
     fn test_assertions_work_correctly() {
         let panel = TestDataFactory::create_test_panel("test");
-        assert!(TestAssertions::assert_panel_has_content(&panel, "Test content"));
-        assert!(!TestAssertions::assert_panel_has_content(&panel, "Wrong content"));
+        assert!(TestAssertions::assert_panel_has_content(
+            &panel,
+            "Test content"
+        ));
+        assert!(!TestAssertions::assert_panel_has_content(
+            &panel,
+            "Wrong content"
+        ));
     }
 
     #[test]
@@ -462,7 +479,7 @@ mod tests {
         let duration = PerformanceTestUtils::benchmark_function(1000, || {
             let _ = TestDataFactory::create_test_panel("perf_test");
         });
-        
+
         // Should be able to create 1000 panels very quickly
         assert!(duration.as_millis() < 100);
     }
@@ -471,7 +488,7 @@ mod tests {
     fn test_mock_utils() {
         let uuid = MockUtils::create_test_uuid();
         assert_eq!(uuid.to_string(), "12345678-1234-5678-9012-123456789012");
-        
+
         let uuids = MockUtils::create_test_uuids(3);
         assert_eq!(uuids.len(), 3);
         assert_ne!(uuids[0], uuids[1]); // Should have different endings
@@ -480,15 +497,18 @@ mod tests {
     #[test]
     fn test_integration_utils() {
         let socket_function = TestDataFactory::create_socket_function_replace_content(
-            "test_panel", 
-            "new content", 
-            true
+            "test_panel",
+            "new content",
+            true,
         );
-        
+
         let result = IntegrationTestUtils::simulate_socket_to_app_workflow(socket_function);
         assert!(result.is_ok());
-        
+
         let message = result.unwrap();
-        assert!(TestAssertions::assert_message_type(&message, "PanelOutputUpdate"));
+        assert!(TestAssertions::assert_message_type(
+            &message,
+            "PanelOutputUpdate"
+        ));
     }
 }

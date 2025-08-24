@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::collections::HashMap;
 
-use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 use crate::validation::SchemaValidator;
+use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
 use core::hash::Hash;
 use regex::Regex;
 use std::env;
@@ -26,7 +26,10 @@ pub struct VariableContext {
 }
 
 impl VariableContext {
-    pub fn new(app_vars: Option<&HashMap<String, String>>, layout_vars: Option<&HashMap<String, String>>) -> Self {
+    pub fn new(
+        app_vars: Option<&HashMap<String, String>>,
+        layout_vars: Option<&HashMap<String, String>>,
+    ) -> Self {
         Self {
             app_vars: app_vars.cloned().unwrap_or_default(),
             layout_vars: layout_vars.cloned().unwrap_or_default(),
@@ -36,7 +39,12 @@ impl VariableContext {
     /// Resolve variable with correct precedence order:
     /// Panel Hierarchy (child->parent) > Layout > App > Environment > Default
     /// This allows YAML-defined variables to override environment for granular control
-    pub fn resolve_variable(&self, name: &str, default: &str, panel_hierarchy: &[&Panel]) -> String {
+    pub fn resolve_variable(
+        &self,
+        name: &str,
+        default: &str,
+        panel_hierarchy: &[&Panel],
+    ) -> String {
         // Walk up panel hierarchy from most granular (child) to least granular (root parent)
         for panel in panel_hierarchy.iter() {
             if let Some(variables) = &panel.variables {
@@ -66,9 +74,13 @@ impl VariableContext {
     }
 
     /// Apply variable substitution to a string with hierarchical context
-    pub fn substitute_in_string(&self, content: &str, panel_hierarchy: &[&Panel]) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn substitute_in_string(
+        &self,
+        content: &str,
+        panel_hierarchy: &[&Panel],
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let mut result = content.to_string();
-        
+
         // Check for nested variables and fail gracefully with location info
         if result.contains("${") {
             let nested_pattern = Regex::new(r"\$\{[^}]*\$\{[^}]*\}")?;
@@ -80,31 +92,38 @@ impl VariableContext {
                 ).into());
             }
         }
-        
+
         // Pattern for variable substitution: ${VAR_NAME} or ${VAR_NAME:default_value}
         // Updated to handle the case where default contains ${} more carefully
         let var_pattern = Regex::new(r"\$\{([^}:]+)(?::([^}]*))?\}")?;
-        
-        result = var_pattern.replace_all(&result, |caps: &regex::Captures| {
-            let var_name = &caps[1];
-            let default_value = caps.get(2).map_or("", |m| m.as_str());
-            
-            // Additional check for malformed nested syntax
-            if default_value.contains("${") && !default_value.ends_with("}") {
-                return format!("error: malformed nested variable in default for '{}'", var_name);
-            }
-            
-            self.resolve_variable(var_name, default_value, panel_hierarchy)
-        }).to_string();
-        
-        // Pattern for simple environment variables: $VAR_NAME  
+
+        result = var_pattern
+            .replace_all(&result, |caps: &regex::Captures| {
+                let var_name = &caps[1];
+                let default_value = caps.get(2).map_or("", |m| m.as_str());
+
+                // Additional check for malformed nested syntax
+                if default_value.contains("${") && !default_value.ends_with("}") {
+                    return format!(
+                        "error: malformed nested variable in default for '{}'",
+                        var_name
+                    );
+                }
+
+                self.resolve_variable(var_name, default_value, panel_hierarchy)
+            })
+            .to_string();
+
+        // Pattern for simple environment variables: $VAR_NAME
         let env_pattern = Regex::new(r"\$([A-Z_][A-Z0-9_]*)")?;
-        
-        result = env_pattern.replace_all(&result, |caps: &regex::Captures| {
-            let var_name = &caps[1];
-            self.resolve_variable(var_name, &format!("${}", var_name), panel_hierarchy)
-        }).to_string();
-        
+
+        result = env_pattern
+            .replace_all(&result, |caps: &regex::Captures| {
+                let var_name = &caps[1];
+                self.resolve_variable(var_name, &format!("${}", var_name), panel_hierarchy)
+            })
+            .to_string();
+
         Ok(result)
     }
 }
@@ -648,19 +667,27 @@ impl PartialEq for AppContext {
 impl AppContext {
     pub fn new(app: App, config: Config) -> Self {
         // App is already validated in load_app_from_yaml
-        AppContext { 
-            app, 
+        AppContext {
+            app,
             config,
-            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugin::PluginRegistry::new(),
+            )),
             pty_manager: None,
         }
     }
 
-    pub fn new_with_pty(app: App, config: Config, pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>) -> Self {
-        AppContext { 
-            app, 
+    pub fn new_with_pty(
+        app: App,
+        config: Config,
+        pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>,
+    ) -> Self {
+        AppContext {
+            app,
             config,
-            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(crate::plugin::PluginRegistry::new())),
+            plugin_registry: std::sync::Arc::new(std::sync::Mutex::new(
+                crate::plugin::PluginRegistry::new(),
+            )),
             pty_manager: Some(pty_manager),
         }
     }
@@ -744,11 +771,15 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
                 let line_num = location.line();
                 let col_num = location.column();
                 let error_display = create_rust_style_error_display(
-                    &contents, file_path, line_num, col_num, &format!("{}", serde_error)
+                    &contents,
+                    file_path,
+                    line_num,
+                    col_num,
+                    &format!("{}", serde_error),
                 );
                 return Err(error_display.into());
             }
-            
+
             // Fallback: try to deserialize directly into App
             match serde_yaml::from_str::<App>(&contents) {
                 Ok(app) => app,
@@ -757,7 +788,11 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
                         let line_num = location.line();
                         let col_num = location.column();
                         let error_display = create_rust_style_error_display(
-                            &contents, file_path, line_num, col_num, &format!("{}", app_error)
+                            &contents,
+                            file_path,
+                            line_num,
+                            col_num,
+                            &format!("{}", app_error),
                         );
                         return Err(error_display.into());
                     }
@@ -777,7 +812,7 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
             // Apply the old validation logic for setting up parent relationships and defaults
             apply_post_validation_setup(&mut app)?;
             Ok(app)
-        },
+        }
         Err(validation_errors) => {
             let error_messages: Vec<String> = validation_errors
                 .into_iter()
@@ -790,36 +825,44 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
 }
 
 fn create_rust_style_error_display(
-    contents: &str, 
-    file_path: &str, 
-    line_num: usize, 
-    col_num: usize, 
-    error_msg: &str
+    contents: &str,
+    file_path: &str,
+    line_num: usize,
+    col_num: usize,
+    error_msg: &str,
 ) -> String {
     let lines: Vec<&str> = contents.lines().collect();
-    
+
     // Ensure we have valid line numbers (serde_yaml uses 1-based indexing)
     if line_num == 0 || line_num > lines.len() {
         return format!("YAML parsing error: {}", error_msg);
     }
-    
+
     let error_line = lines[line_num - 1];
     let line_num_width = format!("{}", line_num).len().max(3);
-    
+
     // Create the error display similar to Rust compiler
     let mut result = String::new();
     result.push_str(&format!("error: {}\n", error_msg));
     result.push_str(&format!(" --> {}:{}:{}\n", file_path, line_num, col_num));
     result.push_str(&format!("  |\n"));
-    result.push_str(&format!("{:width$} | {}\n", line_num, error_line, width = line_num_width));
-    
+    result.push_str(&format!(
+        "{:width$} | {}\n",
+        line_num,
+        error_line,
+        width = line_num_width
+    ));
+
     // Add column indicator with ^^^ under the problematic area
     if col_num > 0 && col_num <= error_line.len() + 1 {
         let spaces_before_pipe = " ".repeat(line_num_width);
         let spaces_before_caret = " ".repeat(col_num.saturating_sub(1));
-        result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, "^"));
+        result.push_str(&format!(
+            "{} | {}{}\n",
+            spaces_before_pipe, spaces_before_caret, "^"
+        ));
     }
-    
+
     result
 }
 
@@ -827,41 +870,45 @@ fn create_rust_style_error_display(
 fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // Create variable context with app-level variables
     let context = VariableContext::new(app.variables.as_ref(), None);
-    
+
     // Apply substitution to all layouts
     for layout in &mut app.layouts {
         apply_layout_variable_substitution(layout, &context)?;
     }
-    
+
     Ok(())
 }
 
 /// Apply variable substitution to a layout and all its panels
-fn apply_layout_variable_substitution(layout: &mut Layout, context: &VariableContext) -> Result<(), Box<dyn std::error::Error>> {
+fn apply_layout_variable_substitution(
+    layout: &mut Layout,
+    context: &VariableContext,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Use the same context for layout (layout variables not yet implemented)
     let layout_context = context;
-    
+
     // Apply to layout title
     if let Some(ref mut title) = layout.title {
-        *title = layout_context.substitute_in_string(title, &[])
+        *title = layout_context
+            .substitute_in_string(title, &[])
             .map_err(|e| format!("Error in layout '{}' title: {}", layout.id, e))?;
     }
-    
+
     // Apply to all child panels
     if let Some(ref mut children) = layout.children {
         for child in children {
             apply_panel_variable_substitution(child, &layout_context, &[])?;
         }
     }
-    
+
     Ok(())
 }
 
 /// Apply variable substitution to a panel and its children with hierarchy context
 fn apply_panel_variable_substitution(
-    panel: &mut Panel, 
-    context: &VariableContext, 
-    parent_hierarchy: &[&Panel]
+    panel: &mut Panel,
+    context: &VariableContext,
+    parent_hierarchy: &[&Panel],
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create a local variable context including this panel's variables
     let local_context = if let Some(ref panel_vars) = panel.variables {
@@ -872,52 +919,73 @@ fn apply_panel_variable_substitution(
     } else {
         context.clone()
     };
-    
+
     // Build complete panel hierarchy for variable resolution
     let full_hierarchy = parent_hierarchy.to_vec();
     // Note: We can't add 'panel' to hierarchy due to borrowing issues
     // Instead, we've merged panel variables into the context above
-    
+
     // Apply substitution to panel fields with error context
     if let Some(ref mut title) = panel.title {
-        *title = local_context.substitute_in_string(title, &full_hierarchy)
+        *title = local_context
+            .substitute_in_string(title, &full_hierarchy)
             .map_err(|e| format!("Error in panel '{}' title: {}", panel.id, e))?;
     }
-    
+
     if let Some(ref mut content) = panel.content {
-        *content = local_context.substitute_in_string(content, &full_hierarchy)
+        *content = local_context
+            .substitute_in_string(content, &full_hierarchy)
             .map_err(|e| format!("Error in panel '{}' content: {}", panel.id, e))?;
     }
-    
+
     if let Some(ref mut script) = panel.script {
         for (i, script_line) in script.iter_mut().enumerate() {
-            *script_line = local_context.substitute_in_string(script_line, &full_hierarchy)
-                .map_err(|e| format!("Error in panel '{}' script line {}: {}", panel.id, i + 1, e))?;
+            *script_line = local_context
+                .substitute_in_string(script_line, &full_hierarchy)
+                .map_err(|e| {
+                    format!("Error in panel '{}' script line {}: {}", panel.id, i + 1, e)
+                })?;
         }
     }
-    
+
     if let Some(ref mut redirect) = panel.redirect_output {
-        *redirect = local_context.substitute_in_string(redirect, &full_hierarchy)
+        *redirect = local_context
+            .substitute_in_string(redirect, &full_hierarchy)
             .map_err(|e| format!("Error in panel '{}' redirect_output: {}", panel.id, e))?;
     }
-    
+
     // Apply to choices if present
     if let Some(ref mut choices) = panel.choices {
         for choice in choices {
             if let Some(ref mut choice_content) = choice.content {
-                *choice_content = local_context.substitute_in_string(choice_content, &full_hierarchy)
-                    .map_err(|e| format!("Error in panel '{}' choice '{}' content: {}", panel.id, choice.id, e))?;
+                *choice_content = local_context
+                    .substitute_in_string(choice_content, &full_hierarchy)
+                    .map_err(|e| {
+                        format!(
+                            "Error in panel '{}' choice '{}' content: {}",
+                            panel.id, choice.id, e
+                        )
+                    })?;
             }
-            
+
             if let Some(ref mut choice_script) = choice.script {
                 for (i, script_line) in choice_script.iter_mut().enumerate() {
-                    *script_line = local_context.substitute_in_string(script_line, &full_hierarchy)
-                        .map_err(|e| format!("Error in panel '{}' choice '{}' script line {}: {}", panel.id, choice.id, i + 1, e))?;
+                    *script_line = local_context
+                        .substitute_in_string(script_line, &full_hierarchy)
+                        .map_err(|e| {
+                            format!(
+                                "Error in panel '{}' choice '{}' script line {}: {}",
+                                panel.id,
+                                choice.id,
+                                i + 1,
+                                e
+                            )
+                        })?;
                 }
             }
         }
     }
-    
+
     // Recursively apply to child panels
     if let Some(ref mut children) = panel.children {
         for child in children {
@@ -926,7 +994,7 @@ fn apply_panel_variable_substitution(
             apply_panel_variable_substitution(child, &local_context, &full_hierarchy)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -941,7 +1009,7 @@ pub fn substitute_variables(content: &str) -> Result<String, Box<dyn std::error:
 fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
     // This function applies the setup logic that was previously in validate_app
     // after the SchemaValidator has already validated the structure
-    
+
     fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
         panel.parent_layout_id = Some(parent_layout_id.to_string());
         panel.parent_id = parent_id;
@@ -1014,9 +1082,9 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::panel::Panel;
-    use crate::model::layout::Layout;
     use crate::model::common::InputBounds;
+    use crate::model::layout::Layout;
+    use crate::model::panel::Panel;
     use std::collections::HashMap;
 
     // === Helper Functions ===
@@ -1058,7 +1126,7 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let layout1 = create_test_layout("layout1", Some(vec![panel1, panel2]));
-        
+
         let mut app = App::new();
         app.layouts.push(layout1);
         app
@@ -1115,11 +1183,11 @@ mod tests {
     #[test]
     fn test_app_get_layout_by_id() {
         let app = create_test_app();
-        
+
         let found_layout = app.get_layout_by_id("layout1");
         assert!(found_layout.is_some());
         assert_eq!(found_layout.unwrap().id, "layout1");
-        
+
         let not_found = app.get_layout_by_id("nonexistent");
         assert!(not_found.is_none());
     }
@@ -1129,16 +1197,19 @@ mod tests {
     #[test]
     fn test_app_get_layout_by_id_mut() {
         let mut app = create_test_app();
-        
+
         let found_layout = app.get_layout_by_id_mut("layout1");
         assert!(found_layout.is_some());
-        
+
         // Modify the layout
         found_layout.unwrap().title = Some("Modified Layout".to_string());
-        
+
         // Verify the modification
         let verified_layout = app.get_layout_by_id("layout1");
-        assert_eq!(verified_layout.unwrap().title, Some("Modified Layout".to_string()));
+        assert_eq!(
+            verified_layout.unwrap().title,
+            Some("Modified Layout".to_string())
+        );
     }
 
     /// Tests that App::get_layout_by_id_mut() handles empty app.
@@ -1146,7 +1217,7 @@ mod tests {
     #[test]
     fn test_app_get_layout_by_id_mut_empty() {
         let mut app = App::new();
-        
+
         let found_layout = app.get_layout_by_id_mut("nonexistent");
         assert!(found_layout.is_none());
     }
@@ -1158,13 +1229,13 @@ mod tests {
     #[test]
     fn test_app_get_root_layout() {
         let mut app = create_test_app();
-        
+
         // Initially no root layout
         assert!(app.get_root_layout().is_none());
-        
+
         // Set a layout as root
         app.layouts[0].root = Some(true);
-        
+
         let root_layout = app.get_root_layout();
         assert!(root_layout.is_some());
         assert_eq!(root_layout.unwrap().id, "layout1");
@@ -1176,13 +1247,13 @@ mod tests {
     #[should_panic(expected = "Multiple root layouts found, which is not allowed.")]
     fn test_app_get_root_layout_multiple_panics() {
         let mut app = create_test_app();
-        
+
         // Add another layout and set both as root
         let layout2 = create_test_layout("layout2", None);
         app.layouts.push(layout2);
         app.layouts[0].root = Some(true);
         app.layouts[1].root = Some(true);
-        
+
         app.get_root_layout();
     }
 
@@ -1192,16 +1263,19 @@ mod tests {
     fn test_app_get_root_layout_mut() {
         let mut app = create_test_app();
         app.layouts[0].root = Some(true);
-        
+
         let root_layout = app.get_root_layout_mut();
         assert!(root_layout.is_some());
-        
+
         // Modify the root layout
         root_layout.unwrap().title = Some("Modified Root".to_string());
-        
+
         // Verify the modification
         let verified_layout = app.get_root_layout();
-        assert_eq!(verified_layout.unwrap().title, Some("Modified Root".to_string()));
+        assert_eq!(
+            verified_layout.unwrap().title,
+            Some("Modified Root".to_string())
+        );
     }
 
     // === App Active Layout Tests ===
@@ -1211,13 +1285,13 @@ mod tests {
     #[test]
     fn test_app_get_active_layout() {
         let mut app = create_test_app();
-        
+
         // Initially no active layout
         assert!(app.get_active_layout().is_none());
-        
+
         // Set a layout as active
         app.layouts[0].active = Some(true);
-        
+
         let active_layout = app.get_active_layout();
         assert!(active_layout.is_some());
         assert_eq!(active_layout.unwrap().id, "layout1");
@@ -1229,13 +1303,13 @@ mod tests {
     #[should_panic(expected = "Multiple active layouts found, which is not allowed.")]
     fn test_app_get_active_layout_multiple_panics() {
         let mut app = create_test_app();
-        
+
         // Add another layout and set both as active
         let layout2 = create_test_layout("layout2", None);
         app.layouts.push(layout2);
         app.layouts[0].active = Some(true);
         app.layouts[1].active = Some(true);
-        
+
         app.get_active_layout();
     }
 
@@ -1245,16 +1319,19 @@ mod tests {
     fn test_app_get_active_layout_mut() {
         let mut app = create_test_app();
         app.layouts[0].active = Some(true);
-        
+
         let active_layout = app.get_active_layout_mut();
         assert!(active_layout.is_some());
-        
+
         // Modify the active layout
         active_layout.unwrap().title = Some("Modified Active".to_string());
-        
+
         // Verify the modification
         let verified_layout = app.get_active_layout();
-        assert_eq!(verified_layout.unwrap().title, Some("Modified Active".to_string()));
+        assert_eq!(
+            verified_layout.unwrap().title,
+            Some("Modified Active".to_string())
+        );
     }
 
     /// Tests that App::set_active_layout() sets the correct layout as active.
@@ -1262,18 +1339,18 @@ mod tests {
     #[test]
     fn test_app_set_active_layout() {
         let mut app = create_test_app();
-        
+
         // Add another layout
         let layout2 = create_test_layout("layout2", None);
         app.layouts.push(layout2);
-        
+
         // Set layout2 as active
         app.set_active_layout("layout2");
-        
+
         let active_layout = app.get_active_layout();
         assert!(active_layout.is_some());
         assert_eq!(active_layout.unwrap().id, "layout2");
-        
+
         // Verify layout1 is not active
         let layout1 = app.get_layout_by_id("layout1").unwrap();
         assert_eq!(layout1.active, Some(false));
@@ -1284,10 +1361,10 @@ mod tests {
     #[test]
     fn test_app_set_active_layout_nonexistent() {
         let mut app = create_test_app();
-        
+
         // This should not panic but should log an error
         app.set_active_layout("nonexistent");
-        
+
         // No layout should be active
         assert!(app.get_active_layout().is_none());
     }
@@ -1299,11 +1376,11 @@ mod tests {
     #[test]
     fn test_app_get_panel_by_id() {
         let app = create_test_app();
-        
+
         let found_panel = app.get_panel_by_id("panel1");
         assert!(found_panel.is_some());
         assert_eq!(found_panel.unwrap().id, "panel1");
-        
+
         let not_found = app.get_panel_by_id("nonexistent");
         assert!(not_found.is_none());
     }
@@ -1313,16 +1390,19 @@ mod tests {
     #[test]
     fn test_app_get_panel_by_id_mut() {
         let mut app = create_test_app();
-        
+
         let found_panel = app.get_panel_by_id_mut("panel1");
         assert!(found_panel.is_some());
-        
+
         // Modify the panel
         found_panel.unwrap().title = Some("Modified Panel".to_string());
-        
+
         // Verify the modification
         let verified_panel = app.get_panel_by_id("panel1");
-        assert_eq!(verified_panel.unwrap().title, Some("Modified Panel".to_string()));
+        assert_eq!(
+            verified_panel.unwrap().title,
+            Some("Modified Panel".to_string())
+        );
     }
 
     /// Tests that App::get_panel_by_id_mut() handles empty app.
@@ -1330,7 +1410,7 @@ mod tests {
     #[test]
     fn test_app_get_panel_by_id_mut_empty() {
         let mut app = App::new();
-        
+
         let found_panel = app.get_panel_by_id_mut("nonexistent");
         assert!(found_panel.is_none());
     }
@@ -1342,14 +1422,14 @@ mod tests {
     #[test]
     fn test_app_validate() {
         let mut app = create_test_app();
-        
+
         // Before validation, parent relationships should not be set
         let panel = app.get_panel_by_id("panel1").unwrap();
         assert_eq!(panel.parent_layout_id, None);
         assert_eq!(panel.parent_id, None);
-        
+
         app.validate();
-        
+
         // After validation, parent relationships should be set
         let panel = app.get_panel_by_id("panel1").unwrap();
         assert_eq!(panel.parent_layout_id, Some("layout1".to_string()));
@@ -1362,9 +1442,9 @@ mod tests {
     fn test_app_validate_root_layout_activation() {
         let mut app = create_test_app();
         app.layouts[0].root = Some(true);
-        
+
         app.validate();
-        
+
         let layout = app.get_layout_by_id("layout1").unwrap();
         assert_eq!(layout.active, Some(true));
     }
@@ -1374,18 +1454,18 @@ mod tests {
     #[test]
     fn test_app_validate_default_root() {
         let mut app = create_test_app();
-        
+
         // Add another layout
         let layout2 = create_test_layout("layout2", None);
         app.layouts.push(layout2);
-        
+
         app.validate();
-        
+
         // First layout should be set as root and active
         let layout1 = app.get_layout_by_id("layout1").unwrap();
         assert_eq!(layout1.root, Some(true));
         assert_eq!(layout1.active, Some(true));
-        
+
         // Second layout should not be root or active
         let layout2 = app.get_layout_by_id("layout2").unwrap();
         assert_eq!(layout2.root, Some(false));
@@ -1407,30 +1487,32 @@ mod tests {
     #[should_panic(expected = "Duplicate ID 'panel1' found in panels")]
     fn test_app_validate_duplicate_ids_panics() {
         let mut app = App::new();
-        
+
         // Create two panels with the same ID
         let panel1a = create_test_panel("panel1");
         let panel1b = create_test_panel("panel1"); // Duplicate ID
-        
+
         let layout = create_test_layout("layout1", Some(vec![panel1a, panel1b]));
         app.layouts.push(layout);
-        
+
         app.validate();
     }
 
     /// Tests that App::validate() panics with multiple root layouts.
     /// This test demonstrates the multiple root layout validation feature.
     #[test]
-    #[should_panic(expected = "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.")]
+    #[should_panic(
+        expected = "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'."
+    )]
     fn test_app_validate_multiple_root_panics() {
         let mut app = create_test_app();
-        
+
         // Add another layout and set both as root
         let mut layout2 = create_test_layout("layout2", None);
         layout2.root = Some(true);
         app.layouts.push(layout2);
         app.layouts[0].root = Some(true);
-        
+
         app.validate();
     }
 
@@ -1441,10 +1523,10 @@ mod tests {
     #[test]
     fn test_app_calculate_bounds() {
         let mut app = create_test_app();
-        
+
         let bounds = app.calculate_bounds();
         assert!(bounds.contains_key("layout1"));
-        
+
         let layout_bounds = bounds.get("layout1").unwrap();
         assert!(layout_bounds.contains_key("panel1"));
         assert!(layout_bounds.contains_key("panel2"));
@@ -1455,15 +1537,15 @@ mod tests {
     #[test]
     fn test_app_get_adjusted_bounds() {
         let mut app = create_test_app();
-        
+
         // First call should calculate bounds
         let bounds1 = app.get_adjusted_bounds(None).clone();
         assert!(bounds1.contains_key("layout1"));
-        
+
         // Second call should return cached bounds
         let bounds2 = app.get_adjusted_bounds(None).clone();
         assert_eq!(bounds1, bounds2);
-        
+
         // Force recalculation
         let bounds3 = app.get_adjusted_bounds(Some(true));
         assert!(bounds3.contains_key("layout1"));
@@ -1474,9 +1556,9 @@ mod tests {
     #[test]
     fn test_app_get_adjusted_bounds_and_app_graph() {
         let mut app = create_test_app();
-        
+
         let (bounds, app_graph) = app.get_adjusted_bounds_and_app_graph(None);
-        
+
         assert!(bounds.contains_key("layout1"));
         assert!(app_graph.graphs.contains_key("layout1"));
     }
@@ -1488,10 +1570,10 @@ mod tests {
     #[test]
     fn test_app_generate_graph() {
         let mut app = create_test_app();
-        
+
         let app_graph = app.generate_graph();
         assert!(app_graph.graphs.contains_key("layout1"));
-        
+
         let graph = &app_graph.graphs["layout1"];
         assert_eq!(graph.node_count(), 2); // panel1 and panel2
     }
@@ -1501,10 +1583,10 @@ mod tests {
     #[test]
     fn test_app_generate_graph_caching() {
         let mut app = create_test_app();
-        
+
         // First call should generate graph
         let graph1 = app.generate_graph();
-        
+
         // Second call should return cached graph
         let graph2 = app.generate_graph();
         assert_eq!(graph1, graph2);
@@ -1517,13 +1599,13 @@ mod tests {
     #[test]
     fn test_app_replace_panel() {
         let mut app = create_test_app();
-        
+
         // Create a replacement panel
         let mut replacement_panel = create_test_panel("panel1");
         replacement_panel.title = Some("Replaced Panel".to_string());
-        
+
         app.replace_panel(replacement_panel);
-        
+
         // Verify the panel was replaced
         let replaced_panel = app.get_panel_by_id("panel1").unwrap();
         assert_eq!(replaced_panel.title, Some("Replaced Panel".to_string()));
@@ -1534,13 +1616,13 @@ mod tests {
     #[test]
     fn test_app_replace_panel_nonexistent() {
         let mut app = create_test_app();
-        
+
         // Create a replacement panel with nonexistent ID
         let replacement_panel = create_test_panel("nonexistent");
-        
+
         // This should not panic
         app.replace_panel(replacement_panel);
-        
+
         // Original panels should be unchanged
         let original_panel = app.get_panel_by_id("panel1").unwrap();
         assert_eq!(original_panel.title, Some("Test Panel panel1".to_string()));
@@ -1554,7 +1636,7 @@ mod tests {
     fn test_app_clone() {
         let app1 = create_test_app();
         let app2 = app1.clone();
-        
+
         assert_eq!(app1.layouts.len(), app2.layouts.len());
         assert_eq!(app1.layouts[0].id, app2.layouts[0].id);
         assert_eq!(app1.libs, app2.libs);
@@ -1567,17 +1649,19 @@ mod tests {
     fn test_app_clone_comprehensive() {
         let mut app1 = create_test_app();
         app1.libs = Some(vec!["lib1.sh".to_string(), "lib2.sh".to_string()]);
-        
+
         let mut keypress_map = HashMap::new();
         keypress_map.insert("ctrl+c".to_string(), vec!["exit".to_string()]);
         app1.on_keypress = Some(keypress_map);
-        
+
         let app2 = app1.clone();
-        
+
         assert_eq!(app1.libs, app2.libs);
         assert_eq!(app1.on_keypress, app2.on_keypress);
-        assert_eq!(app1.layouts[0].children.as_ref().unwrap().len(),
-                   app2.layouts[0].children.as_ref().unwrap().len());
+        assert_eq!(
+            app1.layouts[0].children.as_ref().unwrap().len(),
+            app2.layouts[0].children.as_ref().unwrap().len()
+        );
     }
 
     // === App Hash Tests ===
@@ -1590,18 +1674,18 @@ mod tests {
         let app2 = create_test_app();
         let mut app3 = create_test_app();
         app3.layouts[0].id = "different".to_string();
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         app1.hash(&mut hasher1);
         app2.hash(&mut hasher2);
         app3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -1616,7 +1700,7 @@ mod tests {
         let app2 = create_test_app();
         let mut app3 = create_test_app();
         app3.layouts[0].id = "different".to_string();
-        
+
         assert_eq!(app1, app2);
         assert_ne!(app1, app3);
     }
@@ -1630,7 +1714,7 @@ mod tests {
         let app = create_test_app();
         let config = Config::new(60);
         let app_context = AppContext::new(app, config);
-        
+
         assert_eq!(app_context.config.frame_delay, 60);
         assert_eq!(app_context.app.layouts.len(), 1);
     }
@@ -1641,7 +1725,7 @@ mod tests {
     fn test_app_context_clone() {
         let app_context1 = create_test_app_context();
         let app_context2 = app_context1.clone();
-        
+
         assert_eq!(app_context1.config, app_context2.config);
         assert_eq!(app_context1.app, app_context2.app);
     }
@@ -1652,16 +1736,16 @@ mod tests {
     fn test_app_context_hash() {
         let app_context1 = create_test_app_context();
         let app_context2 = create_test_app_context();
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
-        
+
         app_context1.hash(&mut hasher1);
         app_context2.hash(&mut hasher2);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
     }
 
@@ -1671,7 +1755,7 @@ mod tests {
     fn test_app_context_equality() {
         let app_context1 = create_test_app_context();
         let app_context2 = create_test_app_context();
-        
+
         assert_eq!(app_context1, app_context2);
     }
 
@@ -1701,9 +1785,9 @@ mod tests {
     fn test_app_graph_add_layout() {
         let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
         let mut app_graph = AppGraph::new();
-        
+
         app_graph.add_layout(&layout);
-        
+
         assert!(app_graph.graphs.contains_key("test"));
         assert!(app_graph.node_maps.contains_key("test"));
         assert_eq!(app_graph.graphs["test"].node_count(), 1);
@@ -1716,11 +1800,11 @@ mod tests {
         let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
-        
+
         let panel = app_graph.get_layout_panel_by_id("test", "panel1");
         assert!(panel.is_some());
         assert_eq!(panel.unwrap().id, "panel1");
-        
+
         let not_found = app_graph.get_layout_panel_by_id("test", "nonexistent");
         assert!(not_found.is_none());
     }
@@ -1734,11 +1818,11 @@ mod tests {
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout1);
         app_graph.add_layout(&layout2);
-        
+
         let panel1 = app_graph.get_panel_by_id("panel1");
         assert!(panel1.is_some());
         assert_eq!(panel1.unwrap().id, "panel1");
-        
+
         let panel2 = app_graph.get_panel_by_id("panel2");
         assert!(panel2.is_some());
         assert_eq!(panel2.unwrap().id, "panel2");
@@ -1751,11 +1835,11 @@ mod tests {
         let child_panel = create_test_panel("child");
         let mut parent_panel = create_test_panel("parent");
         parent_panel.children = Some(vec![child_panel]);
-        
+
         let layout = create_test_layout("test", Some(vec![parent_panel]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
-        
+
         let children = app_graph.get_children("test", "parent");
         assert_eq!(children.len(), 1);
         assert_eq!(children[0].id, "child");
@@ -1768,11 +1852,11 @@ mod tests {
         let child_panel = create_test_panel("child");
         let mut parent_panel = create_test_panel("parent");
         parent_panel.children = Some(vec![child_panel]);
-        
+
         let layout = create_test_layout("test", Some(vec![parent_panel]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
-        
+
         let parent = app_graph.get_parent("test", "child");
         assert!(parent.is_some());
         assert_eq!(parent.unwrap().id, "parent");
@@ -1787,16 +1871,16 @@ mod tests {
         let mut app_graph2 = AppGraph::new();
         app_graph1.add_layout(&layout);
         app_graph2.add_layout(&layout);
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
-        
+
         app_graph1.hash(&mut hasher1);
         app_graph2.hash(&mut hasher2);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
     }
 
@@ -1809,7 +1893,7 @@ mod tests {
         let mut app_graph2 = AppGraph::new();
         app_graph1.add_layout(&layout);
         app_graph2.add_layout(&layout);
-        
+
         assert_eq!(app_graph1, app_graph2);
     }
 
@@ -1894,10 +1978,10 @@ mod tests {
     fn test_load_app_from_yaml() {
         let current_dir = std::env::current_dir().expect("Failed to get current directory");
         let dashboard_path = current_dir.join("layouts/tests.yaml");
-        
+
         let result = load_app_from_yaml(dashboard_path.to_str().unwrap());
         assert!(result.is_ok());
-        
+
         let app = result.unwrap();
         assert_eq!(app.layouts.len(), 1);
         assert_eq!(app.layouts[0].id, "dashboard");
@@ -1917,7 +2001,7 @@ mod tests {
     fn test_load_app_from_yaml_with_schema_validation() {
         use std::fs;
         use std::io::Write;
-        
+
         // Create a temporary invalid YAML file for testing validation
         let temp_file = "/tmp/boxmux_test_invalid.yaml";
         let invalid_yaml_content = r#"
@@ -1939,29 +2023,39 @@ app:
             x2: 100%
             y2: 50%
 "#;
-        
+
         // Write the invalid content to temp file
         let mut file = fs::File::create(temp_file).expect("Failed to create temp file");
-        file.write_all(invalid_yaml_content.as_bytes()).expect("Failed to write temp file");
-        
+        file.write_all(invalid_yaml_content.as_bytes())
+            .expect("Failed to write temp file");
+
         // Test that SchemaValidator catches the duplicate ID
         let result = load_app_from_yaml(temp_file);
-        assert!(result.is_err(), "SchemaValidator should catch duplicate IDs");
-        
+        assert!(
+            result.is_err(),
+            "SchemaValidator should catch duplicate IDs"
+        );
+
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Duplicate ID 'panel1' found in panels"), 
-                "Error message should mention duplicate ID: {}", error_msg);
-        
+        assert!(
+            error_msg.contains("Duplicate ID 'panel1' found in panels"),
+            "Error message should mention duplicate ID: {}",
+            error_msg
+        );
+
         // Clean up
         let _ = fs::remove_file(temp_file);
-        
+
         // Test valid YAML passes validation
         let current_dir = std::env::current_dir().expect("Failed to get current directory");
         let valid_dashboard_path = current_dir.join("layouts/tests.yaml");
-        
+
         let valid_result = load_app_from_yaml(valid_dashboard_path.to_str().unwrap());
-        assert!(valid_result.is_ok(), "Valid YAML should pass SchemaValidator");
-        
+        assert!(
+            valid_result.is_ok(),
+            "Valid YAML should pass SchemaValidator"
+        );
+
         let app = valid_result.unwrap();
         assert_eq!(app.layouts.len(), 1);
         assert_eq!(app.layouts[0].id, "dashboard");
@@ -1973,7 +2067,7 @@ app:
     fn test_load_app_from_yaml_multiple_root_layouts_error() {
         use std::fs;
         use std::io::Write;
-        
+
         let temp_file = "/tmp/boxmux_test_multiple_roots.yaml";
         let multiple_roots_yaml = r#"
 app:
@@ -1997,17 +2091,24 @@ app:
             x2: 100%
             y2: 100%
 "#;
-        
+
         let mut file = fs::File::create(temp_file).expect("Failed to create temp file");
-        file.write_all(multiple_roots_yaml.as_bytes()).expect("Failed to write temp file");
-        
+        file.write_all(multiple_roots_yaml.as_bytes())
+            .expect("Failed to write temp file");
+
         let result = load_app_from_yaml(temp_file);
-        assert!(result.is_err(), "SchemaValidator should catch multiple root layouts");
-        
+        assert!(
+            result.is_err(),
+            "SchemaValidator should catch multiple root layouts"
+        );
+
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Multiple root layouts detected"), 
-                "Error message should mention multiple root layouts: {}", error_msg);
-        
+        assert!(
+            error_msg.contains("Multiple root layouts detected"),
+            "Error message should mention multiple root layouts: {}",
+            error_msg
+        );
+
         // Clean up
         let _ = fs::remove_file(temp_file);
     }

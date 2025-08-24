@@ -1,9 +1,9 @@
+use crate::model::common::Bounds;
+use crate::AppContext;
+use libloading::{Library, Symbol};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
-use crate::model::common::Bounds;
-use crate::{AppContext};
-use libloading::{Library, Symbol};
 
 /// Plugin manifest structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +39,8 @@ pub enum PluginPermission {
 pub struct PluginComponent {
     pub component_type: String,
     pub render_fn: fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>,
-    pub update_fn: Option<fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>>,
+    pub update_fn:
+        Option<fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>>,
     pub event_handler: Option<fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>>,
 }
 
@@ -73,10 +74,21 @@ pub struct ComponentState {
 #[derive(Debug, Clone)]
 pub enum PluginEvent {
     KeyPress(String),
-    MouseEvent { x: u16, y: u16, action: String },
-    Timer { interval: u64 },
-    DataUpdate { source: String, data: serde_json::Value },
-    PanelResize { new_bounds: Bounds },
+    MouseEvent {
+        x: u16,
+        y: u16,
+        action: String,
+    },
+    Timer {
+        interval: u64,
+    },
+    DataUpdate {
+        source: String,
+        data: serde_json::Value,
+    },
+    PanelResize {
+        new_bounds: Bounds,
+    },
 }
 
 /// Plugin errors
@@ -110,7 +122,10 @@ impl std::fmt::Debug for LoadedPlugin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LoadedPlugin")
             .field("manifest", &self.manifest)
-            .field("components", &format!("{} components", self.components.len()))
+            .field(
+                "components",
+                &format!("{} components", self.components.len()),
+            )
             .field("library_loaded", &self.library.is_some())
             .field("is_active", &self.is_active)
             .field("load_time", &self.load_time)
@@ -140,10 +155,11 @@ impl PluginRegistry {
     pub fn load_plugin<P: AsRef<Path>>(&mut self, plugin_path: P) -> Result<(), PluginError> {
         let manifest_path = plugin_path.as_ref().join("plugin.toml");
         let manifest = self.load_manifest(&manifest_path)?;
-        
+
         // Validate permissions
-        self.security_manager.validate_permissions(&manifest.permissions)?;
-        
+        self.security_manager
+            .validate_permissions(&manifest.permissions)?;
+
         // Try to load dynamic library first, fall back to mock if not available
         let library_path = plugin_path.as_ref().join(&manifest.entry_point);
         let (library, components) = if library_path.exists() {
@@ -152,7 +168,7 @@ impl PluginRegistry {
             // Fall back to mock implementation for testing/development
             (None, self.load_mock_components(&manifest)?)
         };
-        
+
         let loaded_plugin = LoadedPlugin {
             manifest: manifest.clone(),
             components,
@@ -160,12 +176,13 @@ impl PluginRegistry {
             is_active: true,
             load_time: std::time::SystemTime::now(),
         };
-        
+
         // Register component types
         for component_type in &manifest.component_types {
-            self.component_types.insert(component_type.clone(), manifest.name.clone());
+            self.component_types
+                .insert(component_type.clone(), manifest.name.clone());
         }
-        
+
         self.plugins.insert(manifest.name.clone(), loaded_plugin);
         Ok(())
     }
@@ -182,17 +199,18 @@ impl PluginRegistry {
 
     /// Render a plugin component
     pub fn render_component(
-        &self, 
-        component_type: &str, 
-        context: &PluginContext, 
-        config: &ComponentConfig
+        &self,
+        component_type: &str,
+        context: &PluginContext,
+        config: &ComponentConfig,
     ) -> Result<String, PluginError> {
         if let Some(component) = self.get_component(component_type) {
             (component.render_fn)(context, config)
         } else {
-            Err(PluginError::InvalidConfiguration(
-                format!("Component type '{}' not found", component_type)
-            ))
+            Err(PluginError::InvalidConfiguration(format!(
+                "Component type '{}' not found",
+                component_type
+            )))
         }
     }
 
@@ -201,7 +219,7 @@ impl PluginRegistry {
         &self,
         component_type: &str,
         context: &PluginContext,
-        event: &PluginEvent
+        event: &PluginEvent,
     ) -> Result<(), PluginError> {
         if let Some(component) = self.get_component(component_type) {
             if let Some(handler) = &component.event_handler {
@@ -210,9 +228,10 @@ impl PluginRegistry {
                 Ok(()) // No event handler defined
             }
         } else {
-            Err(PluginError::InvalidConfiguration(
-                format!("Component type '{}' not found", component_type)
-            ))
+            Err(PluginError::InvalidConfiguration(format!(
+                "Component type '{}' not found",
+                component_type
+            )))
         }
     }
 
@@ -230,19 +249,23 @@ impl PluginRegistry {
             }
             Ok(())
         } else {
-            Err(PluginError::InvalidConfiguration(
-                format!("Plugin '{}' not found", plugin_name)
-            ))
+            Err(PluginError::InvalidConfiguration(format!(
+                "Plugin '{}' not found",
+                plugin_name
+            )))
         }
     }
 
-    pub fn load_manifest<P: AsRef<Path>>(&self, manifest_path: P) -> Result<PluginManifest, PluginError> {
+    pub fn load_manifest<P: AsRef<Path>>(
+        &self,
+        manifest_path: P,
+    ) -> Result<PluginManifest, PluginError> {
         // Try to read actual TOML file, fall back to mock for testing
         if manifest_path.as_ref().exists() {
             let content = std::fs::read_to_string(manifest_path).map_err(|e| {
                 PluginError::InitializationFailed(format!("Failed to read manifest: {}", e))
             })?;
-            
+
             toml::from_str(&content).map_err(|e| {
                 PluginError::InitializationFailed(format!("Failed to parse manifest: {}", e))
             })
@@ -263,9 +286,9 @@ impl PluginRegistry {
 
     /// Load dynamic library and extract components
     fn load_dynamic_library<P: AsRef<Path>>(
-        &self, 
-        library_path: P, 
-        manifest: &PluginManifest
+        &self,
+        library_path: P,
+        manifest: &PluginManifest,
     ) -> Result<(Option<Library>, HashMap<String, PluginComponent>), PluginError> {
         unsafe {
             let library = Library::new(library_path.as_ref()).map_err(|e| {
@@ -281,24 +304,28 @@ impl PluginRegistry {
                 let event_fn_name = format!("{}_event", component_type);
 
                 // Load render function (required)
-                let render_symbol: Symbol<fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>> = 
-                    library.get(render_fn_name.as_bytes()).map_err(|e| {
-                        PluginError::InitializationFailed(format!(
-                            "Failed to load render function '{}': {}", render_fn_name, e
-                        ))
-                    })?;
+                let render_symbol: Symbol<
+                    fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>,
+                > = library.get(render_fn_name.as_bytes()).map_err(|e| {
+                    PluginError::InitializationFailed(format!(
+                        "Failed to load render function '{}': {}",
+                        render_fn_name, e
+                    ))
+                })?;
 
                 // Load update function (optional)
-                let update_fn = library.get(update_fn_name.as_bytes()).ok()
-                    .map(|symbol: Symbol<fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>>| {
-                        *symbol.into_raw()
-                    });
+                let update_fn = library.get(update_fn_name.as_bytes()).ok().map(
+                    |symbol: Symbol<
+                        fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>,
+                    >| { *symbol.into_raw() },
+                );
 
                 // Load event handler (optional)
-                let event_handler = library.get(event_fn_name.as_bytes()).ok()
-                    .map(|symbol: Symbol<fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>>| {
-                        *symbol.into_raw()
-                    });
+                let event_handler = library.get(event_fn_name.as_bytes()).ok().map(
+                    |symbol: Symbol<
+                        fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>,
+                    >| { *symbol.into_raw() },
+                );
 
                 let component = PluginComponent {
                     component_type: component_type.clone(),
@@ -315,9 +342,12 @@ impl PluginRegistry {
     }
 
     /// Load mock components for testing/fallback
-    fn load_mock_components(&self, manifest: &PluginManifest) -> Result<HashMap<String, PluginComponent>, PluginError> {
+    fn load_mock_components(
+        &self,
+        manifest: &PluginManifest,
+    ) -> Result<HashMap<String, PluginComponent>, PluginError> {
         let mut components = HashMap::new();
-        
+
         // Mock component loading for testing when no dynamic library available
         for component_type in &manifest.component_types {
             let component = PluginComponent {
@@ -328,7 +358,7 @@ impl PluginRegistry {
             };
             components.insert(component_type.clone(), component);
         }
-        
+
         Ok(components)
     }
 }
@@ -349,27 +379,30 @@ impl PluginSecurityManager {
                 PluginPermission::FileSystem { paths } => {
                     for path in paths {
                         if !self.is_path_allowed(path) {
-                            return Err(PluginError::PermissionDenied(
-                                format!("File system access to '{}' not allowed", path)
-                            ));
+                            return Err(PluginError::PermissionDenied(format!(
+                                "File system access to '{}' not allowed",
+                                path
+                            )));
                         }
                     }
                 }
                 PluginPermission::Network { hosts } => {
                     for host in hosts {
                         if !self.is_host_allowed(host) {
-                            return Err(PluginError::PermissionDenied(
-                                format!("Network access to '{}' not allowed", host)
-                            ));
+                            return Err(PluginError::PermissionDenied(format!(
+                                "Network access to '{}' not allowed",
+                                host
+                            )));
                         }
                     }
                 }
                 PluginPermission::Process { commands } => {
                     for command in commands {
                         if !self.is_command_allowed(command) {
-                            return Err(PluginError::PermissionDenied(
-                                format!("Process execution of '{}' not allowed", command)
-                            ));
+                            return Err(PluginError::PermissionDenied(format!(
+                                "Process execution of '{}' not allowed",
+                                command
+                            )));
                         }
                     }
                 }
@@ -382,7 +415,9 @@ impl PluginSecurityManager {
     }
 
     fn is_path_allowed(&self, path: &str) -> bool {
-        self.allowed_paths.iter().any(|allowed| path.starts_with(allowed))
+        self.allowed_paths
+            .iter()
+            .any(|allowed| path.starts_with(allowed))
     }
 
     fn is_host_allowed(&self, host: &str) -> bool {
@@ -395,11 +430,17 @@ impl PluginSecurityManager {
 }
 
 // Mock functions for testing - would be replaced by actual plugin code
-fn mock_render_function(_context: &PluginContext, config: &ComponentConfig) -> Result<String, PluginError> {
+fn mock_render_function(
+    _context: &PluginContext,
+    config: &ComponentConfig,
+) -> Result<String, PluginError> {
     Ok(format!("Custom component: {}", config.component_type))
 }
 
-fn mock_update_function(_context: &PluginContext, _config: &ComponentConfig) -> Result<ComponentState, PluginError> {
+fn mock_update_function(
+    _context: &PluginContext,
+    _config: &ComponentConfig,
+) -> Result<ComponentState, PluginError> {
     Ok(ComponentState {
         content: "Updated content".to_string(),
         metadata: HashMap::new(),
@@ -438,14 +479,14 @@ mod tests {
             entry_point: "lib.so".to_string(),
             component_types: vec!["custom_type".to_string()],
             dependencies: vec![],
-            permissions: vec![PluginPermission::FileSystem { 
-                paths: vec!["/tmp".to_string()] 
+            permissions: vec![PluginPermission::FileSystem {
+                paths: vec!["/tmp".to_string()],
             }],
         };
 
         let serialized = serde_json::to_string(&manifest).unwrap();
         let deserialized: PluginManifest = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(manifest.name, deserialized.name);
         assert_eq!(manifest.version, deserialized.version);
     }
@@ -453,7 +494,7 @@ mod tests {
     #[test]
     fn test_security_manager_path_validation() {
         let security_manager = PluginSecurityManager::new();
-        
+
         assert!(security_manager.is_path_allowed("/tmp/test"));
         assert!(!security_manager.is_path_allowed("/etc/passwd"));
     }

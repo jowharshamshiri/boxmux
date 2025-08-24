@@ -1,8 +1,10 @@
+use crate::utils::should_use_pty;
 use crate::{handle_keypress, AppContext, FieldUpdate};
 use crate::{run_script, thread_manager::Runnable};
-use crate::utils::{should_use_pty};
+use crossterm::event::{
+    poll, read, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind,
+};
 use std::sync::mpsc;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, poll, read};
 use std::time::Duration;
 
 use crate::thread_manager::*;
@@ -15,10 +17,16 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
     // Helper function to generate modified key sequences
     let format_modified_key = |base_seq: &str, modifiers: KeyModifiers| -> String {
         let mut mod_code = 1;
-        if modifiers.contains(KeyModifiers::SHIFT) { mod_code += 1; }
-        if modifiers.contains(KeyModifiers::ALT) { mod_code += 2; }
-        if modifiers.contains(KeyModifiers::CONTROL) { mod_code += 4; }
-        
+        if modifiers.contains(KeyModifiers::SHIFT) {
+            mod_code += 1;
+        }
+        if modifiers.contains(KeyModifiers::ALT) {
+            mod_code += 2;
+        }
+        if modifiers.contains(KeyModifiers::CONTROL) {
+            mod_code += 4;
+        }
+
         if mod_code == 1 {
             base_seq.to_string()
         } else {
@@ -35,11 +43,11 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
                     'a'..='z' => {
                         let ctrl_code = (c as u8) - b'a' + 1;
                         format!("{}", ctrl_code as char)
-                    },
+                    }
                     'A'..='Z' => {
                         let ctrl_code = (c as u8) - b'A' + 1;
                         format!("{}", ctrl_code as char)
-                    },
+                    }
                     '@' => "\x00".to_string(),  // Ctrl+@
                     '[' => "\x1b".to_string(),  // Ctrl+[
                     '\\' => "\x1c".to_string(), // Ctrl+\
@@ -58,51 +66,51 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
         }
         KeyCode::Enter => {
             if modifiers.contains(KeyModifiers::CONTROL) {
-                "\n".to_string()  // Ctrl+Enter
+                "\n".to_string() // Ctrl+Enter
             } else {
                 "\r".to_string()
             }
         }
         KeyCode::Tab => {
             if modifiers.contains(KeyModifiers::SHIFT) {
-                "\x1b[Z".to_string()  // Shift+Tab (Back Tab)
+                "\x1b[Z".to_string() // Shift+Tab (Back Tab)
             } else {
                 "\t".to_string()
             }
         }
         KeyCode::Backspace => {
             if modifiers.contains(KeyModifiers::CONTROL) {
-                "\x08".to_string()  // Ctrl+Backspace
+                "\x08".to_string() // Ctrl+Backspace
             } else if modifiers.contains(KeyModifiers::ALT) {
-                "\x1b\x7f".to_string()  // Alt+Backspace
+                "\x1b\x7f".to_string() // Alt+Backspace
             } else {
                 "\x7f".to_string()
             }
         }
         KeyCode::Delete => format_modified_key("\x1b[3~", modifiers),
         KeyCode::Insert => format_modified_key("\x1b[2~", modifiers),
-        
+
         // Arrow keys with modifier support
         KeyCode::Up => format_modified_key("\x1b[A", modifiers),
         KeyCode::Down => format_modified_key("\x1b[B", modifiers),
         KeyCode::Right => format_modified_key("\x1b[C", modifiers),
         KeyCode::Left => format_modified_key("\x1b[D", modifiers),
-        
+
         // Home/End with modifier support
         KeyCode::Home => format_modified_key("\x1b[H", modifiers),
         KeyCode::End => format_modified_key("\x1b[F", modifiers),
-        
+
         // Page Up/Down with modifier support
         KeyCode::PageUp => format_modified_key("\x1b[5~", modifiers),
         KeyCode::PageDown => format_modified_key("\x1b[6~", modifiers),
-        
+
         KeyCode::Esc => "\x1b".to_string(),
-        
+
         KeyCode::F(n) => {
             // F1-F24 keys with modifier support
             let base_seq = match n {
                 1 => "\x1bOP",
-                2 => "\x1bOQ", 
+                2 => "\x1bOQ",
                 3 => "\x1bOR",
                 4 => "\x1bOS",
                 5 => "\x1b[15~",
@@ -127,22 +135,22 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
                 24 => "\x1b[38~",
                 _ => return "".to_string(),
             };
-            
+
             if modifiers.is_empty() {
                 base_seq.to_string()
             } else {
                 format_modified_key(base_seq, modifiers)
             }
         }
-        
+
         // Additional special keys
-        KeyCode::CapsLock => "".to_string(),  // Usually handled by system
+        KeyCode::CapsLock => "".to_string(), // Usually handled by system
         KeyCode::ScrollLock => "".to_string(),
         KeyCode::NumLock => "".to_string(),
         KeyCode::PrintScreen => "".to_string(),
         KeyCode::Pause => "".to_string(),
         KeyCode::Menu => "\x1b[29~".to_string(),
-        
+
         _ => "".to_string(),
     }
 }
@@ -160,7 +168,12 @@ create_runnable!(
         if poll(Duration::from_millis(10)).unwrap() {
             if let Ok(event) = read() {
                 let key_str = match event {
-                    Event::Mouse(MouseEvent { kind, column, row, modifiers: _ }) => {
+                    Event::Mouse(MouseEvent {
+                        kind,
+                        column,
+                        row,
+                        modifiers: _,
+                    }) => {
                         match kind {
                             MouseEventKind::ScrollUp => {
                                 inner.send_message(Message::ScrollPanelUp());
@@ -186,22 +199,28 @@ create_runnable!(
                             _ => return (true, app_context), // Ignore other mouse events
                         }
                     }
-                    Event::Key(KeyEvent { code, modifiers, .. }) => {
+                    Event::Key(KeyEvent {
+                        code, modifiers, ..
+                    }) => {
                         // Check if focused panel has PTY enabled - if so, route input to PTY
                         let selected_panels = active_layout.get_selected_panels();
-                        let focused_panel_has_pty = selected_panels.first()
+                        let focused_panel_has_pty = selected_panels
+                            .first()
                             .map(|panel| should_use_pty(panel))
                             .unwrap_or(false);
-                        
+
                         if focused_panel_has_pty {
                             // Convert key event to string and send to PTY
                             let key_str = format_key_for_pty(code, modifiers);
                             if let Some(focused_panel) = selected_panels.first() {
-                                inner.send_message(Message::PTYInput(focused_panel.id.clone(), key_str.clone()));
+                                inner.send_message(Message::PTYInput(
+                                    focused_panel.id.clone(),
+                                    key_str.clone(),
+                                ));
                                 return (true, app_context);
                             }
                         }
-                        
+
                         match code {
                             KeyCode::Char('q') => {
                                 inner.send_message(Message::Exit);
@@ -258,7 +277,7 @@ create_runnable!(
                                             inner.send_message(Message::CopyFocusedPanelContent());
                                             "Ctrl+c".to_string()
                                         }
-                                        _ => format!("Ctrl+{}", c)
+                                        _ => format!("Ctrl+{}", c),
                                     }
                                 } else if modifiers.contains(KeyModifiers::ALT) {
                                     format!("Alt+{}", c)
@@ -305,7 +324,7 @@ create_runnable!(
                         inner.send_message(Message::ExecuteHotKeyChoice(choice_id.clone()));
                     }
                 }
-                
+
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         let libs = app_context.app.libs.clone();

@@ -34,38 +34,41 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let parent_panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let child_panel = &parent_panel.children.as_ref().unwrap()[0];
-        
+
         // Parent should see its own variable value
         let parent_content = parent_panel.content.as_ref().unwrap();
         assert!(
             parent_content.contains("parent_value"),
-            "FAILED: Parent panel should see its own variable value. Got: '{}'", parent_content
+            "FAILED: Parent panel should see its own variable value. Got: '{}'",
+            parent_content
         );
-        
+
         // Child should see its own override value + inherit parent-only value
         let child_content = child_panel.content.as_ref().unwrap();
         assert!(
             child_content.contains("child_value"),
-            "FAILED: Child should override parent variable. Got: '{}'", child_content
+            "FAILED: Child should override parent variable. Got: '{}'",
+            child_content
         );
         assert!(
-            child_content.contains("parent_specific"), 
-            "FAILED: Child should inherit parent-only variables. Got: '{}'", child_content
+            child_content.contains("parent_specific"),
+            "FAILED: Child should inherit parent-only variables. Got: '{}'",
+            child_content
         );
     }
 
     /// Test that environment variables override all levels of hierarchy
-    #[test] 
+    #[test]
     fn test_environment_overrides_all_hierarchy_levels() {
         env::set_var("HIERARCHY_TEST_VAR", "env_wins");
-        
+
         let yaml_content = r#"
 app:
   variables:
@@ -92,27 +95,29 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let parent_panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let child_panel = &parent_panel.children.as_ref().unwrap()[0];
-        
+
         // YAML-defined variables should override environment for granular control
         let parent_content = parent_panel.content.as_ref().unwrap();
         assert!(
             parent_content.contains("parent_level"),
-            "FAILED: Parent YAML variable should override environment. Got: '{}'", parent_content
+            "FAILED: Parent YAML variable should override environment. Got: '{}'",
+            parent_content
         );
-        
+
         let child_content = child_panel.content.as_ref().unwrap();
         assert!(
             child_content.contains("child_level"),
-            "FAILED: Child YAML variable should override environment and parent. Got: '{}'", child_content
+            "FAILED: Child YAML variable should override environment and parent. Got: '{}'",
+            child_content
         );
-        
+
         env::remove_var("HIERARCHY_TEST_VAR");
     }
 
@@ -153,33 +158,37 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let grandparent = &app.layouts[0].children.as_ref().unwrap()[0];
         let parent = &grandparent.children.as_ref().unwrap()[0];
         let child = &parent.children.as_ref().unwrap()[0];
-        
+
         let child_content = child.content.as_ref().unwrap();
-        
+
         // Child should see its own override + inherit up the hierarchy + app level
         assert!(
             child_content.contains("child_value"),
-            "FAILED: Child should use its own variable override. Got: '{}'", child_content
+            "FAILED: Child should use its own variable override. Got: '{}'",
+            child_content
         );
         assert!(
             child_content.contains("parent_specific"),
-            "FAILED: Child should inherit parent-only variable. Got: '{}'", child_content  
+            "FAILED: Child should inherit parent-only variable. Got: '{}'",
+            child_content
         );
         assert!(
             child_content.contains("grandparent_specific"),
-            "FAILED: Child should inherit grandparent-only variable. Got: '{}'", child_content
+            "FAILED: Child should inherit grandparent-only variable. Got: '{}'",
+            child_content
         );
         assert!(
             child_content.contains("app_level"),
-            "FAILED: Child should inherit app-level variable. Got: '{}'", child_content
+            "FAILED: Child should inherit app-level variable. Got: '{}'",
+            child_content
         );
     }
 
@@ -218,22 +227,22 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let layout = &app.layouts[0];
         let parent = &layout.children.as_ref().unwrap()[0];
         let child = &parent.children.as_ref().unwrap()[0];
-        
+
         // Test layout title uses app variable
         assert_eq!(
             layout.title.as_ref().unwrap(),
             "APP Layout",
             "FAILED: Layout title should use app variable"
         );
-        
+
         // Test parent uses its own LEVEL variable
         assert!(
             parent.content.as_ref().unwrap().contains("PARENT"),
@@ -248,18 +257,20 @@ app:
             "child_panel",
             "FAILED: Parent redirect_output should use variable substitution"
         );
-        
+
         // Test child overrides LEVEL but inherits GLOBAL_PREFIX
         let child_content = child.content.as_ref().unwrap();
         assert!(
             child_content.contains("CHILD") && child_content.contains("APP"),
-            "FAILED: Child should override LEVEL but inherit GLOBAL_PREFIX. Got: '{}'", child_content
+            "FAILED: Child should override LEVEL but inherit GLOBAL_PREFIX. Got: '{}'",
+            child_content
         );
-        
+
         let child_script = &child.script.as_ref().unwrap()[0];
         assert!(
             child_script.contains("CHILD") && child_script.contains("APP"),
-            "FAILED: Child script should use overridden and inherited variables. Got: '{}'", child_script
+            "FAILED: Child script should use overridden and inherited variables. Got: '{}'",
+            child_script
         );
     }
 
@@ -292,32 +303,34 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let parent = &app.layouts[0].children.as_ref().unwrap()[0];
         let child = &parent.children.as_ref().unwrap()[0];
-        
+
         let child_content = child.content.as_ref().unwrap();
-        
+
         // Child should inherit app variable (skipping parent level with no variables)
         assert!(
             child_content.contains("from_app"),
             "FAILED: Child should inherit app variable despite parent having no variables. Got: '{}'", child_content
         );
-        
+
         // Child should override shared variable
         assert!(
             child_content.contains("child_override"),
-            "FAILED: Child should override app-level shared variable. Got: '{}'", child_content
+            "FAILED: Child should override app-level shared variable. Got: '{}'",
+            child_content
         );
-        
+
         // Child should have its own variable
         assert!(
             child_content.contains("child_specific"),
-            "FAILED: Child should have access to its own variables. Got: '{}'", child_content
+            "FAILED: Child should have access to its own variables. Got: '{}'",
+            child_content
         );
     }
 }

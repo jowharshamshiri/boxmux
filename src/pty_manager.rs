@@ -1,13 +1,13 @@
 use anyhow::Result;
 use log::{debug, error, warn};
 // Use log crate for debugging
-use portable_pty::{CommandBuilder, PtySize, MasterPty};
+use crate::ansi_processor::AnsiProcessor;
+use crate::circular_buffer::CircularBuffer;
+use portable_pty::{CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use crate::ansi_processor::AnsiProcessor;
-use crate::circular_buffer::CircularBuffer;
 
 pub struct PtyProcess {
     pub panel_id: String,
@@ -26,7 +26,10 @@ impl std::fmt::Debug for PtyProcess {
             .field("status", &self.status)
             .field("master_pty", &self.master_pty.is_some())
             .field("can_kill", &self.can_kill)
-            .field("output_buffer_size", &self.output_buffer.lock().unwrap().len())
+            .field(
+                "output_buffer_size",
+                &self.output_buffer.lock().unwrap().len(),
+            )
             .finish()
     }
 }
@@ -38,7 +41,7 @@ pub enum PtyStatus {
     Finished(i32), // exit code
     Error(String),
     FailedFallback, // PTY failed, fell back to regular execution
-    Dead(String), // PTY process died unexpectedly with reason
+    Dead(String),   // PTY process died unexpectedly with reason
 }
 
 // F0122: PTY Thread Integration - Now thread-safe by creating PTY system on-demand
@@ -52,7 +55,7 @@ pub struct PtyManager {
 }
 
 impl PtyManager {
-    pub fn new() -> Result<Self> {        
+    pub fn new() -> Result<Self> {
         Ok(PtyManager {
             active_ptys: Arc::new(Mutex::new(HashMap::new())),
             pty_failures: Arc::new(Mutex::new(HashMap::new())),
@@ -68,7 +71,14 @@ impl PtyManager {
         sender: std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
         thread_uuid: uuid::Uuid,
     ) -> Result<()> {
-        self.spawn_pty_script_with_redirect(panel_id, script_commands, libs, sender, thread_uuid, None)
+        self.spawn_pty_script_with_redirect(
+            panel_id,
+            script_commands,
+            libs,
+            sender,
+            thread_uuid,
+            None,
+        )
     }
 
     /// Spawn a script in a PTY for the given panel with optional output redirection
@@ -81,8 +91,12 @@ impl PtyManager {
         thread_uuid: uuid::Uuid,
         redirect_target: Option<String>,
     ) -> Result<()> {
-        log::info!("Starting PTY script execution for panel: {}, redirect: {:?}, script_lines: {}", 
-               panel_id, redirect_target, script_commands.len());
+        log::info!(
+            "Starting PTY script execution for panel: {}, redirect: {:?}, script_lines: {}",
+            panel_id,
+            redirect_target,
+            script_commands.len()
+        );
 
         // Create PTY with appropriate size (will be resized when panel bounds are known)
         let pty_size = PtySize {
@@ -96,19 +110,19 @@ impl PtyManager {
         // Create PTY system on-demand for thread safety
         let pty_system = portable_pty::native_pty_system();
         log::info!("PTY system created, attempting to allocate PTY pair");
-        
+
         let pty_pair = match pty_system.openpty(pty_size) {
             Ok(pair) => {
                 log::info!("PTY pair allocated successfully");
                 pair
-            },
+            }
             Err(e) => {
                 let error_msg = format!("PTY allocation failed: {}", e);
                 log::error!("{}", error_msg);
-                
+
                 // Track this failure for recovery purposes
                 self.record_pty_failure(panel_id.clone(), error_msg.clone());
-                
+
                 return Err(e.into());
             }
         };
@@ -135,16 +149,19 @@ impl PtyManager {
         // Spawn the process
         let mut child = match writer.spawn_command(cmd) {
             Ok(child) => {
-                log::info!("PTY process spawned successfully - PID: {:?}", child.process_id());
+                log::info!(
+                    "PTY process spawned successfully - PID: {:?}",
+                    child.process_id()
+                );
                 child
-            },
+            }
             Err(e) => {
                 let error_msg = format!("PTY process spawn failed: {}", e);
                 log::error!("{}", error_msg);
-                
-                // Track this failure for recovery purposes  
+
+                // Track this failure for recovery purposes
                 self.record_pty_failure(panel_id.clone(), error_msg.clone());
-                
+
                 return Err(e.into());
             }
         };
@@ -153,7 +170,7 @@ impl PtyManager {
         // Store master PTY for resize operations using Arc<Mutex<>> for thread-safe sharing
         let master_pty_handle = Arc::new(Mutex::new(reader));
         let master_pty_clone = master_pty_handle.clone();
-        
+
         // Create circular buffer for PTY output with configurable size (default 10,000 lines)
         let output_buffer = Arc::new(Mutex::new(CircularBuffer::new(10000)));
         let buffer_clone = output_buffer.clone();
@@ -180,21 +197,25 @@ impl PtyManager {
         // Spawn reader thread for PTY output
         let active_ptys_clone = self.active_ptys.clone();
         let panel_id_clone = panel_id.clone();
-        
+
         thread::spawn(move || {
-            log::info!("PTY reader thread started for panel: {}, output_target: {}", panel_id_clone, output_target);
-            
+            log::info!(
+                "PTY reader thread started for panel: {}, output_target: {}",
+                panel_id_clone,
+                output_target
+            );
+
             let mut buffer = [0u8; 4096];
             let mut ansi_processor = AnsiProcessor::new();
             let mut bytes_processed = 0u64;
             let mut messages_sent = 0u32;
-            
+
             // Create reader once outside the loop using cloned master PTY handle
             let mut pty_reader = match master_pty_clone.lock().unwrap().try_clone_reader() {
                 Ok(reader) => {
                     log::info!("PTY reader cloned successfully");
                     reader
-                },
+                }
                 Err(e) => {
                     log::error!("Failed to clone PTY reader: {}", e);
                     return;
@@ -207,7 +228,7 @@ impl PtyManager {
                     Ok(0) => {
                         // EOF - process has ended
                         debug!("PTY EOF for panel: {}", panel_id_clone);
-                        
+
                         // Wait for child process and get exit status
                         let exit_code = match child.wait() {
                             Ok(status) => status.exit_code(),
@@ -217,115 +238,139 @@ impl PtyManager {
                         // Update PTY status
                         {
                             let mut active_ptys = active_ptys_clone.lock().unwrap();
-                                    if let Some(pty_proc) = active_ptys.get_mut(&panel_id_clone) {
-                                        pty_proc.status = PtyStatus::Finished(exit_code as i32);
-                                    }
-                                }
-
-                                // Send any remaining processed output
-                                let remaining_text = ansi_processor.get_processed_text();
-                                if !remaining_text.is_empty() {
-                                    let pty_reader_uuid = uuid::Uuid::new_v4();
-                                    if let Err(e) = sender.send((pty_reader_uuid, crate::thread_manager::Message::PanelOutputUpdate(
-                                        output_target.clone(),
-                                        true,
-                                        format!("{}\n", remaining_text), // Add newline for final output
-                                    ))) {
-                                        error!("Failed to send final PTY output: {}", e);
-                                    }
-                                }
-
-                                // Send final message indicating completion
-                                if let Err(e) = sender.send((thread_uuid, crate::thread_manager::Message::PanelOutputUpdate(
-                                    output_target.clone(),
-                                    exit_code == 0,
-                                    format!("\n[Process exited with code {}]\n", exit_code),
-                                ))) {
-                                    error!("Failed to send PTY completion message: {}", e);
-                                }
-                                break;
-                            }
-                            Ok(bytes_read) => {
-                                bytes_processed += bytes_read as u64;
-                                log::debug!("Read {} bytes from PTY (total: {})", bytes_read, bytes_processed);
-                                
-                                // Process raw bytes through ANSI processor
-                                ansi_processor.process_bytes(&buffer[..bytes_read]);
-                                
-                                // Get processed text and send line by line
-                                let processed_output = ansi_processor.get_processed_text().to_string();
-                                let mut lines_to_send = Vec::new();
-                                
-                                // Split by newlines and collect complete lines
-                                let current_lines: Vec<&str> = processed_output.split('\n').collect();
-                                
-                                // If we have complete lines (ending with newline), send them
-                                if processed_output.ends_with('\n') {
-                                    lines_to_send.extend(current_lines.iter().map(|s| s.to_string()));
-                                    ansi_processor.clear_processed_text();
-                                } else if current_lines.len() > 1 {
-                                    // Send all but the last incomplete line
-                                    lines_to_send.extend(current_lines[..current_lines.len()-1].iter().map(|s| s.to_string()));
-                                    
-                                    // Keep the last incomplete line in processor
-                                    ansi_processor.clear_processed_text();
-                                    if let Some(last_line) = current_lines.last() {
-                                        ansi_processor.process_string(last_line);
-                                    }
-                                }
-                                
-                                // Send complete lines
-                                for line in lines_to_send {
-                                    if !line.trim().is_empty() {
-                                        // Store line in circular buffer for scrollback
-                                        if let Ok(mut buffer) = buffer_clone.lock() {
-                                            buffer.push(line.clone());
-                                            debug!("Added line to PTY buffer (total: {})", buffer.len());
-                                        }
-                                        
-                                        log::info!("Sending PTY line (len: {}) to {}: {}", line.len(), output_target, 
-                                               line.chars().take(50).collect::<String>());
-                                        let message = crate::thread_manager::Message::PanelOutputUpdate(
-                                            output_target.clone(),
-                                            true,
-                                            format!("{}\n", line), // Add newline for proper line separation
-                                        );
-                                        // Use a new UUID for PTY reader thread to avoid ThreadManager filtering
-                                        let pty_reader_uuid = uuid::Uuid::new_v4();
-                                        debug!("About to send message via channel - pty_reader_uuid: {:?}", pty_reader_uuid);
-                                        if let Err(e) = sender.send((pty_reader_uuid, message)) {
-                                            error!("PTY message send failed - channel disconnected or full: {}", e);
-                                            break;
-                                        } else {
-                                            debug!("PTY message sent successfully via channel");
-                                        }
-                                        messages_sent += 1;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("Error reading from PTY: {}", e);
-                                
-                                // Update PTY status to error
-                                {
-                                    let mut active_ptys = active_ptys_clone.lock().unwrap();
-                                    if let Some(pty_proc) = active_ptys.get_mut(&panel_id_clone) {
-                                        pty_proc.status = PtyStatus::Error(e.to_string());
-                                    }
-                                }
-                                
-                                // Send error message
-                                if let Err(e) = sender.send((thread_uuid, crate::thread_manager::Message::PanelOutputUpdate(
-                                    panel_id_clone.clone(),
-                                    false,
-                                    format!("[PTY Error: {}]", e),
-                                ))) {
-                                    error!("Failed to send PTY error message: {}", e);
-                                }
-                                break;
+                            if let Some(pty_proc) = active_ptys.get_mut(&panel_id_clone) {
+                                pty_proc.status = PtyStatus::Finished(exit_code as i32);
                             }
                         }
-                
+
+                        // Send any remaining processed output
+                        let remaining_text = ansi_processor.get_processed_text();
+                        if !remaining_text.is_empty() {
+                            let pty_reader_uuid = uuid::Uuid::new_v4();
+                            if let Err(e) = sender.send((
+                                pty_reader_uuid,
+                                crate::thread_manager::Message::PanelOutputUpdate(
+                                    output_target.clone(),
+                                    true,
+                                    format!("{}\n", remaining_text), // Add newline for final output
+                                ),
+                            )) {
+                                error!("Failed to send final PTY output: {}", e);
+                            }
+                        }
+
+                        // Send final message indicating completion
+                        if let Err(e) = sender.send((
+                            thread_uuid,
+                            crate::thread_manager::Message::PanelOutputUpdate(
+                                output_target.clone(),
+                                exit_code == 0,
+                                format!("\n[Process exited with code {}]\n", exit_code),
+                            ),
+                        )) {
+                            error!("Failed to send PTY completion message: {}", e);
+                        }
+                        break;
+                    }
+                    Ok(bytes_read) => {
+                        bytes_processed += bytes_read as u64;
+                        log::debug!(
+                            "Read {} bytes from PTY (total: {})",
+                            bytes_read,
+                            bytes_processed
+                        );
+
+                        // Process raw bytes through ANSI processor
+                        ansi_processor.process_bytes(&buffer[..bytes_read]);
+
+                        // Get processed text and send line by line
+                        let processed_output = ansi_processor.get_processed_text().to_string();
+                        let mut lines_to_send = Vec::new();
+
+                        // Split by newlines and collect complete lines
+                        let current_lines: Vec<&str> = processed_output.split('\n').collect();
+
+                        // If we have complete lines (ending with newline), send them
+                        if processed_output.ends_with('\n') {
+                            lines_to_send.extend(current_lines.iter().map(|s| s.to_string()));
+                            ansi_processor.clear_processed_text();
+                        } else if current_lines.len() > 1 {
+                            // Send all but the last incomplete line
+                            lines_to_send.extend(
+                                current_lines[..current_lines.len() - 1]
+                                    .iter()
+                                    .map(|s| s.to_string()),
+                            );
+
+                            // Keep the last incomplete line in processor
+                            ansi_processor.clear_processed_text();
+                            if let Some(last_line) = current_lines.last() {
+                                ansi_processor.process_string(last_line);
+                            }
+                        }
+
+                        // Send complete lines
+                        for line in lines_to_send {
+                            if !line.trim().is_empty() {
+                                // Store line in circular buffer for scrollback
+                                if let Ok(mut buffer) = buffer_clone.lock() {
+                                    buffer.push(line.clone());
+                                    debug!("Added line to PTY buffer (total: {})", buffer.len());
+                                }
+
+                                log::info!(
+                                    "Sending PTY line (len: {}) to {}: {}",
+                                    line.len(),
+                                    output_target,
+                                    line.chars().take(50).collect::<String>()
+                                );
+                                let message = crate::thread_manager::Message::PanelOutputUpdate(
+                                    output_target.clone(),
+                                    true,
+                                    format!("{}\n", line), // Add newline for proper line separation
+                                );
+                                // Use a new UUID for PTY reader thread to avoid ThreadManager filtering
+                                let pty_reader_uuid = uuid::Uuid::new_v4();
+                                debug!(
+                                    "About to send message via channel - pty_reader_uuid: {:?}",
+                                    pty_reader_uuid
+                                );
+                                if let Err(e) = sender.send((pty_reader_uuid, message)) {
+                                    error!("PTY message send failed - channel disconnected or full: {}", e);
+                                    break;
+                                } else {
+                                    debug!("PTY message sent successfully via channel");
+                                }
+                                messages_sent += 1;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error reading from PTY: {}", e);
+
+                        // Update PTY status to error
+                        {
+                            let mut active_ptys = active_ptys_clone.lock().unwrap();
+                            if let Some(pty_proc) = active_ptys.get_mut(&panel_id_clone) {
+                                pty_proc.status = PtyStatus::Error(e.to_string());
+                            }
+                        }
+
+                        // Send error message
+                        if let Err(e) = sender.send((
+                            thread_uuid,
+                            crate::thread_manager::Message::PanelOutputUpdate(
+                                panel_id_clone.clone(),
+                                false,
+                                format!("[PTY Error: {}]", e),
+                            ),
+                        )) {
+                            error!("Failed to send PTY error message: {}", e);
+                        }
+                        break;
+                    }
+                }
+
                 // Small delay to prevent busy waiting
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
@@ -337,20 +382,24 @@ impl PtyManager {
     /// Send input to a PTY
     pub fn send_input(&self, panel_id: &str, input: &str) -> Result<()> {
         debug!("PTY input for panel {}: {}", panel_id, input);
-        
+
         // TODO: Implement actual PTY input sending
         // For now, just log that we received the input request
-        log::info!("PTY input routing request for panel {}: {}", panel_id, input.chars().take(10).collect::<String>());
-        
+        log::info!(
+            "PTY input routing request for panel {}: {}",
+            panel_id,
+            input.chars().take(10).collect::<String>()
+        );
+
         Ok(())
     }
 
     /// Resize a PTY to match panel dimensions
     pub fn resize_pty(&mut self, panel_id: &str, rows: u16, cols: u16) -> Result<()> {
         debug!("Resizing PTY for panel {} to {}x{}", panel_id, cols, rows);
-        
+
         let active_ptys = self.active_ptys.lock().unwrap();
-        
+
         if let Some(pty_process) = active_ptys.get(panel_id) {
             if let Some(master_pty_handle) = &pty_process.master_pty {
                 let pty_size = PtySize {
@@ -359,11 +408,14 @@ impl PtyManager {
                     pixel_width: 0,
                     pixel_height: 0,
                 };
-                
+
                 match master_pty_handle.lock().unwrap().resize(pty_size) {
                     Ok(_) => {
-                        debug!("PTY successfully resized for panel {} to {}x{}", panel_id, cols, rows);
-                    },
+                        debug!(
+                            "PTY successfully resized for panel {} to {}x{}",
+                            panel_id, cols, rows
+                        );
+                    }
                     Err(e) => {
                         warn!("PTY resize failed for panel {}: {}", panel_id, e);
                         return Err(e.into());
@@ -375,17 +427,17 @@ impl PtyManager {
         } else {
             debug!("PTY not found for panel: {}", panel_id);
         }
-        
+
         Ok(())
     }
 
-    /// Kill a PTY process 
+    /// Kill a PTY process
     pub fn kill_pty(&mut self, panel_id: &str) -> Result<()> {
         let mut active_ptys = self.active_ptys.lock().unwrap();
-        
+
         if let Some(pty_process) = active_ptys.get_mut(panel_id) {
             debug!("Killing PTY process for panel: {}", panel_id);
-            
+
             if pty_process.can_kill {
                 if let Some(pid) = pty_process.process_id {
                     // Use system kill command for cross-platform killing
@@ -394,19 +446,29 @@ impl PtyManager {
                         use std::process::Command;
                         match Command::new("kill").arg("-9").arg(pid.to_string()).output() {
                             Ok(_) => {
-                                debug!("Successfully killed PTY process {} for panel: {}", pid, panel_id);
+                                debug!(
+                                    "Successfully killed PTY process {} for panel: {}",
+                                    pid, panel_id
+                                );
                                 pty_process.status = PtyStatus::Finished(-9); // SIGKILL
                                 pty_process.can_kill = false; // Already killed
                             }
                             Err(e) => {
-                                warn!("Failed to kill PTY process {} for panel {}: {}", pid, panel_id, e);
-                                pty_process.status = PtyStatus::Error(format!("Kill failed: {}", e));
+                                warn!(
+                                    "Failed to kill PTY process {} for panel {}: {}",
+                                    pid, panel_id, e
+                                );
+                                pty_process.status =
+                                    PtyStatus::Error(format!("Kill failed: {}", e));
                             }
                         }
                     }
                     #[cfg(not(unix))]
                     {
-                        warn!("Process killing not supported on this platform for panel: {}", panel_id);
+                        warn!(
+                            "Process killing not supported on this platform for panel: {}",
+                            panel_id
+                        );
                         pty_process.status = PtyStatus::Error("Kill not supported".to_string());
                     }
                 } else {
@@ -414,13 +476,16 @@ impl PtyManager {
                     pty_process.status = PtyStatus::Error("No process ID".to_string());
                 }
             } else {
-                debug!("Process for panel {} already killed or cannot be killed", panel_id);
+                debug!(
+                    "Process for panel {} already killed or cannot be killed",
+                    panel_id
+                );
             }
-            
+
             // Drop the PTY handle to clean up resources
             pty_process.master_pty = None;
         }
-        
+
         Ok(())
     }
 
@@ -433,14 +498,14 @@ impl PtyManager {
     /// Clean up finished PTY processes
     pub fn cleanup_finished(&mut self) {
         let mut active_ptys = self.active_ptys.lock().unwrap();
-        
+
         active_ptys.retain(|panel_id, pty_process| {
             match &pty_process.status {
                 PtyStatus::Finished(_) | PtyStatus::Error(_) => {
                     debug!("Cleaning up finished PTY for panel: {}", panel_id);
                     false // Remove from map
                 }
-                _ => true // Keep running PTYs
+                _ => true, // Keep running PTYs
             }
         });
     }
@@ -453,7 +518,10 @@ impl PtyManager {
 
     /// Send signal to a PTY process (future enhancement)
     pub fn send_signal(&mut self, panel_id: &str, _signal: i32) -> Result<()> {
-        debug!("Signal send request for panel: {} (not yet implemented)", panel_id);
+        debug!(
+            "Signal send request for panel: {} (not yet implemented)",
+            panel_id
+        );
         // TODO: Implement signal sending when portable_pty supports it
         // For now, only kill() is supported through kill_pty()
         Ok(())
@@ -462,15 +530,16 @@ impl PtyManager {
     /// Get process information for a PTY
     pub fn get_process_info(&self, panel_id: &str) -> Option<(u32, PtyStatus)> {
         let active_ptys = self.active_ptys.lock().unwrap();
-        active_ptys.get(panel_id).and_then(|p| {
-            p.process_id.map(|pid| (pid, p.status.clone()))
-        })
+        active_ptys
+            .get(panel_id)
+            .and_then(|p| p.process_id.map(|pid| (pid, p.status.clone())))
     }
 
     /// Check if a PTY process is still running
     pub fn is_process_running(&self, panel_id: &str) -> bool {
         let active_ptys = self.active_ptys.lock().unwrap();
-        active_ptys.get(panel_id)
+        active_ptys
+            .get(panel_id)
             .map(|p| matches!(p.status, PtyStatus::Running | PtyStatus::Starting))
             .unwrap_or(false)
     }
@@ -478,7 +547,10 @@ impl PtyManager {
     /// Record a PTY failure for error recovery tracking
     fn record_pty_failure(&self, panel_id: String, error_msg: String) {
         let mut pty_failures = self.pty_failures.lock().unwrap();
-        pty_failures.entry(panel_id).or_insert_with(Vec::new).push(error_msg);
+        pty_failures
+            .entry(panel_id)
+            .or_insert_with(Vec::new)
+            .push(error_msg);
     }
 
     /// Get PTY failure history for a panel
@@ -490,7 +562,8 @@ impl PtyManager {
     /// Check if a panel has had recent PTY failures (within last few attempts)
     pub fn has_recent_pty_failures(&self, panel_id: &str, threshold: usize) -> bool {
         let pty_failures = self.pty_failures.lock().unwrap();
-        pty_failures.get(panel_id)
+        pty_failures
+            .get(panel_id)
             .map(|failures| failures.len() >= threshold)
             .unwrap_or(false)
     }
@@ -522,7 +595,10 @@ impl PtyManager {
     pub fn get_scrollback_content(&self, panel_id: &str) -> Option<String> {
         let active_ptys = self.active_ptys.lock().unwrap();
         active_ptys.get(panel_id).and_then(|p| {
-            p.output_buffer.lock().ok().map(|buffer| buffer.get_content())
+            p.output_buffer
+                .lock()
+                .ok()
+                .map(|buffer| buffer.get_content())
         })
     }
 
@@ -530,7 +606,10 @@ impl PtyManager {
     pub fn get_recent_lines(&self, panel_id: &str, line_count: usize) -> Option<Vec<String>> {
         let active_ptys = self.active_ptys.lock().unwrap();
         active_ptys.get(panel_id).and_then(|p| {
-            p.output_buffer.lock().ok().map(|buffer| buffer.get_last_lines(line_count))
+            p.output_buffer
+                .lock()
+                .ok()
+                .map(|buffer| buffer.get_last_lines(line_count))
         })
     }
 
@@ -538,16 +617,19 @@ impl PtyManager {
     pub fn search_buffer(&self, panel_id: &str, query: &str) -> Option<Vec<(usize, String)>> {
         let active_ptys = self.active_ptys.lock().unwrap();
         active_ptys.get(panel_id).and_then(|p| {
-            p.output_buffer.lock().ok().map(|buffer| buffer.search(query))
+            p.output_buffer
+                .lock()
+                .ok()
+                .map(|buffer| buffer.search(query))
         })
     }
 
     /// Get buffer statistics for a PTY panel
     pub fn get_buffer_stats(&self, panel_id: &str) -> Option<crate::circular_buffer::BufferStats> {
         let active_ptys = self.active_ptys.lock().unwrap();
-        active_ptys.get(panel_id).and_then(|p| {
-            p.output_buffer.lock().ok().map(|buffer| buffer.get_stats())
-        })
+        active_ptys
+            .get(panel_id)
+            .and_then(|p| p.output_buffer.lock().ok().map(|buffer| buffer.get_stats()))
     }
 
     /// Configure buffer size for a PTY panel (can be called before or during execution)
@@ -559,7 +641,10 @@ impl PtyManager {
                 debug!("Set buffer size for panel {} to {}", panel_id, max_size);
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("Failed to lock buffer for panel: {}", panel_id))
+                Err(anyhow::anyhow!(
+                    "Failed to lock buffer for panel: {}",
+                    panel_id
+                ))
             }
         } else {
             Err(anyhow::anyhow!("PTY not found for panel: {}", panel_id))
@@ -575,7 +660,10 @@ impl PtyManager {
                 debug!("Cleared buffer for panel {}", panel_id);
                 Ok(())
             } else {
-                Err(anyhow::anyhow!("Failed to lock buffer for panel: {}", panel_id))
+                Err(anyhow::anyhow!(
+                    "Failed to lock buffer for panel: {}",
+                    panel_id
+                ))
             }
         } else {
             Err(anyhow::anyhow!("PTY not found for panel: {}", panel_id))
@@ -583,10 +671,18 @@ impl PtyManager {
     }
 
     /// Get buffer content within a specific range (for pagination/scrolling)
-    pub fn get_buffer_range(&self, panel_id: &str, start: usize, count: usize) -> Option<Vec<String>> {
+    pub fn get_buffer_range(
+        &self,
+        panel_id: &str,
+        start: usize,
+        count: usize,
+    ) -> Option<Vec<String>> {
         let active_ptys = self.active_ptys.lock().unwrap();
         active_ptys.get(panel_id).and_then(|p| {
-            p.output_buffer.lock().ok().map(|buffer| buffer.get_lines_range(start, count))
+            p.output_buffer
+                .lock()
+                .ok()
+                .map(|buffer| buffer.get_lines_range(start, count))
         })
     }
 
@@ -594,15 +690,13 @@ impl PtyManager {
     /// F0132: PTY Process Info - Enhanced process details for status display
     pub fn get_detailed_process_info(&self, panel_id: &str) -> Option<ProcessInfo> {
         let active_ptys = self.active_ptys.lock().unwrap();
-        active_ptys.get(panel_id).map(|p| {
-            ProcessInfo {
-                panel_id: p.panel_id.clone(),
-                process_id: p.process_id,
-                status: p.status.clone(),
-                can_kill: p.can_kill,
-                buffer_lines: p.output_buffer.lock().map(|buf| buf.len()).unwrap_or(0),
-                is_running: matches!(p.status, PtyStatus::Running | PtyStatus::Starting),
-            }
+        active_ptys.get(panel_id).map(|p| ProcessInfo {
+            panel_id: p.panel_id.clone(),
+            process_id: p.process_id,
+            status: p.status.clone(),
+            can_kill: p.can_kill,
+            buffer_lines: p.output_buffer.lock().map(|buf| buf.len()).unwrap_or(0),
+            is_running: matches!(p.status, PtyStatus::Running | PtyStatus::Starting),
         })
     }
 
@@ -615,15 +709,27 @@ impl PtyManager {
                 PtyStatus::Starting => "Starting".to_string(),
                 PtyStatus::Running => "Running".to_string(),
                 PtyStatus::Finished(code) => {
-                    if code == 0 { "Done".to_string() } else { format!("Exit:{}", code) }
-                },
+                    if code == 0 {
+                        "Done".to_string()
+                    } else {
+                        format!("Exit:{}", code)
+                    }
+                }
                 PtyStatus::Error(ref msg) => {
-                    if msg.len() > 10 { format!("Error:{}", &msg[..7]) } else { format!("Error:{}", msg) }
-                },
+                    if msg.len() > 10 {
+                        format!("Error:{}", &msg[..7])
+                    } else {
+                        format!("Error:{}", msg)
+                    }
+                }
                 PtyStatus::FailedFallback => "Fallback".to_string(),
                 PtyStatus::Dead(ref reason) => {
-                    if reason.len() > 8 { format!("Dead:{}", &reason[..5]) } else { format!("Dead:{}", reason) }
-                },
+                    if reason.len() > 8 {
+                        format!("Dead:{}", &reason[..5])
+                    } else {
+                        format!("Dead:{}", reason)
+                    }
+                }
             };
             format!("PID:{} {}", pid, status_text)
         })
@@ -633,7 +739,10 @@ impl PtyManager {
     /// F0135: PTY Error States - Detect processes requiring visual error indication
     pub fn is_pty_in_error_state(&self, panel_id: &str) -> bool {
         if let Some((_, status)) = self.get_process_info(panel_id) {
-            matches!(status, PtyStatus::Error(_) | PtyStatus::Dead(_) | PtyStatus::FailedFallback)
+            matches!(
+                status,
+                PtyStatus::Error(_) | PtyStatus::Dead(_) | PtyStatus::FailedFallback
+            )
         } else {
             false
         }
@@ -723,8 +832,10 @@ impl PtyManager {
                                 log::info!("Killed PTY process {} for panel {}", pid, panel_id);
                                 Ok(())
                             } else {
-                                let error_msg = format!("Kill command failed: {}", 
-                                    String::from_utf8_lossy(&output.stderr));
+                                let error_msg = format!(
+                                    "Kill command failed: {}",
+                                    String::from_utf8_lossy(&output.stderr)
+                                );
                                 pty_process.status = PtyStatus::Error(error_msg.clone());
                                 Err(anyhow::anyhow!(error_msg))
                             }
@@ -736,10 +847,17 @@ impl PtyManager {
                         }
                     }
                 } else {
-                    Err(anyhow::anyhow!("Process {} for panel {} cannot be killed", pid, panel_id))
+                    Err(anyhow::anyhow!(
+                        "Process {} for panel {} cannot be killed",
+                        pid,
+                        panel_id
+                    ))
                 }
             } else {
-                Err(anyhow::anyhow!("No process ID available for panel {}", panel_id))
+                Err(anyhow::anyhow!(
+                    "No process ID available for panel {}",
+                    panel_id
+                ))
             }
         } else {
             Err(anyhow::anyhow!("PTY not found for panel: {}", panel_id))
@@ -784,13 +902,22 @@ impl PtyManager {
             can_kill: false,
             output_buffer: buffer,
         };
-        
-        self.active_ptys.lock().unwrap().insert(panel_id, pty_process);
+
+        self.active_ptys
+            .lock()
+            .unwrap()
+            .insert(panel_id, pty_process);
     }
 
     /// Test helper - Add a PTY process with custom status
     #[cfg(test)]
-    pub fn add_test_pty_process_with_status(&self, panel_id: String, buffer: Arc<Mutex<CircularBuffer>>, status: PtyStatus, pid: u32) {
+    pub fn add_test_pty_process_with_status(
+        &self,
+        panel_id: String,
+        buffer: Arc<Mutex<CircularBuffer>>,
+        status: PtyStatus,
+        pid: u32,
+    ) {
         let pty_process = PtyProcess {
             panel_id: panel_id.clone(),
             process_id: Some(pid),
@@ -799,8 +926,11 @@ impl PtyManager {
             can_kill: false,
             output_buffer: buffer,
         };
-        
-        self.active_ptys.lock().unwrap().insert(panel_id, pty_process);
+
+        self.active_ptys
+            .lock()
+            .unwrap()
+            .insert(panel_id, pty_process);
     }
 
     /// Test helper - Set PTY process killability for testing
@@ -838,9 +968,9 @@ pub struct ErrorStateInfo {
 /// F0135: PTY Error States - Types of PTY errors
 #[derive(Debug, Clone, PartialEq)]
 pub enum ErrorType {
-    ExecutionError,  // Script/command execution failed
-    ProcessDied,     // PTY process died unexpectedly
-    FallbackUsed,    // PTY failed, using regular execution
+    ExecutionError, // Script/command execution failed
+    ProcessDied,    // PTY process died unexpectedly
+    FallbackUsed,   // PTY failed, using regular execution
 }
 
 impl Default for PtyManager {

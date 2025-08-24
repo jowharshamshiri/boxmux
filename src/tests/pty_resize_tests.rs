@@ -14,7 +14,7 @@ mod pty_resize_tests {
     #[test]
     fn test_pty_resize_nonexistent_panel() {
         let mut manager = PtyManager::new().unwrap();
-        
+
         let result = manager.resize_pty("nonexistent", 25, 80);
         // Should not error out, just warn
         assert!(result.is_ok());
@@ -33,13 +33,13 @@ mod pty_resize_tests {
         // Test PtyStatus enum variants
         let status = PtyStatus::Starting;
         assert_eq!(status, PtyStatus::Starting);
-        
+
         let status = PtyStatus::Running;
         assert_eq!(status, PtyStatus::Running);
-        
+
         let status = PtyStatus::Finished(0);
         assert_eq!(status, PtyStatus::Finished(0));
-        
+
         let status = PtyStatus::Error("test".to_string());
         assert_eq!(status, PtyStatus::Error("test".to_string()));
     }
@@ -47,14 +47,14 @@ mod pty_resize_tests {
     #[test]
     fn test_pty_resize_api() {
         let mut manager = PtyManager::new().unwrap();
-        
+
         // Test resize with common terminal sizes
         let result = manager.resize_pty("test_panel", 24, 80);
         assert!(result.is_ok());
-        
+
         let result = manager.resize_pty("test_panel", 50, 120);
         assert!(result.is_ok());
-        
+
         let result = manager.resize_pty("test_panel", 30, 100);
         assert!(result.is_ok());
     }
@@ -62,10 +62,10 @@ mod pty_resize_tests {
     #[test]
     fn test_pty_manager_cleanup() {
         let mut manager = PtyManager::new().unwrap();
-        
+
         // Test cleanup operation
         manager.cleanup_finished();
-        
+
         // Should not panic or error
         let active_panels = manager.get_active_pty_panels();
         assert_eq!(active_panels.len(), 0);
@@ -74,7 +74,7 @@ mod pty_resize_tests {
     #[test]
     fn test_pty_kill_nonexistent() {
         let mut manager = PtyManager::new().unwrap();
-        
+
         let result = manager.kill_pty("nonexistent");
         assert!(result.is_ok());
     }
@@ -82,7 +82,7 @@ mod pty_resize_tests {
     #[test]
     fn test_pty_status_query() {
         let manager = PtyManager::new().unwrap();
-        
+
         let status = manager.get_pty_status("nonexistent");
         assert!(status.is_none());
     }

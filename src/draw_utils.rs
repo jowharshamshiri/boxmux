@@ -182,25 +182,25 @@ pub fn draw_panel(
             let mut chart_content = None;
             let mut plugin_content = None;
             let mut table_content = None;
-            
+
             // Generate plugin content if panel has plugin configuration
             if let Some(generated_plugin) = panel.generate_plugin_content(app_context, value) {
                 plugin_content = Some(generated_plugin);
                 content = plugin_content.as_deref();
             }
-            
+
             // Generate chart content if panel has chart configuration (charts override plugins)
             if let Some(generated_chart) = panel.generate_chart_content(value) {
                 chart_content = Some(generated_chart);
                 content = chart_content.as_deref();
             }
-            
+
             // Generate table content if panel has table configuration (tables override charts)
             if let Some(generated_table) = panel.generate_table_content(value) {
                 table_content = Some(generated_table);
                 content = table_content.as_deref();
             }
-            
+
             // F0120: PTY Scrollback - Use scrollback content for PTY panels
             let mut pty_scrollback_content = None;
             if panel.pty.unwrap_or(false) {
@@ -219,14 +219,14 @@ pub fn draw_panel(
 
             // Automatic scrollbar logic for focusable panels
             let mut overflow_behavior = panel.calc_overflow_behavior(app_context, app_graph);
-            
+
             // If panel is focusable (has next_focus_id) and content might overflow, enable scrolling
             if panel.next_focus_id.is_some() {
                 if let Some(content_str) = content {
                     let (content_width, content_height) = content_size(content_str);
                     let viewable_width = value.width().saturating_sub(4);
                     let viewable_height = value.height().saturating_sub(4);
-                    
+
                     // Check if content would overflow
                     if content_width > viewable_width || content_height > viewable_height {
                         overflow_behavior = "scroll".to_string();
@@ -248,28 +248,29 @@ pub fn draw_panel(
                 } else {
                     "⚡" // Default lightning bolt
                 };
-                
+
                 let mut title_parts = vec![indicator.to_string()];
-                
+
                 // F0132: PTY Process Info - Add process info if available
                 if let Some(pty_manager) = &app_context.pty_manager {
-                    if let Some(status_summary) = pty_manager.get_process_status_summary(&panel.id) {
+                    if let Some(status_summary) = pty_manager.get_process_status_summary(&panel.id)
+                    {
                         title_parts.push(format!("[{}]", status_summary));
                     }
                 }
-                
+
                 // Add original title if it exists
                 if let Some(title) = panel.title.as_deref() {
                     title_parts.push(title.to_string());
                 } else {
                     title_parts.push("PTY".to_string());
                 }
-                
+
                 Some(title_parts.join(" "))
             } else {
                 panel.title.clone()
             };
-            
+
             render_panel(
                 value,
                 &border_color,
@@ -740,7 +741,7 @@ pub fn render_panel(
             // Drawing scroll indicators with track and position
             if max_content_height > viewable_height {
                 let track_height = viewable_height.saturating_sub(2); // Available track space
-                
+
                 // Draw vertical scroll track
                 for y in (bounds.top() + 1)..bounds.bottom() {
                     print_with_color_and_background_at(
@@ -752,19 +753,20 @@ pub fn render_panel(
                         buffer,
                     );
                 }
-                
+
                 if track_height > 0 {
                     // Calculate proportional knob size and position
                     let content_ratio = viewable_height as f64 / max_content_height as f64;
-                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+                    let knob_size =
+                        std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
                     let available_track = track_height.saturating_sub(knob_size);
-                    
+
                     let knob_position = if available_track > 0 {
                         ((vertical_scroll / 100.0) * available_track as f64).round() as usize
                     } else {
                         0
                     };
-                    
+
                     // Draw proportional vertical scroll knob
                     for i in 0..knob_size {
                         let knob_y = bounds.top() + 1 + knob_position + i;
@@ -784,7 +786,7 @@ pub fn render_panel(
 
             if max_content_width > viewable_width {
                 let track_width = viewable_width.saturating_sub(2); // Available track space
-                
+
                 // Draw horizontal scroll track
                 for x in (bounds.left() + 1)..bounds.right() {
                     print_with_color_and_background_at(
@@ -796,19 +798,20 @@ pub fn render_panel(
                         buffer,
                     );
                 }
-                
+
                 if track_width > 0 {
                     // Calculate proportional knob size and position
                     let content_ratio = viewable_width as f64 / max_content_width as f64;
-                    let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
+                    let knob_size =
+                        std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
                     let available_track = track_width.saturating_sub(knob_size);
-                    
+
                     let knob_position = if available_track > 0 {
                         ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
                     } else {
                         0
                     };
-                    
+
                     // Draw proportional horizontal scroll knob
                     for i in 0..knob_size {
                         let knob_x = bounds.left() + 1 + knob_position + i;

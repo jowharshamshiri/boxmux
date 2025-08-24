@@ -25,23 +25,25 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        
+
         // This test SHOULD FAIL with current implementation
         // Panel content should have substituted variable, not literal text
         let content = panel.content.as_ref().unwrap();
         assert!(
             content.contains("app_variable_value"),
-            "FAILED: App variable not substituted in panel content. Got: '{}'", content
+            "FAILED: App variable not substituted in panel content. Got: '{}'",
+            content
         );
         assert!(
             !content.contains("${TEST_APP_VAR}"),
-            "FAILED: Variable placeholder still present. Got: '{}'", content
+            "FAILED: Variable placeholder still present. Got: '{}'",
+            content
         );
     }
 
@@ -66,22 +68,24 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        
+
         // This test SHOULD FAIL with current implementation
         let script_command = &panel.script.as_ref().unwrap()[0];
         assert!(
             script_command.contains("panel_specific_value"),
-            "FAILED: Panel variable not substituted in script. Got: '{}'", script_command
+            "FAILED: Panel variable not substituted in script. Got: '{}'",
+            script_command
         );
         assert!(
             !script_command.contains("${PANEL_LOCAL_VAR}"),
-            "FAILED: Variable placeholder still present. Got: '{}'", script_command
+            "FAILED: Variable placeholder still present. Got: '{}'",
+            script_command
         );
     }
 
@@ -90,7 +94,7 @@ app:
     fn test_variable_precedence_order() {
         // Set environment variable
         env::set_var("PRECEDENCE_TEST_VAR", "env_value");
-        
+
         let yaml_content = r#"
 app:
   variables:
@@ -110,24 +114,26 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
-        
+
         // Panel-local should win over app and environment
         let content = panel.content.as_ref().unwrap();
         assert!(
             content.contains("panel_value"),
-            "FAILED: Panel-local variable should have highest precedence. Got: '{}'", content
+            "FAILED: Panel-local variable should have highest precedence. Got: '{}'",
+            content
         );
         assert!(
             !content.contains("app_value") && !content.contains("env_value"),
-            "FAILED: Wrong precedence - should use panel value. Got: '{}'", content
+            "FAILED: Wrong precedence - should use panel value. Got: '{}'",
+            content
         );
-        
+
         env::remove_var("PRECEDENCE_TEST_VAR");
     }
 
@@ -151,36 +157,41 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        
+
         // This should either:
         // 1. Fail gracefully with a clear error message, OR
         // 2. Handle nested variables correctly
         // Currently it produces malformed output
-        
+
         if result.is_ok() {
             let app = result.unwrap();
             let panel = &app.layouts[0].children.as_ref().unwrap()[0];
             let content = panel.content.as_ref().unwrap();
-            
+
             // Should not contain malformed substitution
             assert!(
                 !content.contains("${DEFAULT_USER}}"),
-                "FAILED: Malformed nested variable substitution. Got: '{}'", content
+                "FAILED: Malformed nested variable substitution. Got: '{}'",
+                content
             );
-            
+
             // Should either substitute correctly or show clear error
             assert!(
-                content.contains("fallback_user") || content.contains("error") || content.contains("invalid"),
-                "FAILED: Nested variables should be handled gracefully. Got: '{}'", content
+                content.contains("fallback_user")
+                    || content.contains("error")
+                    || content.contains("invalid"),
+                "FAILED: Nested variables should be handled gracefully. Got: '{}'",
+                content
             );
         } else {
             // If it fails, error should be descriptive
             let error = result.err().unwrap().to_string();
             assert!(
                 error.contains("nested") || error.contains("variable") || error.contains("syntax"),
-                "FAILED: Error message should be descriptive for nested variables. Got: '{}'", error
+                "FAILED: Error message should be descriptive for nested variables. Got: '{}'",
+                error
             );
         }
     }
@@ -193,7 +204,7 @@ app:
         for var in &vars_to_clear {
             env::remove_var(var);
         }
-        
+
         let yaml_content = r#"
 app:
   variables:
@@ -214,23 +225,27 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
-        
+
         // Test layout title substitution
-        assert_eq!(app.layouts[0].title.as_ref().unwrap(), "Pure YAML App",
-                   "FAILED: App variable not substituted in layout title");
-        
-        // Test panel content substitution  
+        assert_eq!(
+            app.layouts[0].title.as_ref().unwrap(),
+            "Pure YAML App",
+            "FAILED: App variable not substituted in layout title"
+        );
+
+        // Test panel content substitution
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let content = panel.content.as_ref().unwrap();
-        
+
         assert!(
             content.contains("yaml_only_value") && content.contains("panel_only_value"),
-            "FAILED: YAML variables not substituted without environment. Got: '{}'", content
+            "FAILED: YAML variables not substituted without environment. Got: '{}'",
+            content
         );
     }
 
@@ -240,7 +255,7 @@ app:
         // Clear environment to ensure defaults are used
         env::remove_var("MISSING_VAR");
         env::remove_var("ANOTHER_MISSING_VAR");
-        
+
         let yaml_content = r#"
 app:
   layouts:
@@ -258,23 +273,25 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let script = panel.script.as_ref().unwrap();
-        
+
         assert!(
             script[0].contains("default_one"),
-            "FAILED: Default value not used for first missing var. Got: '{}'", script[0]
+            "FAILED: Default value not used for first missing var. Got: '{}'",
+            script[0]
         );
         assert!(
             script[1].contains("default_two"),
-            "FAILED: Default value not used for second missing var. Got: '{}'", script[1]
+            "FAILED: Default value not used for second missing var. Got: '{}'",
+            script[1]
         );
-        
+
         // Should not contain variable placeholders
         assert!(
             !script[0].contains("${MISSING_VAR") && !script[1].contains("${ANOTHER_MISSING_VAR"),
@@ -309,37 +326,38 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let layout = &app.layouts[0];
         let panel1 = &layout.children.as_ref().unwrap()[0];
-        
+
         // Test substitution in all field types
         assert_eq!(
             layout.title.as_ref().unwrap(),
             "Layout: global_value",
             "FAILED: Variable not substituted in layout title"
         );
-        
+
         assert_eq!(
             panel1.title.as_ref().unwrap(),
-            "Panel: global_value", 
+            "Panel: global_value",
             "FAILED: Variable not substituted in panel title"
         );
-        
+
         assert_eq!(
             panel1.content.as_ref().unwrap(),
             "Content: global_value",
             "FAILED: Variable not substituted in panel content"
         );
-        
+
         let script = panel1.script.as_ref().unwrap();
         assert!(
             script[0].contains("global_value"),
-            "FAILED: Variable not substituted in script. Got: '{}'", script[0]
+            "FAILED: Variable not substituted in script. Got: '{}'",
+            script[0]
         );
     }
 
@@ -347,7 +365,7 @@ app:
     #[test]
     fn test_empty_default_values() {
         env::remove_var("EMPTY_DEFAULT_VAR");
-        
+
         let yaml_content = r#"
 app:
   layouts:
@@ -363,18 +381,18 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let content = panel.content.as_ref().unwrap();
-        
+
         assert_eq!(
-            content,
-            "BeforeAfter",
-            "FAILED: Empty default value not handled correctly. Got: '{}'", content
+            content, "BeforeAfter",
+            "FAILED: Empty default value not handled correctly. Got: '{}'",
+            content
         );
     }
 
@@ -400,25 +418,28 @@ app:
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(result.is_ok(), "YAML loading failed: {:?}", result.err());
-        
+
         let app = result.unwrap();
         let panel = &app.layouts[0].children.as_ref().unwrap()[0];
         let content = panel.content.as_ref().unwrap();
-        
+
         assert!(
             content.contains("value with spaces, $pecial chars & symbols!"),
-            "FAILED: Special characters not preserved. Got: '{}'", content
+            "FAILED: Special characters not preserved. Got: '{}'",
+            content
         );
         assert!(
             content.contains("/usr/bin:/usr/local/bin"),
-            "FAILED: Path-like value not preserved. Got: '{}'", content  
+            "FAILED: Path-like value not preserved. Got: '{}'",
+            content
         );
         assert!(
             content.contains("\"quoted string\""),
-            "FAILED: Quoted value not preserved. Got: '{}'", content
+            "FAILED: Quoted value not preserved. Got: '{}'",
+            content
         );
     }
 }

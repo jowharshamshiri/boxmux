@@ -1,9 +1,5 @@
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    error::Error,
-    hash::Hash,
-};
+use std::{collections::HashMap, error::Error, hash::Hash};
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
@@ -107,7 +103,7 @@ pub enum SocketFunction {
     RestartPtyProcess {
         panel_id: String,
     },
-    // F0138: Socket PTY Query - Get PTY status and info  
+    // F0138: Socket PTY Query - Get PTY status and info
     QueryPtyStatus {
         panel_id: String,
     },
@@ -159,14 +155,14 @@ pub fn run_socket_function(
                         messages.push(Message::PanelOutputUpdate(
                             panel_id.clone(),
                             true,
-                            format!("PTY process killed for panel {}", panel_id)
+                            format!("PTY process killed for panel {}", panel_id),
                         ));
                     }
                     Err(err) => {
                         messages.push(Message::PanelOutputUpdate(
                             panel_id.clone(),
                             false,
-                            format!("Failed to kill PTY process: {}", err)
+                            format!("Failed to kill PTY process: {}", err),
                         ));
                     }
                 }
@@ -174,7 +170,7 @@ pub fn run_socket_function(
                 messages.push(Message::PanelOutputUpdate(
                     panel_id.clone(),
                     false,
-                    "PTY manager not available".to_string()
+                    "PTY manager not available".to_string(),
                 ));
             }
         }
@@ -185,14 +181,14 @@ pub fn run_socket_function(
                         messages.push(Message::PanelOutputUpdate(
                             panel_id.clone(),
                             true,
-                            format!("PTY process restarted for panel {}", panel_id)
+                            format!("PTY process restarted for panel {}", panel_id),
                         ));
                     }
                     Err(err) => {
                         messages.push(Message::PanelOutputUpdate(
                             panel_id.clone(),
                             false,
-                            format!("Failed to restart PTY process: {}", err)
+                            format!("Failed to restart PTY process: {}", err),
                         ));
                     }
                 }
@@ -200,7 +196,7 @@ pub fn run_socket_function(
                 messages.push(Message::PanelOutputUpdate(
                     panel_id.clone(),
                     false,
-                    "PTY manager not available".to_string()
+                    "PTY manager not available".to_string(),
                 ));
             }
         }
@@ -215,20 +211,20 @@ pub fn run_socket_function(
                     messages.push(Message::PanelOutputUpdate(
                         panel_id.clone(),
                         true,
-                        status_info
+                        status_info,
                     ));
                 } else {
                     messages.push(Message::PanelOutputUpdate(
                         panel_id.clone(),
                         false,
-                        format!("No PTY process found for panel {}", panel_id)
+                        format!("No PTY process found for panel {}", panel_id),
                     ));
                 }
             } else {
                 messages.push(Message::PanelOutputUpdate(
                     panel_id.clone(),
                     false,
-                    "PTY manager not available".to_string()
+                    "PTY manager not available".to_string(),
                 ));
             }
         }
@@ -380,8 +376,7 @@ impl PartialEq for Bounds {
 
 impl Eq for Bounds {}
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
-#[derive(Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq, Default)]
 pub enum Anchor {
     TopLeft,
     TopRight,
@@ -394,7 +389,6 @@ pub enum Anchor {
     CenterLeft,
     CenterRight,
 }
-
 
 impl Bounds {
     pub fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
@@ -921,18 +915,18 @@ mod tests {
         let config1 = Config::new(30);
         let config2 = Config::new(30);
         let config3 = Config::new(60);
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         config1.hash(&mut hasher1);
         config2.hash(&mut hasher2);
         config3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -1029,7 +1023,7 @@ mod tests {
         let outer = Bounds::new(10, 20, 100, 200);
         let inner = Bounds::new(30, 40, 80, 180);
         let overlapping = Bounds::new(5, 15, 50, 100);
-        
+
         assert!(outer.contains_bounds(&inner));
         assert!(!outer.contains_bounds(&overlapping));
     }
@@ -1041,7 +1035,7 @@ mod tests {
         let bounds1 = Bounds::new(10, 20, 100, 200);
         let bounds2 = Bounds::new(50, 100, 150, 250); // Overlapping
         let bounds3 = Bounds::new(200, 300, 250, 350); // Non-overlapping
-        
+
         assert!(bounds1.intersects(&bounds2));
         assert!(!bounds1.intersects(&bounds3));
     }
@@ -1053,7 +1047,7 @@ mod tests {
         let bounds1 = Bounds::new(10, 20, 100, 200);
         let bounds2 = Bounds::new(50, 100, 150, 250);
         let bounds3 = Bounds::new(200, 300, 250, 350);
-        
+
         let intersection = bounds1.intersection(&bounds2);
         assert!(intersection.is_some());
         let intersection = intersection.unwrap();
@@ -1061,7 +1055,7 @@ mod tests {
         assert_eq!(intersection.y1, 100);
         assert_eq!(intersection.x2, 100);
         assert_eq!(intersection.y2, 200);
-        
+
         assert!(bounds1.intersection(&bounds3).is_none());
     }
 
@@ -1071,7 +1065,7 @@ mod tests {
     fn test_bounds_union() {
         let bounds1 = Bounds::new(10, 20, 100, 200);
         let bounds2 = Bounds::new(50, 100, 150, 250);
-        
+
         let union = bounds1.union(&bounds2);
         assert_eq!(union.x1, 10);
         assert_eq!(union.y1, 20);
@@ -1181,7 +1175,7 @@ mod tests {
     #[test]
     fn test_bounds_anchor_points() {
         let bounds = Bounds::new(10, 20, 100, 200);
-        
+
         assert_eq!(bounds.top_left(), (10, 20));
         assert_eq!(bounds.top_right(), (100, 20));
         assert_eq!(bounds.bottom_left(), (10, 200));
@@ -1218,7 +1212,7 @@ mod tests {
         };
         let parent_bounds = Bounds::new(0, 0, 100, 200);
         let bounds = input_bounds.to_bounds(&parent_bounds);
-        
+
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
         assert_eq!(bounds.x2, 75);
@@ -1337,7 +1331,8 @@ mod tests {
     fn create_test_app_context() -> AppContext {
         let current_dir = std::env::current_dir().expect("Failed to get current directory");
         let dashboard_path = current_dir.join("layouts/tests.yaml");
-        let app = crate::load_app_from_yaml(dashboard_path.to_str().unwrap()).expect("Failed to load app");
+        let app = crate::load_app_from_yaml(dashboard_path.to_str().unwrap())
+            .expect("Failed to load app");
         AppContext::new(app, Config::default())
     }
 
@@ -1353,10 +1348,10 @@ mod tests {
             success: true,
             content: "Test content".to_string(),
         };
-        
+
         let result = run_socket_function(socket_function, &app_context);
         assert!(result.is_ok());
-        
+
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
@@ -1377,10 +1372,10 @@ mod tests {
         let socket_function = SocketFunction::SwitchActiveLayout {
             layout_id: "new_layout".to_string(),
         };
-        
+
         let result = run_socket_function(socket_function, &app_context);
         assert!(result.is_ok());
-        
+
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
         match &messages[0] {
@@ -1404,7 +1399,7 @@ mod tests {
         };
         let cell2 = cell1.clone();
         assert_eq!(cell1, cell2);
-        
+
         let cell3 = Cell {
             fg_color: "green".to_string(),
             bg_color: "blue".to_string(),
@@ -1416,13 +1411,13 @@ mod tests {
     /// Test send_json_to_socket function
     #[test]
     fn test_send_json_to_socket_function() {
-        use std::thread;
         use std::os::unix::net::UnixListener;
+        use std::thread;
         use std::time::Duration;
-        
+
         let socket_path = "/tmp/test_send_json.sock";
         let _ = std::fs::remove_file(socket_path);
-        
+
         // Start a simple test server
         let server_socket_path = socket_path.to_string();
         let server_handle = thread::spawn(move || {
@@ -1432,7 +1427,7 @@ mod tests {
                     if let Some(Ok(mut stream)) = listener.incoming().next() {
                         let mut buffer = Vec::new();
                         let mut temp_buffer = [0; 1024];
-                        
+
                         // Read data in chunks to avoid hanging on read_to_string
                         match stream.read(&mut temp_buffer) {
                             Ok(n) => {
@@ -1440,30 +1435,30 @@ mod tests {
                                 let _ = stream.write_all(b"Test Response");
                                 String::from_utf8_lossy(&buffer).to_string()
                             }
-                            Err(_) => String::new()
+                            Err(_) => String::new(),
                         }
                     } else {
                         String::new()
                     }
                 }
-                Err(_) => String::new()
+                Err(_) => String::new(),
             }
         });
-        
+
         // Give server time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Test send_json_to_socket
         let test_json = r#"{"test": "message"}"#;
         let result = send_json_to_socket(socket_path, test_json);
-        
+
         // The test is successful if either:
         // 1. The connection succeeds and we get the expected response
         // 2. The connection fails (which can happen in CI environments)
         match result {
             Ok(response) => {
                 assert_eq!(response, "Test Response");
-                
+
                 // Verify server received the correct message
                 let received_message = server_handle.join().unwrap();
                 assert_eq!(received_message, test_json);
@@ -1474,7 +1469,7 @@ mod tests {
                 let _ = server_handle.join();
             }
         }
-        
+
         // Clean up
         let _ = std::fs::remove_file(socket_path);
     }
