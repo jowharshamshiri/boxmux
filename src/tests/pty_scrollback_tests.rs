@@ -2,8 +2,8 @@ use crate::circular_buffer::CircularBuffer;
 use crate::model::panel::Panel;
 use crate::pty_manager::PtyManager;
 use crate::AppContext;
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// F0120: PTY Scrollback Tests
 /// Comprehensive test suite for PTY scrollback functionality
@@ -17,7 +17,7 @@ mod pty_scrollback_tests {
         // Create PTY manager and panel
         let pty_manager = PtyManager::new().unwrap();
         let mut panel = create_test_pty_panel();
-        
+
         // Add content to circular buffer
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
         {
@@ -26,10 +26,10 @@ mod pty_scrollback_tests {
             buf.push("Line 2".to_string());
             buf.push("Line 3".to_string());
         }
-        
+
         // Add PTY process with buffer using test helper
         pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
-        
+
         // Test scrollback content retrieval
         let content = panel.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
@@ -40,7 +40,7 @@ mod pty_scrollback_tests {
     fn test_pty_panel_scrollback_line_range() {
         let pty_manager = PtyManager::new().unwrap();
         let panel = create_test_pty_panel();
-        
+
         // Create buffer with multiple lines
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
         {
@@ -49,10 +49,10 @@ mod pty_scrollback_tests {
                 buf.push(format!("Line {}", i));
             }
         }
-        
+
         // Add PTY process using test helper
         pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
-        
+
         // Test line range retrieval
         let lines = panel.get_scrollback_lines(&pty_manager, 2, 3);
         assert!(lines.is_some());
@@ -67,7 +67,7 @@ mod pty_scrollback_tests {
     fn test_pty_panel_scrollback_line_count() {
         let pty_manager = PtyManager::new().unwrap();
         let panel = create_test_pty_panel();
-        
+
         // Create buffer with known number of lines
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
         {
@@ -76,10 +76,10 @@ mod pty_scrollback_tests {
                 buf.push(format!("Line {}", i));
             }
         }
-        
+
         // Add PTY process using test helper
         pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
-        
+
         // Test line count
         let count = panel.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 15);
@@ -90,12 +90,12 @@ mod pty_scrollback_tests {
         let pty_manager = PtyManager::new().unwrap();
         let mut panel = create_test_regular_panel();
         panel.content = Some("Line 1\nLine 2\nLine 3\nLine 4".to_string());
-        
+
         // Test fallback to regular content for non-PTY panels
         let content = panel.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         assert_eq!(content.unwrap(), "Line 1\nLine 2\nLine 3\nLine 4");
-        
+
         // Test line range for regular panels
         let lines = panel.get_scrollback_lines(&pty_manager, 1, 2);
         assert!(lines.is_some());
@@ -103,7 +103,7 @@ mod pty_scrollback_tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], "Line 2");
         assert_eq!(lines[1], "Line 3");
-        
+
         // Test line count for regular panels
         let count = panel.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 4);
@@ -113,7 +113,7 @@ mod pty_scrollback_tests {
     fn test_pty_scrollback_with_circular_buffer_overflow() {
         let pty_manager = PtyManager::new().unwrap();
         let panel = create_test_pty_panel();
-        
+
         // Create small buffer to test overflow behavior
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(5)));
         {
@@ -123,14 +123,14 @@ mod pty_scrollback_tests {
                 buf.push(format!("Line {}", i));
             }
         }
-        
+
         // Add PTY process using test helper
         pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
-        
+
         // Should only have last 5 lines due to circular buffer limit
         let count = panel.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 5);
-        
+
         let content = panel.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         // Should contain only the last 5 lines (6-10)
@@ -141,21 +141,21 @@ mod pty_scrollback_tests {
     fn test_pty_scrollback_empty_buffer() {
         let pty_manager = PtyManager::new().unwrap();
         let panel = create_test_pty_panel();
-        
+
         // Create empty buffer
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(100)));
-        
+
         // Add PTY process using test helper
         pty_manager.add_test_pty_process(panel.id.clone(), buffer.clone());
-        
+
         // Test empty buffer handling
         let content = panel.get_scrollback_content(&pty_manager);
         assert!(content.is_some());
         assert_eq!(content.unwrap(), "");
-        
+
         let count = panel.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 0);
-        
+
         let lines = panel.get_scrollback_lines(&pty_manager, 0, 5);
         assert!(lines.is_none());
     }
@@ -164,16 +164,16 @@ mod pty_scrollback_tests {
     fn test_pty_scrollback_non_existent_panel() {
         let pty_manager = PtyManager::new().unwrap();
         let panel = create_test_pty_panel();
-        
+
         // Don't add the panel to PTY manager
-        
+
         // Test handling of non-existent PTY panel
         let content = panel.get_scrollback_content(&pty_manager);
         assert!(content.is_none());
-        
+
         let count = panel.get_scrollback_line_count(&pty_manager);
         assert_eq!(count, 0);
-        
+
         let lines = panel.get_scrollback_lines(&pty_manager, 0, 5);
         assert!(lines.is_none());
     }

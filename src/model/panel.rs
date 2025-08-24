@@ -28,7 +28,7 @@ where
     }
 
     let script_format = Option::<ScriptFormat>::deserialize(deserializer)?;
-    
+
     match script_format {
         None => Ok(None),
         Some(ScriptFormat::Single(single)) => {
@@ -277,12 +277,16 @@ impl Hash for Panel {
         self.plugin_component.hash(state);
         // Hash plugin_config by serializing to string (HashMap<String, serde_json::Value> doesn't implement Hash)
         if let Some(ref config) = self.plugin_config {
-            serde_json::to_string(config).unwrap_or_default().hash(state);
+            serde_json::to_string(config)
+                .unwrap_or_default()
+                .hash(state);
         }
         self.table_data.hash(state);
-        // Hash table_config by serializing to string (HashMap<String, serde_json::Value> doesn't implement Hash)  
+        // Hash table_config by serializing to string (HashMap<String, serde_json::Value> doesn't implement Hash)
         if let Some(ref config) = self.table_config {
-            serde_json::to_string(config).unwrap_or_default().hash(state);
+            serde_json::to_string(config)
+                .unwrap_or_default()
+                .hash(state);
         }
         self.auto_scroll_bottom.hash(state);
         self.pty.hash(state);
@@ -1135,10 +1139,10 @@ impl Panel {
 
     pub fn is_selectable(&self) -> bool {
         // Panel is selectable if it has explicit tab order OR has scrollable content
-        let has_tab_order = self.tab_order.is_some() 
+        let has_tab_order = self.tab_order.is_some()
             && self.tab_order.as_ref().unwrap() != "none"
             && !self.tab_order.as_ref().unwrap().is_empty();
-        
+
         has_tab_order || self.has_scrollable_content()
     }
 
@@ -1153,22 +1157,22 @@ impl Panel {
         } else {
             self.content.as_deref()
         };
-        
+
         if let Some(content_str) = content {
             // Empty content is not scrollable
             if content_str.trim().is_empty() {
                 return false;
             }
-            
+
             let bounds = self.bounds();
             let viewable_width = bounds.width().saturating_sub(4); // Account for borders and padding
             let viewable_height = bounds.height().saturating_sub(4);
-            
+
             // Use the same content_size logic as draw_utils.rs
             let lines: Vec<&str> = content_str.split('\n').collect();
             let content_height = lines.len();
             let content_width = lines.iter().map(|line| line.len()).max().unwrap_or(0);
-            
+
             // Content overflows if it's larger than viewable area
             content_width > viewable_width || content_height > viewable_height
         } else {
@@ -1329,7 +1333,7 @@ impl Panel {
         // Preserve current scroll position
         let preserved_horizontal_scroll = self.horizontal_scroll;
         let preserved_vertical_scroll = self.vertical_scroll;
-        
+
         let mut formatted_content = new_content.to_string();
         if append_content {
             if let Some(self_content) = &self.content {
@@ -1346,7 +1350,7 @@ impl Panel {
         }
         self.content = Some(formatted_content);
         self.error_state = !success;
-        
+
         // Handle auto-scroll to bottom or restore scroll position
         if self.auto_scroll_bottom == Some(true) {
             // Auto-scroll to bottom - set vertical scroll to maximum
@@ -1377,17 +1381,17 @@ impl Panel {
         // Preserve current scroll position
         let preserved_horizontal_scroll = self.horizontal_scroll;
         let preserved_vertical_scroll = self.vertical_scroll;
-        
+
         let formatted_content = if let Some(self_content) = &self.content {
             // Simple append without timestamp formatting for streaming
             format!("{}{}", self_content, new_content)
         } else {
             new_content.to_string()
         };
-        
+
         self.content = Some(formatted_content);
         self.error_state = !success;
-        
+
         // Handle auto-scroll to bottom or restore scroll position
         if self.auto_scroll_bottom == Some(true) {
             // Auto-scroll to bottom - set vertical scroll to maximum
@@ -1402,7 +1406,10 @@ impl Panel {
 
     /// Get scrollback content for PTY panels using the circular buffer
     /// F0120: PTY Scrollback - Access full scrollback history beyond visible area
-    pub fn get_scrollback_content(&self, pty_manager: &crate::pty_manager::PtyManager) -> Option<String> {
+    pub fn get_scrollback_content(
+        &self,
+        pty_manager: &crate::pty_manager::PtyManager,
+    ) -> Option<String> {
         if self.pty == Some(true) {
             pty_manager.get_scrollback_content(&self.id)
         } else {
@@ -1412,7 +1419,12 @@ impl Panel {
 
     /// Get scrollback lines for PTY panels with range support
     /// F0120: PTY Scrollback - Access specific range of scrollback lines
-    pub fn get_scrollback_lines(&self, pty_manager: &crate::pty_manager::PtyManager, start_line: usize, line_count: usize) -> Option<Vec<String>> {
+    pub fn get_scrollback_lines(
+        &self,
+        pty_manager: &crate::pty_manager::PtyManager,
+        start_line: usize,
+        line_count: usize,
+    ) -> Option<Vec<String>> {
         if self.pty == Some(true) {
             if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
                 if let Ok(buffer_lock) = buffer.lock() {
@@ -1450,15 +1462,22 @@ impl Panel {
             0
         } else {
             // For regular panels, count lines in content
-            self.content.as_ref().map(|c| c.lines().count()).unwrap_or(0)
+            self.content
+                .as_ref()
+                .map(|c| c.lines().count())
+                .unwrap_or(0)
         }
     }
 
     /// Generate plugin content for the panel
-    pub fn generate_plugin_content(&self, app_context: &AppContext, bounds: &Bounds) -> Option<String> {
-        use crate::plugin::{PluginRegistry, PluginContext, ComponentConfig};
+    pub fn generate_plugin_content(
+        &self,
+        app_context: &AppContext,
+        bounds: &Bounds,
+    ) -> Option<String> {
+        use crate::plugin::{ComponentConfig, PluginContext, PluginRegistry};
         use std::collections::HashMap;
-        
+
         if let Some(component_type) = &self.plugin_component {
             let registry = PluginRegistry::new();
             let context = PluginContext {
@@ -1473,7 +1492,7 @@ impl Panel {
                 data_source: None,
                 refresh_interval: None,
             };
-            
+
             match registry.render_component(component_type, &context, &config) {
                 Ok(content) => Some(content),
                 Err(_) => {
@@ -1489,15 +1508,18 @@ impl Panel {
     /// Generate mock plugin content for testing
     fn generate_mock_plugin_content(&self, component_type: &str, bounds: &Bounds) -> String {
         let bounds_str = format!("{}x{}", bounds.width(), bounds.height());
-        
+
         match component_type {
             "custom_chart" => {
-                format!("Mock Plugin: custom_chart\nTest Chart\nBounds: {}", bounds_str)
-            },
+                format!(
+                    "Mock Plugin: custom_chart\nTest Chart\nBounds: {}",
+                    bounds_str
+                )
+            }
             "data_table" => {
                 if let Some(config) = &self.plugin_config {
                     let mut content = format!("Mock Plugin: data_table\n");
-                    
+
                     // Check for columns configuration
                     if let Some(columns) = config.get("columns") {
                         if let Some(cols_array) = columns.as_array() {
@@ -1508,32 +1530,41 @@ impl Panel {
                             }
                         }
                     }
-                    
+
                     // Include page size if specified
                     if let Some(page_size) = config.get("page_size") {
                         if let Some(size) = page_size.as_u64() {
                             content.push_str(&format!("Page Size: {}\n", size));
                         }
                     }
-                    
+
                     content.push_str(&format!("Bounds: {}", bounds_str));
                     content
                 } else {
                     format!("Mock Plugin: data_table\nBounds: {}", bounds_str)
                 }
-            },
+            }
             "dashboard_widget" => {
                 if let Some(config) = &self.plugin_config {
                     if let Some(widget_type) = config.get("widget_type") {
-                        format!("Mock Plugin: dashboard_widget\nType: {}\nBounds: {}", 
-                               widget_type.as_str().unwrap_or("unknown"), bounds_str)
+                        format!(
+                            "Mock Plugin: dashboard_widget\nType: {}\nBounds: {}",
+                            widget_type.as_str().unwrap_or("unknown"),
+                            bounds_str
+                        )
                     } else {
-                        format!("Mock Plugin: dashboard_widget\nmetrics\nBounds: {}", bounds_str)
+                        format!(
+                            "Mock Plugin: dashboard_widget\nmetrics\nBounds: {}",
+                            bounds_str
+                        )
                     }
                 } else {
-                    format!("Mock Plugin: dashboard_widget\nmetrics\nBounds: {}", bounds_str)
+                    format!(
+                        "Mock Plugin: dashboard_widget\nmetrics\nBounds: {}",
+                        bounds_str
+                    )
                 }
-            },
+            }
             _ => {
                 format!("Mock Plugin: {}\nBounds: {}", component_type, bounds_str)
             }
@@ -1543,12 +1574,12 @@ impl Panel {
     /// Generate chart content for the panel
     pub fn generate_chart_content(&self, bounds: &Bounds) -> Option<String> {
         use crate::chart::{generate_chart, parse_chart_data, ChartConfig, ChartType};
-        
+
         if let (Some(chart_type_str), Some(chart_data)) = (&self.chart_type, &self.chart_data) {
             let data = parse_chart_data(chart_data);
             let chart_type = match chart_type_str.as_str() {
                 "bar" => ChartType::Bar,
-                "line" => ChartType::Line, 
+                "line" => ChartType::Line,
                 "histogram" => ChartType::Histogram,
                 _ => ChartType::Bar,
             };
@@ -1567,9 +1598,12 @@ impl Panel {
 
     /// Generate table content for the panel
     pub fn generate_table_content(&self, bounds: &Bounds) -> Option<String> {
-        use crate::table::{render_table, parse_table_data, parse_table_data_from_json, TableConfig, TableBorderStyle};
+        use crate::table::{
+            parse_table_data, parse_table_data_from_json, render_table, TableBorderStyle,
+            TableConfig,
+        };
         use std::collections::HashMap;
-        
+
         if let Some(table_data) = &self.table_data {
             // Parse table data
             let data = if table_data.trim().starts_with('[') {
@@ -1582,7 +1616,7 @@ impl Panel {
                 // CSV format
                 parse_table_data(table_data, None)
             };
-            
+
             // Create table configuration
             let mut config = TableConfig {
                 width: bounds.width().saturating_sub(4),
@@ -1590,30 +1624,47 @@ impl Panel {
                 title: self.title.clone(),
                 ..Default::default()
             };
-            
+
             // Apply table configuration from panel
             if let Some(table_config_map) = &self.table_config {
-                if let Some(show_headers) = table_config_map.get("show_headers").and_then(|v| v.as_bool()) {
+                if let Some(show_headers) = table_config_map
+                    .get("show_headers")
+                    .and_then(|v| v.as_bool())
+                {
                     config.show_headers = show_headers;
                 }
-                
-                if let Some(sort_column) = table_config_map.get("sort_column").and_then(|v| v.as_str()) {
+
+                if let Some(sort_column) =
+                    table_config_map.get("sort_column").and_then(|v| v.as_str())
+                {
                     config.sort_column = Some(sort_column.to_string());
                 }
-                
-                if let Some(sort_ascending) = table_config_map.get("sort_ascending").and_then(|v| v.as_bool()) {
+
+                if let Some(sort_ascending) = table_config_map
+                    .get("sort_ascending")
+                    .and_then(|v| v.as_bool())
+                {
                     config.sort_ascending = sort_ascending;
                 }
-                
-                if let Some(zebra_striping) = table_config_map.get("zebra_striping").and_then(|v| v.as_bool()) {
+
+                if let Some(zebra_striping) = table_config_map
+                    .get("zebra_striping")
+                    .and_then(|v| v.as_bool())
+                {
                     config.zebra_striping = zebra_striping;
                 }
 
-                if let Some(show_row_numbers) = table_config_map.get("show_row_numbers").and_then(|v| v.as_bool()) {
+                if let Some(show_row_numbers) = table_config_map
+                    .get("show_row_numbers")
+                    .and_then(|v| v.as_bool())
+                {
                     config.show_row_numbers = show_row_numbers;
                 }
 
-                if let Some(border_style) = table_config_map.get("border_style").and_then(|v| v.as_str()) {
+                if let Some(border_style) = table_config_map
+                    .get("border_style")
+                    .and_then(|v| v.as_str())
+                {
                     config.border_style = match border_style {
                         "none" => TableBorderStyle::None,
                         "single" => TableBorderStyle::Single,
@@ -1623,9 +1674,11 @@ impl Panel {
                         _ => TableBorderStyle::Single,
                     };
                 }
-                
+
                 // Apply filters
-                if let Some(filters_obj) = table_config_map.get("filters").and_then(|v| v.as_object()) {
+                if let Some(filters_obj) =
+                    table_config_map.get("filters").and_then(|v| v.as_object())
+                {
                     let mut filters = HashMap::new();
                     for (key, value) in filters_obj {
                         if let Some(val_str) = value.as_str() {
@@ -1634,16 +1687,26 @@ impl Panel {
                     }
                     config.filters = filters;
                 }
-                
-                if let Some(max_column_width) = table_config_map.get("max_column_width").and_then(|v| v.as_u64()) {
+
+                if let Some(max_column_width) = table_config_map
+                    .get("max_column_width")
+                    .and_then(|v| v.as_u64())
+                {
                     config.max_column_width = Some(max_column_width as usize);
                 }
-                
+
                 // Pagination configuration
-                if let Some(page_size) = table_config_map.get("page_size").and_then(|v| v.as_u64()) {
-                    let current_page = table_config_map.get("current_page").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                    let show_page_info = table_config_map.get("show_page_info").and_then(|v| v.as_bool()).unwrap_or(false);
-                    
+                if let Some(page_size) = table_config_map.get("page_size").and_then(|v| v.as_u64())
+                {
+                    let current_page = table_config_map
+                        .get("current_page")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    let show_page_info = table_config_map
+                        .get("show_page_info")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
                     config.pagination = Some(crate::table::TablePagination {
                         page_size: page_size as usize,
                         current_page,
@@ -1651,7 +1714,7 @@ impl Panel {
                     });
                 }
             }
-            
+
             Some(render_table(&data, &config))
         } else {
             None
@@ -2734,7 +2797,7 @@ mod tests {
             content: Some("Test content".to_string()),
             ..Default::default()
         };
-        
+
         assert_eq!(panel.id, "test_panel");
         assert_eq!(panel.title, Some("Test Panel".to_string()));
         assert_eq!(panel.scroll, true);
@@ -2759,29 +2822,29 @@ mod tests {
             },
             ..Default::default()
         };
-        
+
         // Get screen bounds and calculated bounds
         let bounds = panel.bounds();
         let screen_bounds = crate::utils::screen_bounds();
-        
+
         // Calculate expected values using the same logic as parse_percentage
         let expected_x1 = (0.25 * screen_bounds.width() as f64).round() as usize;
         let expected_y1 = (0.50 * screen_bounds.height() as f64).round() as usize;
         let expected_x2 = (0.75 * screen_bounds.width() as f64).round() as usize;
         let expected_y2 = (1.00 * screen_bounds.height() as f64).round() as usize;
-        
+
         // Test that bounds are calculated correctly relative to screen size
         assert_eq!(bounds.x1, expected_x1, "x1 should be 25% of screen width");
         assert_eq!(bounds.y1, expected_y1, "y1 should be 50% of screen height");
         assert_eq!(bounds.x2, expected_x2, "x2 should be 75% of screen width");
         assert_eq!(bounds.y2, expected_y2, "y2 should be 100% of screen height");
-        
+
         // Also test that bounds are within screen bounds
         assert!(bounds.x1 <= screen_bounds.width());
         assert!(bounds.y1 <= screen_bounds.height());
         assert!(bounds.x2 <= screen_bounds.width());
         assert!(bounds.y2 <= screen_bounds.height());
-        
+
         // Test that bounds are logically consistent
         assert!(bounds.x1 < bounds.x2, "x1 should be less than x2");
         assert!(bounds.y1 < bounds.y2, "y1 should be less than y2");
@@ -2801,10 +2864,10 @@ mod tests {
             },
             ..Default::default()
         };
-        
+
         let parent_bounds = Bounds::new(0, 0, 100, 200);
         let bounds = panel.absolute_bounds(Some(&parent_bounds));
-        
+
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
         assert_eq!(bounds.x2, 75);
@@ -2825,12 +2888,12 @@ mod tests {
             },
             ..Default::default()
         };
-        
+
         let new_bounds = Bounds::new(25, 50, 75, 100);
         let parent_bounds = Bounds::new(0, 0, 100, 200);
-        
+
         panel.update_bounds_absolutely(new_bounds, Some(&parent_bounds));
-        
+
         assert_eq!(panel.position.x1, "25%");
         assert_eq!(panel.position.y1, "25%");
         assert_eq!(panel.position.x2, "75%");
@@ -2845,7 +2908,7 @@ mod tests {
     fn test_panel_set_output() {
         let mut panel = Panel::default();
         assert_eq!(panel.output, "");
-        
+
         panel.set_output("Test output");
         assert_eq!(panel.output, "Test output");
     }
@@ -2855,12 +2918,12 @@ mod tests {
     #[test]
     fn test_panel_update_content() {
         let mut panel = Panel::default();
-        
+
         // Test successful update
         panel.update_content("New content", false, true);
         assert_eq!(panel.content, Some("New content".to_string()));
         assert_eq!(panel.error_state, false);
-        
+
         // Test error update
         panel.update_content("Error content", false, false);
         assert_eq!(panel.content, Some("Error content".to_string()));
@@ -2875,9 +2938,9 @@ mod tests {
             content: Some("Existing content".to_string()),
             ..Default::default()
         };
-        
+
         panel.update_content("New content", true, true);
-        
+
         // Check that content was appended with timestamp
         let content = panel.content.unwrap();
         assert!(content.contains("New content"));
@@ -2895,10 +2958,10 @@ mod tests {
             vertical_scroll: Some(75.0),
             ..Default::default()
         };
-        
+
         // Update content and verify scroll position is preserved
         panel.update_content("Updated content", false, true);
-        
+
         assert_eq!(panel.content, Some("Updated content".to_string()));
         assert_eq!(panel.horizontal_scroll, Some(25.0));
         assert_eq!(panel.vertical_scroll, Some(75.0));
@@ -2915,15 +2978,15 @@ mod tests {
             vertical_scroll: Some(50.0),
             ..Default::default()
         };
-        
+
         // Append content and verify scroll position is preserved
         panel.update_content("New content", true, true);
-        
+
         // Check scroll position preservation
         assert_eq!(panel.horizontal_scroll, Some(10.0));
         assert_eq!(panel.vertical_scroll, Some(50.0));
         assert_eq!(panel.error_state, false);
-        
+
         // Verify content was appended
         let content = panel.content.unwrap();
         assert!(content.contains("New content"));
@@ -2940,10 +3003,10 @@ mod tests {
             vertical_scroll: None,
             ..Default::default()
         };
-        
+
         // Update content and verify None scroll values are preserved
         panel.update_content("Updated content", false, true);
-        
+
         assert_eq!(panel.content, Some("Updated content".to_string()));
         assert_eq!(panel.horizontal_scroll, None);
         assert_eq!(panel.vertical_scroll, None);
@@ -2958,20 +3021,20 @@ mod tests {
             horizontal_scroll: Some(30.0),
             ..Default::default()
         };
-        
+
         // Test page down (large scroll down)
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 60.0);
-        
+
         // Test page up (large scroll up)
         panel.scroll_up(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 50.0);
-        
+
         // Test page scrolling doesn't exceed bounds
         panel.vertical_scroll = Some(95.0);
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 100.0); // Capped at 100
-        
+
         panel.vertical_scroll = Some(5.0);
         panel.scroll_up(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 0.0); // Capped at 0
@@ -2982,21 +3045,21 @@ mod tests {
     #[test]
     fn test_panel_page_scrolling_boundaries() {
         let mut panel = Panel::default();
-        
+
         // Test page down from initial position (None -> Some)
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 10.0);
-        
+
         // Test page up from initial position (None -> Some)
         panel.vertical_scroll = None;
         panel.scroll_up(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 0.0); // Can't go below 0
-        
+
         // Test large page movements near boundaries
         panel.vertical_scroll = Some(98.0);
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 100.0); // Should cap at 100
-        
+
         panel.vertical_scroll = Some(2.0);
         panel.scroll_up(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 0.0); // Should cap at 0
@@ -3009,14 +3072,14 @@ mod tests {
     #[test]
     fn test_panel_is_selectable() {
         let mut panel = Panel::default();
-        
+
         // Panel without tab_order is not selectable
         assert!(!panel.is_selectable());
-        
+
         // Panel with tab_order "none" is not selectable
         panel.tab_order = Some("none".to_string());
         assert!(!panel.is_selectable());
-        
+
         // Panel with numeric tab_order is selectable
         panel.tab_order = Some("1".to_string());
         assert!(panel.is_selectable());
@@ -3027,14 +3090,14 @@ mod tests {
     #[test]
     fn test_panel_is_selected() {
         let mut panel = Panel::default();
-        
+
         // Default panel is not selected
         assert!(!panel.is_selected());
-        
+
         // Panel with selected = Some(true) is selected
         panel.selected = Some(true);
         assert!(panel.is_selected());
-        
+
         // Panel with selected = Some(false) is not selected
         panel.selected = Some(false);
         assert!(!panel.is_selected());
@@ -3047,18 +3110,18 @@ mod tests {
     #[test]
     fn test_panel_scroll_down() {
         let mut panel = Panel::default();
-        
+
         // Initial scroll should be 0
         assert_eq!(panel.current_vertical_scroll(), 0.0);
-        
+
         // Scroll down by default amount
         panel.scroll_down(None);
         assert_eq!(panel.current_vertical_scroll(), 5.0);
-        
+
         // Scroll down by custom amount
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.current_vertical_scroll(), 15.0);
-        
+
         // Scroll should not exceed 100%
         panel.scroll_down(Some(90.0));
         assert_eq!(panel.current_vertical_scroll(), 100.0);
@@ -3072,15 +3135,15 @@ mod tests {
             vertical_scroll: Some(50.0),
             ..Default::default()
         };
-        
+
         // Scroll up by default amount
         panel.scroll_up(None);
         assert_eq!(panel.current_vertical_scroll(), 45.0);
-        
+
         // Scroll up by custom amount
         panel.scroll_up(Some(20.0));
         assert_eq!(panel.current_vertical_scroll(), 25.0);
-        
+
         // Scroll should not go below 0
         panel.scroll_up(Some(50.0));
         assert_eq!(panel.current_vertical_scroll(), 0.0);
@@ -3091,18 +3154,18 @@ mod tests {
     #[test]
     fn test_panel_scroll_right() {
         let mut panel = Panel::default();
-        
+
         // Initial scroll should be 0
         assert_eq!(panel.current_horizontal_scroll(), 0.0);
-        
+
         // Scroll right by default amount
         panel.scroll_right(None);
         assert_eq!(panel.current_horizontal_scroll(), 5.0);
-        
+
         // Scroll right by custom amount
         panel.scroll_right(Some(10.0));
         assert_eq!(panel.current_horizontal_scroll(), 15.0);
-        
+
         // Scroll should not exceed 100%
         panel.scroll_right(Some(90.0));
         assert_eq!(panel.current_horizontal_scroll(), 100.0);
@@ -3116,15 +3179,15 @@ mod tests {
             horizontal_scroll: Some(50.0),
             ..Default::default()
         };
-        
+
         // Scroll left by default amount
         panel.scroll_left(None);
         assert_eq!(panel.current_horizontal_scroll(), 45.0);
-        
+
         // Scroll left by custom amount
         panel.scroll_left(Some(20.0));
         assert_eq!(panel.current_horizontal_scroll(), 25.0);
-        
+
         // Scroll should not go below 0
         panel.scroll_left(Some(50.0));
         assert_eq!(panel.current_horizontal_scroll(), 0.0);
@@ -3137,7 +3200,7 @@ mod tests {
     #[test]
     fn test_choice_creation() {
         let choice = create_test_choice("test_choice", "Test Content");
-        
+
         assert_eq!(choice.id, "test_choice");
         assert_eq!(choice.content, Some("Test Content".to_string()));
         assert_eq!(choice.selected, false);
@@ -3151,7 +3214,7 @@ mod tests {
     fn test_choice_clone() {
         let choice1 = create_test_choice("test", "content");
         let choice2 = choice1.clone();
-        
+
         assert_eq!(choice1, choice2);
         assert_eq!(choice1.id, choice2.id);
         assert_eq!(choice1.content, choice2.content);
@@ -3164,7 +3227,7 @@ mod tests {
         let choice1 = create_test_choice("test", "content");
         let choice2 = create_test_choice("test", "content");
         let choice3 = create_test_choice("other", "content");
-        
+
         assert_eq!(choice1, choice2);
         assert_ne!(choice1, choice3);
     }
@@ -3176,18 +3239,18 @@ mod tests {
         let choice1 = create_test_choice("test", "content");
         let choice2 = create_test_choice("test", "content");
         let choice3 = create_test_choice("other", "content");
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         choice1.hash(&mut hasher1);
         choice2.hash(&mut hasher2);
         choice3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -3200,7 +3263,7 @@ mod tests {
     fn test_panel_clone() {
         let panel1 = create_test_panel("test");
         let panel2 = panel1.clone();
-        
+
         assert_eq!(panel1, panel2);
         assert_eq!(panel1.id, panel2.id);
         assert_eq!(panel1.title, panel2.title);
@@ -3217,9 +3280,9 @@ mod tests {
             children: Some(vec![child_panel]),
             ..Default::default()
         };
-        
+
         let cloned = parent_panel.clone();
-        
+
         assert_eq!(parent_panel.children.as_ref().unwrap().len(), 1);
         assert_eq!(cloned.children.as_ref().unwrap().len(), 1);
         assert_eq!(
@@ -3237,18 +3300,18 @@ mod tests {
         let panel1 = create_test_panel("test");
         let panel2 = create_test_panel("test");
         let panel3 = create_test_panel("other");
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         panel1.hash(&mut hasher1);
         panel2.hash(&mut hasher2);
         panel3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -3260,20 +3323,20 @@ mod tests {
     #[test]
     fn test_panel_scrolling_edge_cases() {
         let mut panel = Panel::default();
-        
+
         // Test scrolling when scroll values are None
         panel.vertical_scroll = None;
         panel.horizontal_scroll = None;
-        
+
         panel.scroll_down(Some(10.0));
         assert_eq!(panel.vertical_scroll, Some(10.0));
-        
+
         panel.scroll_right(Some(15.0));
         assert_eq!(panel.horizontal_scroll, Some(15.0));
-        
+
         panel.scroll_up(Some(5.0));
         assert_eq!(panel.vertical_scroll, Some(5.0));
-        
+
         panel.scroll_left(Some(10.0));
         assert_eq!(panel.horizontal_scroll, Some(5.0));
     }
@@ -3289,7 +3352,7 @@ mod tests {
             tab_order: Some("".to_string()),
             ..Default::default()
         };
-        
+
         assert_eq!(panel.id, "test");
         assert_eq!(panel.title, Some("".to_string()));
         assert_eq!(panel.content, Some("".to_string()));
@@ -3312,29 +3375,50 @@ mod tests {
             tab_order: None, // No explicit tab order
             ..Default::default()
         };
-        
-        assert!(panel.has_scrollable_content(), "Panel with large content should have scrollable content");
-        assert!(panel.is_selectable(), "Panel with scrollable content should be selectable even without tab_order");
+
+        assert!(
+            panel.has_scrollable_content(),
+            "Panel with large content should have scrollable content"
+        );
+        assert!(
+            panel.is_selectable(),
+            "Panel with scrollable content should be selectable even without tab_order"
+        );
 
         // Test that empty content is not scrollable
         panel.content = Some("".to_string());
-        assert!(!panel.has_scrollable_content(), "Panel with empty content should not have scrollable content");
-        assert!(!panel.is_selectable(), "Panel with empty content should not be selectable without tab_order");
+        assert!(
+            !panel.has_scrollable_content(),
+            "Panel with empty content should not have scrollable content"
+        );
+        assert!(
+            !panel.is_selectable(),
+            "Panel with empty content should not be selectable without tab_order"
+        );
 
         // Test that normal sized content is not scrollable
         panel.content = Some("Short".to_string());
         panel.position = InputBounds {
             x1: "0".to_string(),
             y1: "0".to_string(),
-            x2: "100".to_string(),  // Large enough to fit content
-            y2: "50".to_string(),   // Large enough to fit content
+            x2: "100".to_string(), // Large enough to fit content
+            y2: "50".to_string(),  // Large enough to fit content
         };
-        assert!(!panel.has_scrollable_content(), "Panel with content that fits should not have scrollable content");
-        assert!(!panel.is_selectable(), "Panel with non-scrollable content should not be selectable without tab_order");
+        assert!(
+            !panel.has_scrollable_content(),
+            "Panel with content that fits should not have scrollable content"
+        );
+        assert!(
+            !panel.is_selectable(),
+            "Panel with non-scrollable content should not be selectable without tab_order"
+        );
 
         // But with tab_order it should still be selectable
         panel.tab_order = Some("1".to_string());
-        assert!(panel.is_selectable(), "Panel with tab_order should always be selectable");
+        assert!(
+            panel.is_selectable(),
+            "Panel with tab_order should always be selectable"
+        );
     }
 
     // === Panel with Choices Tests ===
@@ -3345,13 +3429,13 @@ mod tests {
     fn test_panel_with_choices() {
         let choice1 = create_test_choice("choice1", "First Choice");
         let choice2 = create_test_choice("choice2", "Second Choice");
-        
+
         let panel = Panel {
             id: "test".to_string(),
             choices: Some(vec![choice1, choice2]),
             ..Default::default()
         };
-        
+
         assert_eq!(panel.choices.as_ref().unwrap().len(), 2);
         assert_eq!(panel.choices.as_ref().unwrap()[0].id, "choice1");
         assert_eq!(panel.choices.as_ref().unwrap()[1].id, "choice2");
@@ -3363,16 +3447,16 @@ mod tests {
     fn test_panel_choice_selection() {
         let mut choice1 = create_test_choice("choice1", "First Choice");
         let mut choice2 = create_test_choice("choice2", "Second Choice");
-        
+
         choice1.selected = true;
         choice2.selected = false;
-        
+
         let panel = Panel {
             id: "test".to_string(),
             choices: Some(vec![choice1, choice2]),
             ..Default::default()
         };
-        
+
         assert_eq!(panel.choices.as_ref().unwrap()[0].selected, true);
         assert_eq!(panel.choices.as_ref().unwrap()[1].selected, false);
     }
@@ -3386,7 +3470,7 @@ mod tests {
         let panel1 = create_test_panel("test");
         let panel2 = create_test_panel("test");
         let panel3 = create_test_panel("other");
-        
+
         assert_eq!(panel1, panel2);
         assert_ne!(panel1, panel3);
     }
@@ -3402,7 +3486,7 @@ mod tests {
             selected: Some(true),
             ..Default::default()
         };
-        
+
         let panel2 = Panel {
             id: "test".to_string(),
             title: Some("Test".to_string()),
@@ -3410,7 +3494,7 @@ mod tests {
             selected: Some(true),
             ..Default::default()
         };
-        
+
         let panel3 = Panel {
             id: "test".to_string(),
             title: Some("Test".to_string()),
@@ -3418,7 +3502,7 @@ mod tests {
             selected: Some(true),
             ..Default::default()
         };
-        
+
         assert_eq!(panel1, panel2);
         assert_ne!(panel1, panel3);
     }
@@ -3440,10 +3524,10 @@ mod tests {
               - "echo hello"
               - "echo world"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 2);
         assert_eq!(script[0], "echo hello");
         assert_eq!(script[1], "echo world");
@@ -3465,10 +3549,10 @@ mod tests {
               echo "Line 2"
               echo "Line 3"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo \"Line 1\"");
         assert_eq!(script[1], "echo \"Line 2\"");
@@ -3477,7 +3561,7 @@ mod tests {
 
     /// Tests that script deserializer handles mixed arrays with literal blocks.
     /// This test demonstrates mixed script format deserialization.
-    #[test] 
+    #[test]
     fn test_script_deserialize_mixed_array() {
         let yaml = r#"
             id: "test"
@@ -3493,10 +3577,10 @@ mod tests {
                 fi
               - "echo 'Simple command'"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 2);
         assert!(script[0].contains("if command -v free"));
         assert!(script[0].contains("echo \"Memory available\""));
@@ -3515,7 +3599,7 @@ mod tests {
               x2: "100%"
               y2: "100%"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         assert_eq!(panel.script, None);
     }
@@ -3538,10 +3622,10 @@ mod tests {
               
               echo "Fifth line"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo \"First line\"");
         assert_eq!(script[1], "echo \"Third line\"");
@@ -3562,10 +3646,10 @@ mod tests {
                   echo "complex"
                 fi
         "#;
-        
+
         let choice: Choice = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = choice.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 2);
         assert_eq!(script[0], "echo simple");
         assert!(script[1].contains("if true"));
@@ -3585,10 +3669,10 @@ mod tests {
               y2: "100%"
             script: "echo single command"
         "#;
-        
+
         let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 1);
         assert_eq!(script[0], "echo single command");
     }
@@ -3614,13 +3698,16 @@ mod tests {
                 done
               - "echo final"
         "#;
-        
+
         let result = serde_yaml::from_str::<Panel>(yaml);
-        assert!(result.is_ok(), "Should handle complex scripts without error");
-        
+        assert!(
+            result.is_ok(),
+            "Should handle complex scripts without error"
+        );
+
         let panel = result.unwrap();
         let script = panel.script.expect("Script should be present");
-        
+
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo normal");
         assert!(script[1].contains("for i in"));

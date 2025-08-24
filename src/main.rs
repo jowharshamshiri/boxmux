@@ -3,6 +3,7 @@ extern crate lazy_static;
 extern crate clap;
 
 use boxmux_lib::create_runnable_with_dynamic_input;
+use boxmux_lib::pty_manager::PtyManager;
 use boxmux_lib::resize_loop::ResizeLoop;
 use boxmux_lib::send_json_to_socket;
 use boxmux_lib::socket_loop::SocketLoop;
@@ -12,7 +13,6 @@ use boxmux_lib::FieldUpdate;
 use boxmux_lib::InputLoop;
 use boxmux_lib::Panel;
 use boxmux_lib::SocketFunction;
-use boxmux_lib::pty_manager::PtyManager;
 use clap::{Arg, Command};
 // Removed manual debug logging - using env_logger instead
 use std::collections::HashMap;
@@ -50,10 +50,10 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                          _vec: Vec<String>|
                          -> bool { true },
                         move |inner: &mut RunnableImpl,
-                         app_context: AppContext,
-                         _messages: Vec<Message>,
-                         vec: Vec<String>|
-                         -> (bool, AppContext) {
+                              app_context: AppContext,
+                              _messages: Vec<Message>,
+                              vec: Vec<String>|
+                              -> (bool, AppContext) {
                             let mut app_context_unwrapped = app_context.clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
                             let libs = app_context_unwrapped.app.libs.clone();
@@ -61,19 +61,30 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .app
                                 .get_panel_by_id_mut(&vec[0])
                                 .unwrap();
-                            
+
                             // Check if panel should use PTY
                             let use_pty = panel.pty.unwrap_or(false);
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
-                            
+
                             match boxmux_lib::utils::run_script_with_pty(
-                                libs, 
+                                libs,
                                 panel.script.clone().unwrap().as_ref(),
                                 use_pty,
-                                app_context_unwrapped.pty_manager.as_ref().map(|arc| arc.as_ref()),
-                                if use_pty { Some(panel.id.clone()) } else { None },
-                                if use_pty && sender_for_pty.is_some() { Some((sender_for_pty.unwrap().clone(), thread_uuid)) } else { None }
+                                app_context_unwrapped
+                                    .pty_manager
+                                    .as_ref()
+                                    .map(|arc| arc.as_ref()),
+                                if use_pty {
+                                    Some(panel.id.clone())
+                                } else {
+                                    None
+                                },
+                                if use_pty && sender_for_pty.is_some() {
+                                    Some((sender_for_pty.unwrap().clone(), thread_uuid))
+                                } else {
+                                    None
+                                },
                             ) {
                                 Ok(output) => inner.send_message(Message::PanelOutputUpdate(
                                     panel.id.clone(),
@@ -113,10 +124,10 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  _vec: Vec<String>|
                  -> bool { true },
                 move |inner: &mut RunnableImpl,
-                 app_context: AppContext,
-                 _messages: Vec<Message>,
-                 vec: Vec<String>|
-                 -> (bool, AppContext) {
+                      app_context: AppContext,
+                      _messages: Vec<Message>,
+                      vec: Vec<String>|
+                      -> (bool, AppContext) {
                     let mut app_context_unwrapped = app_context.clone();
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
@@ -139,14 +150,25 @@ fn run_panel_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             let use_pty = panel.pty.unwrap_or(false);
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
-                            
+
                             match boxmux_lib::utils::run_script_with_pty(
-                                libs, 
+                                libs,
                                 panel.script.clone().unwrap().as_ref(),
                                 use_pty,
-                                app_context_unwrapped.pty_manager.as_ref().map(|arc| arc.as_ref()),
-                                if use_pty { Some(panel.id.clone()) } else { None },
-                                if use_pty && sender_for_pty.is_some() { Some((sender_for_pty.unwrap().clone(), thread_uuid)) } else { None }
+                                app_context_unwrapped
+                                    .pty_manager
+                                    .as_ref()
+                                    .map(|arc| arc.as_ref()),
+                                if use_pty {
+                                    Some(panel.id.clone())
+                                } else {
+                                    None
+                                },
+                                if use_pty && sender_for_pty.is_some() {
+                                    Some((sender_for_pty.unwrap().clone(), thread_uuid))
+                                } else {
+                                    None
+                                },
                             ) {
                                 Ok(output) => inner.send_message(Message::PanelOutputUpdate(
                                     panel_id.clone(),
@@ -184,10 +206,10 @@ fn setup_signal_handler() {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
-    
+
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    
+
     thread::spawn(move || {
         let mut signals = Signals::new(&[SIGINT]).expect("Error setting up signal handler");
         if let Some(_sig) = signals.forever().next() {
@@ -200,31 +222,37 @@ fn setup_signal_handler() {
 
 /// Cleanup terminal state - restore normal mode
 fn cleanup_terminal() {
-    use crossterm::{execute, terminal, event};
+    use crossterm::{event, execute, terminal};
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, event::DisableMouseCapture);
     let _ = execute!(stdout, terminal::LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
 }
 
-/// Initialize comprehensive logging framework (F0161/F0162) 
+/// Initialize comprehensive logging framework (F0161/F0162)
 fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    let log_level = matches.get_one::<String>("log_level").unwrap_or(&"info".to_string()).clone();
+    let log_level = matches
+        .get_one::<String>("log_level")
+        .unwrap_or(&"info".to_string())
+        .clone();
     let log_file = matches.get_one::<String>("log_file").cloned();
-    
+
     // Parse log level for env_logger
     let env_log_level = match log_level.as_str() {
         "trace" => "trace",
-        "debug" => "debug", 
+        "debug" => "debug",
         "info" => "info",
         "warn" => "warn",
         "error" => "error",
         _ => "info",
     };
-    
+
     // Set RUST_LOG to enable all our modules at the specified level
-    std::env::set_var("RUST_LOG", format!("boxmux={},boxmux_lib={}", env_log_level, env_log_level));
-    
+    std::env::set_var(
+        "RUST_LOG",
+        format!("boxmux={},boxmux_lib={}", env_log_level, env_log_level),
+    );
+
     // Only initialize logging when --log-file is explicitly provided
     let logger_result = if let Some(ref file_path) = log_file {
         // Create file logger with custom format
@@ -232,16 +260,21 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&file_path) {
+            .open(&file_path)
+        {
             Ok(file) => Box::new(file),
-            Err(e) => return Err(format!("Failed to create log file '{}': {}", file_path, e).into()),
+            Err(e) => {
+                return Err(format!("Failed to create log file '{}': {}", file_path, e).into())
+            }
         };
-            
+
         env_logger::Builder::from_default_env()
             .target(env_logger::Target::Pipe(target))
             .format(|buf, record| {
                 use std::io::Write;
-                writeln!(buf, "[{}] [{}] [{}:{}] [T{:?}] {}", 
+                writeln!(
+                    buf,
+                    "[{}] [{}] [{}:{}] [T{:?}] {}",
                     chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                     record.level(),
                     record.file().unwrap_or("unknown"),
@@ -255,14 +288,20 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
         // No logging when --log-file is not provided to avoid corrupting TUI
         return Ok(());
     };
-    
+
     match logger_result {
         Ok(_) => {
-            eprintln!("Debug logging initialized: writing to file {}", log_file.as_ref().unwrap());
+            eprintln!(
+                "Debug logging initialized: writing to file {}",
+                log_file.as_ref().unwrap()
+            );
             log::info!("BoxMux logging system initialized at {} level", log_level);
-        },
+        }
         Err(e) => {
-            eprintln!("Warning: Could not initialize logger ({}). Logging may not work as expected.", e);
+            eprintln!(
+                "Warning: Could not initialize logger ({}). Logging may not work as expected.",
+                e
+            );
             eprintln!("This usually means another logger is already initialized in the codebase.");
             eprintln!("Continuing anyway...");
         }
@@ -716,7 +755,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(mgr) => {
             log::info!("PTY manager initialized successfully");
             Some(Arc::new(mgr))
-        },
+        }
         Err(e) => {
             log::warn!("Failed to initialize PTY manager: {}", e);
             None
@@ -730,7 +769,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     //create alternate screen in terminal and clear it
-    use crossterm::{execute, terminal, event};
+    use crossterm::{event, execute, terminal};
     let mut _stdout = std::io::stdout();
     execute!(_stdout, terminal::EnterAlternateScreen)?;
     execute!(_stdout, terminal::Clear(terminal::ClearType::All))?;
@@ -769,7 +808,7 @@ mod terminal_cleanup_tests {
     fn test_cleanup_terminal_function() {
         // Test that cleanup_terminal doesn't panic and can be called safely
         cleanup_terminal();
-        
+
         // Since we can't easily test the actual terminal state changes in a unit test,
         // we verify that the function completes without error
         // The real test is that the terminal is properly restored when the application exits
@@ -778,16 +817,16 @@ mod terminal_cleanup_tests {
 
     /// Tests that setup_signal_handler can be called without panicking
     /// This ensures the signal handler setup is robust
-    #[test] 
+    #[test]
     fn test_signal_handler_setup() {
         // Test that signal handler setup doesn't panic
         // Note: In a test environment, we can't fully test signal handling
         // but we can verify the setup doesn't cause immediate failures
         setup_signal_handler();
-        
+
         // Give the signal handler thread a moment to initialize
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         assert!(true, "Signal handler setup completed successfully");
     }
 
@@ -797,15 +836,15 @@ mod terminal_cleanup_tests {
     fn test_terminal_cleanup_sequence() {
         // Simulate the terminal setup and cleanup sequence
         // This is what should happen: EnterAlternateScreen -> enable_raw_mode -> ... -> cleanup
-        
+
         // We can't actually enter alternate screen or raw mode in a test,
         // but we can test that our cleanup function handles this gracefully
         cleanup_terminal();
-        
+
         // Test multiple calls to cleanup (should be idempotent)
         cleanup_terminal();
         cleanup_terminal();
-        
+
         assert!(true, "Terminal cleanup sequence completed successfully");
     }
 }

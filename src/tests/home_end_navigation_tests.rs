@@ -12,10 +12,10 @@ fn test_home_key_scrolls_to_beginning_horizontally() {
         selected: Some(true),
         ..Default::default()
     };
-    
+
     // Simulate Home key message handling effect
     panel.horizontal_scroll = Some(0.0);
-    
+
     // Verify horizontal scroll is at beginning (0.0)
     assert_eq!(panel.horizontal_scroll, Some(0.0));
     assert_eq!(panel.vertical_scroll, Some(25.0)); // Unchanged
@@ -32,10 +32,10 @@ fn test_end_key_scrolls_to_end_horizontally() {
         selected: Some(true),
         ..Default::default()
     };
-    
+
     // Simulate End key message handling effect
     panel.horizontal_scroll = Some(100.0);
-    
+
     // Verify horizontal scroll is at end (100.0)
     assert_eq!(panel.horizontal_scroll, Some(100.0));
     assert_eq!(panel.vertical_scroll, Some(75.0)); // Unchanged
@@ -52,10 +52,10 @@ fn test_ctrl_home_scrolls_to_top_vertically() {
         selected: Some(true),
         ..Default::default()
     };
-    
+
     // Simulate Ctrl+Home key message handling effect
     panel.vertical_scroll = Some(0.0);
-    
+
     // Verify vertical scroll is at top (0.0)
     assert_eq!(panel.horizontal_scroll, Some(60.0)); // Unchanged
     assert_eq!(panel.vertical_scroll, Some(0.0));
@@ -72,10 +72,10 @@ fn test_ctrl_end_scrolls_to_bottom_vertically() {
         selected: Some(true),
         ..Default::default()
     };
-    
+
     // Simulate Ctrl+End key message handling effect
     panel.vertical_scroll = Some(100.0);
-    
+
     // Verify vertical scroll is at bottom (100.0)
     assert_eq!(panel.horizontal_scroll, Some(30.0)); // Unchanged
     assert_eq!(panel.vertical_scroll, Some(100.0));
@@ -90,13 +90,13 @@ fn test_home_end_navigation_messages() {
     let end_msg = Message::ScrollPanelToEnd();
     let ctrl_home_msg = Message::ScrollPanelToTop();
     let ctrl_end_msg = Message::ScrollPanelToBottom();
-    
+
     // Test message equality for hash checking
     assert_eq!(home_msg, Message::ScrollPanelToBeginning());
     assert_eq!(end_msg, Message::ScrollPanelToEnd());
     assert_eq!(ctrl_home_msg, Message::ScrollPanelToTop());
     assert_eq!(ctrl_end_msg, Message::ScrollPanelToBottom());
-    
+
     // Test that messages are different from each other
     assert_ne!(home_msg, end_msg);
     assert_ne!(ctrl_home_msg, ctrl_end_msg);
@@ -114,22 +114,22 @@ fn test_scroll_transitions() {
         selected: Some(true),
         ..Default::default()
     };
-    
+
     // Test Home key (horizontal to beginning)
     panel.horizontal_scroll = Some(0.0);
     assert_eq!(panel.horizontal_scroll, Some(0.0));
     assert_eq!(panel.vertical_scroll, Some(75.0)); // Unchanged
-    
+
     // Test End key (horizontal to end)
     panel.horizontal_scroll = Some(100.0);
     assert_eq!(panel.horizontal_scroll, Some(100.0));
     assert_eq!(panel.vertical_scroll, Some(75.0)); // Unchanged
-    
+
     // Test Ctrl+Home (vertical to top)
     panel.vertical_scroll = Some(0.0);
     assert_eq!(panel.horizontal_scroll, Some(100.0)); // Unchanged
     assert_eq!(panel.vertical_scroll, Some(0.0));
-    
+
     // Test Ctrl+End (vertical to bottom)
     panel.vertical_scroll = Some(100.0);
     assert_eq!(panel.horizontal_scroll, Some(100.0)); // Unchanged

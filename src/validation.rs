@@ -1,45 +1,95 @@
-use crate::{App, Panel, Layout};
 use crate::model::common::Config;
-use serde_json::{Value, Map};
-use std::collections::HashSet;
+use crate::{App, Layout, Panel};
 use jsonschema::JSONSchema;
+use serde_json::{Map, Value};
+use std::collections::HashSet;
 use std::fs;
 
 /// Configuration schema validation errors
 #[derive(Debug, Clone)]
 pub enum ValidationError {
-    InvalidFieldType { field: String, expected: String, actual: String },
-    MissingRequiredField { field: String },
-    InvalidFieldValue { field: String, value: String, constraint: String },
-    DuplicateId { id: String, location: String },
-    InvalidReference { field: String, reference: String, target_type: String },
-    SchemaStructure { message: String },
-    JsonSchemaValidation { field: String, message: String },
+    InvalidFieldType {
+        field: String,
+        expected: String,
+        actual: String,
+    },
+    MissingRequiredField {
+        field: String,
+    },
+    InvalidFieldValue {
+        field: String,
+        value: String,
+        constraint: String,
+    },
+    DuplicateId {
+        id: String,
+        location: String,
+    },
+    InvalidReference {
+        field: String,
+        reference: String,
+        target_type: String,
+    },
+    SchemaStructure {
+        message: String,
+    },
+    JsonSchemaValidation {
+        field: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValidationError::InvalidFieldType { field, expected, actual } => {
-                write!(f, "Field '{}' expected type '{}' but got '{}'", field, expected, actual)
+            ValidationError::InvalidFieldType {
+                field,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' expected type '{}' but got '{}'",
+                    field, expected, actual
+                )
             }
             ValidationError::MissingRequiredField { field } => {
                 write!(f, "Required field '{}' is missing", field)
             }
-            ValidationError::InvalidFieldValue { field, value, constraint } => {
-                write!(f, "Field '{}' has invalid value '{}' (constraint: {})", field, value, constraint)
+            ValidationError::InvalidFieldValue {
+                field,
+                value,
+                constraint,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' has invalid value '{}' (constraint: {})",
+                    field, value, constraint
+                )
             }
             ValidationError::DuplicateId { id, location } => {
                 write!(f, "Duplicate ID '{}' found in {}", id, location)
             }
-            ValidationError::InvalidReference { field, reference, target_type } => {
-                write!(f, "Field '{}' references unknown {} '{}'", field, target_type, reference)
+            ValidationError::InvalidReference {
+                field,
+                reference,
+                target_type,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' references unknown {} '{}'",
+                    field, target_type, reference
+                )
             }
             ValidationError::SchemaStructure { message } => {
                 write!(f, "Schema structure error: {}", message)
             }
             ValidationError::JsonSchemaValidation { field, message } => {
-                write!(f, "JSON Schema validation error in '{}': {}", field, message)
+                write!(
+                    f,
+                    "JSON Schema validation error in '{}': {}",
+                    field, message
+                )
             }
         }
     }
@@ -69,25 +119,25 @@ impl SchemaValidator {
     /// Validate a complete BoxMux application configuration
     pub fn validate_app(&mut self, app: &App) -> ValidationResult {
         self.clear();
-        
+
         // Collect all IDs first for reference validation
         self.collect_ids(app);
-        
+
         // Validate application structure
         if app.layouts.is_empty() {
             self.add_error(ValidationError::MissingRequiredField {
                 field: "layouts".to_string(),
             });
         }
-        
+
         // Validate each layout
         for (idx, layout) in app.layouts.iter().enumerate() {
             let _ = self.validate_layout(layout, &format!("layouts[{}]", idx));
         }
-        
+
         // Validate root layout constraints
         self.validate_root_layout_constraints(app);
-        
+
         if self.errors.is_empty() {
             Ok(())
         } else {
@@ -185,7 +235,11 @@ impl SchemaValidator {
     }
 
     /// Validate YAML content against JSON schema
-    pub fn validate_with_json_schema(&mut self, yaml_content: &str, schema_dir: &str) -> ValidationResult {
+    pub fn validate_with_json_schema(
+        &mut self,
+        yaml_content: &str,
+        schema_dir: &str,
+    ) -> ValidationResult {
         self.clear();
 
         // Parse YAML content to JSON
@@ -213,7 +267,12 @@ impl SchemaValidator {
     }
 
     /// Validate a JSON value against a specific schema file
-    fn validate_against_schema_file(&mut self, value: &Value, schema_path: &str, field_name: &str) -> ValidationResult {
+    fn validate_against_schema_file(
+        &mut self,
+        value: &Value,
+        schema_path: &str,
+        field_name: &str,
+    ) -> ValidationResult {
         // Load schema file
         let schema_content = match fs::read_to_string(schema_path) {
             Ok(content) => content,
@@ -255,7 +314,7 @@ impl SchemaValidator {
                 } else {
                     format!("{}.{}", field_name, error.instance_path)
                 };
-                
+
                 self.add_error(ValidationError::JsonSchemaValidation {
                     field: error_path,
                     message: error.to_string(),
@@ -346,7 +405,7 @@ impl SchemaValidator {
                     });
                 }
                 self.collect_panel_ids_recursive(&panel.children, location);
-                
+
                 // Check choice IDs if they exist
                 if let Some(choices) = &panel.choices {
                     for choice in choices {
@@ -372,12 +431,18 @@ impl SchemaValidator {
 
         if root_count > 1 {
             self.add_error(ValidationError::SchemaStructure {
-                message: "Multiple root layouts detected. Only one layout can be marked as 'root: true'.".to_string(),
+                message:
+                    "Multiple root layouts detected. Only one layout can be marked as 'root: true'."
+                        .to_string(),
             });
         }
     }
 
-    fn validate_input_bounds_schema(&mut self, bounds: &crate::model::common::InputBounds, path: &str) {
+    fn validate_input_bounds_schema(
+        &mut self,
+        bounds: &crate::model::common::InputBounds,
+        path: &str,
+    ) {
         // Validate that bounds strings are not empty
         if bounds.x1.trim().is_empty() {
             self.add_error(ValidationError::InvalidFieldValue {
@@ -487,7 +552,7 @@ mod tests {
     fn test_validate_app_success() {
         let mut validator = SchemaValidator::new();
         let app = create_test_app();
-        
+
         let result = validator.validate_app(&app);
         assert!(result.is_ok());
     }
@@ -496,20 +561,23 @@ mod tests {
     fn test_validate_app_no_layouts() {
         let mut validator = SchemaValidator::new();
         let app = App::new();
-        
+
         let result = validator.validate_app(&app);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ValidationError::MissingRequiredField { .. }));
+        assert!(matches!(
+            errors[0],
+            ValidationError::MissingRequiredField { .. }
+        ));
     }
 
     #[test]
     fn test_validate_config_success() {
         let mut validator = SchemaValidator::new();
         let config = Config::new(60);
-        
+
         let result = validator.validate_config(&config);
         assert!(result.is_ok());
     }
@@ -518,26 +586,32 @@ mod tests {
     fn test_validate_config_zero_frame_delay() {
         let mut validator = SchemaValidator::new();
         let config = Config { frame_delay: 0 };
-        
+
         let result = validator.validate_config(&config);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ValidationError::InvalidFieldValue { .. }));
+        assert!(matches!(
+            errors[0],
+            ValidationError::InvalidFieldValue { .. }
+        ));
     }
 
     #[test]
     fn test_validate_config_excessive_frame_delay() {
         let mut validator = SchemaValidator::new();
         let config = Config { frame_delay: 2000 };
-        
+
         let result = validator.validate_config(&config);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ValidationError::InvalidFieldValue { .. }));
+        assert!(matches!(
+            errors[0],
+            ValidationError::InvalidFieldValue { .. }
+        ));
     }
 
     #[test]
@@ -552,7 +626,7 @@ mod tests {
                             "id": "panel1",
                             "bounds": {
                                 "x1": "10",
-                                "y1": "20", 
+                                "y1": "20",
                                 "x2": "90",
                                 "y2": "80"
                             }
@@ -564,7 +638,7 @@ mod tests {
                 "frame_delay": 60
             }
         });
-        
+
         let result = validator.validate_json_config(&config);
         assert!(result.is_ok());
     }
@@ -577,13 +651,16 @@ mod tests {
                 "frame_delay": 60
             }
         });
-        
+
         let result = validator.validate_json_config(&config);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ValidationError::MissingRequiredField { .. }));
+        assert!(matches!(
+            errors[0],
+            ValidationError::MissingRequiredField { .. }
+        ));
     }
 
     #[test]
@@ -592,19 +669,21 @@ mod tests {
         let panel = Panel {
             id: "test_panel".to_string(),
             position: InputBounds {
-                x1: "".to_string(),  // Empty bound
+                x1: "".to_string(), // Empty bound
                 y1: "20".to_string(),
                 x2: "90".to_string(),
                 y2: "80".to_string(),
             },
             ..Default::default()
         };
-        
+
         let result = validator.validate_panel(&panel, "test_panel");
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::InvalidFieldValue { .. })));
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::InvalidFieldValue { .. })));
     }
 
     #[test]
@@ -614,15 +693,23 @@ mod tests {
             id: "panel1".to_string(),
             location: "panels".to_string(),
         };
-        assert_eq!(duplicate_error.to_string(), "Duplicate ID 'panel1' found in panels");
-        
+        assert_eq!(
+            duplicate_error.to_string(),
+            "Duplicate ID 'panel1' found in panels"
+        );
+
         let missing_field_error = ValidationError::MissingRequiredField {
             field: "layouts".to_string(),
         };
-        assert_eq!(missing_field_error.to_string(), "Required field 'layouts' is missing");
-        
+        assert_eq!(
+            missing_field_error.to_string(),
+            "Required field 'layouts' is missing"
+        );
+
         let schema_error = ValidationError::SchemaStructure {
-            message: "Multiple root layouts detected. Only one layout can be marked as 'root: true'.".to_string(),
+            message:
+                "Multiple root layouts detected. Only one layout can be marked as 'root: true'."
+                    .to_string(),
         };
         assert_eq!(schema_error.to_string(), "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.");
     }
@@ -645,9 +732,9 @@ app:
           content: 'Test content'
           tab_order: 1
 "#;
-        
+
         let result = validator.validate_with_json_schema(yaml_content, "schemas");
-        
+
         // This should pass if schema files exist and are valid
         match result {
             Ok(_) => {
@@ -658,7 +745,10 @@ app:
                 // If schemas don't exist, that's expected - just verify the error is about missing schema files
                 let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
                 let combined = error_messages.join("; ");
-                assert!(combined.contains("Failed to load schema file") || combined.contains("No such file"));
+                assert!(
+                    combined.contains("Failed to load schema file")
+                        || combined.contains("No such file")
+                );
             }
         }
     }
@@ -679,9 +769,9 @@ app:
             # Missing y2 - should cause validation error
           border_color: 'invalid_color'  # Invalid color
 "#;
-        
+
         let result = validator.validate_with_json_schema(invalid_yaml, "schemas");
-        
+
         match result {
             Ok(_) => {
                 // If schemas don't exist, the validation will skip JSON schema validation
@@ -694,9 +784,11 @@ app:
                 let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
                 let combined = error_messages.join("; ");
                 // Either schema validation errors or schema file missing
-                assert!(combined.contains("JSON Schema validation error") || 
-                        combined.contains("Failed to load schema file") ||
-                        combined.contains("No such file"));
+                assert!(
+                    combined.contains("JSON Schema validation error")
+                        || combined.contains("Failed to load schema file")
+                        || combined.contains("No such file")
+                );
             }
         }
     }
@@ -718,9 +810,9 @@ app:
           invalid_field_that_should_not_exist: 'invalid'
           border_color: 123  # Wrong type - should be string
 "#;
-        
+
         let result = validator.validate_with_json_schema(malformed_yaml, "schemas");
-        
+
         match result {
             Ok(_) => {
                 // If schemas don't exist, validation is skipped
@@ -751,7 +843,7 @@ app:
             field: "app.layouts[0].children[0].border_color".to_string(),
             message: "invalid_color is not one of the allowed values".to_string(),
         };
-        
+
         let formatted = json_schema_error.to_string();
         assert!(formatted.contains("JSON Schema validation error"));
         assert!(formatted.contains("app.layouts[0].children[0].border_color"));
@@ -764,9 +856,10 @@ app:
         let test_value = serde_json::json!({
             "test": "value"
         });
-        
-        let result = validator.validate_against_schema_file(&test_value, "nonexistent/schema.json", "test");
-        
+
+        let result =
+            validator.validate_against_schema_file(&test_value, "nonexistent/schema.json", "test");
+
         assert!(result.is_err());
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
@@ -777,34 +870,41 @@ app:
     #[test]
     fn test_comprehensive_validation_with_multiple_errors() {
         let mut validator = SchemaValidator::new();
-        
+
         // Create an app with multiple validation errors
         let mut app = App::new();
-        
+
         // Error 1: Multiple root layouts
         let mut layout1 = create_test_layout("layout1");
         layout1.root = Some(true);
-        let mut layout2 = create_test_layout("layout2");  
-        layout2.root = Some(true);  // Second root - should cause error
-        
+        let mut layout2 = create_test_layout("layout2");
+        layout2.root = Some(true); // Second root - should cause error
+
         // Error 2: Duplicate panel IDs
         let panel1 = create_test_panel("panel1");
-        let panel1_dup = create_test_panel("panel1");  // Duplicate ID
+        let panel1_dup = create_test_panel("panel1"); // Duplicate ID
         layout1.children = Some(vec![panel1]);
         layout2.children = Some(vec![panel1_dup]);
-        
+
         app.layouts = vec![layout1, layout2];
-        
+
         let result = validator.validate_app(&app);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
-        assert!(errors.len() >= 2, "Should have at least 2 validation errors");
-        
+        assert!(
+            errors.len() >= 2,
+            "Should have at least 2 validation errors"
+        );
+
         // Check for multiple root layouts error
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::SchemaStructure { .. })));
-        
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::SchemaStructure { .. })));
+
         // Check for duplicate ID error
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::DuplicateId { .. })));
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::DuplicateId { .. })));
     }
 }

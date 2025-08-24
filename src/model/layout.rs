@@ -379,8 +379,11 @@ impl Layout {
         fn find_in_panels_at_coords<'a>(panels: &'a [Panel], x: u16, y: u16) -> Option<&'a Panel> {
             for panel in panels {
                 let bounds = panel.bounds();
-                if x >= bounds.x1 as u16 && x <= bounds.x2 as u16 && 
-                   y >= bounds.y1 as u16 && y <= bounds.y2 as u16 {
+                if x >= bounds.x1 as u16
+                    && x <= bounds.x2 as u16
+                    && y >= bounds.y1 as u16
+                    && y <= bounds.y2 as u16
+                {
                     // Check children first (they might overlay)
                     if let Some(ref children) = panel.children {
                         if let Some(child_panel) = find_in_panels_at_coords(children, x, y) {
@@ -1266,7 +1269,7 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let children = vec![panel1, panel2];
-        
+
         let layout = Layout {
             id: "test_layout".to_string(),
             title: Some("Test Layout".to_string()),
@@ -1276,7 +1279,7 @@ mod tests {
             refresh_interval: Some(1000),
             ..Default::default()
         };
-        
+
         assert_eq!(layout.id, "test_layout");
         assert_eq!(layout.title, Some("Test Layout".to_string()));
         assert_eq!(layout.children.as_ref().unwrap().len(), 2);
@@ -1294,11 +1297,11 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         let found_panel = layout.get_panel_by_id("panel1");
         assert!(found_panel.is_some());
         assert_eq!(found_panel.unwrap().id, "panel1");
-        
+
         let not_found = layout.get_panel_by_id("nonexistent");
         assert!(not_found.is_none());
     }
@@ -1314,7 +1317,7 @@ mod tests {
             ..Default::default()
         };
         let layout = create_test_layout("test", Some(vec![parent_panel]));
-        
+
         let found_child = layout.get_panel_by_id("child");
         assert!(found_child.is_some());
         assert_eq!(found_child.unwrap().id, "child");
@@ -1327,16 +1330,19 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         let found_panel = layout.get_panel_by_id_mut("panel1");
         assert!(found_panel.is_some());
-        
+
         // Modify the panel
         found_panel.unwrap().title = Some("Modified Title".to_string());
-        
+
         // Verify the modification
         let verified_panel = layout.get_panel_by_id("panel1");
-        assert_eq!(verified_panel.unwrap().title, Some("Modified Title".to_string()));
+        assert_eq!(
+            verified_panel.unwrap().title,
+            Some("Modified Title".to_string())
+        );
     }
 
     /// Tests that Layout::get_panel_by_id_mut() handles empty layout.
@@ -1344,7 +1350,7 @@ mod tests {
     #[test]
     fn test_layout_get_panel_by_id_mut_empty() {
         let mut layout = create_test_layout("test", None);
-        
+
         let found_panel = layout.get_panel_by_id_mut("nonexistent");
         assert!(found_panel.is_none());
     }
@@ -1358,13 +1364,13 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.selected = Some(true);
         panel2.selected = Some(false);
         panel3.selected = Some(true);
-        
+
         let layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 2);
         assert_eq!(selected[0].id, "panel1");
@@ -1378,7 +1384,7 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
     }
@@ -1390,15 +1396,15 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.selected = Some(true);
         panel2.selected = Some(true);
         panel3.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         layout.select_only_panel("panel2");
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel2");
@@ -1410,11 +1416,11 @@ mod tests {
     fn test_layout_select_only_panel_nonexistent() {
         let mut panel1 = create_test_panel("panel1");
         panel1.selected = Some(true);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1]));
-        
+
         layout.select_only_panel("nonexistent");
-        
+
         // All panels should be deselected
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
@@ -1426,14 +1432,14 @@ mod tests {
     fn test_layout_deselect_all_panels() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.selected = Some(true);
         panel2.selected = Some(true);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         layout.deselect_all_panels();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
     }
@@ -1447,13 +1453,13 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.tab_order = Some("3".to_string());
         panel2.tab_order = Some("1".to_string());
         panel3.tab_order = Some("2".to_string());
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         let panels_in_order = layout.get_panels_in_tab_order();
         assert_eq!(panels_in_order.len(), 3);
         assert_eq!(panels_in_order[0].id, "panel2"); // tab_order: "1"
@@ -1468,13 +1474,13 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = None; // No tab order
         panel3.tab_order = Some("2".to_string());
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         let panels_in_order = layout.get_panels_in_tab_order();
         assert_eq!(panels_in_order.len(), 2);
         assert_eq!(panels_in_order[0].id, "panel1");
@@ -1487,13 +1493,13 @@ mod tests {
     fn test_layout_get_panels_in_tab_order_nested() {
         let mut child_panel = create_test_panel("child");
         child_panel.tab_order = Some("2".to_string());
-        
+
         let mut parent_panel = create_test_panel("parent");
         parent_panel.tab_order = Some("1".to_string());
         parent_panel.children = Some(vec![child_panel]);
-        
+
         let mut layout = create_test_layout("test", Some(vec![parent_panel]));
-        
+
         let panels_in_order = layout.get_panels_in_tab_order();
         assert_eq!(panels_in_order.len(), 2);
         assert_eq!(panels_in_order[0].id, "parent");
@@ -1507,19 +1513,19 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
         panel3.tab_order = Some("3".to_string());
-        
+
         panel1.selected = Some(true);
         panel2.selected = Some(false);
         panel3.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         layout.select_next_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel2");
@@ -1531,17 +1537,17 @@ mod tests {
     fn test_layout_select_next_panel_wrap_around() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
-        
+
         panel1.selected = Some(false);
         panel2.selected = Some(true); // Last panel selected
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         layout.select_next_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel1"); // Wrapped to first
@@ -1553,17 +1559,17 @@ mod tests {
     fn test_layout_select_next_panel_no_selection() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
-        
+
         panel1.selected = Some(false);
         panel2.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         layout.select_next_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel1"); // First panel selected
@@ -1576,19 +1582,19 @@ mod tests {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
         let mut panel3 = create_test_panel("panel3");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
         panel3.tab_order = Some("3".to_string());
-        
+
         panel1.selected = Some(false);
         panel2.selected = Some(true);
         panel3.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2, panel3]));
-        
+
         layout.select_previous_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel1");
@@ -1600,17 +1606,17 @@ mod tests {
     fn test_layout_select_previous_panel_wrap_around() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
-        
+
         panel1.selected = Some(true); // First panel selected
         panel2.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         layout.select_previous_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel2"); // Wrapped to last
@@ -1622,17 +1628,17 @@ mod tests {
     fn test_layout_select_previous_panel_no_selection() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.tab_order = Some("1".to_string());
         panel2.tab_order = Some("2".to_string());
-        
+
         panel1.selected = Some(false);
         panel2.selected = Some(false);
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         layout.select_previous_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "panel2"); // Last panel selected
@@ -1643,11 +1649,11 @@ mod tests {
     #[test]
     fn test_layout_navigation_empty_panels() {
         let mut layout = create_test_layout("test", None);
-        
+
         // These should not panic
         layout.select_next_panel();
         layout.select_previous_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
     }
@@ -1658,16 +1664,16 @@ mod tests {
     fn test_layout_navigation_no_tab_order() {
         let mut panel1 = create_test_panel("panel1");
         let mut panel2 = create_test_panel("panel2");
-        
+
         panel1.tab_order = None;
         panel2.tab_order = None;
-        
+
         let mut layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         // These should not panic
         layout.select_next_panel();
         layout.select_previous_panel();
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
     }
@@ -1681,7 +1687,7 @@ mod tests {
         let panel1 = create_test_panel("panel1");
         let panel2 = create_test_panel("panel2");
         let layout = create_test_layout("test", Some(vec![panel1, panel2]));
-        
+
         let all_panels = layout.get_all_panels();
         assert_eq!(all_panels.len(), 2);
         assert_eq!(all_panels[0].id, "panel1");
@@ -1699,7 +1705,7 @@ mod tests {
             ..Default::default()
         };
         let layout = create_test_layout("test", Some(vec![parent_panel]));
-        
+
         let all_panels = layout.get_all_panels();
         assert_eq!(all_panels.len(), 2);
         assert_eq!(all_panels[0].id, "parent");
@@ -1711,7 +1717,7 @@ mod tests {
     #[test]
     fn test_layout_get_all_panels_empty() {
         let layout = create_test_layout("test", None);
-        
+
         let all_panels = layout.get_all_panels();
         assert_eq!(all_panels.len(), 0);
     }
@@ -1726,11 +1732,13 @@ mod tests {
         let panel2 = create_test_panel("panel2");
         let layout1 = create_test_layout("test", Some(vec![panel1, panel2]));
         let layout2 = layout1.clone();
-        
+
         assert_eq!(layout1.id, layout2.id);
         assert_eq!(layout1.title, layout2.title);
-        assert_eq!(layout1.children.as_ref().unwrap().len(), 
-                   layout2.children.as_ref().unwrap().len());
+        assert_eq!(
+            layout1.children.as_ref().unwrap().len(),
+            layout2.children.as_ref().unwrap().len()
+        );
         assert_eq!(layout1.root, layout2.root);
         assert_eq!(layout1.active, layout2.active);
     }
@@ -1747,11 +1755,31 @@ mod tests {
         };
         let layout1 = create_test_layout("test", Some(vec![parent_panel]));
         let layout2 = layout1.clone();
-        
-        assert_eq!(layout1.children.as_ref().unwrap()[0].children.as_ref().unwrap().len(),
-                   layout2.children.as_ref().unwrap()[0].children.as_ref().unwrap().len());
-        assert_eq!(layout1.children.as_ref().unwrap()[0].children.as_ref().unwrap()[0].id,
-                   layout2.children.as_ref().unwrap()[0].children.as_ref().unwrap()[0].id);
+
+        assert_eq!(
+            layout1.children.as_ref().unwrap()[0]
+                .children
+                .as_ref()
+                .unwrap()
+                .len(),
+            layout2.children.as_ref().unwrap()[0]
+                .children
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            layout1.children.as_ref().unwrap()[0]
+                .children
+                .as_ref()
+                .unwrap()[0]
+                .id,
+            layout2.children.as_ref().unwrap()[0]
+                .children
+                .as_ref()
+                .unwrap()[0]
+                .id
+        );
     }
 
     // === Layout Hash Tests ===
@@ -1765,18 +1793,18 @@ mod tests {
         let layout1 = create_test_layout("test", Some(vec![panel1.clone(), panel2.clone()]));
         let layout2 = create_test_layout("test", Some(vec![panel1, panel2]));
         let layout3 = create_test_layout("other", Some(vec![]));
-        
+
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         layout1.hash(&mut hasher1);
         layout2.hash(&mut hasher2);
         layout3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -1792,7 +1820,7 @@ mod tests {
         let layout1 = create_test_layout("test", Some(vec![panel1.clone(), panel2.clone()]));
         let layout2 = create_test_layout("test", Some(vec![panel1, panel2]));
         let layout3 = create_test_layout("other", Some(vec![]));
-        
+
         assert_eq!(layout1, layout2);
         assert_ne!(layout1, layout3);
     }
@@ -1802,7 +1830,7 @@ mod tests {
     #[test]
     fn test_layout_equality_comprehensive() {
         let panel = create_test_panel("panel");
-        
+
         let layout1 = Layout {
             id: "test".to_string(),
             title: Some("Test".to_string()),
@@ -1811,7 +1839,7 @@ mod tests {
             active: Some(false),
             ..Default::default()
         };
-        
+
         let layout2 = Layout {
             id: "test".to_string(),
             title: Some("Test".to_string()),
@@ -1820,7 +1848,7 @@ mod tests {
             active: Some(false),
             ..Default::default()
         };
-        
+
         let layout3 = Layout {
             id: "test".to_string(),
             title: Some("Test".to_string()),
@@ -1829,7 +1857,7 @@ mod tests {
             active: Some(false),
             ..Default::default()
         };
-        
+
         assert_eq!(layout1, layout2);
         assert_ne!(layout1, layout3);
     }
@@ -1841,17 +1869,17 @@ mod tests {
     #[test]
     fn test_layout_empty_children_operations() {
         let mut layout = create_test_layout("test", Some(vec![]));
-        
+
         // These should not panic
         let panels = layout.get_all_panels();
         assert_eq!(panels.len(), 0);
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
-        
+
         let tab_ordered = layout.get_panels_in_tab_order();
         assert_eq!(tab_ordered.len(), 0);
-        
+
         layout.select_next_panel();
         layout.select_previous_panel();
         layout.select_only_panel("nonexistent");
@@ -1863,17 +1891,17 @@ mod tests {
     #[test]
     fn test_layout_none_children_operations() {
         let mut layout = create_test_layout("test", None);
-        
+
         // These should not panic
         let panels = layout.get_all_panels();
         assert_eq!(panels.len(), 0);
-        
+
         let selected = layout.get_selected_panels();
         assert_eq!(selected.len(), 0);
-        
+
         let tab_ordered = layout.get_panels_in_tab_order();
         assert_eq!(tab_ordered.len(), 0);
-        
+
         layout.select_next_panel();
         layout.select_previous_panel();
         layout.select_only_panel("nonexistent");

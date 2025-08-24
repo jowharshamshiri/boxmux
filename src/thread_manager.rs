@@ -1,8 +1,8 @@
 use crate::model::app::AppContext;
-use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, Panel, Updatable};
 use crate::model::panel::Choice;
+use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, Panel, Updatable};
 use bincode;
-use log::{error};
+use log::error;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -27,9 +27,9 @@ pub enum Message {
     ScrollPanelPageLeft(),
     ScrollPanelPageRight(),
     ScrollPanelToBeginning(), // Home key - scroll to beginning horizontally
-    ScrollPanelToEnd(), // End key - scroll to end horizontally
-    ScrollPanelToTop(), // Ctrl+Home - scroll to top vertically
-    ScrollPanelToBottom(), // Ctrl+End - scroll to bottom vertically
+    ScrollPanelToEnd(),       // End key - scroll to end horizontally
+    ScrollPanelToTop(),       // Ctrl+Home - scroll to top vertically
+    ScrollPanelToBottom(),    // Ctrl+End - scroll to bottom vertically
     CopyFocusedPanelContent(),
     Resize,
     RedrawPanel(String),
@@ -43,8 +43,8 @@ pub enum Message {
     SwitchActiveLayout(String),
     KeyPress(String),
     ExecuteHotKeyChoice(String),
-    MouseClick(u16, u16), // x, y coordinates
-    PTYInput(String, String), // panel_id, input_text
+    MouseClick(u16, u16),                               // x, y coordinates
+    PTYInput(String, String),                           // panel_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, panel_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
     ExternalMessage(String),
@@ -257,9 +257,16 @@ impl RunnableImpl {
             self.app_context = updated_app_context;
         }
 
-        log::info!("RunnableImpl _run: state={:?}, messages={}", self.running_state, new_messages.len());
+        log::info!(
+            "RunnableImpl _run: state={:?}, messages={}",
+            self.running_state,
+            new_messages.len()
+        );
         if self.running_state == RunnableState::Running {
-            log::info!("RunnableImpl calling process function with {} messages", new_messages.len());
+            log::info!(
+                "RunnableImpl calling process function with {} messages",
+                new_messages.len()
+            );
             let (process_should_continue, result_app_context) =
                 process_fn(self, self.app_context.clone(), new_messages);
             if result_app_context != original_app_context {
@@ -267,9 +274,15 @@ impl RunnableImpl {
                 self.send_app_context_update(original_app_context);
             }
             should_continue = process_should_continue;
-            log::info!("RunnableImpl process function returned should_continue={}", should_continue);
+            log::info!(
+                "RunnableImpl process function returned should_continue={}",
+                should_continue
+            );
         } else {
-            log::info!("RunnableImpl NOT calling process function - state is {:?}", self.running_state);
+            log::info!(
+                "RunnableImpl NOT calling process function - state is {:?}",
+                self.running_state
+            );
         }
 
         if !should_continue {
@@ -312,7 +325,7 @@ impl Runnable for RunnableImpl {
     fn process(&mut self, app_context: AppContext, messages: Vec<Message>) {
         // Default implementation: update app context and handle basic messages
         self.update_app_context(app_context);
-        
+
         // Process any messages that need handling
         for message in messages {
             match message {
@@ -482,7 +495,7 @@ impl ThreadManager {
                     messages_to_process.push((uuid, received_msg));
                 }
             }
-            
+
             // Process collected messages
             for (uuid, received_msg) in messages_to_process {
                 // log::info!("Received message from thread {}: {:?}", uuid, received_msg);
@@ -493,20 +506,39 @@ impl ThreadManager {
                     }
                     Message::ExecuteChoice(choice, panel_id, libs) => {
                         // Handle choice execution request by spawning ChoiceExecutionRunnable
-                        log::info!("ThreadManager spawning choice execution: {} on panel {}", choice.id, panel_id);
-                        let choice_runnable = ChoiceExecutionRunnable::new(self.app_context.clone());
+                        log::info!(
+                            "ThreadManager spawning choice execution: {} on panel {}",
+                            choice.id,
+                            panel_id
+                        );
+                        let choice_runnable =
+                            ChoiceExecutionRunnable::new(self.app_context.clone());
                         let choice_uuid = self.spawn_thread(choice_runnable);
-                        
+
                         // Send ExecuteChoice message to the spawned runnable via unified message system
-                        log::info!("ThreadManager sending ExecuteChoice message to runnable thread: {}", choice_uuid);
-                        self.send_message_to_thread((Uuid::new_v4(), Message::ExecuteChoice(choice, panel_id, libs)), choice_uuid);
+                        log::info!(
+                            "ThreadManager sending ExecuteChoice message to runnable thread: {}",
+                            choice_uuid
+                        );
+                        self.send_message_to_thread(
+                            (
+                                Uuid::new_v4(),
+                                Message::ExecuteChoice(choice, panel_id, libs),
+                            ),
+                            choice_uuid,
+                        );
                         has_updates = true;
                     }
                     Message::ChoiceExecutionComplete(ref choice_id, ref panel_id, ref result) => {
                         log::info!("ThreadManager received ChoiceExecutionComplete for choice: {} on panel: {}", choice_id, panel_id);
                         match result {
-                            Ok(output) => log::info!("ThreadManager broadcasting choice success: {} chars of output", output.len()),
-                            Err(error) => log::error!("ThreadManager broadcasting choice error: {}", error),
+                            Ok(output) => log::info!(
+                                "ThreadManager broadcasting choice success: {} chars of output",
+                                output.len()
+                            ),
+                            Err(error) => {
+                                log::error!("ThreadManager broadcasting choice error: {}", error)
+                            }
                         }
                         // Broadcast to all threads including DrawLoop
                         self.send_message_to_all_threads((uuid, received_msg));
@@ -602,10 +634,16 @@ impl ThreadManager {
             if let Err(e) = sender.send(msg) {
                 log::error!("Failed to send message to thread {}: {}", uuid, e);
             } else {
-                log::info!("ThreadManager successfully sent message to thread: {}", uuid);
+                log::info!(
+                    "ThreadManager successfully sent message to thread: {}",
+                    uuid
+                );
             }
         } else {
-            log::error!("ThreadManager could not find message sender for thread: {}", uuid);
+            log::error!(
+                "ThreadManager could not find message sender for thread: {}",
+                uuid
+            );
         }
     }
 
@@ -716,10 +754,7 @@ macro_rules! create_runnable {
                 self.inner.set_app_context_receiver(app_context_receiver)
             }
 
-            fn set_message_receiver(
-                &mut self,
-                message_receiver: mpsc::Receiver<(Uuid, Message)>,
-            ) {
+            fn set_message_receiver(&mut self, message_receiver: mpsc::Receiver<(Uuid, Message)>) {
                 self.inner.set_message_receiver(message_receiver)
             }
 
@@ -751,7 +786,10 @@ create_runnable!(
     ChoiceExecutionRunnable,
     |inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool {
         // Initialize - no setup needed for choice execution
-        log::info!("ChoiceExecutionRunnable initialization: state={:?}", inner.running_state);
+        log::info!(
+            "ChoiceExecutionRunnable initialization: state={:?}",
+            inner.running_state
+        );
         inner.running_state = RunnableState::Running;
         log::info!("ChoiceExecutionRunnable set state to Running");
         true
@@ -762,40 +800,58 @@ create_runnable!(
      -> (bool, AppContext) {
         // Debug: Always log to see if processing function is called
         let message_count = messages.len();
-        log::info!("ChoiceExecutionRunnable processing function called with {} messages", message_count);
-        
+        log::info!(
+            "ChoiceExecutionRunnable processing function called with {} messages",
+            message_count
+        );
+
         let mut has_executed_choice = false;
         for message in messages {
             if let Message::ExecuteChoice(choice, panel_id, libs) = message {
-                log::info!("ChoiceExecutionRunnable executing choice: {} for panel: {}", choice.id, panel_id);
+                log::info!(
+                    "ChoiceExecutionRunnable executing choice: {} for panel: {}",
+                    choice.id,
+                    panel_id
+                );
                 has_executed_choice = true;
-                
+
                 // Execute the choice script
                 let choice_id = choice.id.clone();
                 let use_pty = choice.pty.unwrap_or(false);
                 let redirect_target = choice.redirect_output.clone();
-                
+
                 let result = if let Some(script) = &choice.script {
-                    log::info!("ChoiceExecutionRunnable running script for choice: {} (pty: {})", choice_id, use_pty);
-                    
+                    log::info!(
+                        "ChoiceExecutionRunnable running script for choice: {} (pty: {})",
+                        choice_id,
+                        use_pty
+                    );
+
                     if use_pty {
                         // PTY execution
-                        let message_sender = inner.message_sender.clone().map(|sender| (sender, inner.uuid));
+                        let message_sender = inner
+                            .message_sender
+                            .clone()
+                            .map(|sender| (sender, inner.uuid));
                         match run_script_with_pty_and_redirect(
-                            libs, 
-                            script, 
-                            use_pty, 
-                            app_context.pty_manager.as_ref().map(|v| &**v), 
+                            libs,
+                            script,
+                            use_pty,
+                            app_context.pty_manager.as_ref().map(|v| &**v),
                             Some(panel_id.clone()),
                             message_sender,
-                            redirect_target
+                            redirect_target,
                         ) {
                             Ok(output) => {
                                 log::info!("ChoiceExecutionRunnable PTY script started successfully for choice: {}", choice_id);
                                 Ok(output)
-                            },
+                            }
                             Err(e) => {
-                                log::error!("ChoiceExecutionRunnable PTY script failed for choice: {}: {}", choice_id, e);
+                                log::error!(
+                                    "ChoiceExecutionRunnable PTY script failed for choice: {}: {}",
+                                    choice_id,
+                                    e
+                                );
                                 Err(e.to_string())
                             }
                         }
@@ -805,32 +861,44 @@ create_runnable!(
                             Ok(output) => {
                                 log::info!("ChoiceExecutionRunnable script completed successfully for choice: {}", choice_id);
                                 Ok(output)
-                            },
+                            }
                             Err(e) => {
-                                log::error!("ChoiceExecutionRunnable script failed for choice: {}: {}", choice_id, e);
+                                log::error!(
+                                    "ChoiceExecutionRunnable script failed for choice: {}: {}",
+                                    choice_id,
+                                    e
+                                );
                                 Err(e.to_string())
                             }
                         }
                     }
                 } else {
-                    log::error!("ChoiceExecutionRunnable no script defined for choice: {}", choice_id);
+                    log::error!(
+                        "ChoiceExecutionRunnable no script defined for choice: {}",
+                        choice_id
+                    );
                     Err("No script defined for choice".to_string())
                 };
-                
-                log::info!("ChoiceExecutionRunnable sending completion message for choice: {}", choice_id);
+
+                log::info!(
+                    "ChoiceExecutionRunnable sending completion message for choice: {}",
+                    choice_id
+                );
                 // Send completion message back to ThreadManager
                 inner.send_message(Message::ChoiceExecutionComplete(
-                    choice_id,
-                    panel_id,
-                    result,
+                    choice_id, panel_id, result,
                 ));
             }
         }
-        
+
         // Continue if no messages received yet, terminate after processing ExecuteChoice
         let should_continue = !has_executed_choice; // Continue until we process an ExecuteChoice
-        log::info!("ChoiceExecutionRunnable: messages={}, has_executed_choice={}, should_continue={}", 
-                   message_count, has_executed_choice, should_continue);
+        log::info!(
+            "ChoiceExecutionRunnable: messages={}, has_executed_choice={}, should_continue={}",
+            message_count,
+            has_executed_choice,
+            should_continue
+        );
         (should_continue, app_context)
     }
 );
@@ -979,15 +1047,18 @@ pub fn run_script_in_thread(
             // Check if choice should use PTY
             let use_pty = crate::utils::should_use_pty_for_choice(choice);
             let pty_manager = app_context_unwrapped.pty_manager.as_ref();
-            let message_sender = Some((inner.get_message_sender().as_ref().unwrap().clone(), inner.get_uuid()));
-            
+            let message_sender = Some((
+                inner.get_message_sender().as_ref().unwrap().clone(),
+                inner.get_uuid(),
+            ));
+
             match crate::utils::run_script_with_pty(
-                libs, 
+                libs,
                 choice.script.clone().unwrap().as_ref(),
                 use_pty,
                 pty_manager.map(|arc| arc.as_ref()),
                 Some(choice.id.clone()),
-                message_sender
+                message_sender,
             ) {
                 Ok(output) => {
                     inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
@@ -1289,7 +1360,7 @@ pub fn run_script_in_thread(
 mod tests {
     use super::*;
     use crate::model::app::App;
-    use crate::model::common::{Config, FieldUpdate, EntityType};
+    use crate::model::common::{Config, EntityType, FieldUpdate};
     use crate::model::layout::Layout;
     use crate::model::panel::Panel;
     use serde_json::Value;
@@ -1327,7 +1398,12 @@ mod tests {
     }
 
     // Helper function to create test FieldUpdate
-    fn create_test_field_update(entity_type: EntityType, entity_id: &str, field_name: &str, value: Value) -> FieldUpdate {
+    fn create_test_field_update(
+        entity_type: EntityType,
+        entity_id: &str,
+        field_name: &str,
+        value: Value,
+    ) -> FieldUpdate {
         FieldUpdate {
             entity_type,
             entity_id: Some(entity_id.to_string()),
@@ -1342,13 +1418,13 @@ mod tests {
     fn test_message_hash() {
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
-        
+
         let msg1 = Message::Exit;
         let msg2 = Message::Exit;
         msg1.hash(&mut hasher1);
         msg2.hash(&mut hasher2);
         assert_eq!(hasher1.finish(), hasher2.finish());
-        
+
         let msg3 = Message::RedrawPanel("panel1".to_string());
         let msg4 = Message::RedrawPanel("panel1".to_string());
         let mut hasher3 = DefaultHasher::new();
@@ -1364,8 +1440,14 @@ mod tests {
     fn test_message_equality() {
         assert_eq!(Message::Exit, Message::Exit);
         assert_eq!(Message::Terminate, Message::Terminate);
-        assert_eq!(Message::RedrawPanel("panel1".to_string()), Message::RedrawPanel("panel1".to_string()));
-        assert_ne!(Message::RedrawPanel("panel1".to_string()), Message::RedrawPanel("panel2".to_string()));
+        assert_eq!(
+            Message::RedrawPanel("panel1".to_string()),
+            Message::RedrawPanel("panel1".to_string())
+        );
+        assert_ne!(
+            Message::RedrawPanel("panel1".to_string()),
+            Message::RedrawPanel("panel2".to_string())
+        );
         assert_ne!(Message::Exit, Message::Terminate);
     }
 
@@ -1376,15 +1458,15 @@ mod tests {
         let msg1 = Message::KeyPress("a".to_string());
         let msg2 = Message::KeyPress("a".to_string());
         let msg3 = Message::KeyPress("b".to_string());
-        
+
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         msg1.hash(&mut hasher1);
         msg2.hash(&mut hasher2);
         msg3.hash(&mut hasher3);
-        
+
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -1396,10 +1478,10 @@ mod tests {
         let state1 = RunnableState::Created;
         let state2 = state1.clone();
         assert_eq!(state1, state2);
-        
+
         let state3 = RunnableState::Running;
         assert_ne!(state1, state3);
-        
+
         let state4 = RunnableState::Paused;
         let state5 = RunnableState::Terminated;
         assert_ne!(state4, state5);
@@ -1411,7 +1493,7 @@ mod tests {
     fn test_runnable_impl_new() {
         let app_context = create_test_app_context();
         let runnable = RunnableImpl::new(app_context.clone());
-        
+
         assert_eq!(runnable.get_app_context(), &app_context);
         assert_eq!(runnable.running_state, RunnableState::Created);
         assert!(runnable.app_context_sender.is_none());
@@ -1426,11 +1508,11 @@ mod tests {
     fn test_runnable_impl_uuid() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context);
-        
+
         let original_uuid = runnable.get_uuid();
         let new_uuid = Uuid::new_v4();
         runnable.set_uuid(new_uuid);
-        
+
         assert_eq!(runnable.get_uuid(), new_uuid);
         assert_ne!(runnable.get_uuid(), original_uuid);
     }
@@ -1441,15 +1523,15 @@ mod tests {
     fn test_runnable_impl_channels() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context);
-        
+
         let (app_context_sender, app_context_receiver) = mpsc::channel();
         let (message_sender, message_receiver) = mpsc::channel();
-        
+
         runnable.set_app_context_sender(app_context_sender);
         runnable.set_message_sender(message_sender);
         runnable.set_app_context_receiver(app_context_receiver);
         runnable.set_message_receiver(message_receiver);
-        
+
         assert!(runnable.get_app_context_sender().is_some());
         assert!(runnable.get_message_sender().is_some());
         assert!(runnable.app_context_receiver.is_some());
@@ -1462,10 +1544,10 @@ mod tests {
     fn test_runnable_impl_update_app_context() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context);
-        
+
         let mut new_app_context = create_test_app_context();
         new_app_context.config.frame_delay = 100;
-        
+
         runnable.update_app_context(new_app_context.clone());
         assert_eq!(runnable.get_app_context(), &new_app_context);
     }
@@ -1476,18 +1558,27 @@ mod tests {
     fn test_runnable_impl_receive_updates() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context);
-        
+
         let (app_context_sender, app_context_receiver) = mpsc::channel();
         let (message_sender, message_receiver) = mpsc::channel();
-        
+
         runnable.set_app_context_receiver(app_context_receiver);
         runnable.set_message_receiver(message_receiver);
-        
+
         // Send test data
-        let field_update = create_test_field_update(EntityType::App, "test", "field", Value::String("value".to_string()));
-        app_context_sender.send((Uuid::new_v4(), vec![field_update])).unwrap();
-        message_sender.send((Uuid::new_v4(), Message::RedrawApp)).unwrap();
-        
+        let field_update = create_test_field_update(
+            EntityType::App,
+            "test",
+            "field",
+            Value::String("value".to_string()),
+        );
+        app_context_sender
+            .send((Uuid::new_v4(), vec![field_update]))
+            .unwrap();
+        message_sender
+            .send((Uuid::new_v4(), Message::RedrawApp))
+            .unwrap();
+
         let (updated_app_context, messages) = runnable.receive_updates();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0], Message::RedrawApp);
@@ -1499,19 +1590,15 @@ mod tests {
     fn test_runnable_impl_process_messages() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context.clone());
-        
-        let messages = vec![
-            Message::Start,
-            Message::Pause,
-            Message::Terminate,
-        ];
-        
+
+        let messages = vec![Message::Start, Message::Pause, Message::Terminate];
+
         runnable.process(app_context.clone(), vec![Message::Start]);
         assert_eq!(runnable.running_state, RunnableState::Running);
-        
+
         runnable.process(app_context.clone(), vec![Message::Pause]);
         assert_eq!(runnable.running_state, RunnableState::Paused);
-        
+
         runnable.process(app_context.clone(), vec![Message::Terminate]);
         assert_eq!(runnable.running_state, RunnableState::Terminated);
     }
@@ -1522,12 +1609,12 @@ mod tests {
     fn test_runnable_impl_send_message() {
         let app_context = create_test_app_context();
         let mut runnable = RunnableImpl::new(app_context);
-        
+
         let (message_sender, message_receiver) = mpsc::channel();
         runnable.set_message_sender(message_sender);
-        
+
         runnable.send_message(Message::RedrawApp);
-        
+
         let (uuid, received_message) = message_receiver.recv().unwrap();
         assert_eq!(received_message, Message::RedrawApp);
         assert_eq!(uuid, runnable.get_uuid());
@@ -1539,7 +1626,7 @@ mod tests {
     fn test_thread_manager_new() {
         let app_context = create_test_app_context();
         let manager = ThreadManager::new(app_context.clone());
-        
+
         assert_eq!(manager.app_context, app_context);
         assert!(manager.threads.is_empty());
         assert!(manager.app_context_senders.is_empty());
@@ -1555,15 +1642,15 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
-        
+
         assert!(manager.threads.contains_key(&uuid));
         assert!(manager.app_context_senders.contains_key(&uuid));
         assert!(manager.message_senders.contains_key(&uuid));
         assert!(manager.app_context_receivers.contains_key(&uuid));
         assert!(manager.message_receivers.contains_key(&uuid));
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1576,10 +1663,10 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
         assert!(manager.threads.contains_key(&uuid));
-        
+
         manager.remove_thread(uuid);
         assert!(!manager.threads.contains_key(&uuid));
         assert!(!manager.app_context_senders.contains_key(&uuid));
@@ -1593,12 +1680,12 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
         let message = (Uuid::new_v4(), Message::RedrawApp);
-        
+
         manager.send_message_to_thread(message, uuid);
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1612,13 +1699,13 @@ mod tests {
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable1 = RunnableImpl::new(app_context.clone());
         let runnable2 = RunnableImpl::new(app_context.clone());
-        
+
         let uuid1 = manager.spawn_thread(runnable1);
         let uuid2 = manager.spawn_thread(runnable2);
-        
+
         let message = (Uuid::new_v4(), Message::RedrawApp);
         manager.send_message_to_all_threads(message);
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1631,12 +1718,17 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
-        let field_update = create_test_field_update(EntityType::App, "test", "field", Value::String("value".to_string()));
-        
+        let field_update = create_test_field_update(
+            EntityType::App,
+            "test",
+            "field",
+            Value::String("value".to_string()),
+        );
+
         manager.send_app_context_update_to_thread(vec![field_update], uuid);
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1650,15 +1742,20 @@ mod tests {
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable1 = RunnableImpl::new(app_context.clone());
         let runnable2 = RunnableImpl::new(app_context.clone());
-        
+
         let uuid1 = manager.spawn_thread(runnable1);
         let uuid2 = manager.spawn_thread(runnable2);
-        
-        let field_update = create_test_field_update(EntityType::App, "test", "field", Value::String("value".to_string()));
+
+        let field_update = create_test_field_update(
+            EntityType::App,
+            "test",
+            "field",
+            Value::String("value".to_string()),
+        );
         let sender_uuid = Uuid::new_v4();
-        
+
         manager.send_app_context_update_to_all_threads((sender_uuid, vec![field_update]));
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1671,13 +1768,13 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
         assert!(manager.threads.contains_key(&uuid));
-        
+
         manager.stop();
         manager.join_threads();
-        
+
         assert!(manager.threads.is_empty());
     }
 
@@ -1688,10 +1785,10 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
         manager.pause();
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1703,12 +1800,12 @@ mod tests {
     fn test_thread_manager_get_hash() {
         let app_context = create_test_app_context();
         let manager = ThreadManager::new(app_context);
-        
+
         let test_string = "test";
         let hash1 = manager.get_hash(&test_string);
         let hash2 = manager.get_hash(&test_string);
         assert_eq!(hash1, hash2);
-        
+
         let test_string2 = "different";
         let hash3 = manager.get_hash(&test_string2);
         assert_ne!(hash1, hash3);
@@ -1721,13 +1818,13 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
         let runnable = RunnableImpl::new(app_context);
-        
+
         let uuid = manager.spawn_thread(runnable);
         assert!(manager.threads.contains_key(&uuid));
-        
+
         manager.stop();
         manager.join_threads();
-        
+
         assert!(manager.threads.is_empty());
     }
 
@@ -1737,16 +1834,16 @@ mod tests {
     fn test_run_script_in_thread() {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
-        
+
         let panel_id = "test_panel".to_string();
         let choice_id = "test_choice".to_string();
-        
+
         let uuid = run_script_in_thread(app_context, &mut manager, panel_id, choice_id);
-        
+
         assert!(manager.threads.contains_key(&uuid));
         assert!(manager.app_context_senders.contains_key(&uuid));
         assert!(manager.message_senders.contains_key(&uuid));
-        
+
         // Clean up
         manager.stop();
         manager.join_threads();
@@ -1759,9 +1856,9 @@ mod tests {
         let panel_id = "test_panel".to_string();
         let success = true;
         let output = "test output".to_string();
-        
+
         let message = Message::PanelOutputUpdate(panel_id.clone(), success, output.clone());
-        
+
         match message {
             Message::PanelOutputUpdate(id, success_flag, content) => {
                 assert_eq!(id, panel_id);
@@ -1778,9 +1875,9 @@ mod tests {
     fn test_message_panel_script_update() {
         let panel_id = "test_panel".to_string();
         let script = vec!["echo 'test'".to_string(), "ls".to_string()];
-        
+
         let message = Message::PanelScriptUpdate(panel_id.clone(), script.clone());
-        
+
         match message {
             Message::PanelScriptUpdate(id, script_content) => {
                 assert_eq!(id, panel_id);
@@ -1796,9 +1893,9 @@ mod tests {
     fn test_message_replace_panel() {
         let panel_id = "test_panel".to_string();
         let panel = create_test_panel("new_panel");
-        
+
         let message = Message::ReplacePanel(panel_id.clone(), panel.clone());
-        
+
         match message {
             Message::ReplacePanel(id, new_panel) => {
                 assert_eq!(id, panel_id);
@@ -1814,7 +1911,7 @@ mod tests {
     fn test_message_switch_active_layout() {
         let layout_id = "test_layout".to_string();
         let message = Message::SwitchActiveLayout(layout_id.clone());
-        
+
         match message {
             Message::SwitchActiveLayout(id) => {
                 assert_eq!(id, layout_id);
@@ -1829,7 +1926,7 @@ mod tests {
     fn test_message_key_press() {
         let key = "ctrl+c".to_string();
         let message = Message::KeyPress(key.clone());
-        
+
         match message {
             Message::KeyPress(pressed_key) => {
                 assert_eq!(pressed_key, key);
@@ -1844,7 +1941,7 @@ mod tests {
     fn test_message_external_message() {
         let external_msg = "external command".to_string();
         let message = Message::ExternalMessage(external_msg.clone());
-        
+
         match message {
             Message::ExternalMessage(msg) => {
                 assert_eq!(msg, external_msg);
@@ -1859,9 +1956,9 @@ mod tests {
     fn test_message_add_panel() {
         let panel_id = "test_panel".to_string();
         let panel = create_test_panel("new_panel");
-        
+
         let message = Message::AddPanel(panel_id.clone(), panel.clone());
-        
+
         match message {
             Message::AddPanel(id, new_panel) => {
                 assert_eq!(id, panel_id);
@@ -1877,7 +1974,7 @@ mod tests {
     fn test_message_remove_panel() {
         let panel_id = "test_panel".to_string();
         let message = Message::RemovePanel(panel_id.clone());
-        
+
         match message {
             Message::RemovePanel(id) => {
                 assert_eq!(id, panel_id);
@@ -1896,7 +1993,7 @@ mod tests {
         let start_msg = Message::Start;
         let resize_msg = Message::Resize;
         let redraw_app_msg = Message::RedrawApp;
-        
+
         // Test that they can be created and compared
         assert_eq!(exit_msg, Message::Exit);
         assert_eq!(terminate_msg, Message::Terminate);
@@ -1904,7 +2001,7 @@ mod tests {
         assert_eq!(start_msg, Message::Start);
         assert_eq!(resize_msg, Message::Resize);
         assert_eq!(redraw_app_msg, Message::RedrawApp);
-        
+
         // Test that they are different from each other
         assert_ne!(exit_msg, terminate_msg);
         assert_ne!(pause_msg, start_msg);
@@ -1921,14 +2018,14 @@ mod tests {
         let scroll_right = Message::ScrollPanelRight();
         let scroll_page_up = Message::ScrollPanelPageUp();
         let scroll_page_down = Message::ScrollPanelPageDown();
-        
+
         assert_eq!(scroll_down, Message::ScrollPanelDown());
         assert_eq!(scroll_up, Message::ScrollPanelUp());
         assert_eq!(scroll_left, Message::ScrollPanelLeft());
         assert_eq!(scroll_right, Message::ScrollPanelRight());
         assert_eq!(scroll_page_up, Message::ScrollPanelPageUp());
         assert_eq!(scroll_page_down, Message::ScrollPanelPageDown());
-        
+
         assert_ne!(scroll_down, scroll_up);
         assert_ne!(scroll_left, scroll_right);
     }
@@ -1939,7 +2036,7 @@ mod tests {
     fn test_navigation_messages() {
         let next_panel = Message::NextPanel();
         let previous_panel = Message::PreviousPanel();
-        
+
         assert_eq!(next_panel, Message::NextPanel());
         assert_eq!(previous_panel, Message::PreviousPanel());
         assert_ne!(next_panel, previous_panel);
@@ -1953,17 +2050,17 @@ mod tests {
         let start_refresh = Message::StartPanelRefresh(panel_id.clone());
         let stop_refresh = Message::StopPanelRefresh(panel_id.clone());
         let event_refresh = Message::PanelEventRefresh(panel_id.clone());
-        
+
         match start_refresh {
             Message::StartPanelRefresh(id) => assert_eq!(id, panel_id),
             _ => panic!("Expected StartPanelRefresh"),
         }
-        
+
         match stop_refresh {
             Message::StopPanelRefresh(id) => assert_eq!(id, panel_id),
             _ => panic!("Expected StopPanelRefresh"),
         }
-        
+
         match event_refresh {
             Message::PanelEventRefresh(id) => assert_eq!(id, panel_id),
             _ => panic!("Expected PanelEventRefresh"),
@@ -1976,7 +2073,7 @@ mod tests {
     fn test_redraw_panel_message() {
         let panel_id = "test_panel".to_string();
         let redraw_msg = Message::RedrawPanel(panel_id.clone());
-        
+
         match redraw_msg {
             Message::RedrawPanel(id) => assert_eq!(id, panel_id),
             _ => panic!("Expected RedrawPanel message"),

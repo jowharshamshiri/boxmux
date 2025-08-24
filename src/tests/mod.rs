@@ -1,5 +1,5 @@
 //! Test modules for BoxMux
-//! 
+//!
 //! This module contains all the test suites organized by functionality.
 
 #[cfg(test)]
@@ -41,9 +41,9 @@ pub mod table_tests;
 #[cfg(test)]
 pub mod layout_validation_tests;
 
+pub mod auto_scroll_tests;
 #[cfg(test)]
 pub mod automatic_scrollbar_tests;
-pub mod auto_scroll_tests;
 
 #[cfg(test)]
 pub mod clipboard_tests;

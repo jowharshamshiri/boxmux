@@ -4,9 +4,9 @@
 #[cfg(test)]
 mod hotkey_tests {
     use crate::model::app::App;
+    use crate::model::common::{Anchor, InputBounds};
     use crate::model::layout::Layout;
-    use crate::model::panel::{Panel, Choice};
-    use crate::model::common::{InputBounds, Anchor};
+    use crate::model::panel::{Choice, Panel};
     use crate::thread_manager::Message;
     use std::collections::HashMap;
 
@@ -17,9 +17,9 @@ mod hotkey_tests {
         let mut hotkeys = HashMap::new();
         hotkeys.insert("F1".to_string(), "deploy".to_string());
         hotkeys.insert("Ctrl+r".to_string(), "restart".to_string());
-        
+
         app.hot_keys = Some(hotkeys);
-        
+
         assert!(app.hot_keys.is_some());
         let hotkeys = app.hot_keys.unwrap();
         assert_eq!(hotkeys.get("F1"), Some(&"deploy".to_string()));
@@ -27,11 +27,11 @@ mod hotkey_tests {
     }
 
     /// Test that ExecuteHotKeyChoice message can be created
-    #[test] 
+    #[test]
     fn test_execute_hotkey_choice_message() {
         let choice_id = "deploy".to_string();
         let message = Message::ExecuteHotKeyChoice(choice_id.clone());
-        
+
         match message {
             Message::ExecuteHotKeyChoice(id) => {
                 assert_eq!(id, choice_id);
@@ -77,18 +77,18 @@ mod hotkey_tests {
     #[test]
     fn test_hotkey_configuration() {
         let mut app = App::new();
-        
+
         // Test that hot_keys starts as None
         assert!(app.hot_keys.is_none());
-        
+
         // Test setting hot keys
         let mut hotkeys = HashMap::new();
         hotkeys.insert("F1".to_string(), "build".to_string());
         hotkeys.insert("F2".to_string(), "test".to_string());
         hotkeys.insert("Ctrl+d".to_string(), "deploy".to_string());
-        
+
         app.hot_keys = Some(hotkeys);
-        
+
         assert!(app.hot_keys.is_some());
         let hotkeys = app.hot_keys.as_ref().unwrap();
         assert_eq!(hotkeys.len(), 3);
@@ -118,23 +118,23 @@ mod hotkey_tests {
     fn test_app_equality_includes_hotkeys() {
         let mut app1 = App::new();
         let mut app2 = App::new();
-        
+
         // Initially equal
         assert_eq!(app1, app2);
-        
+
         // Add hot keys to app1
         let mut hotkeys = HashMap::new();
         hotkeys.insert("F1".to_string(), "test".to_string());
         app1.hot_keys = Some(hotkeys);
-        
+
         // Now different
         assert_ne!(app1, app2);
-        
+
         // Make app2 equal
         let mut hotkeys2 = HashMap::new();
         hotkeys2.insert("F1".to_string(), "test".to_string());
         app2.hot_keys = Some(hotkeys2);
-        
+
         // Equal again
         assert_eq!(app1, app2);
     }

@@ -162,10 +162,14 @@ impl Perform for AnsiProcessor {
                 // Cursor position - CUP or HVP
                 let row = if params.len() > 0 {
                     Self::get_param(params, 0).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 let col = if params.len() > 1 {
                     Self::get_param(params, 1).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 self.cursor_y = (row.saturating_sub(1)) as usize;
                 self.cursor_x = (col.saturating_sub(1)) as usize;
             }
@@ -173,39 +177,50 @@ impl Perform for AnsiProcessor {
                 // Cursor up
                 let n = if params.len() > 0 {
                     Self::get_param(params, 0).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 self.cursor_y = self.cursor_y.saturating_sub(n as usize);
             }
             'B' => {
                 // Cursor down
                 let n = if params.len() > 0 {
                     Self::get_param(params, 0).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 self.cursor_y += n as usize;
             }
             'C' => {
                 // Cursor forward
                 let n = if params.len() > 0 {
                     Self::get_param(params, 0).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 self.cursor_x += n as usize;
             }
             'D' => {
                 // Cursor backward
                 let n = if params.len() > 0 {
                     Self::get_param(params, 0).max(1)
-                } else { 1 };
+                } else {
+                    1
+                };
                 self.cursor_x = self.cursor_x.saturating_sub(n as usize);
             }
             'J' => {
                 // Erase in Display
                 let n = if params.len() > 0 {
                     Self::get_param(params, 0)
-                } else { 0 };
+                } else {
+                    0
+                };
                 match n {
-                    0 => {}, // Clear from cursor to end of display
-                    1 => {}, // Clear from start of display to cursor
-                    2 => {   // Clear entire display
+                    0 => {} // Clear from cursor to end of display
+                    1 => {} // Clear from start of display to cursor
+                    2 => {
+                        // Clear entire display
                         self.processed_text.clear();
                         self.cursor_x = 0;
                         self.cursor_y = 0;

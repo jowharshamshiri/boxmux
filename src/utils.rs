@@ -3,14 +3,14 @@ use crate::{
     pty_manager::PtyManager,
     Layout,
 };
-use regex::Regex;
-use std::io::{self, Write};
-use std::process::{Command};
-use std::str;
-use std::{collections::HashMap};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::{terminal::size, execute};
+use crossterm::{execute, terminal::size};
+use regex::Regex;
+use std::collections::HashMap;
 use std::io::Stdout;
+use std::io::{self, Write};
+use std::process::Command;
+use std::str;
 
 pub fn screen_width() -> usize {
     size().unwrap_or((80, 24)).0 as usize
@@ -308,25 +308,12 @@ pub fn inherit_optional_f64(
     default_value
 }
 
-pub fn apply_buffer(
-    screen_buffer: &mut ScreenBuffer,
-    stdout: &mut Stdout,
-) {
+pub fn apply_buffer(screen_buffer: &mut ScreenBuffer, stdout: &mut Stdout) {
     for y in 0..screen_buffer.height {
         for x in 0..screen_buffer.width {
             if let Some(cell) = screen_buffer.get(x, y) {
-                execute!(
-                    stdout,
-                    crossterm::cursor::MoveTo(x as u16, y as u16)
-                ).unwrap();
-                write!(
-                    stdout,
-                    "{}{}{}",
-                    cell.bg_color,
-                    cell.fg_color,
-                    cell.ch
-                )
-                .unwrap();
+                execute!(stdout, crossterm::cursor::MoveTo(x as u16, y as u16)).unwrap();
+                write!(stdout, "{}{}{}", cell.bg_color, cell.fg_color, cell.ch).unwrap();
             }
         }
     }
@@ -356,18 +343,9 @@ pub fn apply_buffer_if_changed(
             } else {
                 // When encountering the end of a sequence of changes, flush them
                 if let Some(start) = last_changed_index {
-                    execute!(
-                        stdout,
-                        crossterm::cursor::MoveTo(start, y as u16)
-                    )
-                    .unwrap();
+                    execute!(stdout, crossterm::cursor::MoveTo(start, y as u16)).unwrap();
                     for cell in &changes {
-                        write!(
-                            stdout,
-                            "{}{}{}",
-                            cell.bg_color, cell.fg_color, cell.ch
-                        )
-                        .unwrap();
+                        write!(stdout, "{}{}{}", cell.bg_color, cell.fg_color, cell.ch).unwrap();
                     }
                     changes.clear();
                     last_changed_index = None;
@@ -377,18 +355,9 @@ pub fn apply_buffer_if_changed(
 
         // Check if there's a pending sequence at the end of the line
         if let Some(start) = last_changed_index {
-            execute!(
-                stdout,
-                crossterm::cursor::MoveTo(start, y as u16)
-            )
-            .unwrap();
+            execute!(stdout, crossterm::cursor::MoveTo(start, y as u16)).unwrap();
             for cell in changes {
-                write!(
-                    stdout,
-                    "{}{}{}",
-                    cell.bg_color, cell.fg_color, cell.ch
-                )
-                .unwrap();
+                write!(stdout, "{}{}{}", cell.bg_color, cell.fg_color, cell.ch).unwrap();
             }
         }
     }
@@ -481,39 +450,63 @@ pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::
 }
 
 pub fn run_script_with_pty(
-    libs_paths: Option<Vec<String>>, 
-    script: &Vec<String>, 
-    use_pty: bool, 
+    libs_paths: Option<Vec<String>>,
+    script: &Vec<String>,
+    use_pty: bool,
     pty_manager: Option<&PtyManager>,
     panel_id: Option<String>,
-    message_sender: Option<(std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>, uuid::Uuid)>
+    message_sender: Option<(
+        std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
+        uuid::Uuid,
+    )>,
 ) -> io::Result<String> {
-    run_script_with_pty_and_redirect(libs_paths, script, use_pty, pty_manager, panel_id, message_sender, None)
+    run_script_with_pty_and_redirect(
+        libs_paths,
+        script,
+        use_pty,
+        pty_manager,
+        panel_id,
+        message_sender,
+        None,
+    )
 }
 
 pub fn run_script_with_pty_and_redirect(
-    libs_paths: Option<Vec<String>>, 
-    script: &Vec<String>, 
-    use_pty: bool, 
+    libs_paths: Option<Vec<String>>,
+    script: &Vec<String>,
+    use_pty: bool,
     pty_manager: Option<&PtyManager>,
     panel_id: Option<String>,
-    message_sender: Option<(std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>, uuid::Uuid)>,
-    redirect_target: Option<String>
+    message_sender: Option<(
+        std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
+        uuid::Uuid,
+    )>,
+    redirect_target: Option<String>,
 ) -> io::Result<String> {
     if use_pty && pty_manager.is_some() && panel_id.is_some() && message_sender.is_some() {
         let pty_mgr = pty_manager.unwrap();
         let pid = panel_id.unwrap();
-        
+
         // Check if we should avoid PTY due to recent failures
         if pty_mgr.should_avoid_pty(&pid) {
-            log::warn!("Avoiding PTY for panel {} due to recent failures, using regular execution", pid);
+            log::warn!(
+                "Avoiding PTY for panel {} due to recent failures, using regular execution",
+                pid
+            );
             return run_script_regular(libs_paths, script);
         }
-        
+
         // Use PTY for script execution
         let (sender, thread_uuid) = message_sender.unwrap();
-        
-        match pty_mgr.spawn_pty_script_with_redirect(pid.clone(), script, libs_paths.clone(), sender, thread_uuid, redirect_target) {
+
+        match pty_mgr.spawn_pty_script_with_redirect(
+            pid.clone(),
+            script,
+            libs_paths.clone(),
+            sender,
+            thread_uuid,
+            redirect_target,
+        ) {
             Ok(_) => {
                 // PTY started successfully - clear any previous failures
                 pty_mgr.clear_pty_failures(&pid);
@@ -523,7 +516,11 @@ pub fn run_script_with_pty_and_redirect(
             }
             Err(e) => {
                 // Fall back to regular execution on PTY failure
-                log::warn!("PTY execution failed for panel {}, falling back to regular execution: {}", pid, e);
+                log::warn!(
+                    "PTY execution failed for panel {}, falling back to regular execution: {}",
+                    pid,
+                    e
+                );
                 run_script_regular(libs_paths, script)
             }
         }
@@ -565,7 +562,10 @@ fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> 
                 Ok(combined_output)
             } else {
                 let error_message = if combined_output.trim().is_empty() {
-                    format!("Script execution failed with exit code: {}", output.status.code().unwrap_or(-1))
+                    format!(
+                        "Script execution failed with exit code: {}",
+                        output.status.code().unwrap_or(-1)
+                    )
                 } else {
                     combined_output
                 };
@@ -590,7 +590,9 @@ pub fn normalize_key_str(key_str: &str) -> String {
 
 pub fn extract_key_str(event: Event) -> Option<String> {
     match event {
-        Event::Key(KeyEvent { code, modifiers, .. }) => match code {
+        Event::Key(KeyEvent {
+            code, modifiers, ..
+        }) => match code {
             KeyCode::Char(' ') => Some("Space".to_string()),
             KeyCode::Enter => Some("Return".to_string()),
             KeyCode::Tab => Some("Tab".to_string()),
@@ -686,8 +688,8 @@ mod tests {
     use crate::model::common::{Bounds, InputBounds};
     use crate::model::layout::Layout;
     use crate::model::panel::Panel;
-    use std::collections::HashMap;
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use std::collections::HashMap;
 
     // Helper function to create test bounds
     fn create_test_bounds(x1: usize, y1: usize, x2: usize, y2: usize) -> Bounds {
@@ -751,7 +753,7 @@ mod tests {
         let parent_bounds = create_test_bounds(10, 20, 110, 120);
         let input_bounds = create_test_input_bounds("50%", "25%", "75%", "50%");
         let result = input_bounds_to_bounds(&input_bounds, &parent_bounds);
-        
+
         assert_eq!(result.x1, 60); // 10 + 50% of 100
         assert_eq!(result.y1, 45); // 20 + 25% of 100
         assert_eq!(result.x2, 85); // 10 + 75% of 100
@@ -765,7 +767,7 @@ mod tests {
         let parent_bounds = create_test_bounds(10, 20, 110, 120);
         let input_bounds = create_test_input_bounds("5", "10", "15", "25");
         let result = input_bounds_to_bounds(&input_bounds, &parent_bounds);
-        
+
         assert_eq!(result.x1, 15); // 10 + 5
         assert_eq!(result.y1, 30); // 20 + 10
         assert_eq!(result.x2, 25); // 10 + 15
@@ -779,7 +781,7 @@ mod tests {
         let parent_bounds = create_test_bounds(0, 0, 100, 100);
         let abs_bounds = create_test_bounds(25, 50, 75, 100);
         let result = bounds_to_input_bounds(&abs_bounds, &parent_bounds);
-        
+
         assert_eq!(result.x1, "25%");
         assert_eq!(result.y1, "50%");
         assert_eq!(result.x2, "75%");
@@ -1068,7 +1070,7 @@ mod tests {
         let panel2 = create_test_panel_with_selection("panel2", true);
         let panel3 = create_test_panel_with_selection("panel3", false);
         let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
-        
+
         let result = find_selected_panel_uuid(&layout);
         assert_eq!(result, Some("panel2".to_string()));
     }
@@ -1080,7 +1082,7 @@ mod tests {
         let panel1 = create_test_panel_with_selection("panel1", false);
         let panel2 = create_test_panel_with_selection("panel2", false);
         let layout = create_test_layout_with_panels(vec![panel1, panel2]);
-        
+
         let result = find_selected_panel_uuid(&layout);
         assert_eq!(result, None);
     }
@@ -1091,7 +1093,7 @@ mod tests {
     fn test_find_selected_panel_uuid_empty_layout() {
         let mut layout = Layout::default();
         layout.children = None;
-        
+
         let result = find_selected_panel_uuid(&layout);
         assert_eq!(result, None);
     }
@@ -1104,7 +1106,7 @@ mod tests {
         let panel2 = create_test_panel_with_tab_order("panel2", Some("1"));
         let panel3 = create_test_panel_with_tab_order("panel3", Some("2"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
-        
+
         let result = calculate_tab_order(&layout);
         assert_eq!(result, vec!["panel2", "panel3", "panel1"]);
     }
@@ -1117,7 +1119,7 @@ mod tests {
         let panel2 = create_test_panel_with_tab_order("panel2", None);
         let panel3 = create_test_panel_with_tab_order("panel3", Some("1"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
-        
+
         let result = calculate_tab_order(&layout);
         assert_eq!(result, vec!["panel3", "panel1"]);
     }
@@ -1128,7 +1130,7 @@ mod tests {
     fn test_calculate_tab_order_empty_layout() {
         let mut layout = Layout::default();
         layout.children = None;
-        
+
         let result = calculate_tab_order(&layout);
         assert_eq!(result, Vec::<String>::new());
     }
@@ -1141,7 +1143,7 @@ mod tests {
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let panel3 = create_test_panel_with_tab_order("panel3", Some("3"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
-        
+
         let result = find_next_panel_uuid(&layout, "panel2");
         assert_eq!(result, Some("panel3".to_string()));
     }
@@ -1153,7 +1155,7 @@ mod tests {
         let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2]);
-        
+
         let result = find_next_panel_uuid(&layout, "panel2");
         assert_eq!(result, None);
     }
@@ -1165,7 +1167,7 @@ mod tests {
         let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2]);
-        
+
         let result = find_next_panel_uuid(&layout, "panel3");
         assert_eq!(result, None);
     }
@@ -1178,7 +1180,7 @@ mod tests {
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let panel3 = create_test_panel_with_tab_order("panel3", Some("3"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
-        
+
         let result = find_previous_panel_uuid(&layout, "panel2");
         assert_eq!(result, Some("panel1".to_string()));
     }
@@ -1190,7 +1192,7 @@ mod tests {
         let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2]);
-        
+
         let result = find_previous_panel_uuid(&layout, "panel1");
         assert_eq!(result, None);
     }
@@ -1202,7 +1204,7 @@ mod tests {
         let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
         let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
         let layout = create_test_layout_with_panels(vec![panel1, panel2]);
-        
+
         let result = find_previous_panel_uuid(&layout, "panel3");
         assert_eq!(result, None);
     }
@@ -1221,10 +1223,7 @@ mod tests {
     /// This test demonstrates the multi-command script execution feature.
     #[test]
     fn test_run_script_multiple_commands() {
-        let script = vec![
-            "echo 'First'".to_string(),
-            "echo 'Second'".to_string(),
-        ];
+        let script = vec!["echo 'First'".to_string(), "echo 'Second'".to_string()];
         let result = run_script(None, &script);
         assert!(result.is_ok());
         let output = result.unwrap();
@@ -1267,20 +1266,86 @@ mod tests {
     /// This test demonstrates the key event extraction feature.
     #[test]
     fn test_extract_key_str() {
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE))), Some("a".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE))), Some("Space".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))), Some("Return".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE))), Some("Tab".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL))), Some("Ctrl+c".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT))), Some("Alt+x".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE))), Some("Left".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE))), Some("Right".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE))), Some("Up".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE))), Some("Down".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))), Some("F1".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::F(12), KeyModifiers::NONE))), Some("F12".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))), Some("Esc".to_string()));
-        assert_eq!(extract_key_str(Event::Key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE))), Some("Backspace".to_string()));
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Char('a'),
+                KeyModifiers::NONE
+            ))),
+            Some("a".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Char(' '),
+                KeyModifiers::NONE
+            ))),
+            Some("Space".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Enter,
+                KeyModifiers::NONE
+            ))),
+            Some("Return".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE))),
+            Some("Tab".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL
+            ))),
+            Some("Ctrl+c".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Char('x'),
+                KeyModifiers::ALT
+            ))),
+            Some("Alt+x".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE))),
+            Some("Left".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Right,
+                KeyModifiers::NONE
+            ))),
+            Some("Right".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE))),
+            Some("Up".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE))),
+            Some("Down".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))),
+            Some("F1".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::F(12),
+                KeyModifiers::NONE
+            ))),
+            Some("F12".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))),
+            Some("Esc".to_string())
+        );
+        assert_eq!(
+            extract_key_str(Event::Key(KeyEvent::new(
+                KeyCode::Backspace,
+                KeyModifiers::NONE
+            ))),
+            Some("Backspace".to_string())
+        );
     }
 
     /// Tests that key_str_to_translate_whitespace() replaces whitespace characters.
@@ -1296,7 +1361,10 @@ mod tests {
         assert_eq!(key_str_to_translate_whitespace("\x1b[C"), "Right");
         assert_eq!(key_str_to_translate_whitespace("\x1b[D"), "Left");
         assert_eq!(key_str_to_translate_whitespace("\x1bOP"), "F1");
-        assert_eq!(key_str_to_translate_whitespace("regular text"), "regular text");
+        assert_eq!(
+            key_str_to_translate_whitespace("regular text"),
+            "regular text"
+        );
     }
 
     /// Tests that handle_keypress() matches keys and returns actions.
@@ -1306,17 +1374,20 @@ mod tests {
         let mut key_mappings = HashMap::new();
         key_mappings.insert("ctrl+c".to_string(), vec!["exit".to_string()]);
         key_mappings.insert("space".to_string(), vec!["pause".to_string()]);
-        key_mappings.insert("f1".to_string(), vec!["help".to_string(), "show".to_string()]);
-        
+        key_mappings.insert(
+            "f1".to_string(),
+            vec!["help".to_string(), "show".to_string()],
+        );
+
         let result = handle_keypress("Ctrl+C", &key_mappings);
         assert_eq!(result, Some(vec!["exit".to_string()]));
-        
+
         let result = handle_keypress(" ", &key_mappings);
         assert_eq!(result, Some(vec!["pause".to_string()]));
-        
+
         let result = handle_keypress("F1", &key_mappings);
         assert_eq!(result, Some(vec!["help".to_string(), "show".to_string()]));
-        
+
         let result = handle_keypress("unknown", &key_mappings);
         assert_eq!(result, None);
     }
@@ -1327,10 +1398,10 @@ mod tests {
     fn test_handle_keypress_normalized() {
         let mut key_mappings = HashMap::new();
         key_mappings.insert("Ctrl + C".to_string(), vec!["exit".to_string()]);
-        
+
         let result = handle_keypress("ctrl+c", &key_mappings);
         assert_eq!(result, Some(vec!["exit".to_string()]));
-        
+
         let result = handle_keypress("CTRL+C", &key_mappings);
         assert_eq!(result, Some(vec!["exit".to_string()]));
     }
@@ -1340,10 +1411,16 @@ mod tests {
     #[test]
     fn test_strip_ansi_codes() {
         assert_eq!(strip_ansi_codes("Hello World"), "Hello World");
-        assert_eq!(strip_ansi_codes("\x1b[31mHello\x1b[0m World"), "Hello World");
+        assert_eq!(
+            strip_ansi_codes("\x1b[31mHello\x1b[0m World"),
+            "Hello World"
+        );
         assert_eq!(strip_ansi_codes("\x1b[1;32mGreen\x1b[0m"), "Green");
         assert_eq!(strip_ansi_codes("\x1b[2J\x1b[H"), ""); // Clear screen sequence
-        assert_eq!(strip_ansi_codes("No \x1b[31mANSI\x1b[0m codes"), "No ANSI codes");
+        assert_eq!(
+            strip_ansi_codes("No \x1b[31mANSI\x1b[0m codes"),
+            "No ANSI codes"
+        );
     }
 
     /// Tests that strip_ansi_codes() handles complex ANSI sequences.
@@ -1366,17 +1443,22 @@ mod tests {
     // Performance benchmarks for critical functions
     #[test]
     fn benchmark_strip_ansi_codes_performance() {
-        let test_string = "\x1b[1;31;40mThis is a test string with ANSI codes\x1b[0m\x1b[32mGreen text\x1b[0m";
-        
+        let test_string =
+            "\x1b[1;31;40mThis is a test string with ANSI codes\x1b[0m\x1b[32mGreen text\x1b[0m";
+
         let start = std::time::Instant::now();
         for _ in 0..10000 {
             let _ = strip_ansi_codes(test_string);
         }
         let duration = start.elapsed();
-        
+
         // Should complete 10,000 operations in under 30 seconds (based on measured 25.8s performance)
         println!("ANSI stripping 10k operations: {:?}", duration);
-        assert!(duration.as_secs() < 30, "ANSI stripping performance regression: {:?}", duration);
+        assert!(
+            duration.as_secs() < 30,
+            "ANSI stripping performance regression: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -1386,10 +1468,14 @@ mod tests {
             let _ = run_script(None, &vec!["echo test".to_string()]);
         }
         let duration = start.elapsed();
-        
+
         // Should complete 100 script executions in under 10 seconds (relaxed for different environments)
         println!("Script execution 100 operations: {:?}", duration);
-        assert!(duration.as_secs() < 10, "Script execution performance regression: {:?}", duration);
+        assert!(
+            duration.as_secs() < 10,
+            "Script execution performance regression: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -1398,7 +1484,7 @@ mod tests {
         key_mappings.insert("Ctrl + C".to_string(), vec!["exit".to_string()]);
         key_mappings.insert("Ctrl + D".to_string(), vec!["quit".to_string()]);
         key_mappings.insert("Enter".to_string(), vec!["confirm".to_string()]);
-        
+
         let start = std::time::Instant::now();
         for _ in 0..50000 {
             let _ = handle_keypress("ctrl+c", &key_mappings);
@@ -1406,10 +1492,14 @@ mod tests {
             let _ = handle_keypress("unknown", &key_mappings);
         }
         let duration = start.elapsed();
-        
+
         // Should complete 150,000 key mapping operations in under 30 seconds (relaxed for different environments)
         println!("Key mapping 150k operations: {:?}", duration);
-        assert!(duration.as_secs() < 30, "Key mapping performance regression: {:?}", duration);
+        assert!(
+            duration.as_secs() < 30,
+            "Key mapping performance regression: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -1420,23 +1510,27 @@ mod tests {
             x2: "90".to_string(),
             y2: "44".to_string(),
         };
-        
+
         let parent_bounds = Bounds {
             x1: 0,
             y1: 0,
             x2: 100,
             y2: 50,
         };
-        
+
         let start = std::time::Instant::now();
         for _ in 0..100000 {
             let _ = input_bounds_to_bounds(&input_bounds, &parent_bounds);
         }
         let duration = start.elapsed();
-        
+
         // Should complete 100,000 bounds calculations in under 1300ms (based on measured 1.26s performance)
         println!("Bounds calculation 100k operations: {:?}", duration);
-        assert!(duration.as_millis() < 1300, "Bounds calculation performance regression: {:?}", duration);
+        assert!(
+            duration.as_millis() < 1300,
+            "Bounds calculation performance regression: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -1446,7 +1540,7 @@ mod tests {
         for i in 0..1000 {
             panels.push(format!("panel_{}", i));
         }
-        
+
         let start = std::time::Instant::now();
         for _ in 0..1000 {
             // Simulate processing large panel lists
@@ -1454,9 +1548,13 @@ mod tests {
             let _filtered: Vec<_> = panels.iter().filter(|p| p.contains("1")).collect();
         }
         let duration = start.elapsed();
-        
+
         // Should handle large config processing efficiently (based on measured 4.1s performance)
         println!("Large config processing 1k operations: {:?}", duration);
-        assert!(duration.as_millis() < 4500, "Large config processing performance regression: {:?}", duration);
+        assert!(
+            duration.as_millis() < 4500,
+            "Large config processing performance regression: {:?}",
+            duration
+        );
     }
 }

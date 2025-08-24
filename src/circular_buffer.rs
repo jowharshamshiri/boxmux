@@ -24,7 +24,7 @@ impl CircularBuffer {
         if self.buffer.len() >= self.max_size && self.max_size > 0 {
             self.buffer.pop_front(); // Remove oldest line
         }
-        
+
         self.buffer.push_back(line);
         self.total_lines_added += 1;
     }
@@ -46,7 +46,11 @@ impl CircularBuffer {
 
     /// Get the last N lines (most recent)
     pub fn get_last_lines(&self, n: usize) -> Vec<String> {
-        let start_idx = if n >= self.buffer.len() { 0 } else { self.buffer.len() - n };
+        let start_idx = if n >= self.buffer.len() {
+            0
+        } else {
+            self.buffer.len() - n
+        };
         self.buffer.iter().skip(start_idx).cloned().collect()
     }
 
@@ -55,7 +59,7 @@ impl CircularBuffer {
         if start >= self.buffer.len() {
             return Vec::new();
         }
-        
+
         let end = (start + count).min(self.buffer.len());
         self.buffer.range(start..end).cloned().collect()
     }
@@ -84,12 +88,12 @@ impl CircularBuffer {
     /// Set new maximum size (may truncate existing content)
     pub fn set_max_size(&mut self, new_max_size: usize) {
         self.max_size = new_max_size;
-        
+
         // Truncate if current size exceeds new limit
         while self.buffer.len() > new_max_size && new_max_size > 0 {
             self.buffer.pop_front();
         }
-        
+
         // Resize capacity for efficiency
         if new_max_size > 0 {
             self.buffer.reserve(new_max_size);
@@ -111,9 +115,9 @@ impl CircularBuffer {
     fn estimate_memory_usage(&self) -> usize {
         let string_overhead = std::mem::size_of::<String>();
         let content_size: usize = self.buffer.iter().map(|s| s.len()).sum();
-        let deque_overhead = std::mem::size_of::<VecDeque<String>>() + 
-                            (self.buffer.capacity() * string_overhead);
-        
+        let deque_overhead =
+            std::mem::size_of::<VecDeque<String>>() + (self.buffer.capacity() * string_overhead);
+
         content_size + deque_overhead
     }
 
@@ -163,14 +167,14 @@ mod tests {
     #[test]
     fn test_circular_buffer_basic_operations() {
         let mut buffer = CircularBuffer::new(3);
-        
+
         assert_eq!(buffer.len(), 0);
         assert!(buffer.is_empty());
-        
+
         buffer.push("line1".to_string());
         buffer.push("line2".to_string());
         buffer.push("line3".to_string());
-        
+
         assert_eq!(buffer.len(), 3);
         assert!(!buffer.is_empty());
         assert_eq!(buffer.get_all_lines(), vec!["line1", "line2", "line3"]);
@@ -179,14 +183,14 @@ mod tests {
     #[test]
     fn test_circular_buffer_overflow() {
         let mut buffer = CircularBuffer::new(2);
-        
+
         buffer.push("line1".to_string());
         buffer.push("line2".to_string());
         buffer.push("line3".to_string()); // Should remove line1
-        
+
         assert_eq!(buffer.len(), 2);
         assert_eq!(buffer.get_all_lines(), vec!["line2", "line3"]);
-        
+
         buffer.push("line4".to_string()); // Should remove line2
         assert_eq!(buffer.get_all_lines(), vec!["line3", "line4"]);
     }
@@ -194,24 +198,27 @@ mod tests {
     #[test]
     fn test_circular_buffer_get_last_lines() {
         let mut buffer = CircularBuffer::new(5);
-        
+
         for i in 1..=5 {
             buffer.push(format!("line{}", i));
         }
-        
+
         assert_eq!(buffer.get_last_lines(2), vec!["line4", "line5"]);
-        assert_eq!(buffer.get_last_lines(10), vec!["line1", "line2", "line3", "line4", "line5"]);
+        assert_eq!(
+            buffer.get_last_lines(10),
+            vec!["line1", "line2", "line3", "line4", "line5"]
+        );
     }
 
     #[test]
     fn test_circular_buffer_search() {
         let mut buffer = CircularBuffer::new(5);
-        
+
         buffer.push("error: file not found".to_string());
         buffer.push("info: processing data".to_string());
         buffer.push("warning: deprecated function".to_string());
         buffer.push("error: connection failed".to_string());
-        
+
         let results = buffer.search("error");
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0, 0); // First error at index 0
@@ -221,11 +228,11 @@ mod tests {
     #[test]
     fn test_circular_buffer_resize() {
         let mut buffer = CircularBuffer::new(5);
-        
+
         for i in 1..=5 {
             buffer.push(format!("line{}", i));
         }
-        
+
         // Resize to smaller capacity
         buffer.set_max_size(3);
         assert_eq!(buffer.len(), 3);
@@ -235,11 +242,11 @@ mod tests {
     #[test]
     fn test_circular_buffer_stats() {
         let mut buffer = CircularBuffer::new(2);
-        
+
         buffer.push("test1".to_string());
         buffer.push("test2".to_string());
         buffer.push("test3".to_string()); // Overflow
-        
+
         let stats = buffer.get_stats();
         assert_eq!(stats.current_lines, 2);
         assert_eq!(stats.max_size, 2);
@@ -251,11 +258,11 @@ mod tests {
     #[test]
     fn test_circular_buffer_content_methods() {
         let mut buffer = CircularBuffer::new(3);
-        
+
         buffer.push("line1".to_string());
         buffer.push("line2".to_string());
         buffer.push("line3".to_string());
-        
+
         assert_eq!(buffer.get_content(), "line1\nline2\nline3");
         assert_eq!(buffer.get_recent_content(2), "line2\nline3");
     }

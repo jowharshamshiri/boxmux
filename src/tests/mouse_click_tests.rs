@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod mouse_click_tests {
     use crate::model::layout::Layout;
-    use crate::model::panel::{Panel, Choice};
+    use crate::model::panel::{Choice, Panel};
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
 
@@ -14,7 +14,7 @@ mod mouse_click_tests {
         let x = 10u16;
         let y = 20u16;
         let message = Message::MouseClick(x, y);
-        
+
         match message {
             Message::MouseClick(click_x, click_y) => {
                 assert_eq!(click_x, x);
@@ -44,7 +44,7 @@ mod mouse_click_tests {
 
         // Same coordinates should produce same hash
         assert_eq!(hasher1.finish(), hasher2.finish());
-        
+
         // Different coordinates should produce different hash
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -61,10 +61,10 @@ mod mouse_click_tests {
         // Test finding panels at various coordinates
         // Note: The actual coordinates depend on bounds calculation which needs screen size
         // For this test, we're mainly testing the method exists and doesn't panic
-        
+
         let found_panel = layout.find_panel_at_coordinates(50, 25);
         // The result depends on bounds calculation, but method should not panic
-        
+
         let not_found = layout.find_panel_at_coordinates(1000, 1000);
         // Very large coordinates should not find any panel (unless screen is huge)
     }
@@ -95,7 +95,7 @@ mod mouse_click_tests {
     fn test_panel_selection_properties() {
         let mut panel = TestDataFactory::create_test_panel("selectable_panel");
         panel.tab_order = Some("1".to_string()); // Makes panel selectable
-        
+
         // Panel should be selectable if it has tab_order
         assert!(panel.tab_order.is_some());
         assert_eq!(panel.tab_order, Some("1".to_string()));
@@ -137,7 +137,7 @@ mod mouse_click_tests {
         assert_eq!(choices.len(), 2);
         assert_eq!(choices[0].id, "choice1");
         assert_eq!(choices[1].id, "choice2");
-        
+
         assert_eq!(choices[1].redirect_output, Some("output".to_string()));
     }
 
@@ -147,7 +147,7 @@ mod mouse_click_tests {
         // Test boundary values for mouse coordinates
         let min_coords = Message::MouseClick(0, 0);
         let max_coords = Message::MouseClick(u16::MAX, u16::MAX);
-        
+
         match min_coords {
             Message::MouseClick(x, y) => {
                 assert_eq!(x, 0);
@@ -155,7 +155,7 @@ mod mouse_click_tests {
             }
             _ => panic!("Expected MouseClick message"),
         }
-        
+
         match max_coords {
             Message::MouseClick(x, y) => {
                 assert_eq!(x, u16::MAX);
@@ -171,15 +171,18 @@ mod mouse_click_tests {
         let child_panel = TestDataFactory::create_test_panel("child");
         let mut parent_panel = TestDataFactory::create_test_panel("parent");
         parent_panel.children = Some(vec![child_panel]);
-        
+
         let layout = TestDataFactory::create_test_layout("nested_layout", Some(vec![parent_panel]));
-        
+
         // Test that coordinate detection works with nested structure
         // The method should handle nested panels without panicking
         let _result = layout.find_panel_at_coordinates(10, 10);
-        
+
         // Main test is that this doesn't panic with nested structure
-        assert!(true, "Nested panel coordinate detection completed without panic");
+        assert!(
+            true,
+            "Nested panel coordinate detection completed without panic"
+        );
     }
 
     /// Test choice index calculation edge cases
@@ -190,20 +193,30 @@ mod mouse_click_tests {
         let panel_height = 20u16;
         let content_start_offset = 3u16;
         let content_height = panel_height - content_start_offset;
-        
+
         if content_height > 0 && num_choices > 0 {
             let choice_height = content_height / num_choices as u16;
-            
+
             // Test different click positions
-            let click_positions = vec![0, choice_height / 2, choice_height, choice_height * 2, choice_height * 4];
-            
+            let click_positions = vec![
+                0,
+                choice_height / 2,
+                choice_height,
+                choice_height * 2,
+                choice_height * 4,
+            ];
+
             for click_pos in click_positions {
                 let choice_index = (click_pos / choice_height.max(1)) as usize;
-                assert!(choice_index < num_choices || click_pos >= content_height, 
-                       "Choice index {} should be valid for click position {}", choice_index, click_pos);
+                assert!(
+                    choice_index < num_choices || click_pos >= content_height,
+                    "Choice index {} should be valid for click position {}",
+                    choice_index,
+                    click_pos
+                );
             }
         }
-        
+
         // Test zero cases
         assert_eq!(0u16 / 1u16.max(1), 0);
         assert_eq!(5u16 / 1u16.max(1), 5);
