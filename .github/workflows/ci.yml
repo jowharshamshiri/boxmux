@@ -20,7 +20,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/cache
@@ -72,7 +72,7 @@ jobs:
       if: matrix.target == 'x86_64-unknown-linux-musl'
       run: sudo apt-get update && sudo apt-get install -y musl-tools
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/cache
@@ -85,7 +85,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.asset_name }}
         path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
@@ -104,7 +104,7 @@ jobs:
         cargo install cargo-deb cargo-rpm
         sudo apt-get update && sudo apt-get install -y rpm
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/cache
@@ -116,12 +116,12 @@ jobs:
     - name: Build .rpm package
       run: cargo rpm build
     - name: Upload .deb package
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: boxmux-deb
         path: target/debian/*.deb
     - name: Upload .rpm package
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: boxmux-rpm
         path: target/rpm/RPMS/*/*.rpm
@@ -134,26 +134,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
     - name: Display structure of downloaded files
       run: ls -la
     - name: Prepare release assets
       run: |
         mkdir release-assets
         # Linux GNU
-        cp boxmux-linux-amd64/boxmux release-assets/boxmux-linux-amd64
-        chmod +x release-assets/boxmux-linux-amd64
+        cp boxmux-linux-amd64 release-assets/boxmux-linux-amd64 || echo "boxmux-linux-amd64 not found"
+        chmod +x release-assets/boxmux-linux-amd64 2>/dev/null || true
         # Linux musl
-        cp boxmux-linux-musl-amd64/boxmux release-assets/boxmux-linux-musl-amd64
-        chmod +x release-assets/boxmux-linux-musl-amd64
+        cp boxmux-linux-musl-amd64 release-assets/boxmux-linux-musl-amd64 || echo "boxmux-linux-musl-amd64 not found"
+        chmod +x release-assets/boxmux-linux-musl-amd64 2>/dev/null || true
         # macOS Intel
-        cp boxmux-macos-amd64/boxmux release-assets/boxmux-macos-amd64
-        chmod +x release-assets/boxmux-macos-amd64
+        cp boxmux-macos-amd64 release-assets/boxmux-macos-amd64 || echo "boxmux-macos-amd64 not found"
+        chmod +x release-assets/boxmux-macos-amd64 2>/dev/null || true
         # macOS ARM
-        cp boxmux-macos-arm64/boxmux release-assets/boxmux-macos-arm64
-        chmod +x release-assets/boxmux-macos-arm64
+        cp boxmux-macos-arm64 release-assets/boxmux-macos-arm64 || echo "boxmux-macos-arm64 not found"
+        chmod +x release-assets/boxmux-macos-arm64 2>/dev/null || true
         # Windows
-        cp boxmux-windows-amd64.exe/boxmux.exe release-assets/boxmux-windows-amd64.exe
+        cp boxmux-windows-amd64.exe release-assets/boxmux-windows-amd64.exe || echo "boxmux-windows-amd64.exe not found"
     - name: Create checksums
       run: |
         cd release-assets
@@ -161,15 +163,15 @@ jobs:
         cat checksums.txt
     - name: Copy package files
       run: |
-        # Copy .deb and .rpm packages
-        cp boxmux-deb/*.deb release-assets/ || echo "No .deb files found"
-        cp boxmux-rpm/*.rpm release-assets/ || echo "No .rpm files found"
+        # Copy .deb and .rpm packages (v4 artifacts are extracted directly)
+        cp *.deb release-assets/ 2>/dev/null || echo "No .deb files found"
+        cp *.rpm release-assets/ 2>/dev/null || echo "No .rpm files found"
         # Update checksums to include packages
         cd release-assets
         sha256sum * > checksums.txt
         cat checksums.txt
     - name: Upload release assets
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           release-assets/boxmux-linux-amd64
