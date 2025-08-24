@@ -1,0 +1,149 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/cache
+          ~/.cargo/registry
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Run clippy
+      run: cargo clippy -- -D warnings
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: boxmux
+            asset_name: boxmux-linux-amd64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: boxmux
+            asset_name: boxmux-linux-musl-amd64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: boxmux.exe
+            asset_name: boxmux-windows-amd64.exe
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: boxmux
+            asset_name: boxmux-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: boxmux
+            asset_name: boxmux-macos-arm64
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    - name: Install musl-tools (Linux musl)
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: sudo apt-get update && sudo apt-get install -y musl-tools
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/cache
+          ~/.cargo/registry
+          target
+        key: ${{ matrix.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Build release
+      run: cargo build --release --target ${{ matrix.target }}
+    - name: Strip binary (Unix)
+      if: matrix.os != 'windows-latest'
+      run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.asset_name }}
+        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    - name: Display structure of downloaded files
+      run: ls -la
+    - name: Prepare release assets
+      run: |
+        mkdir release-assets
+        # Linux GNU
+        cp boxmux-linux-amd64/boxmux release-assets/boxmux-linux-amd64
+        chmod +x release-assets/boxmux-linux-amd64
+        # Linux musl
+        cp boxmux-linux-musl-amd64/boxmux release-assets/boxmux-linux-musl-amd64
+        chmod +x release-assets/boxmux-linux-musl-amd64
+        # macOS Intel
+        cp boxmux-macos-amd64/boxmux release-assets/boxmux-macos-amd64
+        chmod +x release-assets/boxmux-macos-amd64
+        # macOS ARM
+        cp boxmux-macos-arm64/boxmux release-assets/boxmux-macos-arm64
+        chmod +x release-assets/boxmux-macos-arm64
+        # Windows
+        cp boxmux-windows-amd64.exe/boxmux.exe release-assets/boxmux-windows-amd64.exe
+    - name: Create checksums
+      run: |
+        cd release-assets
+        sha256sum * > checksums.txt
+        cat checksums.txt
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release-assets/boxmux-linux-amd64
+          release-assets/boxmux-linux-musl-amd64
+          release-assets/boxmux-macos-amd64
+          release-assets/boxmux-macos-arm64
+          release-assets/boxmux-windows-amd64.exe
+          release-assets/checksums.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crate:
+    name: Publish to crates.io
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

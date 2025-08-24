@@ -1,0 +1,38 @@
+[build]
+# Default target for development
+target-dir = "target"
+
+[target.x86_64-unknown-linux-gnu]
+linker = "x86_64-linux-gnu-gcc"
+# Strip symbols for smaller releases
+rustflags = ["-C", "target-cpu=native", "-C", "link-arg=-s"]
+
+[target.x86_64-unknown-linux-musl]
+linker = "x86_64-linux-musl-gcc"
+# Static linking for portability
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=-s"]
+
+[target.x86_64-apple-darwin]
+# macOS Intel optimization
+rustflags = ["-C", "target-cpu=native"]
+
+[target.aarch64-apple-darwin]
+# Apple Silicon optimization
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-pc-windows-msvc]
+# Windows optimization
+rustflags = ["-C", "target-cpu=native"]
+
+# Profile optimizations for release builds
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+# Optimize for size without sacrificing too much performance
+[profile.release-small]
+inherits = "release"
+opt-level = "s"
+strip = "symbols"
