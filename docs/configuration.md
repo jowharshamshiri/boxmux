@@ -12,7 +12,7 @@ This document provides a reference for BoxMux YAML configuration files.
 - [File Structure](#file-structure)
 - [Application Configuration](#application-configuration)
 - [Layout Configuration](#layout-configuration)
-- [MuxBox Configuration](#box-configuration)
+- [Box Configuration](#box-configuration)
 - [Position Configuration](#position-configuration)
 - [Choice Configuration](#choice-configuration)
 - [PTY Configuration](#pty-configuration)
@@ -100,7 +100,7 @@ Layouts define the overall structure and appearance of your interface.
 | `selected_menu_fg_color` | `string` | No | `"black"` | Selected menu item text color |
 | `selected_menu_bg_color` | `string` | No | `"white"` | Selected menu item background color |
 | `fill_char` | `char` | No | `' '` | Character used to fill empty space |
-| `children` | `array[MuxBox]` | No | `[]` | List of child boxes |
+| `children` | `array[Box]` | No | `[]` | List of child boxes |
 
 ### Example Layout
 
@@ -121,17 +121,17 @@ app:
           # ... box configuration
 ```
 
-## MuxBox Configuration
+## Box Configuration
 
-MuxBoxes are the building blocks of your interface. They can contain content, menus, or other boxes.
+Boxes are the building blocks of your interface. They can contain content, menus, or other boxes.
 
-### MuxBox Properties
+### Box Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `id` | `string` | Yes | - | Unique identifier for the box |
-| `title` | `string` | No | - | MuxBox title shown in title bar |
-| `position` | `Position` | Yes | - | MuxBox position and size |
+| `title` | `string` | No | - | Box title shown in title bar |
+| `position` | `Position` | Yes | - | Box position and size |
 | `content` | `string` | No | - | Static text content |
 | `border` | `boolean` | No | `true` | Whether to show border |
 | `tab_order` | `string` | No | - | Tab navigation order (numeric string) |
@@ -140,10 +140,10 @@ MuxBoxes are the building blocks of your interface. They can contain content, me
 | `script` | `array[string]` | No | - | Shell commands to execute |
 | `pty` | `boolean` | No | `false` | Enable PTY (pseudo-terminal) for interactive programs |
 | `choices` | `array[Choice]` | No | - | Interactive menu choices |
-| `redirect_output` | `string` | No | - | MuxBox ID to redirect script output to |
+| `redirect_output` | `string` | No | - | Box ID to redirect script output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 | `on_keypress` | `object` | No | - | Keyboard event handlers |
-| `variables` | `object` | No | - | MuxBox-local variables for template substitution |
+| `variables` | `object` | No | - | Box-local variables for template substitution |
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
 | `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
@@ -154,7 +154,7 @@ MuxBoxes are the building blocks of your interface. They can contain content, me
 | `min_height` | `number` | No | - | Minimum height in characters |
 | `max_width` | `number` | No | - | Maximum width in characters |
 | `max_height` | `number` | No | - | Maximum height in characters |
-| `children` | `array[MuxBox]` | No | `[]` | List of child boxes |
+| `children` | `array[Box]` | No | `[]` | List of child boxes |
 
 ### Styling Properties
 
@@ -237,7 +237,7 @@ Choices create interactive menu items within boxes.
 | `content` | `string` | Yes | - | Text displayed in the menu |
 | `script` | `array[string]` | No | - | Commands to execute when selected |
 | `thread` | `boolean` | No | `false` | Whether to run script in background thread |
-| `redirect_output` | `string` | No | - | MuxBox ID to send output to |
+| `redirect_output` | `string` | No | - | Box ID to send output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 
 ### Choice Example
@@ -264,7 +264,7 @@ choices:
 
 PTY (pseudo-terminal) enables running interactive terminal programs within boxes.
 
-### PTY MuxBox Fields
+### PTY Box Fields
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -566,7 +566,7 @@ table_data: |
     headers: ['Setting', 'Value', 'Description']
     show_row_numbers: true
   table_data: |
-    refresh_rate,1000ms,MuxBox refresh interval
+    refresh_rate,1000ms,Box refresh interval
     socket_path,/tmp/boxmux.sock,Unix socket location
     log_level,info,Application log level
 ```
@@ -701,7 +701,7 @@ Variables use the following patterns:
 
 Variables are resolved in strict hierarchical order:
 
-1. **MuxBox-specific variables** (highest precedence, most granular)
+1. **Box-specific variables** (highest precedence, most granular)
 2. **Parent box variables** (inherited through box hierarchy) 
 3. **Layout-level variables** (layout scope)
 4. **Application-global variables** (app-wide scope)
@@ -725,7 +725,7 @@ app:
     DEFAULT_USER: "admin"
 ```
 
-#### MuxBox-level Variables
+#### Box-level Variables
 
 Define box-specific variables that override global settings:
 

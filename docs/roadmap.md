@@ -22,7 +22,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **YAML Configuration System** - Declarative interface definition with JSON schema validation
 - **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
 - **Socket-based API** - External control via Unix domain sockets
-- **Rich Component Library** - MuxBoxes, menus, charts, tables, real-time updates
+- **Rich Component Library** - Boxes, menus, charts, tables, real-time updates
 - **Auto-Scroll Output** - Auto-scroll for command output with scroll-to-bottom
 - **Data Visualization** - Charts and tables with sorting, filtering, pagination
 - **Plugin System** - Dynamic component loading with security validation
@@ -30,7 +30,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **Performance Optimization** - Sub-millisecond input handling, efficient rendering
 
 ### Recently Completed Features
-- **Auto-Scroll to Bottom**: MuxBoxes automatically scroll to show latest content for logs and command output  
+- **Auto-Scroll to Bottom**: Boxes automatically scroll to show latest content for logs and command output  
 - **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
 - **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
 - **Plugin System**: Dynamic component loading with security validation

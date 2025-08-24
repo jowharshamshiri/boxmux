@@ -65,7 +65,7 @@ yamllint layouts/dashboard.yaml
 
 #### Script Execution Fails
 
-**Problem**: MuxBox scripts don't execute
+**Problem**: Box scripts don't execute
 **Solution**:
 
 - Check script permissions: `chmod +x script.sh`
@@ -186,7 +186,7 @@ app:
       root: true
       children:
         - id: 'problem_box'
-          title: 'Problem MuxBox'
+          title: 'Problem Box'
           position:
             x1: 10%
             y1: 10%

@@ -12,7 +12,7 @@ This document describes the BoxMux API for programmatic control via socket messa
 - [Socket API](#socket-api)
 - [Message Format](#message-format)
 - [Command Reference](#command-reference)
-- [MuxBox Operations](#box-operations)
+- [Box Operations](#box-operations)
 - [Layout Operations](#layout-operations)
 - [System Operations](#system-operations)
 - [Event Handling](#event-handling)
@@ -27,7 +27,7 @@ BoxMux provides a Unix socket interface for real-time communication and control.
 
 ```bash
 # Send a command to BoxMux
-echo '{"UpdateMuxBox": {"box_id": "status", "content": "Hello World"}}' | nc -U /tmp/boxmux.sock
+echo '{"UpdateBox": {"box_id": "status", "content": "Hello World"}}' | nc -U /tmp/boxmux.sock
 
 # Check if BoxMux is running
 nc -U /tmp/boxmux.sock -w 1 < /dev/null && echo "BoxMux is running"
@@ -40,8 +40,8 @@ The socket accepts JSON messages terminated by newlines. Each message should be 
 ```bash
 # Multiple commands
 {
-  echo '{"UpdateMuxBox": {"box_id": "box1", "content": "Line 1"}}'
-  echo '{"UpdateMuxBox": {"box_id": "box2", "content": "Line 2"}}'
+  echo '{"UpdateBox": {"box_id": "box1", "content": "Line 1"}}'
+  echo '{"UpdateBox": {"box_id": "box2", "content": "Line 2"}}'
 } | nc -U /tmp/boxmux.sock
 ```
 
@@ -74,13 +74,13 @@ BoxMux may send responses for certain commands:
 
 ## Command Reference
 
-### UpdateMuxBox
+### UpdateBox
 
 Update the content of a specific box.
 
 ```json
 {
-  "UpdateMuxBox": {
+  "UpdateBox": {
     "box_id": "target_box",
     "content": "New content for the box"
   }
@@ -95,16 +95,16 @@ Update the content of a specific box.
 **Example:**
 
 ```bash
-echo '{"UpdateMuxBox": {"box_id": "status", "content": "System Online"}}' | nc -U /tmp/boxmux.sock
+echo '{"UpdateBox": {"box_id": "status", "content": "System Online"}}' | nc -U /tmp/boxmux.sock
 ```
 
-### AppendMuxBox
+### AppendBox
 
 Append content to a specific box.
 
 ```json
 {
-  "AppendMuxBox": {
+  "AppendBox": {
     "box_id": "target_box",
     "content": "Content to append"
   }
@@ -119,16 +119,16 @@ Append content to a specific box.
 **Example:**
 
 ```bash
-echo '{"AppendMuxBox": {"box_id": "logs", "content": "New log entry"}}' | nc -U /tmp/boxmux.sock
+echo '{"AppendBox": {"box_id": "logs", "content": "New log entry"}}' | nc -U /tmp/boxmux.sock
 ```
 
-### RefreshMuxBox
+### RefreshBox
 
 Trigger a refresh of a specific box (executes its script).
 
 ```json
 {
-  "RefreshMuxBox": {
+  "RefreshBox": {
     "box_id": "target_box"
   }
 }
@@ -141,16 +141,16 @@ Trigger a refresh of a specific box (executes its script).
 **Example:**
 
 ```bash
-echo '{"RefreshMuxBox": {"box_id": "cpu_monitor"}}' | nc -U /tmp/boxmux.sock
+echo '{"RefreshBox": {"box_id": "cpu_monitor"}}' | nc -U /tmp/boxmux.sock
 ```
 
-### SetMuxBoxProperty
+### SetBoxProperty
 
 Update a specific property of a box.
 
 ```json
 {
-  "SetMuxBoxProperty": {
+  "SetBoxProperty": {
     "box_id": "target_box",
     "property": "bg_color",
     "value": "red"
@@ -176,7 +176,7 @@ Update a specific property of a box.
 **Example:**
 
 ```bash
-echo '{"SetMuxBoxProperty": {"box_id": "alert", "property": "bg_color", "value": "red"}}' | nc -U /tmp/boxmux.sock
+echo '{"SetBoxProperty": {"box_id": "alert", "property": "bg_color", "value": "red"}}' | nc -U /tmp/boxmux.sock
 ```
 
 ### ExecuteScript
@@ -227,13 +227,13 @@ Send a key press to BoxMux.
 echo '{"SendKey": {"key": "Tab"}}' | nc -U /tmp/boxmux.sock
 ```
 
-### FocusMuxBox
+### FocusBox
 
 Focus a specific box.
 
 ```json
 {
-  "FocusMuxBox": {
+  "FocusBox": {
     "box_id": "target_box"
   }
 }
@@ -246,16 +246,16 @@ Focus a specific box.
 **Example:**
 
 ```bash
-echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
+echo '{"FocusBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
 ```
 
-## MuxBox Operations
+## Box Operations
 
-### Getting MuxBox Information
+### Getting Box Information
 
 ```json
 {
-  "GetMuxBoxInfo": {
+  "GetBoxInfo": {
     "box_id": "target_box"
   }
 }
@@ -268,7 +268,7 @@ echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
   "success": true,
   "data": {
     "id": "target_box",
-    "title": "MuxBox Title",
+    "title": "Box Title",
     "content": "Current content",
     "position": {"x1": "10%", "y1": "10%", "x2": "90%", "y2": "90%"},
     "properties": {
@@ -280,11 +280,11 @@ echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
 }
 ```
 
-### Listing All MuxBoxes
+### Listing All Boxes
 
 ```json
 {
-  "ListMuxBoxes": {}
+  "ListBoxes": {}
 }
 ```
 
@@ -297,12 +297,12 @@ echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
     "boxes": [
       {
         "id": "box1",
-        "title": "MuxBox 1",
+        "title": "Box 1",
         "parent": "layout1"
       },
       {
         "id": "box2",
-        "title": "MuxBox 2",
+        "title": "Box 2",
         "parent": "layout1"
       }
     ]
@@ -310,11 +310,11 @@ echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
 }
 ```
 
-### MuxBox State Management
+### Box State Management
 
 ```json
 {
-  "SetMuxBoxState": {
+  "SetBoxState": {
     "box_id": "target_box",
     "state": {
       "visible": true,
@@ -425,7 +425,7 @@ echo '{"FocusMuxBox": {"box_id": "menu"}}' | nc -U /tmp/boxmux.sock
 
 ### Event Types
 
-- `box_update`: MuxBox content changed
+- `box_update`: Box content changed
 - `key_press`: Key was pressed
 - `focus_change`: Focus moved to different box
 - `script_complete`: Script execution completed
@@ -469,7 +469,7 @@ class BoxMuxClient:
     
     def update_box(self, box_id, content):
         command = {
-            "UpdateMuxBox": {
+            "UpdateBox": {
                 "box_id": box_id,
                 "content": content
             }
@@ -478,7 +478,7 @@ class BoxMuxClient:
     
     def refresh_box(self, box_id):
         command = {
-            "RefreshMuxBox": {
+            "RefreshBox": {
                 "box_id": box_id
             }
         }
@@ -505,13 +505,13 @@ send_command() {
 update_box() {
     local box_id="$1"
     local content="$2"
-    local command="{\"UpdateMuxBox\": {\"box_id\": \"$box_id\", \"content\": \"$content\"}}"
+    local command="{\"UpdateBox\": {\"box_id\": \"$box_id\", \"content\": \"$content\"}}"
     send_command "$command"
 }
 
 refresh_box() {
     local box_id="$1"
-    local command="{\"RefreshMuxBox\": {\"box_id\": \"$box_id\"}}"
+    local command="{\"RefreshBox\": {\"box_id\": \"$box_id\"}}"
     send_command "$command"
 }
 
@@ -550,18 +550,18 @@ class BoxMuxClient {
         });
     }
     
-    updateMuxBox(boxId, content) {
+    updateBox(boxId, content) {
         return this.sendCommand({
-            UpdateMuxBox: {
+            UpdateBox: {
                 box_id: boxId,
                 content: content
             }
         });
     }
     
-    refreshMuxBox(boxId) {
+    refreshBox(boxId) {
         return this.sendCommand({
-            RefreshMuxBox: {
+            RefreshBox: {
                 box_id: boxId
             }
         });
@@ -570,8 +570,8 @@ class BoxMuxClient {
 
 // Usage
 const client = new BoxMuxClient();
-client.updateMuxBox('status', 'System Online');
-client.refreshMuxBox('cpu_monitor');
+client.updateBox('status', 'System Online');
+client.refreshBox('cpu_monitor');
 ```
 
 ## Integration Examples
@@ -586,7 +586,7 @@ BOXMUX_SOCKET="/tmp/boxmux.sock"
 
 update_status() {
     local status="$1"
-    echo "{\"UpdateMuxBox\": {\"box_id\": \"deploy_status\", \"content\": \"$status\"}}" | nc -U "$BOXMUX_SOCKET"
+    echo "{\"UpdateBox\": {\"box_id\": \"deploy_status\", \"content\": \"$status\"}}" | nc -U "$BOXMUX_SOCKET"
 }
 
 update_status "Starting deployment..."
@@ -602,7 +602,7 @@ update_status "Tests passed"
 update_status "Deployment completed"
 
 # Refresh monitoring boxes
-echo '{"RefreshMuxBox": {"box_id": "server_status"}}' | nc -U "$BOXMUX_SOCKET"
+echo '{"RefreshBox": {"box_id": "server_status"}}' | nc -U "$BOXMUX_SOCKET"
 ```
 
 ### Log Monitoring
@@ -630,7 +630,7 @@ class LogHandler(FileSystemEventHandler):
         
         # Update BoxMux box
         command = {
-            "UpdateMuxBox": {
+            "UpdateBox": {
                 "box_id": "log_viewer",
                 "content": recent_lines
             }
@@ -665,7 +665,7 @@ app.post('/api/update-box', (req, res) => {
     const { box_id, content } = req.body;
     
     const command = {
-        UpdateMuxBox: {
+        UpdateBox: {
             box_id: box_id,
             content: content
         }
@@ -698,15 +698,15 @@ SOCKET="/tmp/boxmux.sock"
 while true; do
     # CPU usage
     CPU=$(top -l 1 | grep "CPU usage" | awk '{print $3}' | sed 's/%//')
-    echo "{\"UpdateMuxBox\": {\"box_id\": \"cpu_box\", \"content\": \"CPU: $CPU%\"}}" | nc -U "$SOCKET"
+    echo "{\"UpdateBox\": {\"box_id\": \"cpu_box\", \"content\": \"CPU: $CPU%\"}}" | nc -U "$SOCKET"
     
     # Memory usage
     MEM=$(vm_stat | grep "Pages free" | awk '{print $3}' | sed 's/\.//')
-    echo "{\"UpdateMuxBox\": {\"box_id\": \"mem_box\", \"content\": \"Memory: ${MEM}MB free\"}}" | nc -U "$SOCKET"
+    echo "{\"UpdateBox\": {\"box_id\": \"mem_box\", \"content\": \"Memory: ${MEM}MB free\"}}" | nc -U "$SOCKET"
     
     # Disk usage
     DISK=$(df -h / | tail -1 | awk '{print $5}')
-    echo "{\"UpdateMuxBox\": {\"box_id\": \"disk_box\", \"content\": \"Disk: $DISK used\"}}" | nc -U "$SOCKET"
+    echo "{\"UpdateBox\": {\"box_id\": \"disk_box\", \"content\": \"Disk: $DISK used\"}}" | nc -U "$SOCKET"
     
     sleep 5
 done
@@ -719,8 +719,8 @@ done
 ```json
 {
   "success": false,
-  "error": "MuxBox not found",
-  "error_code": "MUXBOX_NOT_FOUND",
+  "error": "Box not found",
+  "error_code": "Box_NOT_FOUND",
   "details": {
     "box_id": "nonexistent_box",
     "available_boxes": ["box1", "box2"]
@@ -730,7 +730,7 @@ done
 
 ### Common Error Codes
 
-- `MUXBOX_NOT_FOUND`: Specified box ID does not exist
+- `Box_NOT_FOUND`: Specified box ID does not exist
 - `INVALID_COMMAND`: Unknown command type
 - `INVALID_PARAMETER`: Invalid parameter value
 - `SCRIPT_ERROR`: Script execution failed

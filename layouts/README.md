@@ -94,7 +94,7 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 - **YAML-Driven Configuration**: Declarative interface design
 - **Multi-threaded Architecture**: Efficient concurrent operations
 - **Real-time Updates**: Live data refresh with configurable intervals
-- **Interactive MuxBoxes**: Choice-based navigation and command execution
+- **Interactive Boxes**: Choice-based navigation and command execution
 - **Professional Themes**: Industry-standard color schemes
 - **Cross-platform Support**: macOS and Linux compatibility
 

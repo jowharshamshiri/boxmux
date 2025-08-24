@@ -75,7 +75,7 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 
 - Enhanced Charting: Unicode-based charts (bar, line, histogram) with smart layout engine
 - Chart Layout System: Responsive chart sizing and improved alignment
-- Table MuxBoxes: Structured data display with CSV/JSON parsing
+- Table Boxes: Structured data display with CSV/JSON parsing
 - Table Features: Sorting (text/numeric), filtering, pagination, multiple border styles
 - Table Styling: Zebra striping, row numbers, column width management
 
@@ -226,13 +226,13 @@ boxmux my-interface.yaml
 
 ### MuxBox Types
 
-- **Content MuxBoxes**: Display static or dynamic text with multi-line support
+- **Content Boxes**: Display static or dynamic text with multi-line support
 - **Interactive Menus**: Navigate and select options with keyboard controls and mouse clicks
-- **Chart MuxBoxes**: Unicode-based visualizations (bar, line, histogram) with responsive layout
-- **Table MuxBoxes**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
-- **PTY MuxBoxes**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
-- **Plugin MuxBoxes**: Dynamic components with security validation and manifest loading
-- **Variable MuxBoxes**: Template-driven content with hierarchical variable substitution
+- **Chart Boxes**: Unicode-based visualizations (bar, line, histogram) with responsive layout
+- **Table Boxes**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
+- **PTY Boxes**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
+- **Plugin Boxes**: Dynamic components with security validation and manifest loading
+- **Variable Boxes**: Template-driven content with hierarchical variable substitution
 
 ### Interface Features
 

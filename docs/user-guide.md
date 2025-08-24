@@ -87,19 +87,19 @@ app:
 
 ## Core Concepts
 
-### 1. Layouts and MuxBoxes
+### 1. Layouts and Boxes
 
-**Layouts** define the overall structure of your interface. **MuxBoxes** are the building blocks within layouts.
+**Layouts** define the overall structure of your interface. **Boxes** are the building blocks within layouts.
 
 ```yaml
 app:
   layouts:                    # List of layout definitions
     - id: 'main'             # Unique layout identifier
       root: true             # This is the main layout
-      children:              # MuxBoxes within this layout
+      children:              # Boxes within this layout
         - id: 'box1'       # Unique box identifier
-          title: 'MuxBox'     # MuxBox title
-          position:          # MuxBox position and size
+          title: 'Box'     # Box title
+          position:          # Box position and size
             x1: 10%          # Left edge (percentage of parent)
             y1: 10%          # Top edge
             x2: 90%          # Right edge
@@ -352,11 +352,12 @@ PTY (pseudo-terminal) features enable running interactive terminal programs dire
 ### When to Use PTY
 
 Use PTY for interactive programs that require:
+
 - Keyboard input (vim, nano, htop)
 - Terminal control sequences (colors, cursor movement)
 - Process interaction (ssh sessions, database shells)
 
-### PTY MuxBox Example
+### PTY Box Example
 
 ```yaml
 # Interactive system monitor
@@ -641,7 +642,7 @@ app:
       # Define colors once at layout level
       bg_color: 'black'
       fg_color: 'white'
-      # MuxBoxes inherit these styles
+      # Boxes inherit these styles
 ```
 
 ### 3. Performance Optimization
@@ -733,7 +734,7 @@ script:
   content: 'Select an action'
 ```
 
-### Nested MuxBox Hierarchies
+### Nested Box Hierarchies
 
 ```yaml
 # Complex nested structure

@@ -190,7 +190,7 @@ pub extern "C" fn create_plugin() -> Box<dyn BoxMuxPlugin> {
 
 ## Configuration
 
-### MuxBox Plugin Configuration
+### Box Plugin Configuration
 
 Use plugins in box configurations:
 
