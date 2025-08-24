@@ -763,8 +763,8 @@ create_runnable!(
                                             let libs = app_context_unwrapped.app.libs.clone();
                                             
                                             // Always use threaded execution for mouse clicks to keep UI responsive
-                                            let script_clone = script.clone();
-                                            let choice_id_clone = clicked_choice.id.clone();
+                                            let _script_clone = script.clone();
+                                            let _choice_id_clone = clicked_choice.id.clone();
                                             let panel_id_clone = clicked_panel.id.clone();
                                             let libs_clone = libs.clone();
                                             

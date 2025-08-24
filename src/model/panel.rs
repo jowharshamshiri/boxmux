@@ -1418,7 +1418,7 @@ impl Panel {
                 if let Ok(buffer_lock) = buffer.lock() {
                     let total_lines = buffer_lock.len();
                     if start_line < total_lines {
-                        let end_line = std::cmp::min(start_line + line_count, total_lines);
+                        let _end_line = std::cmp::min(start_line + line_count, total_lines);
                         return Some(buffer_lock.get_lines_range(start_line, line_count));
                     }
                 }
