@@ -33,7 +33,6 @@ impl TestDataFactory {
             max_width: None,
             max_height: None,
             overflow_behavior: None,
-            scroll: false,
             refresh_interval: None,
             tab_order: None,
             next_focus_id: None,

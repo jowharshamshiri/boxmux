@@ -71,4 +71,47 @@ mod tests {
 
         assert_eq!(overflow_behavior, "scroll", "Overflow behavior should be changed to scroll for focusable panel with overflowing content");
     }
+
+    #[test]
+    fn test_choice_overflow_triggers_scrollbars() {
+        // Test that panels with overflowing choices trigger scrollbar display
+        let mut panel = TestDataFactory::create_test_panel("choice_panel");
+        panel.next_focus_id = Some("next_panel".to_string()); // Make it focusable
+        
+        // Add many choices that will overflow a small panel
+        let mut choices = Vec::new();
+        for i in 1..=20 {
+            choices.push(crate::model::panel::Choice {
+                id: format!("choice_{}", i),
+                content: Some(format!("Choice {}", i)),
+                script: None,
+                thread: None,
+                redirect_output: None,
+                append_output: None,
+                pty: None,
+                selected: false,
+                waiting: false,
+            });
+        }
+        panel.choices = Some(choices);
+        
+        // Set small bounds that will cause choice overflow
+        panel.position = crate::model::common::InputBounds {
+            x1: "0".to_string(),
+            y1: "0".to_string(),
+            x2: "20".to_string(), // Small width
+            y2: "10".to_string(), // Small height - only 10 but 20 choices
+        };
+
+        // Test that has_scrollable_content detects the choice overflow
+        assert!(panel.has_scrollable_content(), "Panel with overflowing choices should be detected as scrollable");
+
+        // Simulate the new logic from draw_utils.rs that uses has_scrollable_content()
+        let mut overflow_behavior = "hidden".to_string();
+        if panel.next_focus_id.is_some() && panel.has_scrollable_content() {
+            overflow_behavior = "scroll".to_string();
+        }
+
+        assert_eq!(overflow_behavior, "scroll", "Choice overflow should trigger scrollbar display");
+    }
 }
