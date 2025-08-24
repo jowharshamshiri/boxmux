@@ -1,4 +1,4 @@
-use crate::model::panel::*;
+use crate::model::muxbox::*;
 use crate::{model::layout::Layout, Bounds};
 
 use std::fs::File;
@@ -18,7 +18,7 @@ use std::env;
 use std::hash::{DefaultHasher, Hasher};
 
 /// Variable context system implementing correct hierarchical precedence:
-/// Child Panel > Parent Panel > Layout > App Global > Environment > Default
+/// Child MuxBox > Parent MuxBox > Layout > App Global > Environment > Default
 #[derive(Debug, Clone)]
 pub struct VariableContext {
     app_vars: HashMap<String, String>,
@@ -37,19 +37,19 @@ impl VariableContext {
     }
 
     /// Resolve variable with correct precedence order:
-    /// Panel Hierarchy (child->parent) > Layout > App > Environment > Default
+    /// MuxBox Hierarchy (child->parent) > Layout > App > Environment > Default
     /// This allows YAML-defined variables to override environment for granular control
     pub fn resolve_variable(
         &self,
         name: &str,
         default: &str,
-        panel_hierarchy: &[&Panel],
+        muxbox_hierarchy: &[&MuxBox],
     ) -> String {
-        // Walk up panel hierarchy from most granular (child) to least granular (root parent)
-        for panel in panel_hierarchy.iter() {
-            if let Some(variables) = &panel.variables {
-                if let Some(panel_val) = variables.get(name) {
-                    return panel_val.clone();
+        // Walk up muxbox hierarchy from most granular (child) to least granular (root parent)
+        for muxbox in muxbox_hierarchy.iter() {
+            if let Some(variables) = &muxbox.variables {
+                if let Some(muxbox_val) = variables.get(name) {
+                    return muxbox_val.clone();
                 }
             }
         }
@@ -77,7 +77,7 @@ impl VariableContext {
     pub fn substitute_in_string(
         &self,
         content: &str,
-        panel_hierarchy: &[&Panel],
+        muxbox_hierarchy: &[&MuxBox],
     ) -> Result<String, Box<dyn std::error::Error>> {
         let mut result = content.to_string();
 
@@ -110,7 +110,7 @@ impl VariableContext {
                     );
                 }
 
-                self.resolve_variable(var_name, default_value, panel_hierarchy)
+                self.resolve_variable(var_name, default_value, muxbox_hierarchy)
             })
             .to_string();
 
@@ -120,7 +120,7 @@ impl VariableContext {
         result = env_pattern
             .replace_all(&result, |caps: &regex::Captures| {
                 let var_name = &caps[1];
-                self.resolve_variable(var_name, &format!("${}", var_name), panel_hierarchy)
+                self.resolve_variable(var_name, &format!("${}", var_name), muxbox_hierarchy)
             })
             .to_string();
 
@@ -282,19 +282,19 @@ impl App {
         }
     }
 
-    pub fn get_panel_by_id(&self, id: &str) -> Option<&Panel> {
+    pub fn get_muxbox_by_id(&self, id: &str) -> Option<&MuxBox> {
         for layout in &self.layouts {
-            if let Some(panel) = layout.get_panel_by_id(id) {
-                return Some(panel);
+            if let Some(muxbox) = layout.get_muxbox_by_id(id) {
+                return Some(muxbox);
             }
         }
         None
     }
 
-    pub fn get_panel_by_id_mut(&mut self, id: &str) -> Option<&mut Panel> {
+    pub fn get_muxbox_by_id_mut(&mut self, id: &str) -> Option<&mut MuxBox> {
         for layout in &mut self.layouts {
-            if let Some(panel) = layout.get_panel_by_id_mut(id) {
-                return Some(panel);
+            if let Some(muxbox) = layout.get_muxbox_by_id_mut(id) {
+                return Some(muxbox);
             }
         }
         None
@@ -347,9 +347,9 @@ impl App {
         }
     }
 
-    pub fn replace_panel(&mut self, panel: Panel) {
+    pub fn replace_muxbox(&mut self, muxbox: MuxBox) {
         for layout in &mut self.layouts {
-            if let Some(replaced) = layout.replace_panel_recursive(&panel) {
+            if let Some(replaced) = layout.replace_muxbox_recursive(&muxbox) {
                 if replaced {
                     return;
                 }
@@ -442,7 +442,7 @@ impl Updatable for App {
 
 #[derive(Debug)]
 pub struct AppGraph {
-    graphs: HashMap<String, DiGraph<Panel, ()>>,
+    graphs: HashMap<String, DiGraph<MuxBox, ()>>,
     node_maps: HashMap<String, HashMap<String, NodeIndex>>,
 }
 
@@ -496,11 +496,11 @@ impl AppGraph {
         let mut node_map = HashMap::new();
 
         if let Some(children) = &layout.children {
-            for panel in children {
-                self.add_panel_recursively(
+            for muxbox in children {
+                self.add_muxbox_recursively(
                     &mut graph,
                     &mut node_map,
-                    panel.clone(),
+                    muxbox.clone(),
                     None,
                     &layout.id,
                 );
@@ -511,20 +511,20 @@ impl AppGraph {
         self.node_maps.insert(layout.id.clone(), node_map);
     }
 
-    fn add_panel_recursively(
+    fn add_muxbox_recursively(
         &self,
-        graph: &mut DiGraph<Panel, ()>,
+        graph: &mut DiGraph<MuxBox, ()>,
         node_map: &mut HashMap<String, NodeIndex>,
-        mut panel: Panel,
+        mut muxbox: MuxBox,
         parent_id: Option<String>,
         parent_layout_id: &str,
     ) {
-        panel.parent_layout_id = Some(parent_layout_id.to_string());
-        let panel_id = panel.id.clone();
-        let node_index = graph.add_node(panel.clone());
-        node_map.insert(panel_id.clone(), node_index);
+        muxbox.parent_layout_id = Some(parent_layout_id.to_string());
+        let muxbox_id = muxbox.id.clone();
+        let node_index = graph.add_node(muxbox.clone());
+        node_map.insert(muxbox_id.clone(), node_index);
 
-        if let Some(parent_id) = panel.parent_id.clone() {
+        if let Some(parent_id) = muxbox.parent_id.clone() {
             if let Some(&parent_index) = node_map.get(&parent_id) {
                 graph.add_edge(parent_index, node_index, ());
             }
@@ -534,23 +534,23 @@ impl AppGraph {
             }
         }
 
-        if let Some(children) = panel.children {
+        if let Some(children) = muxbox.children {
             for mut child in children {
-                child.parent_id = Some(panel_id.clone());
-                self.add_panel_recursively(
+                child.parent_id = Some(muxbox_id.clone());
+                self.add_muxbox_recursively(
                     graph,
                     node_map,
                     child,
-                    Some(panel_id.clone()),
+                    Some(muxbox_id.clone()),
                     parent_layout_id,
                 );
             }
         }
     }
 
-    pub fn get_layout_panel_by_id(&self, layout_id: &str, panel_id: &str) -> Option<&Panel> {
+    pub fn get_layout_muxbox_by_id(&self, layout_id: &str, muxbox_id: &str) -> Option<&MuxBox> {
         self.node_maps.get(layout_id).and_then(|node_map| {
-            node_map.get(panel_id).and_then(|&index| {
+            node_map.get(muxbox_id).and_then(|&index| {
                 self.graphs
                     .get(layout_id)
                     .and_then(|graph| graph.node_weight(index))
@@ -558,9 +558,9 @@ impl AppGraph {
         })
     }
 
-    pub fn get_panel_by_id(&self, panel_id: &str) -> Option<&Panel> {
+    pub fn get_muxbox_by_id(&self, muxbox_id: &str) -> Option<&MuxBox> {
         for (layout_id, node_map) in &self.node_maps {
-            if let Some(&index) = node_map.get(panel_id) {
+            if let Some(&index) = node_map.get(muxbox_id) {
                 return self
                     .graphs
                     .get(layout_id)
@@ -570,9 +570,9 @@ impl AppGraph {
         None
     }
 
-    pub fn get_children(&self, layout_id: &str, panel_id: &str) -> Vec<&Panel> {
+    pub fn get_children(&self, layout_id: &str, muxbox_id: &str) -> Vec<&MuxBox> {
         if let Some(node_map) = self.node_maps.get(layout_id) {
-            if let Some(&index) = node_map.get(panel_id) {
+            if let Some(&index) = node_map.get(muxbox_id) {
                 return self.graphs[layout_id]
                     .edges_directed(index, petgraph::Direction::Outgoing)
                     .map(|edge| self.graphs[layout_id].node_weight(edge.target()).unwrap())
@@ -582,7 +582,7 @@ impl AppGraph {
         Vec::new()
     }
 
-    pub fn get_layout_children(&self, layout_id: &str) -> Vec<&Panel> {
+    pub fn get_layout_children(&self, layout_id: &str) -> Vec<&MuxBox> {
         if let Some(node_map) = self.node_maps.get(layout_id) {
             let root_node = node_map.get(layout_id).unwrap();
             return self.graphs[layout_id]
@@ -593,9 +593,9 @@ impl AppGraph {
         Vec::new()
     }
 
-    pub fn get_parent(&self, layout_id: &str, panel_id: &str) -> Option<&Panel> {
+    pub fn get_parent(&self, layout_id: &str, muxbox_id: &str) -> Option<&MuxBox> {
         if let Some(node_map) = self.node_maps.get(layout_id) {
-            if let Some(&index) = node_map.get(panel_id) {
+            if let Some(&index) = node_map.get(muxbox_id) {
                 return self.graphs[layout_id]
                     .edges_directed(index, petgraph::Direction::Incoming)
                     .next()
@@ -913,7 +913,7 @@ fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-/// Apply variable substitution to a layout and all its panels
+/// Apply variable substitution to a layout and all its muxboxes
 fn apply_layout_variable_substitution(
     layout: &mut Layout,
     context: &VariableContext,
@@ -928,76 +928,76 @@ fn apply_layout_variable_substitution(
             .map_err(|e| format!("Error in layout '{}' title: {}", layout.id, e))?;
     }
 
-    // Apply to all child panels
+    // Apply to all child muxboxes
     if let Some(ref mut children) = layout.children {
         for child in children {
-            apply_panel_variable_substitution(child, &layout_context, &[])?;
+            apply_muxbox_variable_substitution(child, &layout_context, &[])?;
         }
     }
 
     Ok(())
 }
 
-/// Apply variable substitution to a panel and its children with hierarchy context
-fn apply_panel_variable_substitution(
-    panel: &mut Panel,
+/// Apply variable substitution to a muxbox and its children with hierarchy context
+fn apply_muxbox_variable_substitution(
+    muxbox: &mut MuxBox,
     context: &VariableContext,
-    parent_hierarchy: &[&Panel],
+    parent_hierarchy: &[&MuxBox],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Create a local variable context including this panel's variables
-    let local_context = if let Some(ref panel_vars) = panel.variables {
+    // Create a local variable context including this muxbox's variables
+    let local_context = if let Some(ref muxbox_vars) = muxbox.variables {
         let mut combined_app_vars = context.app_vars.clone();
-        // Add panel variables to context for this panel and children
-        combined_app_vars.extend(panel_vars.clone());
+        // Add muxbox variables to context for this muxbox and children
+        combined_app_vars.extend(muxbox_vars.clone());
         VariableContext::new(Some(&combined_app_vars), Some(&context.layout_vars))
     } else {
         context.clone()
     };
 
-    // Build complete panel hierarchy for variable resolution
+    // Build complete muxbox hierarchy for variable resolution
     let full_hierarchy = parent_hierarchy.to_vec();
-    // Note: We can't add 'panel' to hierarchy due to borrowing issues
-    // Instead, we've merged panel variables into the context above
+    // Note: We can't add 'muxbox' to hierarchy due to borrowing issues
+    // Instead, we've merged muxbox variables into the context above
 
-    // Apply substitution to panel fields with error context
-    if let Some(ref mut title) = panel.title {
+    // Apply substitution to muxbox fields with error context
+    if let Some(ref mut title) = muxbox.title {
         *title = local_context
             .substitute_in_string(title, &full_hierarchy)
-            .map_err(|e| format!("Error in panel '{}' title: {}", panel.id, e))?;
+            .map_err(|e| format!("Error in muxbox '{}' title: {}", muxbox.id, e))?;
     }
 
-    if let Some(ref mut content) = panel.content {
+    if let Some(ref mut content) = muxbox.content {
         *content = local_context
             .substitute_in_string(content, &full_hierarchy)
-            .map_err(|e| format!("Error in panel '{}' content: {}", panel.id, e))?;
+            .map_err(|e| format!("Error in muxbox '{}' content: {}", muxbox.id, e))?;
     }
 
-    if let Some(ref mut script) = panel.script {
+    if let Some(ref mut script) = muxbox.script {
         for (i, script_line) in script.iter_mut().enumerate() {
             *script_line = local_context
                 .substitute_in_string(script_line, &full_hierarchy)
                 .map_err(|e| {
-                    format!("Error in panel '{}' script line {}: {}", panel.id, i + 1, e)
+                    format!("Error in muxbox '{}' script line {}: {}", muxbox.id, i + 1, e)
                 })?;
         }
     }
 
-    if let Some(ref mut redirect) = panel.redirect_output {
+    if let Some(ref mut redirect) = muxbox.redirect_output {
         *redirect = local_context
             .substitute_in_string(redirect, &full_hierarchy)
-            .map_err(|e| format!("Error in panel '{}' redirect_output: {}", panel.id, e))?;
+            .map_err(|e| format!("Error in muxbox '{}' redirect_output: {}", muxbox.id, e))?;
     }
 
     // Apply to choices if present
-    if let Some(ref mut choices) = panel.choices {
+    if let Some(ref mut choices) = muxbox.choices {
         for choice in choices {
             if let Some(ref mut choice_content) = choice.content {
                 *choice_content = local_context
                     .substitute_in_string(choice_content, &full_hierarchy)
                     .map_err(|e| {
                         format!(
-                            "Error in panel '{}' choice '{}' content: {}",
-                            panel.id, choice.id, e
+                            "Error in muxbox '{}' choice '{}' content: {}",
+                            muxbox.id, choice.id, e
                         )
                     })?;
             }
@@ -1008,8 +1008,8 @@ fn apply_panel_variable_substitution(
                         .substitute_in_string(script_line, &full_hierarchy)
                         .map_err(|e| {
                             format!(
-                                "Error in panel '{}' choice '{}' script line {}: {}",
-                                panel.id,
+                                "Error in muxbox '{}' choice '{}' script line {}: {}",
+                                muxbox.id,
                                 choice.id,
                                 i + 1,
                                 e
@@ -1020,12 +1020,12 @@ fn apply_panel_variable_substitution(
         }
     }
 
-    // Recursively apply to child panels
-    if let Some(ref mut children) = panel.children {
+    // Recursively apply to child muxboxes
+    if let Some(ref mut children) = muxbox.children {
         for child in children {
-            // For children, we can't include 'panel' in hierarchy due to borrowing
-            // but the local_context already includes panel variables
-            apply_panel_variable_substitution(child, &local_context, &full_hierarchy)?;
+            // For children, we can't include 'muxbox' in hierarchy due to borrowing
+            // but the local_context already includes muxbox variables
+            apply_muxbox_variable_substitution(child, &local_context, &full_hierarchy)?;
         }
     }
 
@@ -1044,13 +1044,13 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
     // This function applies the setup logic that was previously in validate_app
     // after the SchemaValidator has already validated the structure
 
-    fn set_parent_ids(panel: &mut Panel, parent_layout_id: &str, parent_id: Option<String>) {
-        panel.parent_layout_id = Some(parent_layout_id.to_string());
-        panel.parent_id = parent_id;
+    fn set_parent_ids(muxbox: &mut MuxBox, parent_layout_id: &str, parent_id: Option<String>) {
+        muxbox.parent_layout_id = Some(parent_layout_id.to_string());
+        muxbox.parent_id = parent_id;
 
-        if let Some(ref mut children) = panel.children {
+        if let Some(ref mut children) = muxbox.children {
             for child in children {
-                set_parent_ids(child, parent_layout_id, Some(panel.id.clone()));
+                set_parent_ids(child, parent_layout_id, Some(muxbox.id.clone()));
             }
         }
     }
@@ -1059,7 +1059,7 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
 
     for layout in &mut app.layouts {
         let mut layout_clone = layout.clone();
-        let panels_in_tab_order = layout_clone.get_panels_in_tab_order();
+        let muxboxes_in_tab_order = layout_clone.get_muxboxes_in_tab_order();
 
         // Identify root layout
         if layout.root.unwrap_or(false) {
@@ -1071,12 +1071,12 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
         }
 
         // Set up parent relationships and defaults
-        for panel in layout.children.as_mut().unwrap() {
-            set_parent_ids(panel, &layout.id, None);
-            if !panels_in_tab_order.is_empty() && panel.id == panels_in_tab_order[0].id {
-                panel.selected = Some(true);
+        for muxbox in layout.children.as_mut().unwrap() {
+            set_parent_ids(muxbox, &layout.id, None);
+            if !muxboxes_in_tab_order.is_empty() && muxbox.id == muxboxes_in_tab_order[0].id {
+                muxbox.selected = Some(true);
             }
-            if let Some(choices) = &mut panel.choices {
+            if let Some(choices) = &mut muxbox.choices {
                 if !choices.is_empty() {
                     choices[0].selected = true;
                 }
@@ -1110,7 +1110,7 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
     Ok(())
 }
 
-// The old check_unique_ids and check_panel_ids functions are no longer needed
+// The old check_unique_ids and check_muxbox_ids functions are no longer needed
 // because SchemaValidator handles ID uniqueness validation
 
 #[cfg(test)]
@@ -1118,17 +1118,17 @@ mod tests {
     use super::*;
     use crate::model::common::InputBounds;
     use crate::model::layout::Layout;
-    use crate::model::panel::Panel;
+    use crate::model::muxbox::MuxBox;
     use std::collections::HashMap;
 
     // === Helper Functions ===
 
-    /// Creates a basic test panel with the given id.
-    /// This helper demonstrates how to create a Panel for App testing.
-    fn create_test_panel(id: &str) -> Panel {
-        Panel {
+    /// Creates a basic test muxbox with the given id.
+    /// This helper demonstrates how to create a MuxBox for App testing.
+    fn create_test_muxbox(id: &str) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
-            title: Some(format!("Test Panel {}", id)),
+            title: Some(format!("Test MuxBox {}", id)),
             position: InputBounds {
                 x1: "0%".to_string(),
                 y1: "0%".to_string(),
@@ -1143,7 +1143,7 @@ mod tests {
 
     /// Creates a test Layout with the given id and optional children.
     /// This helper demonstrates how to create a Layout for App testing.
-    fn create_test_layout(id: &str, children: Option<Vec<Panel>>) -> Layout {
+    fn create_test_layout(id: &str, children: Option<Vec<MuxBox>>) -> Layout {
         Layout {
             id: id.to_string(),
             title: Some(format!("Test Layout {}", id)),
@@ -1154,12 +1154,12 @@ mod tests {
         }
     }
 
-    /// Creates a test App with basic layouts and panels.
+    /// Creates a test App with basic layouts and muxboxes.
     /// This helper demonstrates how to create an App for testing.
     fn create_test_app() -> App {
-        let panel1 = create_test_panel("panel1");
-        let panel2 = create_test_panel("panel2");
-        let layout1 = create_test_layout("layout1", Some(vec![panel1, panel2]));
+        let muxbox1 = create_test_muxbox("muxbox1");
+        let muxbox2 = create_test_muxbox("muxbox2");
+        let layout1 = create_test_layout("layout1", Some(vec![muxbox1, muxbox2]));
 
         let mut app = App::new();
         app.layouts.push(layout1);
@@ -1403,50 +1403,50 @@ mod tests {
         assert!(app.get_active_layout().is_none());
     }
 
-    // === App Panel Management Tests ===
+    // === App MuxBox Management Tests ===
 
-    /// Tests that App::get_panel_by_id() finds panels across layouts.
-    /// This test demonstrates the cross-layout panel retrieval feature.
+    /// Tests that App::get_muxbox_by_id() finds muxboxes across layouts.
+    /// This test demonstrates the cross-layout muxbox retrieval feature.
     #[test]
-    fn test_app_get_panel_by_id() {
+    fn test_app_get_muxbox_by_id() {
         let app = create_test_app();
 
-        let found_panel = app.get_panel_by_id("panel1");
-        assert!(found_panel.is_some());
-        assert_eq!(found_panel.unwrap().id, "panel1");
+        let found_muxbox = app.get_muxbox_by_id("muxbox1");
+        assert!(found_muxbox.is_some());
+        assert_eq!(found_muxbox.unwrap().id, "muxbox1");
 
-        let not_found = app.get_panel_by_id("nonexistent");
+        let not_found = app.get_muxbox_by_id("nonexistent");
         assert!(not_found.is_none());
     }
 
-    /// Tests that App::get_panel_by_id_mut() finds and allows modification.
-    /// This test demonstrates the mutable cross-layout panel retrieval feature.
+    /// Tests that App::get_muxbox_by_id_mut() finds and allows modification.
+    /// This test demonstrates the mutable cross-layout muxbox retrieval feature.
     #[test]
-    fn test_app_get_panel_by_id_mut() {
+    fn test_app_get_muxbox_by_id_mut() {
         let mut app = create_test_app();
 
-        let found_panel = app.get_panel_by_id_mut("panel1");
-        assert!(found_panel.is_some());
+        let found_muxbox = app.get_muxbox_by_id_mut("muxbox1");
+        assert!(found_muxbox.is_some());
 
-        // Modify the panel
-        found_panel.unwrap().title = Some("Modified Panel".to_string());
+        // Modify the muxbox
+        found_muxbox.unwrap().title = Some("Modified MuxBox".to_string());
 
         // Verify the modification
-        let verified_panel = app.get_panel_by_id("panel1");
+        let verified_muxbox = app.get_muxbox_by_id("muxbox1");
         assert_eq!(
-            verified_panel.unwrap().title,
-            Some("Modified Panel".to_string())
+            verified_muxbox.unwrap().title,
+            Some("Modified MuxBox".to_string())
         );
     }
 
-    /// Tests that App::get_panel_by_id_mut() handles empty app.
-    /// This test demonstrates edge case handling in mutable panel retrieval.
+    /// Tests that App::get_muxbox_by_id_mut() handles empty app.
+    /// This test demonstrates edge case handling in mutable muxbox retrieval.
     #[test]
-    fn test_app_get_panel_by_id_mut_empty() {
+    fn test_app_get_muxbox_by_id_mut_empty() {
         let mut app = App::new();
 
-        let found_panel = app.get_panel_by_id_mut("nonexistent");
-        assert!(found_panel.is_none());
+        let found_muxbox = app.get_muxbox_by_id_mut("nonexistent");
+        assert!(found_muxbox.is_none());
     }
 
     // === App Validation Tests ===
@@ -1458,16 +1458,16 @@ mod tests {
         let mut app = create_test_app();
 
         // Before validation, parent relationships should not be set
-        let panel = app.get_panel_by_id("panel1").unwrap();
-        assert_eq!(panel.parent_layout_id, None);
-        assert_eq!(panel.parent_id, None);
+        let muxbox = app.get_muxbox_by_id("muxbox1").unwrap();
+        assert_eq!(muxbox.parent_layout_id, None);
+        assert_eq!(muxbox.parent_id, None);
 
         app.validate();
 
         // After validation, parent relationships should be set
-        let panel = app.get_panel_by_id("panel1").unwrap();
-        assert_eq!(panel.parent_layout_id, Some("layout1".to_string()));
-        assert_eq!(panel.parent_id, None); // Top-level panel has no parent panel
+        let muxbox = app.get_muxbox_by_id("muxbox1").unwrap();
+        assert_eq!(muxbox.parent_layout_id, Some("layout1".to_string()));
+        assert_eq!(muxbox.parent_id, None); // Top-level muxbox has no parent muxbox
     }
 
     /// Tests that App::validate() sets root layout as active.
@@ -1518,15 +1518,15 @@ mod tests {
     /// Tests that App::validate() panics with duplicate IDs.
     /// This test demonstrates the duplicate ID validation feature.
     #[test]
-    #[should_panic(expected = "Duplicate ID 'panel1' found in panels")]
+    #[should_panic(expected = "Duplicate ID 'muxbox1' found in muxboxes")]
     fn test_app_validate_duplicate_ids_panics() {
         let mut app = App::new();
 
-        // Create two panels with the same ID
-        let panel1a = create_test_panel("panel1");
-        let panel1b = create_test_panel("panel1"); // Duplicate ID
+        // Create two muxboxes with the same ID
+        let muxbox1a = create_test_muxbox("muxbox1");
+        let muxbox1b = create_test_muxbox("muxbox1"); // Duplicate ID
 
-        let layout = create_test_layout("layout1", Some(vec![panel1a, panel1b]));
+        let layout = create_test_layout("layout1", Some(vec![muxbox1a, muxbox1b]));
         app.layouts.push(layout);
 
         app.validate();
@@ -1562,8 +1562,8 @@ mod tests {
         assert!(bounds.contains_key("layout1"));
 
         let layout_bounds = bounds.get("layout1").unwrap();
-        assert!(layout_bounds.contains_key("panel1"));
-        assert!(layout_bounds.contains_key("panel2"));
+        assert!(layout_bounds.contains_key("muxbox1"));
+        assert!(layout_bounds.contains_key("muxbox2"));
     }
 
     /// Tests that App::get_adjusted_bounds() caches bounds correctly.
@@ -1609,7 +1609,7 @@ mod tests {
         assert!(app_graph.graphs.contains_key("layout1"));
 
         let graph = &app_graph.graphs["layout1"];
-        assert_eq!(graph.node_count(), 2); // panel1 and panel2
+        assert_eq!(graph.node_count(), 2); // muxbox1 and muxbox2
     }
 
     /// Tests that App::generate_graph() caches graph correctly.
@@ -1626,40 +1626,40 @@ mod tests {
         assert_eq!(graph1, graph2);
     }
 
-    // === App Panel Replacement Tests ===
+    // === App MuxBox Replacement Tests ===
 
-    /// Tests that App::replace_panel() replaces panels correctly.
-    /// This test demonstrates the panel replacement feature.
+    /// Tests that App::replace_muxbox() replaces muxboxes correctly.
+    /// This test demonstrates the muxbox replacement feature.
     #[test]
-    fn test_app_replace_panel() {
+    fn test_app_replace_muxbox() {
         let mut app = create_test_app();
 
-        // Create a replacement panel
-        let mut replacement_panel = create_test_panel("panel1");
-        replacement_panel.title = Some("Replaced Panel".to_string());
+        // Create a replacement muxbox
+        let mut replacement_muxbox = create_test_muxbox("muxbox1");
+        replacement_muxbox.title = Some("Replaced MuxBox".to_string());
 
-        app.replace_panel(replacement_panel);
+        app.replace_muxbox(replacement_muxbox);
 
-        // Verify the panel was replaced
-        let replaced_panel = app.get_panel_by_id("panel1").unwrap();
-        assert_eq!(replaced_panel.title, Some("Replaced Panel".to_string()));
+        // Verify the muxbox was replaced
+        let replaced_muxbox = app.get_muxbox_by_id("muxbox1").unwrap();
+        assert_eq!(replaced_muxbox.title, Some("Replaced MuxBox".to_string()));
     }
 
-    /// Tests that App::replace_panel() handles nonexistent panels.
-    /// This test demonstrates edge case handling in panel replacement.
+    /// Tests that App::replace_muxbox() handles nonexistent muxboxes.
+    /// This test demonstrates edge case handling in muxbox replacement.
     #[test]
-    fn test_app_replace_panel_nonexistent() {
+    fn test_app_replace_muxbox_nonexistent() {
         let mut app = create_test_app();
 
-        // Create a replacement panel with nonexistent ID
-        let replacement_panel = create_test_panel("nonexistent");
+        // Create a replacement muxbox with nonexistent ID
+        let replacement_muxbox = create_test_muxbox("nonexistent");
 
         // This should not panic
-        app.replace_panel(replacement_panel);
+        app.replace_muxbox(replacement_muxbox);
 
-        // Original panels should be unchanged
-        let original_panel = app.get_panel_by_id("panel1").unwrap();
-        assert_eq!(original_panel.title, Some("Test Panel panel1".to_string()));
+        // Original muxboxes should be unchanged
+        let original_muxbox = app.get_muxbox_by_id("muxbox1").unwrap();
+        assert_eq!(original_muxbox.title, Some("Test MuxBox muxbox1".to_string()));
     }
 
     // === App Clone Tests ===
@@ -1817,7 +1817,7 @@ mod tests {
     /// This test demonstrates the layout addition feature.
     #[test]
     fn test_app_graph_add_layout() {
-        let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
+        let layout = create_test_layout("test", Some(vec![create_test_muxbox("muxbox1")]));
         let mut app_graph = AppGraph::new();
 
         app_graph.add_layout(&layout);
@@ -1827,50 +1827,50 @@ mod tests {
         assert_eq!(app_graph.graphs["test"].node_count(), 1);
     }
 
-    /// Tests that AppGraph::get_layout_panel_by_id() finds panels.
-    /// This test demonstrates the layout-specific panel retrieval feature.
+    /// Tests that AppGraph::get_layout_muxbox_by_id() finds muxboxes.
+    /// This test demonstrates the layout-specific muxbox retrieval feature.
     #[test]
-    fn test_app_graph_get_layout_panel_by_id() {
-        let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
+    fn test_app_graph_get_layout_muxbox_by_id() {
+        let layout = create_test_layout("test", Some(vec![create_test_muxbox("muxbox1")]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
 
-        let panel = app_graph.get_layout_panel_by_id("test", "panel1");
-        assert!(panel.is_some());
-        assert_eq!(panel.unwrap().id, "panel1");
+        let muxbox = app_graph.get_layout_muxbox_by_id("test", "muxbox1");
+        assert!(muxbox.is_some());
+        assert_eq!(muxbox.unwrap().id, "muxbox1");
 
-        let not_found = app_graph.get_layout_panel_by_id("test", "nonexistent");
+        let not_found = app_graph.get_layout_muxbox_by_id("test", "nonexistent");
         assert!(not_found.is_none());
     }
 
-    /// Tests that AppGraph::get_panel_by_id() finds panels across layouts.
-    /// This test demonstrates the cross-layout panel retrieval feature.
+    /// Tests that AppGraph::get_muxbox_by_id() finds muxboxes across layouts.
+    /// This test demonstrates the cross-layout muxbox retrieval feature.
     #[test]
-    fn test_app_graph_get_panel_by_id() {
-        let layout1 = create_test_layout("layout1", Some(vec![create_test_panel("panel1")]));
-        let layout2 = create_test_layout("layout2", Some(vec![create_test_panel("panel2")]));
+    fn test_app_graph_get_muxbox_by_id() {
+        let layout1 = create_test_layout("layout1", Some(vec![create_test_muxbox("muxbox1")]));
+        let layout2 = create_test_layout("layout2", Some(vec![create_test_muxbox("muxbox2")]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout1);
         app_graph.add_layout(&layout2);
 
-        let panel1 = app_graph.get_panel_by_id("panel1");
-        assert!(panel1.is_some());
-        assert_eq!(panel1.unwrap().id, "panel1");
+        let muxbox1 = app_graph.get_muxbox_by_id("muxbox1");
+        assert!(muxbox1.is_some());
+        assert_eq!(muxbox1.unwrap().id, "muxbox1");
 
-        let panel2 = app_graph.get_panel_by_id("panel2");
-        assert!(panel2.is_some());
-        assert_eq!(panel2.unwrap().id, "panel2");
+        let muxbox2 = app_graph.get_muxbox_by_id("muxbox2");
+        assert!(muxbox2.is_some());
+        assert_eq!(muxbox2.unwrap().id, "muxbox2");
     }
 
-    /// Tests that AppGraph::get_children() returns child panels.
+    /// Tests that AppGraph::get_children() returns child muxboxes.
     /// This test demonstrates the children retrieval feature.
     #[test]
     fn test_app_graph_get_children() {
-        let child_panel = create_test_panel("child");
-        let mut parent_panel = create_test_panel("parent");
-        parent_panel.children = Some(vec![child_panel]);
+        let child_muxbox = create_test_muxbox("child");
+        let mut parent_muxbox = create_test_muxbox("parent");
+        parent_muxbox.children = Some(vec![child_muxbox]);
 
-        let layout = create_test_layout("test", Some(vec![parent_panel]));
+        let layout = create_test_layout("test", Some(vec![parent_muxbox]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
 
@@ -1879,15 +1879,15 @@ mod tests {
         assert_eq!(children[0].id, "child");
     }
 
-    /// Tests that AppGraph::get_parent() returns parent panels.
+    /// Tests that AppGraph::get_parent() returns parent muxboxes.
     /// This test demonstrates the parent retrieval feature.
     #[test]
     fn test_app_graph_get_parent() {
-        let child_panel = create_test_panel("child");
-        let mut parent_panel = create_test_panel("parent");
-        parent_panel.children = Some(vec![child_panel]);
+        let child_muxbox = create_test_muxbox("child");
+        let mut parent_muxbox = create_test_muxbox("parent");
+        parent_muxbox.children = Some(vec![child_muxbox]);
 
-        let layout = create_test_layout("test", Some(vec![parent_panel]));
+        let layout = create_test_layout("test", Some(vec![parent_muxbox]));
         let mut app_graph = AppGraph::new();
         app_graph.add_layout(&layout);
 
@@ -1900,7 +1900,7 @@ mod tests {
     /// This test demonstrates AppGraph hashing behavior.
     #[test]
     fn test_app_graph_hash() {
-        let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
+        let layout = create_test_layout("test", Some(vec![create_test_muxbox("muxbox1")]));
         let mut app_graph1 = AppGraph::new();
         let mut app_graph2 = AppGraph::new();
         app_graph1.add_layout(&layout);
@@ -1922,7 +1922,7 @@ mod tests {
     /// This test demonstrates AppGraph equality comparison.
     #[test]
     fn test_app_graph_equality() {
-        let layout = create_test_layout("test", Some(vec![create_test_panel("panel1")]));
+        let layout = create_test_layout("test", Some(vec![create_test_muxbox("muxbox1")]));
         let mut app_graph1 = AppGraph::new();
         let mut app_graph2 = AppGraph::new();
         app_graph1.add_layout(&layout);
@@ -1934,7 +1934,7 @@ mod tests {
     // === Integration Tests (from original test suite) ===
 
     #[test]
-    fn test_layout_and_panels_addition() {
+    fn test_layout_and_muxboxes_addition() {
         let mut app_context = setup_app_context();
         let app_graph = app_context.app.generate_graph();
         assert!(app_graph.graphs.contains_key("dashboard"));
@@ -1942,15 +1942,15 @@ mod tests {
         assert_eq!(
             graph.node_count(),
             9,
-            "Should include all panels and sub-panels"
+            "Should include all muxboxes and sub-muxboxes"
         );
     }
 
     #[test]
-    fn test_get_panel_by_id() {
+    fn test_get_muxbox_by_id() {
         let mut app_context = setup_app_context();
         let app_graph = app_context.app.generate_graph();
-        let panels = [
+        let muxboxes = [
             "header",
             "title",
             "time",
@@ -1961,9 +1961,9 @@ mod tests {
             "log_output",
             "footer",
         ];
-        for &panel_id in panels.iter() {
-            let panel = app_graph.get_panel_by_id(panel_id);
-            assert!(panel.is_some(), "Panel with ID {} should exist", panel_id);
+        for &muxbox_id in muxboxes.iter() {
+            let muxbox = app_graph.get_muxbox_by_id(muxbox_id);
+            assert!(muxbox.is_some(), "MuxBox with ID {} should exist", muxbox_id);
         }
     }
 
@@ -2044,13 +2044,13 @@ app:
     - id: 'layout1'
       root: true
       children:
-        - id: 'panel1'
+        - id: 'muxbox1'
           position:
             x1: 0%
             y1: 0%
             x2: 50%
             y2: 50%
-        - id: 'panel1'  # Duplicate ID - should fail validation
+        - id: 'muxbox1'  # Duplicate ID - should fail validation
           position:
             x1: 50%
             y1: 0%
@@ -2072,7 +2072,7 @@ app:
 
         let error_msg = result.unwrap_err().to_string();
         assert!(
-            error_msg.contains("Duplicate ID 'panel1' found in panels"),
+            error_msg.contains("Duplicate ID 'muxbox1' found in muxboxes"),
             "Error message should mention duplicate ID: {}",
             error_msg
         );
@@ -2109,7 +2109,7 @@ app:
     - id: 'layout1'
       root: true
       children:
-        - id: 'panel1'
+        - id: 'muxbox1'
           position:
             x1: 0%
             y1: 0%
@@ -2118,7 +2118,7 @@ app:
     - id: 'layout2'
       root: true  # Second root - should fail validation
       children:
-        - id: 'panel2'
+        - id: 'muxbox2'
           position:
             x1: 0%
             y1: 0%
@@ -2148,10 +2148,10 @@ app:
     }
 }
 
-// F0190: YAML persistence functions for live panel resizing
-pub fn save_panel_bounds_to_yaml(
+// F0190: YAML persistence functions for live muxbox resizing
+pub fn save_muxbox_bounds_to_yaml(
     yaml_path: &str,
-    panel_id: &str,
+    muxbox_id: &str,
     new_bounds: &crate::InputBounds,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs;
@@ -2161,28 +2161,28 @@ pub fn save_panel_bounds_to_yaml(
     let yaml_content = fs::read_to_string(yaml_path)?;
     let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
     
-    // Find and update the panel bounds
-    update_panel_bounds_recursive(&mut yaml_value, panel_id, new_bounds)?;
+    // Find and update the muxbox bounds
+    update_muxbox_bounds_recursive(&mut yaml_value, muxbox_id, new_bounds)?;
     
     // Write back to file
     let updated_yaml = serde_yaml::to_string(&yaml_value)?;
     fs::write(yaml_path, updated_yaml)?;
     
-    log::info!("Updated panel {} bounds in YAML file: {}", panel_id, yaml_path);
+    log::info!("Updated muxbox {} bounds in YAML file: {}", muxbox_id, yaml_path);
     Ok(())
 }
 
-pub fn update_panel_bounds_recursive(
+pub fn update_muxbox_bounds_recursive(
     value: &mut serde_yaml::Value,
-    target_panel_id: &str,
+    target_muxbox_id: &str,
     new_bounds: &crate::InputBounds,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     use serde_yaml::Value;
     match value {
         Value::Mapping(map) => {
-            // Check if this is the panel we're looking for
+            // Check if this is the muxbox we're looking for
             if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
-                if id == target_panel_id {
+                if id == target_muxbox_id {
                     // Update the bounds in the position field
                     if let Some(position_value) = map.get_mut(&Value::String("position".to_string())) {
                         if let Value::Mapping(position_map) = position_value {
@@ -2206,7 +2206,7 @@ pub fn update_panel_bounds_recursive(
             
             // Recursively search in children and other mappings
             for (_, child_value) in map.iter_mut() {
-                if update_panel_bounds_recursive(child_value, target_panel_id, new_bounds)? {
+                if update_muxbox_bounds_recursive(child_value, target_muxbox_id, new_bounds)? {
                     return Ok(true);
                 }
             }
@@ -2214,13 +2214,13 @@ pub fn update_panel_bounds_recursive(
         Value::Sequence(seq) => {
             // Search through sequences (like children arrays)
             for item in seq.iter_mut() {
-                if update_panel_bounds_recursive(item, target_panel_id, new_bounds)? {
+                if update_muxbox_bounds_recursive(item, target_muxbox_id, new_bounds)? {
                     return Ok(true);
                 }
             }
         }
         _ => {
-            // Other value types don't contain panels
+            // Other value types don't contain muxboxes
         }
     }
     

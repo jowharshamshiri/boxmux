@@ -1,6 +1,6 @@
 use crate::model::app::AppContext;
-use crate::model::panel::Choice;
-use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, Panel, Updatable};
+use crate::model::muxbox::Choice;
+use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, MuxBox, Updatable};
 use bincode;
 use log::error;
 use std::collections::hash_map::DefaultHasher;
@@ -16,30 +16,30 @@ pub enum Message {
     Terminate,
     Pause,
     Start,
-    NextPanel(),
-    PreviousPanel(),
-    ScrollPanelDown(),
-    ScrollPanelUp(),
-    ScrollPanelLeft(),
-    ScrollPanelRight(),
-    ScrollPanelPageUp(),
-    ScrollPanelPageDown(),
-    ScrollPanelPageLeft(),
-    ScrollPanelPageRight(),
-    ScrollPanelToBeginning(), // Home key - scroll to beginning horizontally
-    ScrollPanelToEnd(),       // End key - scroll to end horizontally
-    ScrollPanelToTop(),       // Ctrl+Home - scroll to top vertically
-    ScrollPanelToBottom(),    // Ctrl+End - scroll to bottom vertically
-    CopyFocusedPanelContent(),
+    NextMuxBox(),
+    PreviousMuxBox(),
+    ScrollMuxBoxDown(),
+    ScrollMuxBoxUp(),
+    ScrollMuxBoxLeft(),
+    ScrollMuxBoxRight(),
+    ScrollMuxBoxPageUp(),
+    ScrollMuxBoxPageDown(),
+    ScrollMuxBoxPageLeft(),
+    ScrollMuxBoxPageRight(),
+    ScrollMuxBoxToBeginning(), // Home key - scroll to beginning horizontally
+    ScrollMuxBoxToEnd(),       // End key - scroll to end horizontally
+    ScrollMuxBoxToTop(),       // Ctrl+Home - scroll to top vertically
+    ScrollMuxBoxToBottom(),    // Ctrl+End - scroll to bottom vertically
+    CopyFocusedMuxBoxContent(),
     Resize,
-    RedrawPanel(String),
+    RedrawMuxBox(String),
     RedrawApp,
-    PanelEventRefresh(String),
-    PanelOutputUpdate(String, bool, String),
-    PanelScriptUpdate(String, Vec<String>),
-    ReplacePanel(String, Panel),
-    StopPanelRefresh(String),
-    StartPanelRefresh(String),
+    MuxBoxEventRefresh(String),
+    MuxBoxOutputUpdate(String, bool, String),
+    MuxBoxScriptUpdate(String, Vec<String>),
+    ReplaceMuxBox(String, MuxBox),
+    StopMuxBoxRefresh(String),
+    StartMuxBoxRefresh(String),
     SwitchActiveLayout(String),
     KeyPress(String),
     ExecuteHotKeyChoice(String),
@@ -47,16 +47,16 @@ pub enum Message {
     MouseDragStart(u16, u16),                           // x, y coordinates - start drag
     MouseDrag(u16, u16),                                // x, y coordinates - continue drag
     MouseDragEnd(u16, u16),                             // x, y coordinates - end drag
-    PanelBorderDrag(String, u16, u16),                  // panel_id, x, y coordinates - resize panel
-    PanelResizeComplete(String),                        // panel_id - save changes to YAML
-    PanelMove(String, u16, u16),                        // panel_id, x, y coordinates - move panel
-    PanelMoveComplete(String),                          // panel_id - save position changes to YAML
-    PTYInput(String, String),                           // panel_id, input_text
-    ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, panel_id, libs
-    ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, panel_id, result
+    MuxBoxBorderDrag(String, u16, u16),                  // muxbox_id, x, y coordinates - resize muxbox
+    MuxBoxResizeComplete(String),                        // muxbox_id - save changes to YAML
+    MuxBoxMove(String, u16, u16),                        // muxbox_id, x, y coordinates - move muxbox
+    MuxBoxMoveComplete(String),                          // muxbox_id - save position changes to YAML
+    PTYInput(String, String),                           // muxbox_id, input_text
+    ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, muxbox_id, libs
+    ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, muxbox_id, result
     ExternalMessage(String),
-    AddPanel(String, Panel),
-    RemovePanel(String),
+    AddMuxBox(String, MuxBox),
+    RemoveMuxBox(String),
 }
 
 impl Hash for Message {
@@ -64,50 +64,50 @@ impl Hash for Message {
         match self {
             Message::Exit => "exit".hash(state),
             Message::Terminate => "terminate".hash(state),
-            Message::NextPanel() => "next_panel".hash(state),
-            Message::PreviousPanel() => "previous_panel".hash(state),
+            Message::NextMuxBox() => "next_muxbox".hash(state),
+            Message::PreviousMuxBox() => "previous_muxbox".hash(state),
             Message::Resize => "resize".hash(state),
-            Message::RedrawPanel(panel_id) => {
-                "redraw_panel".hash(state);
-                panel_id.hash(state);
+            Message::RedrawMuxBox(muxbox_id) => {
+                "redraw_muxbox".hash(state);
+                muxbox_id.hash(state);
             }
             Message::RedrawApp => "redraw_app".hash(state),
             Message::SwitchActiveLayout(layout_id) => {
                 "switch_active_layout".hash(state);
                 layout_id.hash(state);
             }
-            Message::PanelEventRefresh(panel_id) => {
-                "panel_event_refresh".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxEventRefresh(muxbox_id) => {
+                "muxbox_event_refresh".hash(state);
+                muxbox_id.hash(state);
             }
-            Message::ScrollPanelDown() => "scroll_panel_down".hash(state),
-            Message::ScrollPanelUp() => "scroll_panel_up".hash(state),
-            Message::ScrollPanelLeft() => "scroll_panel_left".hash(state),
-            Message::ScrollPanelRight() => "scroll_panel_right".hash(state),
-            Message::ScrollPanelPageUp() => "scroll_panel_page_up".hash(state),
-            Message::ScrollPanelPageDown() => "scroll_panel_page_down".hash(state),
-            Message::ScrollPanelPageLeft() => "scroll_panel_page_left".hash(state),
-            Message::ScrollPanelPageRight() => "scroll_panel_page_right".hash(state),
-            Message::ScrollPanelToBeginning() => "scroll_panel_to_beginning".hash(state),
-            Message::ScrollPanelToEnd() => "scroll_panel_to_end".hash(state),
-            Message::ScrollPanelToTop() => "scroll_panel_to_top".hash(state),
-            Message::ScrollPanelToBottom() => "scroll_panel_to_bottom".hash(state),
-            Message::CopyFocusedPanelContent() => "copy_focused_panel_content".hash(state),
-            Message::PanelOutputUpdate(panel_id, success, output) => {
-                "panel_output_update".hash(state);
-                panel_id.hash(state);
+            Message::ScrollMuxBoxDown() => "scroll_muxbox_down".hash(state),
+            Message::ScrollMuxBoxUp() => "scroll_muxbox_up".hash(state),
+            Message::ScrollMuxBoxLeft() => "scroll_muxbox_left".hash(state),
+            Message::ScrollMuxBoxRight() => "scroll_muxbox_right".hash(state),
+            Message::ScrollMuxBoxPageUp() => "scroll_muxbox_page_up".hash(state),
+            Message::ScrollMuxBoxPageDown() => "scroll_muxbox_page_down".hash(state),
+            Message::ScrollMuxBoxPageLeft() => "scroll_muxbox_page_left".hash(state),
+            Message::ScrollMuxBoxPageRight() => "scroll_muxbox_page_right".hash(state),
+            Message::ScrollMuxBoxToBeginning() => "scroll_muxbox_to_beginning".hash(state),
+            Message::ScrollMuxBoxToEnd() => "scroll_muxbox_to_end".hash(state),
+            Message::ScrollMuxBoxToTop() => "scroll_muxbox_to_top".hash(state),
+            Message::ScrollMuxBoxToBottom() => "scroll_muxbox_to_bottom".hash(state),
+            Message::CopyFocusedMuxBoxContent() => "copy_focused_muxbox_content".hash(state),
+            Message::MuxBoxOutputUpdate(muxbox_id, success, output) => {
+                "muxbox_output_update".hash(state);
+                muxbox_id.hash(state);
                 success.hash(state);
                 output.hash(state);
             }
-            Message::PanelScriptUpdate(panel_id, script) => {
-                "panel_script_update".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxScriptUpdate(muxbox_id, script) => {
+                "muxbox_script_update".hash(state);
+                muxbox_id.hash(state);
                 script.hash(state);
             }
-            Message::ReplacePanel(panel_id, panel) => {
-                "replace_panel".hash(state);
-                panel_id.hash(state);
-                panel.hash(state);
+            Message::ReplaceMuxBox(muxbox_id, muxbox) => {
+                "replace_muxbox".hash(state);
+                muxbox_id.hash(state);
+                muxbox.hash(state);
             }
             Message::KeyPress(pressed_key) => {
                 "key_press".hash(state);
@@ -137,41 +137,41 @@ impl Hash for Message {
                 x.hash(state);
                 y.hash(state);
             }
-            Message::PanelBorderDrag(panel_id, x, y) => {
-                "panel_border_drag".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxBorderDrag(muxbox_id, x, y) => {
+                "muxbox_border_drag".hash(state);
+                muxbox_id.hash(state);
                 x.hash(state);
                 y.hash(state);
             }
-            Message::PanelResizeComplete(panel_id) => {
-                "panel_resize_complete".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxResizeComplete(muxbox_id) => {
+                "muxbox_resize_complete".hash(state);
+                muxbox_id.hash(state);
             }
-            Message::PanelMove(panel_id, x, y) => {
-                "panel_move".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxMove(muxbox_id, x, y) => {
+                "muxbox_move".hash(state);
+                muxbox_id.hash(state);
                 x.hash(state);
                 y.hash(state);
             }
-            Message::PanelMoveComplete(panel_id) => {
-                "panel_move_complete".hash(state);
-                panel_id.hash(state);
+            Message::MuxBoxMoveComplete(muxbox_id) => {
+                "muxbox_move_complete".hash(state);
+                muxbox_id.hash(state);
             }
-            Message::PTYInput(panel_id, input) => {
+            Message::PTYInput(muxbox_id, input) => {
                 "pty_input".hash(state);
-                panel_id.hash(state);
+                muxbox_id.hash(state);
                 input.hash(state);
             }
-            Message::ExecuteChoice(choice, panel_id, libs) => {
+            Message::ExecuteChoice(choice, muxbox_id, libs) => {
                 "execute_choice".hash(state);
                 choice.hash(state);
-                panel_id.hash(state);
+                muxbox_id.hash(state);
                 libs.hash(state);
             }
-            Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
+            Message::ChoiceExecutionComplete(choice_id, muxbox_id, result) => {
                 "choice_execution_complete".hash(state);
                 choice_id.hash(state);
-                panel_id.hash(state);
+                muxbox_id.hash(state);
                 match result {
                     Ok(output) => {
                         "ok".hash(state);
@@ -189,22 +189,22 @@ impl Hash for Message {
                 msg.hash(state);
             }
             Message::Start => "start".hash(state),
-            Message::StopPanelRefresh(panel_id) => {
-                "stop_panel_refresh".hash(state);
-                panel_id.hash(state);
+            Message::StopMuxBoxRefresh(muxbox_id) => {
+                "stop_muxbox_refresh".hash(state);
+                muxbox_id.hash(state);
             }
-            Message::StartPanelRefresh(panel_id) => {
-                "start_panel_refresh".hash(state);
-                panel_id.hash(state);
+            Message::StartMuxBoxRefresh(muxbox_id) => {
+                "start_muxbox_refresh".hash(state);
+                muxbox_id.hash(state);
             }
-            Message::AddPanel(panel_id, panel) => {
-                "add_panel".hash(state);
-                panel_id.hash(state);
-                panel.hash(state);
+            Message::AddMuxBox(muxbox_id, muxbox) => {
+                "add_muxbox".hash(state);
+                muxbox_id.hash(state);
+                muxbox.hash(state);
             }
-            Message::RemovePanel(panel_id) => {
-                "remove_panel".hash(state);
-                panel_id.hash(state);
+            Message::RemoveMuxBox(muxbox_id) => {
+                "remove_muxbox".hash(state);
+                muxbox_id.hash(state);
             }
         }
     }
@@ -546,12 +546,12 @@ impl ThreadManager {
                         self.send_message_to_all_threads((Uuid::new_v4(), Message::Terminate));
                         should_continue = false;
                     }
-                    Message::ExecuteChoice(choice, panel_id, libs) => {
+                    Message::ExecuteChoice(choice, muxbox_id, libs) => {
                         // Handle choice execution request by spawning ChoiceExecutionRunnable
                         log::info!(
-                            "ThreadManager spawning choice execution: {} on panel {}",
+                            "ThreadManager spawning choice execution: {} on muxbox {}",
                             choice.id,
-                            panel_id
+                            muxbox_id
                         );
                         let choice_runnable =
                             ChoiceExecutionRunnable::new(self.app_context.clone());
@@ -565,14 +565,14 @@ impl ThreadManager {
                         self.send_message_to_thread(
                             (
                                 Uuid::new_v4(),
-                                Message::ExecuteChoice(choice, panel_id, libs),
+                                Message::ExecuteChoice(choice, muxbox_id, libs),
                             ),
                             choice_uuid,
                         );
                         has_updates = true;
                     }
-                    Message::ChoiceExecutionComplete(ref choice_id, ref panel_id, ref result) => {
-                        log::info!("ThreadManager received ChoiceExecutionComplete for choice: {} on panel: {}", choice_id, panel_id);
+                    Message::ChoiceExecutionComplete(ref choice_id, ref muxbox_id, ref result) => {
+                        log::info!("ThreadManager received ChoiceExecutionComplete for choice: {} on muxbox: {}", choice_id, muxbox_id);
                         match result {
                             Ok(output) => log::info!(
                                 "ThreadManager broadcasting choice success: {} chars of output",
@@ -849,11 +849,11 @@ create_runnable!(
 
         let mut has_executed_choice = false;
         for message in messages {
-            if let Message::ExecuteChoice(choice, panel_id, libs) = message {
+            if let Message::ExecuteChoice(choice, muxbox_id, libs) = message {
                 log::info!(
-                    "ChoiceExecutionRunnable executing choice: {} for panel: {}",
+                    "ChoiceExecutionRunnable executing choice: {} for muxbox: {}",
                     choice.id,
-                    panel_id
+                    muxbox_id
                 );
                 has_executed_choice = true;
 
@@ -880,7 +880,7 @@ create_runnable!(
                             script,
                             use_pty,
                             app_context.pty_manager.as_ref().map(|v| &**v),
-                            Some(panel_id.clone()),
+                            Some(muxbox_id.clone()),
                             message_sender,
                             redirect_target,
                         ) {
@@ -928,7 +928,7 @@ create_runnable!(
                 );
                 // Send completion message back to ThreadManager
                 inner.send_message(Message::ChoiceExecutionComplete(
-                    choice_id, panel_id, result,
+                    choice_id, muxbox_id, result,
                 ));
             }
         }
@@ -1054,10 +1054,10 @@ macro_rules! create_runnable_with_dynamic_input {
 pub fn run_script_in_thread(
     app_context: AppContext,
     manager: &mut ThreadManager,
-    panel_id: String,
+    muxbox_id: String,
     choice_id: String,
 ) -> Uuid {
-    let vec_fn = move || vec![panel_id.clone(), choice_id.clone()];
+    let vec_fn = move || vec![muxbox_id.clone(), choice_id.clone()];
 
     create_runnable_with_dynamic_input!(
         ChoiceScriptRunner,
@@ -1075,11 +1075,11 @@ pub fn run_script_in_thread(
             let mut app_context_unwrapped = app_context.clone();
             let app_graph = app_context_unwrapped.app.generate_graph();
             let libs = app_context_unwrapped.app.libs.clone();
-            let panel = app_context_unwrapped
+            let muxbox = app_context_unwrapped
                 .app
-                .get_panel_by_id_mut(&vec[0])
+                .get_muxbox_by_id_mut(&vec[0])
                 .unwrap();
-            let choice = panel
+            let choice = muxbox
                 .choices
                 .as_mut()
                 .unwrap()
@@ -1103,16 +1103,16 @@ pub fn run_script_in_thread(
                 message_sender,
             ) {
                 Ok(output) => {
-                    inner.send_message(Message::PanelOutputUpdate(choice.id.clone(), true, output))
+                    inner.send_message(Message::MuxBoxOutputUpdate(choice.id.clone(), true, output))
                 }
-                Err(e) => inner.send_message(Message::PanelOutputUpdate(
+                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
                     choice.id.clone(),
                     false,
                     e.to_string(),
                 )),
             }
             std::thread::sleep(std::time::Duration::from_millis(
-                panel.calc_refresh_interval(&app_context, &app_graph),
+                muxbox.calc_refresh_interval(&app_context, &app_graph),
             ));
             (false, app_context_unwrapped)
         }
@@ -1137,13 +1137,13 @@ pub fn run_script_in_thread(
 //         for message in messages {
 //             match message {
 //                 Message::Exit => return false, // Stop running
-//                 Message::NextPanel(panel_id) => {
-//                     info!("Next panel: {}", panel_id);
-//                     // Handle NextPanel logic
+//                 Message::NextMuxBox(muxbox_id) => {
+//                     info!("Next muxbox: {}", muxbox_id);
+//                     // Handle NextMuxBox logic
 //                 },
-//                 Message::PreviousPanel(panel_id) => {
-//                     info!("Previous panel: {}", panel_id);
-//                     // Handle PreviousPanel logic
+//                 Message::PreviousMuxBox(muxbox_id) => {
+//                     info!("Previous muxbox: {}", muxbox_id);
+//                     // Handle PreviousMuxBox logic
 //                 },
 //                 _ => {
 //                     info!("Unhandled message: {:?}", message);
@@ -1219,7 +1219,7 @@ pub fn run_script_in_thread(
 //             info!("TestRunnableTwo received message: {:?}", message);
 //         }
 //         info!("TestRunnableTwo running with data: {:?}", inner.get_app_context());
-//         inner.send_message(Message::ReplacePanel("Panel2".to_string()));
+//         inner.send_message(Message::ReplaceMuxBox("MuxBox2".to_string()));
 //         true  // Continue running
 //     }
 // );
@@ -1236,7 +1236,7 @@ pub fn run_script_in_thread(
 //             info!("TestRunnableThree received message: {:?}", message);
 //         }
 //         info!("TestRunnableThree running with data: {:?}", inner.get_app_context());
-//         inner.send_message(Message::PanelEventEnter("Panel3".to_string()));
+//         inner.send_message(Message::MuxBoxEventEnter("MuxBox3".to_string()));
 //         true  // Continue running
 //     }
 // );
@@ -1261,7 +1261,7 @@ pub fn run_script_in_thread(
 //         manager.send_app_context_update_to_thread(data.clone(), uuid2);
 //         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
-//         manager.send_message_to_all_threads((uuid1, Message::NextPanel("Panel1".to_string())));
+//         manager.send_message_to_all_threads((uuid1, Message::NextMuxBox("MuxBox1".to_string())));
 
 //         // Run the manager's loop in a separate thread to allow message handling
 //         let manager = manager;
@@ -1279,7 +1279,7 @@ pub fn run_script_in_thread(
 //         for (_, runnable) in runnables.iter() {
 //             let mut runnable = runnable.lock().unwrap();
 //             let (_, messages) = runnable.receive_updates();
-//             assert!(messages.iter().any(|msg| matches!(msg, Message::NextPanel(panel_id) if panel_id == "Panel1")));
+//             assert!(messages.iter().any(|msg| matches!(msg, Message::NextMuxBox(muxbox_id) if muxbox_id == "MuxBox1")));
 //         }
 //         manager.stop();
 //         handle.join().unwrap();
@@ -1332,8 +1332,8 @@ pub fn run_script_in_thread(
 //         manager.send_app_context_update_to_thread(data.clone(), uuid3);
 
 //         manager.send_message_to_all_threads((uuid1, Message::RedrawApp));
-//         manager.send_message_to_all_threads((uuid2, Message::ReplacePanel("Panel2".to_string())));
-//         manager.send_message_to_all_threads((uuid3, Message::PanelEventEnter("Panel3".to_string())));
+//         manager.send_message_to_all_threads((uuid2, Message::ReplaceMuxBox("MuxBox2".to_string())));
+//         manager.send_message_to_all_threads((uuid3, Message::MuxBoxEventEnter("MuxBox3".to_string())));
 
 //         // Run the manager's loop in a separate thread to allow message handling
 //         let manager = Arc::new(manager);
@@ -1352,8 +1352,8 @@ pub fn run_script_in_thread(
 //             let mut runnable = runnable.lock().unwrap();
 //             let (_, messages) = runnable.receive_updates();
 //             assert!(messages.iter().any(|msg| matches!(msg, Message::RedrawApp)));
-//             assert!(messages.iter().any(|msg| matches!(msg, Message::ReplacePanel(panel_id) if panel_id == "Panel2")));
-//             assert!(messages.iter().any(|msg| matches!(msg, Message::PanelEventEnter(panel_id) if panel_id == "Panel3")));
+//             assert!(messages.iter().any(|msg| matches!(msg, Message::ReplaceMuxBox(muxbox_id) if muxbox_id == "MuxBox2")));
+//             assert!(messages.iter().any(|msg| matches!(msg, Message::MuxBoxEventEnter(muxbox_id) if muxbox_id == "MuxBox3")));
 //         }
 //         manager.stop();
 //         handle.join().unwrap();
@@ -1404,7 +1404,7 @@ mod tests {
     use crate::model::app::App;
     use crate::model::common::{Config, EntityType, FieldUpdate};
     use crate::model::layout::Layout;
-    use crate::model::panel::Panel;
+    use crate::model::muxbox::MuxBox;
     use serde_json::Value;
     use std::sync::mpsc;
 
@@ -1417,9 +1417,9 @@ mod tests {
         AppContext::new(app, config)
     }
 
-    // Helper function to create test Panel
-    fn create_test_panel(id: &str) -> Panel {
-        Panel {
+    // Helper function to create test MuxBox
+    fn create_test_muxbox(id: &str) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
             position: crate::model::common::InputBounds {
                 x1: "0%".to_string(),
@@ -1467,8 +1467,8 @@ mod tests {
         msg2.hash(&mut hasher2);
         assert_eq!(hasher1.finish(), hasher2.finish());
 
-        let msg3 = Message::RedrawPanel("panel1".to_string());
-        let msg4 = Message::RedrawPanel("panel1".to_string());
+        let msg3 = Message::RedrawMuxBox("muxbox1".to_string());
+        let msg4 = Message::RedrawMuxBox("muxbox1".to_string());
         let mut hasher3 = DefaultHasher::new();
         let mut hasher4 = DefaultHasher::new();
         msg3.hash(&mut hasher3);
@@ -1483,12 +1483,12 @@ mod tests {
         assert_eq!(Message::Exit, Message::Exit);
         assert_eq!(Message::Terminate, Message::Terminate);
         assert_eq!(
-            Message::RedrawPanel("panel1".to_string()),
-            Message::RedrawPanel("panel1".to_string())
+            Message::RedrawMuxBox("muxbox1".to_string()),
+            Message::RedrawMuxBox("muxbox1".to_string())
         );
         assert_ne!(
-            Message::RedrawPanel("panel1".to_string()),
-            Message::RedrawPanel("panel2".to_string())
+            Message::RedrawMuxBox("muxbox1".to_string()),
+            Message::RedrawMuxBox("muxbox2".to_string())
         );
         assert_ne!(Message::Exit, Message::Terminate);
     }
@@ -1877,10 +1877,10 @@ mod tests {
         let app_context = create_test_app_context();
         let mut manager = ThreadManager::new(app_context.clone());
 
-        let panel_id = "test_panel".to_string();
+        let muxbox_id = "test_muxbox".to_string();
         let choice_id = "test_choice".to_string();
 
-        let uuid = run_script_in_thread(app_context, &mut manager, panel_id, choice_id);
+        let uuid = run_script_in_thread(app_context, &mut manager, muxbox_id, choice_id);
 
         assert!(manager.threads.contains_key(&uuid));
         assert!(manager.app_context_senders.contains_key(&uuid));
@@ -1891,59 +1891,59 @@ mod tests {
         manager.join_threads();
     }
 
-    /// Tests that Message::PanelOutputUpdate contains correct data.
-    /// This test demonstrates the panel output update message feature.
+    /// Tests that Message::MuxBoxOutputUpdate contains correct data.
+    /// This test demonstrates the muxbox output update message feature.
     #[test]
-    fn test_message_panel_output_update() {
-        let panel_id = "test_panel".to_string();
+    fn test_message_muxbox_output_update() {
+        let muxbox_id = "test_muxbox".to_string();
         let success = true;
         let output = "test output".to_string();
 
-        let message = Message::PanelOutputUpdate(panel_id.clone(), success, output.clone());
+        let message = Message::MuxBoxOutputUpdate(muxbox_id.clone(), success, output.clone());
 
         match message {
-            Message::PanelOutputUpdate(id, success_flag, content) => {
-                assert_eq!(id, panel_id);
+            Message::MuxBoxOutputUpdate(id, success_flag, content) => {
+                assert_eq!(id, muxbox_id);
                 assert_eq!(success_flag, success);
                 assert_eq!(content, output);
             }
-            _ => panic!("Expected PanelOutputUpdate message"),
+            _ => panic!("Expected MuxBoxOutputUpdate message"),
         }
     }
 
-    /// Tests that Message::PanelScriptUpdate contains correct data.
-    /// This test demonstrates the panel script update message feature.
+    /// Tests that Message::MuxBoxScriptUpdate contains correct data.
+    /// This test demonstrates the muxbox script update message feature.
     #[test]
-    fn test_message_panel_script_update() {
-        let panel_id = "test_panel".to_string();
+    fn test_message_muxbox_script_update() {
+        let muxbox_id = "test_muxbox".to_string();
         let script = vec!["echo 'test'".to_string(), "ls".to_string()];
 
-        let message = Message::PanelScriptUpdate(panel_id.clone(), script.clone());
+        let message = Message::MuxBoxScriptUpdate(muxbox_id.clone(), script.clone());
 
         match message {
-            Message::PanelScriptUpdate(id, script_content) => {
-                assert_eq!(id, panel_id);
+            Message::MuxBoxScriptUpdate(id, script_content) => {
+                assert_eq!(id, muxbox_id);
                 assert_eq!(script_content, script);
             }
-            _ => panic!("Expected PanelScriptUpdate message"),
+            _ => panic!("Expected MuxBoxScriptUpdate message"),
         }
     }
 
-    /// Tests that Message::ReplacePanel contains correct data.
-    /// This test demonstrates the panel replacement message feature.
+    /// Tests that Message::ReplaceMuxBox contains correct data.
+    /// This test demonstrates the muxbox replacement message feature.
     #[test]
-    fn test_message_replace_panel() {
-        let panel_id = "test_panel".to_string();
-        let panel = create_test_panel("new_panel");
+    fn test_message_replace_muxbox() {
+        let muxbox_id = "test_muxbox".to_string();
+        let muxbox = create_test_muxbox("new_muxbox");
 
-        let message = Message::ReplacePanel(panel_id.clone(), panel.clone());
+        let message = Message::ReplaceMuxBox(muxbox_id.clone(), muxbox.clone());
 
         match message {
-            Message::ReplacePanel(id, new_panel) => {
-                assert_eq!(id, panel_id);
-                assert_eq!(new_panel.id, panel.id);
+            Message::ReplaceMuxBox(id, new_muxbox) => {
+                assert_eq!(id, muxbox_id);
+                assert_eq!(new_muxbox.id, muxbox.id);
             }
-            _ => panic!("Expected ReplacePanel message"),
+            _ => panic!("Expected ReplaceMuxBox message"),
         }
     }
 
@@ -1992,36 +1992,36 @@ mod tests {
         }
     }
 
-    /// Tests that Message::AddPanel contains correct data.
-    /// This test demonstrates the panel addition message feature.
+    /// Tests that Message::AddMuxBox contains correct data.
+    /// This test demonstrates the muxbox addition message feature.
     #[test]
-    fn test_message_add_panel() {
-        let panel_id = "test_panel".to_string();
-        let panel = create_test_panel("new_panel");
+    fn test_message_add_muxbox() {
+        let muxbox_id = "test_muxbox".to_string();
+        let muxbox = create_test_muxbox("new_muxbox");
 
-        let message = Message::AddPanel(panel_id.clone(), panel.clone());
+        let message = Message::AddMuxBox(muxbox_id.clone(), muxbox.clone());
 
         match message {
-            Message::AddPanel(id, new_panel) => {
-                assert_eq!(id, panel_id);
-                assert_eq!(new_panel.id, panel.id);
+            Message::AddMuxBox(id, new_muxbox) => {
+                assert_eq!(id, muxbox_id);
+                assert_eq!(new_muxbox.id, muxbox.id);
             }
-            _ => panic!("Expected AddPanel message"),
+            _ => panic!("Expected AddMuxBox message"),
         }
     }
 
-    /// Tests that Message::RemovePanel contains correct data.
-    /// This test demonstrates the panel removal message feature.
+    /// Tests that Message::RemoveMuxBox contains correct data.
+    /// This test demonstrates the muxbox removal message feature.
     #[test]
-    fn test_message_remove_panel() {
-        let panel_id = "test_panel".to_string();
-        let message = Message::RemovePanel(panel_id.clone());
+    fn test_message_remove_muxbox() {
+        let muxbox_id = "test_muxbox".to_string();
+        let message = Message::RemoveMuxBox(muxbox_id.clone());
 
         match message {
-            Message::RemovePanel(id) => {
-                assert_eq!(id, panel_id);
+            Message::RemoveMuxBox(id) => {
+                assert_eq!(id, muxbox_id);
             }
-            _ => panic!("Expected RemovePanel message"),
+            _ => panic!("Expected RemoveMuxBox message"),
         }
     }
 
@@ -2054,19 +2054,19 @@ mod tests {
     /// This test demonstrates the scroll message creation feature.
     #[test]
     fn test_scroll_messages() {
-        let scroll_down = Message::ScrollPanelDown();
-        let scroll_up = Message::ScrollPanelUp();
-        let scroll_left = Message::ScrollPanelLeft();
-        let scroll_right = Message::ScrollPanelRight();
-        let scroll_page_up = Message::ScrollPanelPageUp();
-        let scroll_page_down = Message::ScrollPanelPageDown();
+        let scroll_down = Message::ScrollMuxBoxDown();
+        let scroll_up = Message::ScrollMuxBoxUp();
+        let scroll_left = Message::ScrollMuxBoxLeft();
+        let scroll_right = Message::ScrollMuxBoxRight();
+        let scroll_page_up = Message::ScrollMuxBoxPageUp();
+        let scroll_page_down = Message::ScrollMuxBoxPageDown();
 
-        assert_eq!(scroll_down, Message::ScrollPanelDown());
-        assert_eq!(scroll_up, Message::ScrollPanelUp());
-        assert_eq!(scroll_left, Message::ScrollPanelLeft());
-        assert_eq!(scroll_right, Message::ScrollPanelRight());
-        assert_eq!(scroll_page_up, Message::ScrollPanelPageUp());
-        assert_eq!(scroll_page_down, Message::ScrollPanelPageDown());
+        assert_eq!(scroll_down, Message::ScrollMuxBoxDown());
+        assert_eq!(scroll_up, Message::ScrollMuxBoxUp());
+        assert_eq!(scroll_left, Message::ScrollMuxBoxLeft());
+        assert_eq!(scroll_right, Message::ScrollMuxBoxRight());
+        assert_eq!(scroll_page_up, Message::ScrollMuxBoxPageUp());
+        assert_eq!(scroll_page_down, Message::ScrollMuxBoxPageDown());
 
         assert_ne!(scroll_down, scroll_up);
         assert_ne!(scroll_left, scroll_right);
@@ -2076,49 +2076,49 @@ mod tests {
     /// This test demonstrates the navigation message creation feature.
     #[test]
     fn test_navigation_messages() {
-        let next_panel = Message::NextPanel();
-        let previous_panel = Message::PreviousPanel();
+        let next_muxbox = Message::NextMuxBox();
+        let previous_muxbox = Message::PreviousMuxBox();
 
-        assert_eq!(next_panel, Message::NextPanel());
-        assert_eq!(previous_panel, Message::PreviousPanel());
-        assert_ne!(next_panel, previous_panel);
+        assert_eq!(next_muxbox, Message::NextMuxBox());
+        assert_eq!(previous_muxbox, Message::PreviousMuxBox());
+        assert_ne!(next_muxbox, previous_muxbox);
     }
 
-    /// Tests that panel refresh messages are created correctly.
-    /// This test demonstrates the panel refresh message feature.
+    /// Tests that muxbox refresh messages are created correctly.
+    /// This test demonstrates the muxbox refresh message feature.
     #[test]
-    fn test_panel_refresh_messages() {
-        let panel_id = "test_panel".to_string();
-        let start_refresh = Message::StartPanelRefresh(panel_id.clone());
-        let stop_refresh = Message::StopPanelRefresh(panel_id.clone());
-        let event_refresh = Message::PanelEventRefresh(panel_id.clone());
+    fn test_muxbox_refresh_messages() {
+        let muxbox_id = "test_muxbox".to_string();
+        let start_refresh = Message::StartMuxBoxRefresh(muxbox_id.clone());
+        let stop_refresh = Message::StopMuxBoxRefresh(muxbox_id.clone());
+        let event_refresh = Message::MuxBoxEventRefresh(muxbox_id.clone());
 
         match start_refresh {
-            Message::StartPanelRefresh(id) => assert_eq!(id, panel_id),
-            _ => panic!("Expected StartPanelRefresh"),
+            Message::StartMuxBoxRefresh(id) => assert_eq!(id, muxbox_id),
+            _ => panic!("Expected StartMuxBoxRefresh"),
         }
 
         match stop_refresh {
-            Message::StopPanelRefresh(id) => assert_eq!(id, panel_id),
-            _ => panic!("Expected StopPanelRefresh"),
+            Message::StopMuxBoxRefresh(id) => assert_eq!(id, muxbox_id),
+            _ => panic!("Expected StopMuxBoxRefresh"),
         }
 
         match event_refresh {
-            Message::PanelEventRefresh(id) => assert_eq!(id, panel_id),
-            _ => panic!("Expected PanelEventRefresh"),
+            Message::MuxBoxEventRefresh(id) => assert_eq!(id, muxbox_id),
+            _ => panic!("Expected MuxBoxEventRefresh"),
         }
     }
 
-    /// Tests that RedrawPanel message is created correctly.
-    /// This test demonstrates the panel redraw message feature.
+    /// Tests that RedrawMuxBox message is created correctly.
+    /// This test demonstrates the muxbox redraw message feature.
     #[test]
-    fn test_redraw_panel_message() {
-        let panel_id = "test_panel".to_string();
-        let redraw_msg = Message::RedrawPanel(panel_id.clone());
+    fn test_redraw_muxbox_message() {
+        let muxbox_id = "test_muxbox".to_string();
+        let redraw_msg = Message::RedrawMuxBox(muxbox_id.clone());
 
         match redraw_msg {
-            Message::RedrawPanel(id) => assert_eq!(id, panel_id),
-            _ => panic!("Expected RedrawPanel message"),
+            Message::RedrawMuxBox(id) => assert_eq!(id, muxbox_id),
+            _ => panic!("Expected RedrawMuxBox message"),
         }
     }
 }

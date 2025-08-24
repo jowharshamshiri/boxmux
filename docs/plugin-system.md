@@ -45,7 +45,7 @@ The BoxMux plugin system enables:
 3. **Security Check**: Verifies requested permissions against security policy
 4. **Dynamic Loading**: Attempts to load plugin shared library using `libloading`
 5. **Interface Binding**: Binds plugin functions to BoxMux plugin interface
-6. **Registration**: Registers plugin in component registry for use by panels
+6. **Registration**: Registers plugin in component registry for use by boxes
 7. **Fallback Handling**: Falls back to mock implementation if loading fails
 
 ### Component Types
@@ -54,7 +54,7 @@ The plugin system supports various component types:
 
 - **Data Visualizers**: Custom chart types and visualization components
 - **Data Sources**: Custom data fetching and processing components
-- **UI Components**: Custom panel types and interactive elements
+- **UI Components**: Custom box types and interactive elements
 - **Processors**: Data transformation and analysis components
 - **Integrations**: External system integrations and API connectors
 
@@ -190,9 +190,9 @@ pub extern "C" fn create_plugin() -> Box<dyn BoxMuxPlugin> {
 
 ## Configuration
 
-### Panel Plugin Configuration
+### MuxBox Plugin Configuration
 
-Use plugins in panel configurations:
+Use plugins in box configurations:
 
 ```yaml
 # Basic plugin usage

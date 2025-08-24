@@ -131,7 +131,7 @@ impl Clone for Choice {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Panel {
+pub struct MuxBox {
     pub id: String,
     pub title: Option<String>,
     #[serde(alias = "bounds")]
@@ -146,7 +146,7 @@ pub struct Panel {
     pub refresh_interval: Option<u64>,
     pub tab_order: Option<String>,
     pub next_focus_id: Option<String>,
-    pub children: Option<Vec<Panel>>,
+    pub children: Option<Vec<MuxBox>>,
     pub fill: Option<bool>,
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
@@ -209,7 +209,7 @@ pub struct Panel {
     pub error_state: bool,
 }
 
-impl Hash for Panel {
+impl Hash for MuxBox {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
         self.title.hash(state);
@@ -300,9 +300,9 @@ impl Hash for Panel {
     }
 }
 
-impl Default for Panel {
+impl Default for MuxBox {
     fn default() -> Self {
-        Panel {
+        MuxBox {
             id: "".to_string(),
             title: None,
             position: InputBounds {
@@ -378,7 +378,7 @@ impl Default for Panel {
     }
 }
 
-impl PartialEq for Panel {
+impl PartialEq for MuxBox {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
             && self.title == other.title
@@ -448,11 +448,11 @@ impl PartialEq for Panel {
     }
 }
 
-impl Eq for Panel {}
+impl Eq for MuxBox {}
 
-impl Clone for Panel {
+impl Clone for MuxBox {
     fn clone(&self) -> Self {
-        Panel {
+        MuxBox {
             id: self.id.clone(),
             title: self.title.clone(),
             position: self.position.clone(),
@@ -523,7 +523,7 @@ impl Clone for Panel {
     }
 }
 
-impl Panel {
+impl MuxBox {
     pub fn bounds(&self) -> Bounds {
         input_bounds_to_bounds(&self.position, &screen_bounds())
     }
@@ -544,7 +544,7 @@ impl Panel {
         self.output = output.to_string();
     }
 
-    pub fn get_parent_clone(&self, app_graph: &AppGraph) -> Option<Panel> {
+    pub fn get_parent_clone(&self, app_graph: &AppGraph) -> Option<MuxBox> {
         let layout_id = self
             .parent_layout_id
             .as_ref()
@@ -1132,7 +1132,7 @@ impl Panel {
     }
 
     pub fn is_selectable(&self) -> bool {
-        // Panel is selectable if it has explicit tab order OR has scrollable content
+        // MuxBox is selectable if it has explicit tab order OR has scrollable content
         let has_tab_order = self.tab_order.is_some()
             && self.tab_order.as_ref().unwrap() != "none"
             && !self.tab_order.as_ref().unwrap().is_empty();
@@ -1268,7 +1268,7 @@ impl Panel {
         if self_children.len() < other_children.len() {
             for other_child in &other_children[self_children.len()..] {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(other_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: serde_json::to_value(other_child).unwrap(),
@@ -1280,7 +1280,7 @@ impl Panel {
         if self_children.len() > other_children.len() {
             for self_child in &self_children[other_children.len()..] {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self_child.id.clone()),
                     field_name: "children".to_string(),
                     new_value: Value::Null, // Representing removal
@@ -1293,25 +1293,25 @@ impl Panel {
 
     fn apply_children_updates(&mut self, updates: Vec<FieldUpdate>) {
         for update in updates {
-            if update.entity_type != EntityType::Panel {
+            if update.entity_type != EntityType::MuxBox {
                 continue;
             }
             if let Some(entity_id) = &update.entity_id {
-                // Check if the update is for a child panel
+                // Check if the update is for a child muxbox
                 if self.children.as_ref().map_or(false, |children| {
                     children.iter().any(|p| p.id == *entity_id)
                 }) {
-                    // Find the child panel and apply the update
-                    if let Some(child_panel) = self
+                    // Find the child muxbox and apply the update
+                    if let Some(child_muxbox) = self
                         .children
                         .as_mut()
                         .unwrap()
                         .iter_mut()
                         .find(|p| p.id == *entity_id)
                     {
-                        child_panel.apply_updates(vec![FieldUpdate {
-                            entity_type: EntityType::Panel,
-                            entity_id: Some(child_panel.id.clone()),
+                        child_muxbox.apply_updates(vec![FieldUpdate {
+                            entity_type: EntityType::MuxBox,
+                            entity_id: Some(child_muxbox.id.clone()),
                             field_name: update.field_name.clone(),
                             new_value: update.new_value.clone(),
                         }]);
@@ -1328,7 +1328,7 @@ impl Panel {
                     }
                     _ => {
                         if let Ok(new_children) =
-                            serde_json::from_value::<Vec<Panel>>(update.new_value.clone())
+                            serde_json::from_value::<Vec<MuxBox>>(update.new_value.clone())
                         {
                             if self.children.is_none() {
                                 // Assign new children
@@ -1429,7 +1429,7 @@ impl Panel {
         }
     }
 
-    /// Get scrollback content for PTY panels using the circular buffer
+    /// Get scrollback content for PTY muxboxes using the circular buffer
     /// F0120: PTY Scrollback - Access full scrollback history beyond visible area
     pub fn get_scrollback_content(
         &self,
@@ -1442,7 +1442,7 @@ impl Panel {
         }
     }
 
-    /// Get scrollback lines for PTY panels with range support
+    /// Get scrollback lines for PTY muxboxes with range support
     /// F0120: PTY Scrollback - Access specific range of scrollback lines
     pub fn get_scrollback_lines(
         &self,
@@ -1462,7 +1462,7 @@ impl Panel {
             }
             None
         } else {
-            // For regular panels, split content by lines and return range
+            // For regular muxboxes, split content by lines and return range
             if let Some(content) = &self.content {
                 let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
                 let total_lines = lines.len();
@@ -1475,7 +1475,7 @@ impl Panel {
         }
     }
 
-    /// Get total available scrollback lines for a panel
+    /// Get total available scrollback lines for a muxbox
     /// F0120: PTY Scrollback - Get total scrollback line count for scroll calculations
     pub fn get_scrollback_line_count(&self, pty_manager: &crate::pty_manager::PtyManager) -> usize {
         if self.pty == Some(true) {
@@ -1486,7 +1486,7 @@ impl Panel {
             }
             0
         } else {
-            // For regular panels, count lines in content
+            // For regular muxboxes, count lines in content
             self.content
                 .as_ref()
                 .map(|c| c.lines().count())
@@ -1494,7 +1494,7 @@ impl Panel {
         }
     }
 
-    /// Generate plugin content for the panel
+    /// Generate plugin content for the muxbox
     pub fn generate_plugin_content(
         &self,
         app_context: &AppContext,
@@ -1507,7 +1507,7 @@ impl Panel {
             let registry = PluginRegistry::new();
             let context = PluginContext {
                 app_context: app_context.clone(),
-                panel_bounds: bounds.clone(),
+                muxbox_bounds: bounds.clone(),
                 plugin_data: HashMap::new(),
                 permissions: Vec::new(),
             };
@@ -1596,7 +1596,7 @@ impl Panel {
         }
     }
 
-    /// Generate chart content for the panel
+    /// Generate chart content for the muxbox
     pub fn generate_chart_content(&self, bounds: &Bounds) -> Option<String> {
         use crate::chart::{generate_chart, parse_chart_data, ChartConfig, ChartType};
 
@@ -1612,7 +1612,7 @@ impl Panel {
                 chart_type,
                 width: bounds.width().saturating_sub(4),
                 height: bounds.height().saturating_sub(4),
-                title: None, // Don't show chart title since panel already has the title
+                title: None, // Don't show chart title since muxbox already has the title
                 color: "blue".to_string(),
             };
             Some(generate_chart(&data, &config))
@@ -1621,7 +1621,7 @@ impl Panel {
         }
     }
 
-    /// Generate table content for the panel
+    /// Generate table content for the muxbox
     pub fn generate_table_content(&self, bounds: &Bounds) -> Option<String> {
         use crate::table::{
             parse_table_data, parse_table_data_from_json, render_table, TableBorderStyle,
@@ -1650,7 +1650,7 @@ impl Panel {
                 ..Default::default()
             };
 
-            // Apply table configuration from panel
+            // Apply table configuration from muxbox
             if let Some(table_config_map) = &self.table_config {
                 if let Some(show_headers) = table_config_map
                     .get("show_headers")
@@ -1747,14 +1747,14 @@ impl Panel {
     }
 }
 
-impl Updatable for Panel {
+impl Updatable for MuxBox {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
         // Compare each field and add to updates if not null and different
         if self.title != other.title {
             if let Some(new_value) = &other.title {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()),
                     field_name: "title".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1764,7 +1764,7 @@ impl Updatable for Panel {
 
         if self.position != other.position {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()),
                 field_name: "position".to_string(),
                 new_value: serde_json::to_value(&other.position).unwrap(),
@@ -1773,7 +1773,7 @@ impl Updatable for Panel {
 
         if self.anchor != other.anchor {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()),
                 field_name: "anchor".to_string(),
                 new_value: serde_json::to_value(&other.anchor).unwrap(),
@@ -1783,7 +1783,7 @@ impl Updatable for Panel {
         if self.min_height != other.min_height {
             if let Some(new_value) = other.min_height {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "min_height".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1794,7 +1794,7 @@ impl Updatable for Panel {
         if self.min_width != other.min_width {
             if let Some(new_value) = other.min_width {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "min_width".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1805,7 +1805,7 @@ impl Updatable for Panel {
         if self.max_height != other.max_height {
             if let Some(new_value) = other.max_height {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "max_height".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1816,7 +1816,7 @@ impl Updatable for Panel {
         if self.max_width != other.max_width {
             if let Some(new_value) = other.max_width {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "max_width".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1827,7 +1827,7 @@ impl Updatable for Panel {
         if self.overflow_behavior != other.overflow_behavior {
             if let Some(new_value) = &other.overflow_behavior {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "overflow_behavior".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1839,7 +1839,7 @@ impl Updatable for Panel {
         if self.refresh_interval != other.refresh_interval {
             if let Some(new_value) = other.refresh_interval {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "refresh_interval".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1850,7 +1850,7 @@ impl Updatable for Panel {
         if self.tab_order != other.tab_order {
             if let Some(new_value) = &other.tab_order {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "tab_order".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1861,7 +1861,7 @@ impl Updatable for Panel {
         if self.next_focus_id != other.next_focus_id {
             if let Some(new_value) = &other.next_focus_id {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "next_focus_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1873,7 +1873,7 @@ impl Updatable for Panel {
 
         if self.fill != other.fill {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "fill".to_string(),
                 new_value: serde_json::to_value(other.fill).unwrap(),
@@ -1883,7 +1883,7 @@ impl Updatable for Panel {
         if self.fill_char != other.fill_char {
             if let Some(new_value) = other.fill_char {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "fill_char".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1894,7 +1894,7 @@ impl Updatable for Panel {
         if self.selected_fill_char != other.selected_fill_char {
             if let Some(new_value) = other.selected_fill_char {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_fill_char".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1904,7 +1904,7 @@ impl Updatable for Panel {
 
         if self.border != other.border {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "border".to_string(),
                 new_value: serde_json::to_value(other.border).unwrap(),
@@ -1914,7 +1914,7 @@ impl Updatable for Panel {
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1925,7 +1925,7 @@ impl Updatable for Panel {
         if self.selected_border_color != other.selected_border_color {
             if let Some(new_value) = &other.selected_border_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1936,7 +1936,7 @@ impl Updatable for Panel {
         if self.bg_color != other.bg_color {
             if let Some(new_value) = &other.bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1947,7 +1947,7 @@ impl Updatable for Panel {
         if self.selected_bg_color != other.selected_bg_color {
             if let Some(new_value) = &other.selected_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1958,7 +1958,7 @@ impl Updatable for Panel {
         if self.fg_color != other.fg_color {
             if let Some(new_value) = &other.fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1969,7 +1969,7 @@ impl Updatable for Panel {
         if self.selected_fg_color != other.selected_fg_color {
             if let Some(new_value) = &other.selected_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1980,7 +1980,7 @@ impl Updatable for Panel {
         if self.title_fg_color != other.title_fg_color {
             if let Some(new_value) = &other.title_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -1991,7 +1991,7 @@ impl Updatable for Panel {
         if self.title_bg_color != other.title_bg_color {
             if let Some(new_value) = &other.title_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2002,7 +2002,7 @@ impl Updatable for Panel {
         if self.selected_title_bg_color != other.selected_title_bg_color {
             if let Some(new_value) = &other.selected_title_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2013,7 +2013,7 @@ impl Updatable for Panel {
         if self.selected_title_fg_color != other.selected_title_fg_color {
             if let Some(new_value) = &other.selected_title_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2024,7 +2024,7 @@ impl Updatable for Panel {
         if self.title_position != other.title_position {
             if let Some(new_value) = &other.title_position {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "title_position".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2034,7 +2034,7 @@ impl Updatable for Panel {
 
         if self.error_state != other.error_state {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "error_state".to_string(),
                 new_value: serde_json::to_value(other.error_state).unwrap(),
@@ -2044,7 +2044,7 @@ impl Updatable for Panel {
         if self.error_fg_color != other.error_fg_color {
             if let Some(new_value) = &other.error_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2055,7 +2055,7 @@ impl Updatable for Panel {
         if self.error_bg_color != other.error_bg_color {
             if let Some(new_value) = &other.error_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2066,7 +2066,7 @@ impl Updatable for Panel {
         if self.error_title_fg_color != other.error_title_fg_color {
             if let Some(new_value) = &other.error_title_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2077,7 +2077,7 @@ impl Updatable for Panel {
         if self.error_title_bg_color != other.error_title_bg_color {
             if let Some(new_value) = &other.error_title_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2088,7 +2088,7 @@ impl Updatable for Panel {
         if self.error_border_color != other.error_border_color {
             if let Some(new_value) = &other.error_border_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2099,7 +2099,7 @@ impl Updatable for Panel {
         if self.error_selected_bg_color != other.error_selected_bg_color {
             if let Some(new_value) = &other.error_selected_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_selected_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2110,7 +2110,7 @@ impl Updatable for Panel {
         if self.error_selected_fg_color != other.error_selected_fg_color {
             if let Some(new_value) = &other.error_selected_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_selected_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2121,7 +2121,7 @@ impl Updatable for Panel {
         if self.error_selected_border_color != other.error_selected_border_color {
             if let Some(new_value) = &other.error_selected_border_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_selected_border_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2132,7 +2132,7 @@ impl Updatable for Panel {
         if self.error_selected_title_bg_color != other.error_selected_title_bg_color {
             if let Some(new_value) = &other.error_selected_title_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_selected_title_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2143,7 +2143,7 @@ impl Updatable for Panel {
         if self.error_selected_title_fg_color != other.error_selected_title_fg_color {
             if let Some(new_value) = &other.error_selected_title_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "error_selected_title_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2154,7 +2154,7 @@ impl Updatable for Panel {
         if self.choices != other.choices {
             if let Some(new_value) = &other.choices {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "choices".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2165,7 +2165,7 @@ impl Updatable for Panel {
         if self.menu_fg_color != other.menu_fg_color {
             if let Some(new_value) = &other.menu_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "menu_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2176,7 +2176,7 @@ impl Updatable for Panel {
         if self.menu_bg_color != other.menu_bg_color {
             if let Some(new_value) = &other.menu_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "menu_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2187,7 +2187,7 @@ impl Updatable for Panel {
         if self.selected_menu_fg_color != other.selected_menu_fg_color {
             if let Some(new_value) = &other.selected_menu_fg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_menu_fg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2198,7 +2198,7 @@ impl Updatable for Panel {
         if self.selected_menu_bg_color != other.selected_menu_bg_color {
             if let Some(new_value) = &other.selected_menu_bg_color {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected_menu_bg_color".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2209,7 +2209,7 @@ impl Updatable for Panel {
         if self.redirect_output != other.redirect_output {
             if let Some(new_value) = &other.redirect_output {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "redirect_output".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2220,7 +2220,7 @@ impl Updatable for Panel {
         if self.script != other.script {
             if let Some(new_value) = &other.script {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "script".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2230,7 +2230,7 @@ impl Updatable for Panel {
 
         if self.thread != other.thread {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "thread".to_string(),
                 new_value: serde_json::to_value(other.thread).unwrap(),
@@ -2240,7 +2240,7 @@ impl Updatable for Panel {
         if self.on_keypress != other.on_keypress {
             if let Some(new_value) = &other.on_keypress {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "on_keypress".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2251,7 +2251,7 @@ impl Updatable for Panel {
         if self.horizontal_scroll != other.horizontal_scroll {
             if let Some(new_value) = other.horizontal_scroll {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "horizontal_scroll".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2262,7 +2262,7 @@ impl Updatable for Panel {
         if self.vertical_scroll != other.vertical_scroll {
             if let Some(new_value) = other.vertical_scroll {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "vertical_scroll".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2273,7 +2273,7 @@ impl Updatable for Panel {
         if self.selected != other.selected {
             if let Some(new_value) = other.selected {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "selected".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2284,7 +2284,7 @@ impl Updatable for Panel {
         if self.content != other.content {
             if let Some(new_value) = &other.content {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "content".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2294,7 +2294,7 @@ impl Updatable for Panel {
 
         if self.output != other.output {
             updates.push(FieldUpdate {
-                entity_type: EntityType::Panel,
+                entity_type: EntityType::MuxBox,
                 entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                 field_name: "output".to_string(),
                 new_value: serde_json::to_value(&other.output).unwrap(),
@@ -2304,7 +2304,7 @@ impl Updatable for Panel {
         if self.parent_id != other.parent_id {
             if let Some(new_value) = &other.parent_id {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "parent_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2315,7 +2315,7 @@ impl Updatable for Panel {
         if self.parent_layout_id != other.parent_layout_id {
             if let Some(new_value) = &other.parent_layout_id {
                 updates.push(FieldUpdate {
-                    entity_type: EntityType::Panel,
+                    entity_type: EntityType::MuxBox,
                     entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
                     field_name: "parent_layout_id".to_string(),
                     new_value: serde_json::to_value(new_value).unwrap(),
@@ -2329,7 +2329,7 @@ impl Updatable for Panel {
     fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
         let updates_for_children = updates.clone();
         for update in updates {
-            if update.entity_type != EntityType::Panel {
+            if update.entity_type != EntityType::MuxBox {
                 continue;
             }
             match update.field_name.as_str() {
@@ -2707,7 +2707,7 @@ impl Updatable for Panel {
                 }
 
                 // Handle other fields similarly...
-                _ => log::warn!("Unknown field name for Panel: {}", update.field_name),
+                _ => log::warn!("Unknown field name for MuxBox: {}", update.field_name),
             }
         }
         self.apply_children_updates(updates_for_children);
@@ -2723,12 +2723,12 @@ mod tests {
 
     // === Helper Functions ===
 
-    /// Creates a basic test panel with minimal required fields.
-    /// This helper demonstrates how to create a Panel for testing purposes.
-    fn create_test_panel(id: &str) -> Panel {
-        Panel {
+    /// Creates a basic test muxbox with minimal required fields.
+    /// This helper demonstrates how to create a MuxBox for testing purposes.
+    fn create_test_muxbox(id: &str) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
-            title: Some(format!("Test Panel {}", id)),
+            title: Some(format!("Test MuxBox {}", id)),
             position: InputBounds {
                 x1: "0%".to_string(),
                 y1: "0%".to_string(),
@@ -2756,45 +2756,45 @@ mod tests {
     }
 
     /// Creates a test AppContext with a simple layout for testing.
-    /// This helper demonstrates how to create an AppContext for Panel testing.
+    /// This helper demonstrates how to create an AppContext for MuxBox testing.
     fn create_test_app_context() -> AppContext {
         let mut app = App::new();
         let layout = Layout {
             id: "test_layout".to_string(),
-            children: Some(vec![create_test_panel("test_panel")]),
+            children: Some(vec![create_test_muxbox("test_muxbox")]),
             ..Default::default()
         };
         app.layouts.push(layout);
         AppContext::new(app, Config::default())
     }
 
-    // === Panel Default Tests ===
+    // === MuxBox Default Tests ===
 
-    /// Tests that Panel::default() creates a panel with expected default values.
-    /// This test demonstrates the default Panel construction behavior.
+    /// Tests that MuxBox::default() creates a muxbox with expected default values.
+    /// This test demonstrates the default MuxBox construction behavior.
     #[test]
-    fn test_panel_default() {
-        let panel = Panel::default();
-        assert_eq!(panel.id, "");
-        assert_eq!(panel.title, None);
-        assert_eq!(panel.anchor, Anchor::Center);
-        assert_eq!(panel.selected, Some(false));
-        assert_eq!(panel.thread, Some(false));
-        assert_eq!(panel.horizontal_scroll, Some(0.0));
-        assert_eq!(panel.vertical_scroll, Some(0.0));
-        assert_eq!(panel.error_state, false);
-        assert_eq!(panel.output, "");
+    fn test_muxbox_default() {
+        let muxbox = MuxBox::default();
+        assert_eq!(muxbox.id, "");
+        assert_eq!(muxbox.title, None);
+        assert_eq!(muxbox.anchor, Anchor::Center);
+        assert_eq!(muxbox.selected, Some(false));
+        assert_eq!(muxbox.thread, Some(false));
+        assert_eq!(muxbox.horizontal_scroll, Some(0.0));
+        assert_eq!(muxbox.vertical_scroll, Some(0.0));
+        assert_eq!(muxbox.error_state, false);
+        assert_eq!(muxbox.output, "");
     }
 
-    // === Panel Creation Tests ===
+    // === MuxBox Creation Tests ===
 
-    /// Tests creating a Panel with specific values.
-    /// This test demonstrates how to create a Panel with custom properties.
+    /// Tests creating a MuxBox with specific values.
+    /// This test demonstrates how to create a MuxBox with custom properties.
     #[test]
-    fn test_panel_creation() {
-        let panel = Panel {
-            id: "test_panel".to_string(),
-            title: Some("Test Panel".to_string()),
+    fn test_muxbox_creation() {
+        let muxbox = MuxBox {
+            id: "test_muxbox".to_string(),
+            title: Some("Test MuxBox".to_string()),
             position: InputBounds {
                 x1: "10%".to_string(),
                 y1: "20%".to_string(),
@@ -2807,20 +2807,20 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(panel.id, "test_panel");
-        assert_eq!(panel.title, Some("Test Panel".to_string()));
-        assert_eq!(panel.anchor, Anchor::TopLeft);
-        assert_eq!(panel.selected, Some(true));
-        assert_eq!(panel.content, Some("Test content".to_string()));
+        assert_eq!(muxbox.id, "test_muxbox");
+        assert_eq!(muxbox.title, Some("Test MuxBox".to_string()));
+        assert_eq!(muxbox.anchor, Anchor::TopLeft);
+        assert_eq!(muxbox.selected, Some(true));
+        assert_eq!(muxbox.content, Some("Test content".to_string()));
     }
 
-    // === Panel Bounds Tests ===
+    // === MuxBox Bounds Tests ===
 
-    /// Tests that Panel::bounds() calculates bounds correctly.
+    /// Tests that MuxBox::bounds() calculates bounds correctly.
     /// This test demonstrates the bounds calculation feature using screen bounds.
     #[test]
-    fn test_panel_bounds() {
-        let panel = Panel {
+    fn test_muxbox_bounds() {
+        let muxbox = MuxBox {
             id: "test".to_string(),
             position: InputBounds {
                 x1: "25%".to_string(),
@@ -2832,7 +2832,7 @@ mod tests {
         };
 
         // Get screen bounds and calculated bounds
-        let bounds = panel.bounds();
+        let bounds = muxbox.bounds();
         let screen_bounds = crate::utils::screen_bounds();
 
         // Calculate expected values using the new coordinate mapping logic
@@ -2858,11 +2858,11 @@ mod tests {
         assert!(bounds.y1 < bounds.y2, "y1 should be less than y2");
     }
 
-    /// Tests that Panel::absolute_bounds() works with parent bounds.
+    /// Tests that MuxBox::absolute_bounds() works with parent bounds.
     /// This test demonstrates the absolute bounds calculation feature.
     #[test]
-    fn test_panel_absolute_bounds() {
-        let panel = Panel {
+    fn test_muxbox_absolute_bounds() {
+        let muxbox = MuxBox {
             id: "test".to_string(),
             position: InputBounds {
                 x1: "25%".to_string(),
@@ -2874,7 +2874,7 @@ mod tests {
         };
 
         let parent_bounds = Bounds::new(0, 0, 100, 200);
-        let bounds = panel.absolute_bounds(Some(&parent_bounds));
+        let bounds = muxbox.absolute_bounds(Some(&parent_bounds));
 
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
@@ -2882,11 +2882,11 @@ mod tests {
         assert_eq!(bounds.y2, 199); // 100% of 0-199 range = 199
     }
 
-    /// Tests that Panel::update_bounds_absolutely() updates position correctly.
+    /// Tests that MuxBox::update_bounds_absolutely() updates position correctly.
     /// This test demonstrates the bounds update feature.
     #[test]
-    fn test_panel_update_bounds_absolutely() {
-        let mut panel = Panel {
+    fn test_muxbox_update_bounds_absolutely() {
+        let mut muxbox = MuxBox {
             id: "test".to_string(),
             position: InputBounds {
                 x1: "0%".to_string(),
@@ -2900,67 +2900,67 @@ mod tests {
         let new_bounds = Bounds::new(25, 50, 75, 100);
         let parent_bounds = Bounds::new(0, 0, 100, 200);
 
-        panel.update_bounds_absolutely(new_bounds, Some(&parent_bounds));
+        muxbox.update_bounds_absolutely(new_bounds, Some(&parent_bounds));
 
-        assert_eq!(panel.position.x1, "25%");
-        assert_eq!(panel.position.y1, "25%");
-        assert_eq!(panel.position.x2, "75%");
-        assert_eq!(panel.position.y2, "50%");
+        assert_eq!(muxbox.position.x1, "25%");
+        assert_eq!(muxbox.position.y1, "25%");
+        assert_eq!(muxbox.position.x2, "75%");
+        assert_eq!(muxbox.position.y2, "50%");
     }
 
-    // === Panel Output Tests ===
+    // === MuxBox Output Tests ===
 
-    /// Tests that Panel::set_output() updates the output field.
+    /// Tests that MuxBox::set_output() updates the output field.
     /// This test demonstrates the output setting feature.
     #[test]
-    fn test_panel_set_output() {
-        let mut panel = Panel::default();
-        assert_eq!(panel.output, "");
+    fn test_muxbox_set_output() {
+        let mut muxbox = MuxBox::default();
+        assert_eq!(muxbox.output, "");
 
-        panel.set_output("Test output");
-        assert_eq!(panel.output, "Test output");
+        muxbox.set_output("Test output");
+        assert_eq!(muxbox.output, "Test output");
     }
 
-    /// Tests that Panel::update_content() updates content and error state.
+    /// Tests that MuxBox::update_content() updates content and error state.
     /// This test demonstrates the content update feature.
     #[test]
-    fn test_panel_update_content() {
-        let mut panel = Panel::default();
+    fn test_muxbox_update_content() {
+        let mut muxbox = MuxBox::default();
 
         // Test successful update
-        panel.update_content("New content", false, true);
-        assert_eq!(panel.content, Some("New content".to_string()));
-        assert_eq!(panel.error_state, false);
+        muxbox.update_content("New content", false, true);
+        assert_eq!(muxbox.content, Some("New content".to_string()));
+        assert_eq!(muxbox.error_state, false);
 
         // Test error update
-        panel.update_content("Error content", false, false);
-        assert_eq!(panel.content, Some("Error content".to_string()));
-        assert_eq!(panel.error_state, true);
+        muxbox.update_content("Error content", false, false);
+        assert_eq!(muxbox.content, Some("Error content".to_string()));
+        assert_eq!(muxbox.error_state, true);
     }
 
-    /// Tests that Panel::update_content() handles content appending.
+    /// Tests that MuxBox::update_content() handles content appending.
     /// This test demonstrates the content appending feature.
     #[test]
-    fn test_panel_update_content_append() {
-        let mut panel = Panel {
+    fn test_muxbox_update_content_append() {
+        let mut muxbox = MuxBox {
             content: Some("Existing content".to_string()),
             ..Default::default()
         };
 
-        panel.update_content("New content", true, true);
+        muxbox.update_content("New content", true, true);
 
         // Check that content was appended with timestamp
-        let content = panel.content.unwrap();
+        let content = muxbox.content.unwrap();
         assert!(content.contains("New content"));
         assert!(content.contains("Existing content"));
         assert!(content.contains("[")); // Timestamp format
     }
 
-    /// Tests that Panel::update_content() preserves scroll position during content updates.
+    /// Tests that MuxBox::update_content() preserves scroll position during content updates.
     /// This test demonstrates the scroll position preservation feature.
     #[test]
-    fn test_panel_update_content_preserves_scroll_position() {
-        let mut panel = Panel {
+    fn test_muxbox_update_content_preserves_scroll_position() {
+        let mut muxbox = MuxBox {
             content: Some("Original content".to_string()),
             horizontal_scroll: Some(25.0),
             vertical_scroll: Some(75.0),
@@ -2968,19 +2968,19 @@ mod tests {
         };
 
         // Update content and verify scroll position is preserved
-        panel.update_content("Updated content", false, true);
+        muxbox.update_content("Updated content", false, true);
 
-        assert_eq!(panel.content, Some("Updated content".to_string()));
-        assert_eq!(panel.horizontal_scroll, Some(25.0));
-        assert_eq!(panel.vertical_scroll, Some(75.0));
-        assert_eq!(panel.error_state, false);
+        assert_eq!(muxbox.content, Some("Updated content".to_string()));
+        assert_eq!(muxbox.horizontal_scroll, Some(25.0));
+        assert_eq!(muxbox.vertical_scroll, Some(75.0));
+        assert_eq!(muxbox.error_state, false);
     }
 
-    /// Tests that Panel::update_content() preserves scroll position during append operations.
+    /// Tests that MuxBox::update_content() preserves scroll position during append operations.
     /// This test demonstrates scroll preservation with content appending.
     #[test]
-    fn test_panel_update_content_append_preserves_scroll_position() {
-        let mut panel = Panel {
+    fn test_muxbox_update_content_append_preserves_scroll_position() {
+        let mut muxbox = MuxBox {
             content: Some("Existing content".to_string()),
             horizontal_scroll: Some(10.0),
             vertical_scroll: Some(50.0),
@@ -2988,24 +2988,24 @@ mod tests {
         };
 
         // Append content and verify scroll position is preserved
-        panel.update_content("New content", true, true);
+        muxbox.update_content("New content", true, true);
 
         // Check scroll position preservation
-        assert_eq!(panel.horizontal_scroll, Some(10.0));
-        assert_eq!(panel.vertical_scroll, Some(50.0));
-        assert_eq!(panel.error_state, false);
+        assert_eq!(muxbox.horizontal_scroll, Some(10.0));
+        assert_eq!(muxbox.vertical_scroll, Some(50.0));
+        assert_eq!(muxbox.error_state, false);
 
         // Verify content was appended
-        let content = panel.content.unwrap();
+        let content = muxbox.content.unwrap();
         assert!(content.contains("New content"));
         assert!(content.contains("Existing content"));
     }
 
-    /// Tests that Panel::update_content() preserves scroll position even when panel has no initial scroll values.
+    /// Tests that MuxBox::update_content() preserves scroll position even when muxbox has no initial scroll values.
     /// This test demonstrates scroll preservation with None values.
     #[test]
-    fn test_panel_update_content_preserves_none_scroll_values() {
-        let mut panel = Panel {
+    fn test_muxbox_update_content_preserves_none_scroll_values() {
+        let mut muxbox = MuxBox {
             content: Some("Original content".to_string()),
             horizontal_scroll: None,
             vertical_scroll: None,
@@ -3013,192 +3013,192 @@ mod tests {
         };
 
         // Update content and verify None scroll values are preserved
-        panel.update_content("Updated content", false, true);
+        muxbox.update_content("Updated content", false, true);
 
-        assert_eq!(panel.content, Some("Updated content".to_string()));
-        assert_eq!(panel.horizontal_scroll, None);
-        assert_eq!(panel.vertical_scroll, None);
+        assert_eq!(muxbox.content, Some("Updated content".to_string()));
+        assert_eq!(muxbox.horizontal_scroll, None);
+        assert_eq!(muxbox.vertical_scroll, None);
     }
 
-    /// Tests that Panel scrolling supports larger amounts for page-based scrolling.
+    /// Tests that MuxBox scrolling supports larger amounts for page-based scrolling.
     /// This test demonstrates the page scrolling feature with larger scroll amounts.
     #[test]
-    fn test_panel_page_scrolling_large_amounts() {
-        let mut panel = Panel {
+    fn test_muxbox_page_scrolling_large_amounts() {
+        let mut muxbox = MuxBox {
             vertical_scroll: Some(50.0),
             horizontal_scroll: Some(30.0),
             ..Default::default()
         };
 
         // Test page down (large scroll down)
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 60.0);
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 60.0);
 
         // Test page up (large scroll up)
-        panel.scroll_up(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 50.0);
+        muxbox.scroll_up(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 50.0);
 
         // Test page scrolling doesn't exceed bounds
-        panel.vertical_scroll = Some(95.0);
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 100.0); // Capped at 100
+        muxbox.vertical_scroll = Some(95.0);
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 100.0); // Capped at 100
 
-        panel.vertical_scroll = Some(5.0);
-        panel.scroll_up(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 0.0); // Capped at 0
+        muxbox.vertical_scroll = Some(5.0);
+        muxbox.scroll_up(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 0.0); // Capped at 0
     }
 
-    /// Tests that Panel page scrolling works correctly with boundary conditions.
+    /// Tests that MuxBox page scrolling works correctly with boundary conditions.
     /// This test demonstrates page scrolling boundary handling.
     #[test]
-    fn test_panel_page_scrolling_boundaries() {
-        let mut panel = Panel::default();
+    fn test_muxbox_page_scrolling_boundaries() {
+        let mut muxbox = MuxBox::default();
 
         // Test page down from initial position (None -> Some)
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 10.0);
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 10.0);
 
         // Test page up from initial position (None -> Some)
-        panel.vertical_scroll = None;
-        panel.scroll_up(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 0.0); // Can't go below 0
+        muxbox.vertical_scroll = None;
+        muxbox.scroll_up(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 0.0); // Can't go below 0
 
         // Test large page movements near boundaries
-        panel.vertical_scroll = Some(98.0);
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 100.0); // Should cap at 100
+        muxbox.vertical_scroll = Some(98.0);
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 100.0); // Should cap at 100
 
-        panel.vertical_scroll = Some(2.0);
-        panel.scroll_up(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 0.0); // Should cap at 0
+        muxbox.vertical_scroll = Some(2.0);
+        muxbox.scroll_up(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 0.0); // Should cap at 0
     }
 
-    // === Panel Selection Tests ===
+    // === MuxBox Selection Tests ===
 
-    /// Tests that Panel::is_selectable() correctly identifies selectable panels.
-    /// This test demonstrates the panel selectability feature.
+    /// Tests that MuxBox::is_selectable() correctly identifies selectable muxboxes.
+    /// This test demonstrates the muxbox selectability feature.
     #[test]
-    fn test_panel_is_selectable() {
-        let mut panel = Panel::default();
+    fn test_muxbox_is_selectable() {
+        let mut muxbox = MuxBox::default();
 
-        // Panel without tab_order is not selectable
-        assert!(!panel.is_selectable());
+        // MuxBox without tab_order is not selectable
+        assert!(!muxbox.is_selectable());
 
-        // Panel with tab_order "none" is not selectable
-        panel.tab_order = Some("none".to_string());
-        assert!(!panel.is_selectable());
+        // MuxBox with tab_order "none" is not selectable
+        muxbox.tab_order = Some("none".to_string());
+        assert!(!muxbox.is_selectable());
 
-        // Panel with numeric tab_order is selectable
-        panel.tab_order = Some("1".to_string());
-        assert!(panel.is_selectable());
+        // MuxBox with numeric tab_order is selectable
+        muxbox.tab_order = Some("1".to_string());
+        assert!(muxbox.is_selectable());
     }
 
-    /// Tests that Panel::is_selected() correctly identifies selected panels.
-    /// This test demonstrates the panel selection state feature.
+    /// Tests that MuxBox::is_selected() correctly identifies selected muxboxes.
+    /// This test demonstrates the muxbox selection state feature.
     #[test]
-    fn test_panel_is_selected() {
-        let mut panel = Panel::default();
+    fn test_muxbox_is_selected() {
+        let mut muxbox = MuxBox::default();
 
-        // Default panel is not selected
-        assert!(!panel.is_selected());
+        // Default muxbox is not selected
+        assert!(!muxbox.is_selected());
 
-        // Panel with selected = Some(true) is selected
-        panel.selected = Some(true);
-        assert!(panel.is_selected());
+        // MuxBox with selected = Some(true) is selected
+        muxbox.selected = Some(true);
+        assert!(muxbox.is_selected());
 
-        // Panel with selected = Some(false) is not selected
-        panel.selected = Some(false);
-        assert!(!panel.is_selected());
+        // MuxBox with selected = Some(false) is not selected
+        muxbox.selected = Some(false);
+        assert!(!muxbox.is_selected());
     }
 
-    // === Panel Scrolling Tests ===
+    // === MuxBox Scrolling Tests ===
 
-    /// Tests that Panel::scroll_down() increases vertical scroll.
+    /// Tests that MuxBox::scroll_down() increases vertical scroll.
     /// This test demonstrates the downward scrolling feature.
     #[test]
-    fn test_panel_scroll_down() {
-        let mut panel = Panel::default();
+    fn test_muxbox_scroll_down() {
+        let mut muxbox = MuxBox::default();
 
         // Initial scroll should be 0
-        assert_eq!(panel.current_vertical_scroll(), 0.0);
+        assert_eq!(muxbox.current_vertical_scroll(), 0.0);
 
         // Scroll down by default amount
-        panel.scroll_down(None);
-        assert_eq!(panel.current_vertical_scroll(), 5.0);
+        muxbox.scroll_down(None);
+        assert_eq!(muxbox.current_vertical_scroll(), 5.0);
 
         // Scroll down by custom amount
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.current_vertical_scroll(), 15.0);
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 15.0);
 
         // Scroll should not exceed 100%
-        panel.scroll_down(Some(90.0));
-        assert_eq!(panel.current_vertical_scroll(), 100.0);
+        muxbox.scroll_down(Some(90.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 100.0);
     }
 
-    /// Tests that Panel::scroll_up() decreases vertical scroll.
+    /// Tests that MuxBox::scroll_up() decreases vertical scroll.
     /// This test demonstrates the upward scrolling feature.
     #[test]
-    fn test_panel_scroll_up() {
-        let mut panel = Panel {
+    fn test_muxbox_scroll_up() {
+        let mut muxbox = MuxBox {
             vertical_scroll: Some(50.0),
             ..Default::default()
         };
 
         // Scroll up by default amount
-        panel.scroll_up(None);
-        assert_eq!(panel.current_vertical_scroll(), 45.0);
+        muxbox.scroll_up(None);
+        assert_eq!(muxbox.current_vertical_scroll(), 45.0);
 
         // Scroll up by custom amount
-        panel.scroll_up(Some(20.0));
-        assert_eq!(panel.current_vertical_scroll(), 25.0);
+        muxbox.scroll_up(Some(20.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 25.0);
 
         // Scroll should not go below 0
-        panel.scroll_up(Some(50.0));
-        assert_eq!(panel.current_vertical_scroll(), 0.0);
+        muxbox.scroll_up(Some(50.0));
+        assert_eq!(muxbox.current_vertical_scroll(), 0.0);
     }
 
-    /// Tests that Panel::scroll_right() increases horizontal scroll.
+    /// Tests that MuxBox::scroll_right() increases horizontal scroll.
     /// This test demonstrates the rightward scrolling feature.
     #[test]
-    fn test_panel_scroll_right() {
-        let mut panel = Panel::default();
+    fn test_muxbox_scroll_right() {
+        let mut muxbox = MuxBox::default();
 
         // Initial scroll should be 0
-        assert_eq!(panel.current_horizontal_scroll(), 0.0);
+        assert_eq!(muxbox.current_horizontal_scroll(), 0.0);
 
         // Scroll right by default amount
-        panel.scroll_right(None);
-        assert_eq!(panel.current_horizontal_scroll(), 5.0);
+        muxbox.scroll_right(None);
+        assert_eq!(muxbox.current_horizontal_scroll(), 5.0);
 
         // Scroll right by custom amount
-        panel.scroll_right(Some(10.0));
-        assert_eq!(panel.current_horizontal_scroll(), 15.0);
+        muxbox.scroll_right(Some(10.0));
+        assert_eq!(muxbox.current_horizontal_scroll(), 15.0);
 
         // Scroll should not exceed 100%
-        panel.scroll_right(Some(90.0));
-        assert_eq!(panel.current_horizontal_scroll(), 100.0);
+        muxbox.scroll_right(Some(90.0));
+        assert_eq!(muxbox.current_horizontal_scroll(), 100.0);
     }
 
-    /// Tests that Panel::scroll_left() decreases horizontal scroll.
+    /// Tests that MuxBox::scroll_left() decreases horizontal scroll.
     /// This test demonstrates the leftward scrolling feature.
     #[test]
-    fn test_panel_scroll_left() {
-        let mut panel = Panel {
+    fn test_muxbox_scroll_left() {
+        let mut muxbox = MuxBox {
             horizontal_scroll: Some(50.0),
             ..Default::default()
         };
 
         // Scroll left by default amount
-        panel.scroll_left(None);
-        assert_eq!(panel.current_horizontal_scroll(), 45.0);
+        muxbox.scroll_left(None);
+        assert_eq!(muxbox.current_horizontal_scroll(), 45.0);
 
         // Scroll left by custom amount
-        panel.scroll_left(Some(20.0));
-        assert_eq!(panel.current_horizontal_scroll(), 25.0);
+        muxbox.scroll_left(Some(20.0));
+        assert_eq!(muxbox.current_horizontal_scroll(), 25.0);
 
         // Scroll should not go below 0
-        panel.scroll_left(Some(50.0));
-        assert_eq!(panel.current_horizontal_scroll(), 0.0);
+        muxbox.scroll_left(Some(50.0));
+        assert_eq!(muxbox.current_horizontal_scroll(), 0.0);
     }
 
     // === Choice Tests ===
@@ -3263,51 +3263,51 @@ mod tests {
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
 
-    // === Panel Clone Tests ===
+    // === MuxBox Clone Tests ===
 
-    /// Tests that Panel implements Clone correctly.
-    /// This test demonstrates Panel cloning behavior.
+    /// Tests that MuxBox implements Clone correctly.
+    /// This test demonstrates MuxBox cloning behavior.
     #[test]
-    fn test_panel_clone() {
-        let panel1 = create_test_panel("test");
-        let panel2 = panel1.clone();
+    fn test_muxbox_clone() {
+        let muxbox1 = create_test_muxbox("test");
+        let muxbox2 = muxbox1.clone();
 
-        assert_eq!(panel1, panel2);
-        assert_eq!(panel1.id, panel2.id);
-        assert_eq!(panel1.title, panel2.title);
-        assert_eq!(panel1.position, panel2.position);
+        assert_eq!(muxbox1, muxbox2);
+        assert_eq!(muxbox1.id, muxbox2.id);
+        assert_eq!(muxbox1.title, muxbox2.title);
+        assert_eq!(muxbox1.position, muxbox2.position);
     }
 
-    /// Tests that Panel cloning includes children.
-    /// This test demonstrates Panel cloning with nested children.
+    /// Tests that MuxBox cloning includes children.
+    /// This test demonstrates MuxBox cloning with nested children.
     #[test]
-    fn test_panel_clone_with_children() {
-        let child_panel = create_test_panel("child");
-        let parent_panel = Panel {
+    fn test_muxbox_clone_with_children() {
+        let child_muxbox = create_test_muxbox("child");
+        let parent_muxbox = MuxBox {
             id: "parent".to_string(),
-            children: Some(vec![child_panel]),
+            children: Some(vec![child_muxbox]),
             ..Default::default()
         };
 
-        let cloned = parent_panel.clone();
+        let cloned = parent_muxbox.clone();
 
-        assert_eq!(parent_panel.children.as_ref().unwrap().len(), 1);
+        assert_eq!(parent_muxbox.children.as_ref().unwrap().len(), 1);
         assert_eq!(cloned.children.as_ref().unwrap().len(), 1);
         assert_eq!(
-            parent_panel.children.as_ref().unwrap()[0].id,
+            parent_muxbox.children.as_ref().unwrap()[0].id,
             cloned.children.as_ref().unwrap()[0].id
         );
     }
 
-    // === Panel Hash Tests ===
+    // === MuxBox Hash Tests ===
 
-    /// Tests that Panel implements Hash correctly.
-    /// This test demonstrates Panel hashing behavior.
+    /// Tests that MuxBox implements Hash correctly.
+    /// This test demonstrates MuxBox hashing behavior.
     #[test]
-    fn test_panel_hash() {
-        let panel1 = create_test_panel("test");
-        let panel2 = create_test_panel("test");
-        let panel3 = create_test_panel("other");
+    fn test_muxbox_hash() {
+        let muxbox1 = create_test_muxbox("test");
+        let muxbox2 = create_test_muxbox("test");
+        let muxbox3 = create_test_muxbox("other");
 
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -3316,44 +3316,44 @@ mod tests {
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
 
-        panel1.hash(&mut hasher1);
-        panel2.hash(&mut hasher2);
-        panel3.hash(&mut hasher3);
+        muxbox1.hash(&mut hasher1);
+        muxbox2.hash(&mut hasher2);
+        muxbox3.hash(&mut hasher3);
 
         assert_eq!(hasher1.finish(), hasher2.finish());
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
 
-    // === Panel Validation Tests ===
+    // === MuxBox Validation Tests ===
 
-    /// Tests that Panel handles edge cases in scrolling.
+    /// Tests that MuxBox handles edge cases in scrolling.
     /// This test demonstrates edge case handling in scrolling methods.
     #[test]
-    fn test_panel_scrolling_edge_cases() {
-        let mut panel = Panel::default();
+    fn test_muxbox_scrolling_edge_cases() {
+        let mut muxbox = MuxBox::default();
 
         // Test scrolling when scroll values are None
-        panel.vertical_scroll = None;
-        panel.horizontal_scroll = None;
+        muxbox.vertical_scroll = None;
+        muxbox.horizontal_scroll = None;
 
-        panel.scroll_down(Some(10.0));
-        assert_eq!(panel.vertical_scroll, Some(10.0));
+        muxbox.scroll_down(Some(10.0));
+        assert_eq!(muxbox.vertical_scroll, Some(10.0));
 
-        panel.scroll_right(Some(15.0));
-        assert_eq!(panel.horizontal_scroll, Some(15.0));
+        muxbox.scroll_right(Some(15.0));
+        assert_eq!(muxbox.horizontal_scroll, Some(15.0));
 
-        panel.scroll_up(Some(5.0));
-        assert_eq!(panel.vertical_scroll, Some(5.0));
+        muxbox.scroll_up(Some(5.0));
+        assert_eq!(muxbox.vertical_scroll, Some(5.0));
 
-        panel.scroll_left(Some(10.0));
-        assert_eq!(panel.horizontal_scroll, Some(5.0));
+        muxbox.scroll_left(Some(10.0));
+        assert_eq!(muxbox.horizontal_scroll, Some(5.0));
     }
 
-    /// Tests that Panel handles empty and None values correctly.
-    /// This test demonstrates edge case handling in Panel properties.
+    /// Tests that MuxBox handles empty and None values correctly.
+    /// This test demonstrates edge case handling in MuxBox properties.
     #[test]
-    fn test_panel_empty_values() {
-        let panel = Panel {
+    fn test_muxbox_empty_values() {
+        let muxbox = MuxBox {
             id: "test".to_string(),
             title: Some("".to_string()),
             content: Some("".to_string()),
@@ -3361,18 +3361,18 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(panel.id, "test");
-        assert_eq!(panel.title, Some("".to_string()));
-        assert_eq!(panel.content, Some("".to_string()));
-        assert!(!panel.is_selectable()); // Empty tab_order should not be selectable
+        assert_eq!(muxbox.id, "test");
+        assert_eq!(muxbox.title, Some("".to_string()));
+        assert_eq!(muxbox.content, Some("".to_string()));
+        assert!(!muxbox.is_selectable()); // Empty tab_order should not be selectable
     }
 
     #[test]
-    fn test_panel_scrollable_content_selectability() {
-        // Test that panels with scrollable content become selectable even without tab_order
-        let mut panel = Panel {
+    fn test_muxbox_scrollable_content_selectability() {
+        // Test that muxboxes with scrollable content become selectable even without tab_order
+        let mut muxbox = MuxBox {
             id: "test_scrollable".to_string(),
-            content: Some("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nVery long line that would exceed normal panel width to trigger horizontal scrolling".to_string()),
+            content: Some("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nVery long line that would exceed normal muxbox width to trigger horizontal scrolling".to_string()),
             position: InputBounds {
                 x1: "0".to_string(),
                 y1: "0".to_string(), 
@@ -3385,54 +3385,54 @@ mod tests {
         };
 
         assert!(
-            panel.has_scrollable_content(),
-            "Panel with large content should have scrollable content"
+            muxbox.has_scrollable_content(),
+            "MuxBox with large content should have scrollable content"
         );
         assert!(
-            panel.is_selectable(),
-            "Panel with scrollable content should be selectable even without tab_order"
+            muxbox.is_selectable(),
+            "MuxBox with scrollable content should be selectable even without tab_order"
         );
 
         // Test that empty content is not scrollable
-        panel.content = Some("".to_string());
+        muxbox.content = Some("".to_string());
         assert!(
-            !panel.has_scrollable_content(),
-            "Panel with empty content should not have scrollable content"
+            !muxbox.has_scrollable_content(),
+            "MuxBox with empty content should not have scrollable content"
         );
         assert!(
-            !panel.is_selectable(),
-            "Panel with empty content should not be selectable without tab_order"
+            !muxbox.is_selectable(),
+            "MuxBox with empty content should not be selectable without tab_order"
         );
 
         // Test that normal sized content is not scrollable
-        panel.content = Some("Short".to_string());
-        panel.position = InputBounds {
+        muxbox.content = Some("Short".to_string());
+        muxbox.position = InputBounds {
             x1: "0".to_string(),
             y1: "0".to_string(),
             x2: "100".to_string(), // Large enough to fit content
             y2: "50".to_string(),  // Large enough to fit content
         };
         assert!(
-            !panel.has_scrollable_content(),
-            "Panel with content that fits should not have scrollable content"
+            !muxbox.has_scrollable_content(),
+            "MuxBox with content that fits should not have scrollable content"
         );
         assert!(
-            !panel.is_selectable(),
-            "Panel with non-scrollable content should not be selectable without tab_order"
+            !muxbox.is_selectable(),
+            "MuxBox with non-scrollable content should not be selectable without tab_order"
         );
 
         // But with tab_order it should still be selectable
-        panel.tab_order = Some("1".to_string());
+        muxbox.tab_order = Some("1".to_string());
         assert!(
-            panel.is_selectable(),
-            "Panel with tab_order should always be selectable"
+            muxbox.is_selectable(),
+            "MuxBox with tab_order should always be selectable"
         );
     }
 
     #[test]
-    fn test_panel_scrollable_content_with_choices() {
-        // Test that panels with many choices are correctly detected as scrollable
-        let mut panel = Panel {
+    fn test_muxbox_scrollable_content_with_choices() {
+        // Test that muxboxes with many choices are correctly detected as scrollable
+        let mut muxbox = MuxBox {
             id: "test_choice_scroll".to_string(),
             position: InputBounds {
                 x1: "0".to_string(),
@@ -3447,126 +3447,126 @@ mod tests {
             ..Default::default()
         };
 
-        // Test: Panel with no choices should not be scrollable
-        assert!(!panel.has_scrollable_content(), "Empty panel should not be scrollable");
+        // Test: MuxBox with no choices should not be scrollable
+        assert!(!muxbox.has_scrollable_content(), "Empty muxbox should not be scrollable");
 
-        // Test: Panel with few choices that fit should not be scrollable
-        panel.choices = Some(vec![
+        // Test: MuxBox with few choices that fit should not be scrollable
+        muxbox.choices = Some(vec![
             create_test_choice("choice1", "Item 1"),
             create_test_choice("choice2", "Item 2"),
             create_test_choice("choice3", "Item 3"),
         ]);
-        assert!(!panel.has_scrollable_content(), "Panel with few choices should not be scrollable");
+        assert!(!muxbox.has_scrollable_content(), "MuxBox with few choices should not be scrollable");
 
-        // Test: Panel with many choices should be scrollable (vertical overflow)
+        // Test: MuxBox with many choices should be scrollable (vertical overflow)
         let many_choices: Vec<Choice> = (0..25).map(|i| {
             create_test_choice(&format!("choice{}", i), &format!("Menu Item {}", i))
         }).collect();
-        panel.choices = Some(many_choices);
-        assert!(panel.has_scrollable_content(), "Panel with many choices should be scrollable");
+        muxbox.choices = Some(many_choices);
+        assert!(muxbox.has_scrollable_content(), "MuxBox with many choices should be scrollable");
 
-        // Test: Panel with wide choice content should be scrollable (horizontal overflow)
-        panel.choices = Some(vec![
-            create_test_choice("wide_choice", "This is a very long menu choice that definitely exceeds the panel width and should trigger horizontal scrolling")
+        // Test: MuxBox with wide choice content should be scrollable (horizontal overflow)
+        muxbox.choices = Some(vec![
+            create_test_choice("wide_choice", "This is a very long menu choice that definitely exceeds the muxbox width and should trigger horizontal scrolling")
         ]);
-        assert!(panel.has_scrollable_content(), "Panel with wide choice content should be scrollable");
+        assert!(muxbox.has_scrollable_content(), "MuxBox with wide choice content should be scrollable");
 
-        // Test: Large panel with choices should not be scrollable
-        panel.position = InputBounds {
+        // Test: Large muxbox with choices should not be scrollable
+        muxbox.position = InputBounds {
             x1: "0".to_string(),
             y1: "0".to_string(),
             x2: "200".to_string(), // Very large width
             y2: "100".to_string(),  // Very large height
         };
-        panel.choices = Some(vec![
+        muxbox.choices = Some(vec![
             create_test_choice("choice1", "Item 1"),
             create_test_choice("choice2", "Item 2"),
         ]);
-        panel.content = None;
-        assert!(!panel.has_scrollable_content(), "Large panel with few choices should not be scrollable");
+        muxbox.content = None;
+        assert!(!muxbox.has_scrollable_content(), "Large muxbox with few choices should not be scrollable");
     }
 
-    // === Panel with Choices Tests ===
+    // === MuxBox with Choices Tests ===
 
-    /// Tests that Panel correctly handles choices.
-    /// This test demonstrates Panel choice management.
+    /// Tests that MuxBox correctly handles choices.
+    /// This test demonstrates MuxBox choice management.
     #[test]
-    fn test_panel_with_choices() {
+    fn test_muxbox_with_choices() {
         let choice1 = create_test_choice("choice1", "First Choice");
         let choice2 = create_test_choice("choice2", "Second Choice");
 
-        let panel = Panel {
+        let muxbox = MuxBox {
             id: "test".to_string(),
             choices: Some(vec![choice1, choice2]),
             ..Default::default()
         };
 
-        assert_eq!(panel.choices.as_ref().unwrap().len(), 2);
-        assert_eq!(panel.choices.as_ref().unwrap()[0].id, "choice1");
-        assert_eq!(panel.choices.as_ref().unwrap()[1].id, "choice2");
+        assert_eq!(muxbox.choices.as_ref().unwrap().len(), 2);
+        assert_eq!(muxbox.choices.as_ref().unwrap()[0].id, "choice1");
+        assert_eq!(muxbox.choices.as_ref().unwrap()[1].id, "choice2");
     }
 
-    /// Tests that Panel correctly handles choice selection.
-    /// This test demonstrates Panel choice selection behavior.
+    /// Tests that MuxBox correctly handles choice selection.
+    /// This test demonstrates MuxBox choice selection behavior.
     #[test]
-    fn test_panel_choice_selection() {
+    fn test_muxbox_choice_selection() {
         let mut choice1 = create_test_choice("choice1", "First Choice");
         let mut choice2 = create_test_choice("choice2", "Second Choice");
 
         choice1.selected = true;
         choice2.selected = false;
 
-        let panel = Panel {
+        let muxbox = MuxBox {
             id: "test".to_string(),
             choices: Some(vec![choice1, choice2]),
             ..Default::default()
         };
 
-        assert_eq!(panel.choices.as_ref().unwrap()[0].selected, true);
-        assert_eq!(panel.choices.as_ref().unwrap()[1].selected, false);
+        assert_eq!(muxbox.choices.as_ref().unwrap()[0].selected, true);
+        assert_eq!(muxbox.choices.as_ref().unwrap()[1].selected, false);
     }
 
-    // === Panel PartialEq Tests ===
+    // === MuxBox PartialEq Tests ===
 
-    /// Tests that Panel implements PartialEq correctly.
-    /// This test demonstrates Panel equality comparison.
+    /// Tests that MuxBox implements PartialEq correctly.
+    /// This test demonstrates MuxBox equality comparison.
     #[test]
-    fn test_panel_equality() {
-        let panel1 = create_test_panel("test");
-        let panel2 = create_test_panel("test");
-        let panel3 = create_test_panel("other");
+    fn test_muxbox_equality() {
+        let muxbox1 = create_test_muxbox("test");
+        let muxbox2 = create_test_muxbox("test");
+        let muxbox3 = create_test_muxbox("other");
 
-        assert_eq!(panel1, panel2);
-        assert_ne!(panel1, panel3);
+        assert_eq!(muxbox1, muxbox2);
+        assert_ne!(muxbox1, muxbox3);
     }
 
-    /// Tests that Panel equality considers all fields.
-    /// This test demonstrates comprehensive Panel equality checking.
+    /// Tests that MuxBox equality considers all fields.
+    /// This test demonstrates comprehensive MuxBox equality checking.
     #[test]
-    fn test_panel_equality_comprehensive() {
-        let panel1 = Panel {
+    fn test_muxbox_equality_comprehensive() {
+        let muxbox1 = MuxBox {
             id: "test".to_string(),
             title: Some("Test".to_string()),
             selected: Some(true),
             ..Default::default()
         };
 
-        let panel2 = Panel {
+        let muxbox2 = MuxBox {
             id: "test".to_string(),
             title: Some("Test".to_string()),
             selected: Some(true),
             ..Default::default()
         };
 
-        let panel3 = Panel {
+        let muxbox3 = MuxBox {
             id: "test".to_string(),
             title: Some("Different Title".to_string()), // Make it different
             selected: Some(true),
             ..Default::default()
         };
 
-        assert_eq!(panel1, panel2);
-        assert_ne!(panel1, panel3);
+        assert_eq!(muxbox1, muxbox2);
+        assert_ne!(muxbox1, muxbox3);
     }
 
     // === Script Deserializer Tests ===
@@ -3587,8 +3587,8 @@ mod tests {
               - "echo world"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        let script = panel.script.expect("Script should be present");
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 2);
         assert_eq!(script[0], "echo hello");
@@ -3612,8 +3612,8 @@ mod tests {
               echo "Line 3"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        let script = panel.script.expect("Script should be present");
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo \"Line 1\"");
@@ -3640,8 +3640,8 @@ mod tests {
               - "echo 'Simple command'"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        let script = panel.script.expect("Script should be present");
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 2);
         assert!(script[0].contains("if command -v free"));
@@ -3662,8 +3662,8 @@ mod tests {
               y2: "100%"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        assert_eq!(panel.script, None);
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        assert_eq!(muxbox.script, None);
     }
 
     /// Tests that script deserializer filters empty lines from literal blocks.
@@ -3685,8 +3685,8 @@ mod tests {
               echo "Fifth line"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        let script = panel.script.expect("Script should be present");
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo \"First line\"");
@@ -3732,8 +3732,8 @@ mod tests {
             script: "echo single command"
         "#;
 
-        let panel: Panel = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
-        let script = panel.script.expect("Script should be present");
+        let muxbox: MuxBox = serde_yaml::from_str(yaml).expect("Should deserialize successfully");
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 1);
         assert_eq!(script[0], "echo single command");
@@ -3761,14 +3761,14 @@ mod tests {
               - "echo final"
         "#;
 
-        let result = serde_yaml::from_str::<Panel>(yaml);
+        let result = serde_yaml::from_str::<MuxBox>(yaml);
         assert!(
             result.is_ok(),
             "Should handle complex scripts without error"
         );
 
-        let panel = result.unwrap();
-        let script = panel.script.expect("Script should be present");
+        let muxbox = result.unwrap();
+        let script = muxbox.script.expect("Script should be present");
 
         assert_eq!(script.len(), 3);
         assert_eq!(script[0], "echo normal");

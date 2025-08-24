@@ -117,12 +117,12 @@ mod layout_validation_tests {
     #[test]
     fn test_specific_layout_files_functionality() {
         let test_cases = vec![
-            ("chart_demo.yaml", "Should contain chart panels"),
-            ("table_demo.yaml", "Should contain table panels"),
-            ("plugin_demo.yaml", "Should contain plugin panels"),
+            ("chart_demo.yaml", "Should contain chart muxboxes"),
+            ("table_demo.yaml", "Should contain table muxboxes"),
+            ("plugin_demo.yaml", "Should contain plugin muxboxes"),
             (
                 "system_monitor_pro.yaml",
-                "Should contain system monitoring panels",
+                "Should contain system monitoring muxboxes",
             ),
             (
                 "developer_workspace.yaml",
@@ -165,7 +165,7 @@ mod layout_validation_tests {
             let children = root_layout.children.as_ref().unwrap();
             assert!(
                 !children.is_empty(),
-                "{} should have at least one panel",
+                "{} should have at least one muxbox",
                 filename
             );
 
@@ -174,20 +174,20 @@ mod layout_validation_tests {
                 "chart_demo.yaml" => {
                     let has_charts = children
                         .iter()
-                        .any(|panel| panel.chart_type.is_some() || panel.chart_data.is_some());
-                    assert!(has_charts, "chart_demo.yaml should contain chart panels");
+                        .any(|muxbox| muxbox.chart_type.is_some() || muxbox.chart_data.is_some());
+                    assert!(has_charts, "chart_demo.yaml should contain chart muxboxes");
                 }
                 "table_demo.yaml" => {
                     let has_tables = children
                         .iter()
-                        .any(|panel| panel.table_data.is_some() || panel.table_config.is_some());
-                    assert!(has_tables, "table_demo.yaml should contain table panels");
+                        .any(|muxbox| muxbox.table_data.is_some() || muxbox.table_config.is_some());
+                    assert!(has_tables, "table_demo.yaml should contain table muxboxes");
                 }
                 "plugin_demo.yaml" => {
                     let has_plugins = children
                         .iter()
-                        .any(|panel| panel.plugin_component.is_some());
-                    assert!(has_plugins, "plugin_demo.yaml should contain plugin panels");
+                        .any(|muxbox| muxbox.plugin_component.is_some());
+                    assert!(has_plugins, "plugin_demo.yaml should contain plugin muxboxes");
                 }
                 _ => {
                     // Generic validation for other files
@@ -256,17 +256,17 @@ mod layout_validation_tests {
                 );
             }
 
-            // Verify panel IDs are unique within each layout
+            // Verify muxbox IDs are unique within each layout
             for layout in &app.layouts {
                 if let Some(children) = &layout.children {
-                    let mut panel_ids = std::collections::HashSet::new();
-                    for panel in children {
+                    let mut muxbox_ids = std::collections::HashSet::new();
+                    for muxbox in children {
                         assert!(
-                            panel_ids.insert(&panel.id),
-                            "{} layout '{}' has duplicate panel ID: {}",
+                            muxbox_ids.insert(&muxbox.id),
+                            "{} layout '{}' has duplicate muxbox ID: {}",
                             file_name,
                             layout.id,
-                            panel.id
+                            muxbox.id
                         );
                     }
                 }

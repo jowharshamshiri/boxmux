@@ -1,12 +1,12 @@
-use crate::draw_utils::{draw_app, draw_panel};
-use crate::model::panel::Choice;
+use crate::draw_utils::{draw_app, draw_muxbox};
+use crate::model::muxbox::Choice;
 use crate::thread_manager::Runnable;
 use crate::utils::{run_script_with_pty_and_redirect, should_use_pty_for_choice};
 use crate::{
-    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, AppContext, Panel,
+    apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, AppContext, MuxBox,
     ScreenBuffer,
 };
-use crate::model::app::save_panel_bounds_to_yaml;
+use crate::model::app::save_muxbox_bounds_to_yaml;
 use crate::model::common::InputBounds;
 use crate::{thread_manager::*, FieldUpdate};
 // use crossbeam_channel::Sender; // T311: Removed with ChoiceThreadManager
@@ -23,27 +23,27 @@ use uuid::Uuid;
 // F0188: Drag state tracking for draggable scroll knobs
 #[derive(Debug, Clone)]
 struct DragState {
-    panel_id: String,
+    muxbox_id: String,
     is_vertical: bool,  // true for vertical scrollbar, false for horizontal
     start_x: u16,
     start_y: u16,
     start_scroll_percentage: f64,
 }
 
-// F0189: Panel resize state tracking for draggable panel borders
+// F0189: MuxBox resize state tracking for draggable muxbox borders
 #[derive(Debug, Clone)]
-struct PanelResizeState {
-    panel_id: String,
+struct MuxBoxResizeState {
+    muxbox_id: String,
     resize_edge: ResizeEdge,
     start_x: u16,
     start_y: u16,
     original_bounds: InputBounds,
 }
 
-// F0191: Panel move state tracking for draggable panel titles/top borders
+// F0191: MuxBox move state tracking for draggable muxbox titles/top borders
 #[derive(Debug, Clone)]
-struct PanelMoveState {
-    panel_id: String,
+struct MuxBoxMoveState {
+    muxbox_id: String,
     start_x: u16,
     start_y: u16,
     original_bounds: InputBounds,
@@ -55,12 +55,12 @@ pub enum ResizeEdge {
 }
 
 static DRAG_STATE: Mutex<Option<DragState>> = Mutex::new(None);
-static PANEL_RESIZE_STATE: Mutex<Option<PanelResizeState>> = Mutex::new(None);
-static PANEL_MOVE_STATE: Mutex<Option<PanelMoveState>> = Mutex::new(None);
+static MUXBOX_RESIZE_STATE: Mutex<Option<MuxBoxResizeState>> = Mutex::new(None);
+static MUXBOX_MOVE_STATE: Mutex<Option<MuxBoxMoveState>> = Mutex::new(None);
 
-// F0189: Helper functions to detect panel border resize areas (corner-only)
-pub fn detect_resize_edge(panel: &Panel, click_x: u16, click_y: u16) -> Option<ResizeEdge> {
-    let bounds = panel.bounds();
+// F0189: Helper functions to detect muxbox border resize areas (corner-only)
+pub fn detect_resize_edge(muxbox: &MuxBox, click_x: u16, click_y: u16) -> Option<ResizeEdge> {
+    let bounds = muxbox.bounds();
     let x = click_x as usize;
     let y = click_y as usize;
     
@@ -76,13 +76,13 @@ pub fn detect_resize_edge(panel: &Panel, click_x: u16, click_y: u16) -> Option<R
     None
 }
 
-// F0191: Helper function to detect panel title/top border for movement
-pub fn detect_move_area(panel: &Panel, click_x: u16, click_y: u16) -> bool {
-    let bounds = panel.bounds();
+// F0191: Helper function to detect muxbox title/top border for movement
+pub fn detect_move_area(muxbox: &MuxBox, click_x: u16, click_y: u16) -> bool {
+    let bounds = muxbox.bounds();
     let x = click_x as usize;
     let y = click_y as usize;
     
-    // Check for title area or top border (y1 coordinate across panel width)
+    // Check for title area or top border (y1 coordinate across muxbox width)
     y == bounds.y1 && x >= bounds.x1 && x <= bounds.x2
 }
 
@@ -124,7 +124,7 @@ pub fn calculate_new_bounds(
     new_bounds
 }
 
-// F0191: Calculate new panel position during drag move
+// F0191: Calculate new muxbox position during drag move
 pub fn calculate_new_position(
     original_bounds: &InputBounds,
     start_x: u16,
@@ -154,7 +154,7 @@ pub fn calculate_new_position(
         let new_x1 = (current_x1 + percent_delta_x).max(0.0).min(90.0);
         let new_x2 = (current_x2 + percent_delta_x).max(10.0).min(100.0);
         
-        // Ensure we don't go beyond boundaries while maintaining panel width
+        // Ensure we don't go beyond boundaries while maintaining muxbox width
         if new_x2 <= 100.0 && new_x1 >= 0.0 {
             new_bounds.x1 = format!("{}%", new_x1.round() as i32);
             new_bounds.x2 = format!("{}%", new_x2.round() as i32);
@@ -169,7 +169,7 @@ pub fn calculate_new_position(
         let new_y1 = (current_y1 + percent_delta_y).max(0.0).min(90.0);
         let new_y2 = (current_y2 + percent_delta_y).max(10.0).min(100.0);
         
-        // Ensure we don't go beyond boundaries while maintaining panel height
+        // Ensure we don't go beyond boundaries while maintaining muxbox height
         if new_y2 <= 100.0 && new_y1 >= 0.0 {
             new_bounds.y1 = format!("{}%", new_y1.round() as i32);
             new_bounds.y2 = format!("{}%", new_y2.round() as i32);
@@ -180,21 +180,21 @@ pub fn calculate_new_position(
 }
 
 // F0188: Helper functions to determine if click is on scroll knob (not just track)
-fn is_on_vertical_knob(panel: &Panel, click_y: usize) -> bool {
-    let panel_bounds = panel.bounds();
-    let viewable_height = panel_bounds.height().saturating_sub(4);
+fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
+    let muxbox_bounds = muxbox.bounds();
+    let viewable_height = muxbox_bounds.height().saturating_sub(4);
     
     // Get content dimensions to calculate knob position and size
-    let max_content_height = if let Some(content) = &panel.content {
+    let max_content_height = if let Some(content) = &muxbox.content {
         let lines: Vec<&str> = content.split('\n').collect();
         let mut total_height = lines.len();
         
         // Add choices height if present
-        if let Some(choices) = &panel.choices {
+        if let Some(choices) = &muxbox.choices {
             total_height += choices.len();
         }
         total_height
-    } else if let Some(choices) = &panel.choices {
+    } else if let Some(choices) = &muxbox.choices {
         choices.len()
     } else {
         viewable_height // No scrolling needed
@@ -214,7 +214,7 @@ fn is_on_vertical_knob(panel: &Panel, click_y: usize) -> bool {
     let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
     let available_track = track_height.saturating_sub(knob_size);
     
-    let vertical_scroll = panel.vertical_scroll.unwrap_or(0.0);
+    let vertical_scroll = muxbox.vertical_scroll.unwrap_or(0.0);
     let knob_position = if available_track > 0 {
         ((vertical_scroll / 100.0) * available_track as f64).round() as usize
     } else {
@@ -222,21 +222,21 @@ fn is_on_vertical_knob(panel: &Panel, click_y: usize) -> bool {
     };
     
     // Check if click is within knob bounds
-    let knob_start_y = panel_bounds.top() + 1 + knob_position;
+    let knob_start_y = muxbox_bounds.top() + 1 + knob_position;
     let knob_end_y = knob_start_y + knob_size;
     
     click_y >= knob_start_y && click_y < knob_end_y
 }
 
-fn is_on_horizontal_knob(panel: &Panel, click_x: usize) -> bool {
-    let panel_bounds = panel.bounds();
-    let viewable_width = panel_bounds.width().saturating_sub(4);
+fn is_on_horizontal_knob(muxbox: &MuxBox, click_x: usize) -> bool {
+    let muxbox_bounds = muxbox.bounds();
+    let viewable_width = muxbox_bounds.width().saturating_sub(4);
     
     // Get content width to calculate knob position and size
-    let max_content_width = if let Some(content) = &panel.content {
+    let max_content_width = if let Some(content) = &muxbox.content {
         let lines: Vec<&str> = content.split('\n').collect();
         lines.iter().map(|line| line.len()).max().unwrap_or(0)
-    } else if let Some(choices) = &panel.choices {
+    } else if let Some(choices) = &muxbox.choices {
         choices.iter()
             .map(|choice| choice.content.as_ref().map(|c| c.len()).unwrap_or(0))
             .max()
@@ -259,7 +259,7 @@ fn is_on_horizontal_knob(panel: &Panel, click_x: usize) -> bool {
     let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
     let available_track = track_width.saturating_sub(knob_size);
     
-    let horizontal_scroll = panel.horizontal_scroll.unwrap_or(0.0);
+    let horizontal_scroll = muxbox.horizontal_scroll.unwrap_or(0.0);
     let knob_position = if available_track > 0 {
         ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
     } else {
@@ -267,7 +267,7 @@ fn is_on_horizontal_knob(panel: &Panel, click_x: usize) -> bool {
     };
     
     // Check if click is within knob bounds
-    let knob_start_x = panel_bounds.left() + 1 + knob_position;
+    let knob_start_x = muxbox_bounds.left() + 1 + knob_position;
     let knob_end_x = knob_start_x + knob_size;
     
     click_x >= knob_start_x && click_x < knob_end_x
@@ -340,11 +340,11 @@ create_runnable!(
                 log::info!("DrawLoop processing {} messages", messages.len());
                 for msg in &messages {
                     match msg {
-                        Message::ChoiceExecutionComplete(choice_id, panel_id, _) => {
+                        Message::ChoiceExecutionComplete(choice_id, muxbox_id, _) => {
                             log::info!(
                                 "About to process ChoiceExecutionComplete: {} -> {}",
                                 choice_id,
-                                panel_id
+                                muxbox_id
                             );
                         }
                         _ => {}
@@ -354,88 +354,88 @@ create_runnable!(
 
             for message in &messages {
                 match message {
-                    Message::PanelEventRefresh(_) => {
-                        log::trace!("PanelEventRefresh");
+                    Message::MuxBoxEventRefresh(_) => {
+                        log::trace!("MuxBoxEventRefresh");
                     }
                     Message::Exit => should_continue = false,
                     Message::Terminate => should_continue = false,
-                    Message::NextPanel() => {
+                    Message::NextMuxBox() => {
                         let active_layout = app_context_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
 
-                        // First, collect the IDs of currently selected panels before changing the selection.
-                        let unselected_panel_ids: Vec<String> = active_layout
-                            .get_selected_panels()
+                        // First, collect the IDs of currently selected muxboxes before changing the selection.
+                        let unselected_muxbox_ids: Vec<String> = active_layout
+                            .get_selected_muxboxes()
                             .iter()
-                            .map(|panel| panel.id.clone())
+                            .map(|muxbox| muxbox.id.clone())
                             .collect();
 
-                        // Now perform the mutation that changes the panel selection.
-                        active_layout.select_next_panel();
+                        // Now perform the mutation that changes the muxbox selection.
+                        active_layout.select_next_muxbox();
 
-                        // After mutation, get the newly selected panels' IDs.
-                        let selected_panel_ids: Vec<String> = active_layout
-                            .get_selected_panels()
+                        // After mutation, get the newly selected muxboxes' IDs.
+                        let selected_muxbox_ids: Vec<String> = active_layout
+                            .get_selected_muxboxes()
                             .iter()
-                            .map(|panel| panel.id.clone())
+                            .map(|muxbox| muxbox.id.clone())
                             .collect();
 
                         // Update the application context and issue redraw commands based on the collected IDs.
                         inner.update_app_context(app_context_unwrapped.clone());
-                        for panel_id in unselected_panel_ids {
-                            inner.send_message(Message::RedrawPanel(panel_id));
+                        for muxbox_id in unselected_muxbox_ids {
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id));
                         }
-                        for panel_id in selected_panel_ids {
-                            inner.send_message(Message::RedrawPanel(panel_id));
+                        for muxbox_id in selected_muxbox_ids {
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id));
                         }
                     }
-                    Message::PreviousPanel() => {
+                    Message::PreviousMuxBox() => {
                         let active_layout = app_context_unwrapped
                             .app
                             .get_active_layout_mut()
                             .expect("No active layout found!");
 
-                        // First, collect the IDs of currently selected panels before changing the selection.
-                        let unselected_panel_ids: Vec<String> = active_layout
-                            .get_selected_panels()
+                        // First, collect the IDs of currently selected muxboxes before changing the selection.
+                        let unselected_muxbox_ids: Vec<String> = active_layout
+                            .get_selected_muxboxes()
                             .iter()
-                            .map(|panel| panel.id.clone())
+                            .map(|muxbox| muxbox.id.clone())
                             .collect();
 
-                        // Now perform the mutation that changes the panel selection.
-                        active_layout.select_previous_panel();
+                        // Now perform the mutation that changes the muxbox selection.
+                        active_layout.select_previous_muxbox();
 
-                        // After mutation, get the newly selected panels' IDs.
-                        let selected_panel_ids: Vec<String> = active_layout
-                            .get_selected_panels()
+                        // After mutation, get the newly selected muxboxes' IDs.
+                        let selected_muxbox_ids: Vec<String> = active_layout
+                            .get_selected_muxboxes()
                             .iter()
-                            .map(|panel| panel.id.clone())
+                            .map(|muxbox| muxbox.id.clone())
                             .collect();
 
                         // Update the application context and issue redraw commands based on the collected IDs.
                         inner.update_app_context(app_context_unwrapped.clone());
-                        for panel_id in unselected_panel_ids {
-                            inner.send_message(Message::RedrawPanel(panel_id));
+                        for muxbox_id in unselected_muxbox_ids {
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id));
                         }
-                        for panel_id in selected_panel_ids {
-                            inner.send_message(Message::RedrawPanel(panel_id));
+                        for muxbox_id in selected_muxbox_ids {
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id));
                         }
                     }
-                    Message::ScrollPanelDown() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxDown() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                if found_panel.choices.is_some() {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                if found_muxbox.choices.is_some() {
                                     //select first or next choice
-                                    let choices = found_panel.choices.as_mut().unwrap();
+                                    let choices = found_muxbox.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
                                     let selected_choice_unwrapped =
                                         selected_choice.unwrap_or_default();
@@ -449,27 +449,27 @@ create_runnable!(
                                         choice.selected = i == new_selected_choice;
                                     }
                                 } else {
-                                    found_panel.scroll_down(Some(1.0));
+                                    found_muxbox.scroll_down(Some(1.0));
                                 }
 
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelUp() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxUp() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                if found_panel.choices.is_some() {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                if found_muxbox.choices.is_some() {
                                     //select first or next choice
-                                    let choices = found_panel.choices.as_mut().unwrap();
+                                    let choices = found_muxbox.choices.as_mut().unwrap();
                                     let selected_choice = choices.iter().position(|c| c.selected);
                                     let selected_choice_unwrapped =
                                         selected_choice.unwrap_or_default();
@@ -482,221 +482,221 @@ create_runnable!(
                                         choice.selected = i == new_selected_choice;
                                     }
                                 } else {
-                                    found_panel.scroll_up(Some(1.0));
+                                    found_muxbox.scroll_up(Some(1.0));
                                 }
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelLeft() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxLeft() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.scroll_left(Some(1.0));
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.scroll_left(Some(1.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelRight() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxRight() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.scroll_right(Some(1.0));
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.scroll_right(Some(1.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelPageUp() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxPageUp() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
                                 // Page up scrolls by larger amount (10 units for page-based scrolling)
-                                found_panel.scroll_up(Some(10.0));
+                                found_muxbox.scroll_up(Some(10.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelPageDown() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxPageDown() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
                                 // Page down scrolls by larger amount (10 units for page-based scrolling)
-                                found_panel.scroll_down(Some(10.0));
+                                found_muxbox.scroll_down(Some(10.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelPageLeft() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxPageLeft() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
                                 // Page left scrolls by larger amount (10 units for page-based scrolling)
-                                found_panel.scroll_left(Some(10.0));
+                                found_muxbox.scroll_left(Some(10.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelPageRight() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::ScrollMuxBoxPageRight() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
                                 // Page right scrolls by larger amount (10 units for page-based scrolling)
-                                found_panel.scroll_right(Some(10.0));
+                                found_muxbox.scroll_right(Some(10.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelToBeginning() => {
+                    Message::ScrollMuxBoxToBeginning() => {
                         // Home key: scroll to beginning horizontally (horizontal_scroll = 0)
-                        let selected_panels = app_context_unwrapped
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.horizontal_scroll = Some(0.0);
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.horizontal_scroll = Some(0.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelToEnd() => {
+                    Message::ScrollMuxBoxToEnd() => {
                         // End key: scroll to end horizontally (horizontal_scroll = 100)
-                        let selected_panels = app_context_unwrapped
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.horizontal_scroll = Some(100.0);
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.horizontal_scroll = Some(100.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelToTop() => {
+                    Message::ScrollMuxBoxToTop() => {
                         // Ctrl+Home: scroll to top vertically (vertical_scroll = 0)
-                        let selected_panels = app_context_unwrapped
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.vertical_scroll = Some(0.0);
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.vertical_scroll = Some(0.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::ScrollPanelToBottom() => {
+                    Message::ScrollMuxBoxToBottom() => {
                         // Ctrl+End: scroll to bottom vertically (vertical_scroll = 100)
-                        let selected_panels = app_context_unwrapped
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id_mut(&selected_id);
-                            if let Some(found_panel) = panel {
-                                found_panel.vertical_scroll = Some(100.0);
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                found_muxbox.vertical_scroll = Some(100.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawPanel(selected_id));
+                                inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
                         }
                     }
-                    Message::CopyFocusedPanelContent() => {
-                        let selected_panels = app_context_unwrapped
+                    Message::CopyFocusedMuxBoxContent() => {
+                        let selected_muxboxes = app_context_unwrapped
                             .app
                             .get_active_layout()
                             .unwrap()
-                            .get_selected_panels();
-                        if !selected_panels.is_empty() {
-                            let selected_id = selected_panels.first().unwrap().id.clone();
-                            let panel = app_context_unwrapped.app.get_panel_by_id(&selected_id);
-                            if let Some(found_panel) = panel {
-                                // Get panel content to copy
-                                let content_to_copy = get_panel_content_for_clipboard(found_panel);
+                            .get_selected_muxboxes();
+                        if !selected_muxboxes.is_empty() {
+                            let selected_id = selected_muxboxes.first().unwrap().id.clone();
+                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id(&selected_id);
+                            if let Some(found_muxbox) = muxbox {
+                                // Get muxbox content to copy
+                                let content_to_copy = get_muxbox_content_for_clipboard(found_muxbox);
 
                                 // Copy to clipboard
                                 if copy_to_clipboard(&content_to_copy).is_ok() {
-                                    // Trigger visual flash for the panel
-                                    trigger_panel_flash(&selected_id);
-                                    inner.send_message(Message::RedrawPanel(selected_id));
+                                    // Trigger visual flash for the muxbox
+                                    trigger_muxbox_flash(&selected_id);
+                                    inner.send_message(Message::RedrawMuxBox(selected_id));
                                 }
                             }
                         }
                     }
-                    Message::RedrawPanel(panel_id) => {
-                        if let Some(mut found_panel) = app_context_unwrapped
+                    Message::RedrawMuxBox(muxbox_id) => {
+                        if let Some(mut found_muxbox) = app_context_unwrapped
                             .app
-                            .get_panel_by_id_mut(panel_id)
+                            .get_muxbox_by_id_mut(muxbox_id)
                             .cloned()
                         {
                             new_buffer = buffer.clone();
 
                             // Clone the parent layout to avoid mutable borrow conflicts
                             if let Some(parent_layout) =
-                                found_panel.get_parent_layout_clone(&mut app_context_unwrapped)
+                                found_muxbox.get_parent_layout_clone(&mut app_context_unwrapped)
                             {
-                                draw_panel(
+                                draw_muxbox(
                                     &app_context_unwrapped,
                                     &app_graph,
                                     &adjusted_bounds,
                                     &parent_layout,
-                                    &mut found_panel,
+                                    &mut found_muxbox,
                                     &mut new_buffer,
                                 );
                                 apply_buffer_if_changed(buffer, &new_buffer, screen);
@@ -720,9 +720,9 @@ create_runnable!(
                         apply_buffer(&mut new_buffer, screen);
                         *buffer = new_buffer;
                     }
-                    Message::PanelOutputUpdate(panel_id, success, output) => {
-                        log::info!("RECEIVED PanelOutputUpdate for panel: {}, success: {}, output_len: {}, preview: {}", 
-                                   panel_id, success, output.len(), output.chars().take(50).collect::<String>());
+                    Message::MuxBoxOutputUpdate(muxbox_id, success, output) => {
+                        log::info!("RECEIVED MuxBoxOutputUpdate for muxbox: {}, success: {}, output_len: {}, preview: {}", 
+                                   muxbox_id, success, output.len(), output.chars().take(50).collect::<String>());
                         let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
                         // For PTY streaming output, we need to use a special update method
                         // that doesn't add timestamp formatting. The presence of a newline
@@ -731,23 +731,23 @@ create_runnable!(
 
                         if is_pty_streaming {
                             // Use streaming update for PTY output
-                            let target_panel = app_context_unwrapped_cloned
+                            let target_muxbox = app_context_unwrapped_cloned
                                 .app
-                                .get_panel_by_id_mut(panel_id)
+                                .get_muxbox_by_id_mut(muxbox_id)
                                 .unwrap();
-                            target_panel.update_streaming_content(output, *success);
+                            target_muxbox.update_streaming_content(output, *success);
                             inner.update_app_context(app_context_unwrapped_cloned.clone());
-                            inner.send_message(Message::RedrawPanel(panel_id.to_string()));
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
                         } else {
                             // Use regular update for non-PTY output
-                            let panel =
-                                app_context_unwrapped.app.get_panel_by_id(panel_id).unwrap();
-                            update_panel_content(
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id).unwrap();
+                            update_muxbox_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
-                                panel_id,
+                                muxbox_id,
                                 *success,
-                                panel.append_output.unwrap_or(false),
+                                muxbox.append_output.unwrap_or(false),
                                 output,
                             );
                         }
@@ -763,13 +763,13 @@ create_runnable!(
 
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
-                        // Find the choice by ID in any panel
+                        // Find the choice by ID in any muxbox
                         log::info!("Searching for choice {} in active layout", choice_id);
-                        if let Some(choice_panel) = active_layout.find_panel_with_choice(&choice_id)
+                        if let Some(choice_muxbox) = active_layout.find_muxbox_with_choice(&choice_id)
                         {
-                            log::info!("Found choice in panel: {}", choice_panel.id);
+                            log::info!("Found choice in muxbox: {}", choice_muxbox.id);
 
-                            if let Some(choices) = &choice_panel.choices {
+                            if let Some(choices) = &choice_muxbox.choices {
                                 if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
                                     // T315: Unified choice execution - thread field no longer affects execution path
                                     log::info!("Executing choice config - pty: {}, redirect: {:?}, script_lines: {}", 
@@ -804,19 +804,19 @@ create_runnable!(
                                         // Send completion message via unified system
                                         inner.send_message(Message::ChoiceExecutionComplete(
                                             choice_id.clone(),
-                                            choice_panel.id.clone(),
+                                            choice_muxbox.id.clone(),
                                             result.map_err(|e| e.to_string()),
                                         ));
                                     }
                                 } else {
-                                    log::warn!("Choice {} found in panel {} but no matching choice in choices list", choice_id, choice_panel.id);
+                                    log::warn!("Choice {} found in muxbox {} but no matching choice in choices list", choice_id, choice_muxbox.id);
                                 }
                             } else {
-                                log::warn!("Panel {} has no choices list", choice_panel.id);
+                                log::warn!("MuxBox {} has no choices list", choice_muxbox.id);
                             }
                         } else {
                             log::error!(
-                                "Choice {} not found in any panel of active layout",
+                                "Choice {} not found in any muxbox of active layout",
                                 choice_id
                             );
                         }
@@ -825,9 +825,9 @@ create_runnable!(
                         let mut app_context_for_keypress = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
-                        let selected_panels: Vec<&Panel> = active_layout.get_selected_panels();
+                        let selected_muxboxes: Vec<&MuxBox> = active_layout.get_selected_muxboxes();
 
-                        let selected_panels_with_keypress_events: Vec<&Panel> = selected_panels
+                        let selected_muxboxes_with_keypress_events: Vec<&MuxBox> = selected_muxboxes
                             .clone()
                             .into_iter()
                             .filter(|p| p.on_keypress.is_some())
@@ -837,18 +837,18 @@ create_runnable!(
                         let libs = app_context_unwrapped.app.libs.clone();
 
                         if pressed_key == "Enter" {
-                            let selected_panels_with_choices: Vec<&Panel> = selected_panels
+                            let selected_muxboxes_with_choices: Vec<&MuxBox> = selected_muxboxes
                                 .into_iter()
                                 .filter(|p| p.choices.is_some())
                                 .collect();
-                            for panel in selected_panels_with_choices {
+                            for muxbox in selected_muxboxes_with_choices {
                                 // First, extract choice information before any mutable operations
                                 let (selected_choice_data, choice_needs_execution) = {
-                                    let panel_ref = app_context_for_keypress
+                                    let muxbox_ref = app_context_for_keypress
                                         .app
-                                        .get_panel_by_id(&panel.id)
+                                        .get_muxbox_by_id(&muxbox.id)
                                         .unwrap();
-                                    if let Some(ref choices) = panel_ref.choices {
+                                    if let Some(ref choices) = muxbox_ref.choices {
                                         if let Some(selected_choice) =
                                             choices.iter().find(|c| c.selected)
                                         {
@@ -859,7 +859,7 @@ create_runnable!(
                                                 selected_choice.thread.unwrap_or(false),
                                                 selected_choice.redirect_output.clone(),
                                                 selected_choice.append_output.unwrap_or(false),
-                                                panel.id.clone(),
+                                                muxbox.id.clone(),
                                             );
                                             (Some(choice_data), selected_choice.script.is_some())
                                         } else {
@@ -877,14 +877,14 @@ create_runnable!(
                                     use_thread,
                                     redirect_output,
                                     append_output,
-                                    panel_id,
+                                    muxbox_id,
                                 )) = selected_choice_data
                                 {
                                     if choice_needs_execution {
                                         log::info!(
-                                            "=== ENTER KEY CHOICE EXECUTION: {} (panel: {}) ===",
+                                            "=== ENTER KEY CHOICE EXECUTION: {} (muxbox: {}) ===",
                                             choice_id,
-                                            panel_id
+                                            muxbox_id
                                         );
                                         log::info!("Enter choice config - pty: {}, thread: {}, redirect: {:?}", 
                                             use_pty, use_thread, redirect_output
@@ -897,11 +897,11 @@ create_runnable!(
                                             log::info!("Enter key requesting ThreadManager to execute choice {} (pty: {})", choice_id, use_pty);
 
                                             // Set choice to waiting state before execution
-                                            if let Some(panel_mut) = app_context_for_keypress
+                                            if let Some(muxbox_mut) = app_context_for_keypress
                                                 .app
-                                                .get_panel_by_id_mut(&panel_id)
+                                                .get_muxbox_by_id_mut(&muxbox_id)
                                             {
-                                                if let Some(ref mut choices) = panel_mut.choices {
+                                                if let Some(ref mut choices) = muxbox_mut.choices {
                                                     if let Some(choice) = choices
                                                         .iter_mut()
                                                         .find(|c| c.id == choice_id)
@@ -929,7 +929,7 @@ create_runnable!(
                                             choice_id, use_pty, use_thread);
                                             inner.send_message(Message::ExecuteChoice(
                                                 choice_for_execution,
-                                                panel_id.clone(),
+                                                muxbox_id.clone(),
                                                 libs_clone,
                                             ));
 
@@ -948,52 +948,52 @@ create_runnable!(
                             }
                         }
 
-                        for panel in selected_panels_with_keypress_events {
+                        for muxbox in selected_muxboxes_with_keypress_events {
                             let actions =
-                                handle_keypress(pressed_key, &panel.on_keypress.clone().unwrap());
+                                handle_keypress(pressed_key, &muxbox.on_keypress.clone().unwrap());
                             if actions.is_none() {
                                 if let Some(actions_unwrapped) = actions {
                                     let libs = app_context_unwrapped.app.libs.clone();
 
                                     match run_script(libs, &actions_unwrapped) {
                                         Ok(output) => {
-                                            if panel.redirect_output.is_some() {
-                                                update_panel_content(
+                                            if muxbox.redirect_output.is_some() {
+                                                update_muxbox_content(
                                                     inner,
                                                     &mut app_context_for_keypress,
-                                                    panel.redirect_output.as_ref().unwrap(),
+                                                    muxbox.redirect_output.as_ref().unwrap(),
                                                     true,
-                                                    panel.append_output.unwrap_or(false),
+                                                    muxbox.append_output.unwrap_or(false),
                                                     &output,
                                                 )
                                             } else {
-                                                update_panel_content(
+                                                update_muxbox_content(
                                                     inner,
                                                     &mut app_context_for_keypress,
-                                                    &panel.id,
+                                                    &muxbox.id,
                                                     true,
-                                                    panel.append_output.unwrap_or(false),
+                                                    muxbox.append_output.unwrap_or(false),
                                                     &output,
                                                 )
                                             }
                                         }
                                         Err(e) => {
-                                            if panel.redirect_output.is_some() {
-                                                update_panel_content(
+                                            if muxbox.redirect_output.is_some() {
+                                                update_muxbox_content(
                                                     inner,
                                                     &mut app_context_for_keypress,
-                                                    panel.redirect_output.as_ref().unwrap(),
+                                                    muxbox.redirect_output.as_ref().unwrap(),
                                                     false,
-                                                    panel.append_output.unwrap_or(false),
+                                                    muxbox.append_output.unwrap_or(false),
                                                     e.to_string().as_str(),
                                                 )
                                             } else {
-                                                update_panel_content(
+                                                update_muxbox_content(
                                                     inner,
                                                     &mut app_context_for_keypress,
-                                                    &panel.id,
+                                                    &muxbox.id,
                                                     false,
-                                                    panel.append_output.unwrap_or(false),
+                                                    muxbox.append_output.unwrap_or(false),
                                                     e.to_string().as_str(),
                                                 )
                                             }
@@ -1003,33 +1003,33 @@ create_runnable!(
                             }
                         }
                     }
-                    Message::PTYInput(panel_id, input) => {
-                        log::trace!("PTY input for panel {}: {}", panel_id, input);
+                    Message::PTYInput(muxbox_id, input) => {
+                        log::trace!("PTY input for muxbox {}: {}", muxbox_id, input);
 
-                        // Find the target panel to verify it exists and has PTY enabled
-                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
-                            if panel.pty.unwrap_or(false) {
+                        // Find the target muxbox to verify it exists and has PTY enabled
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                            if muxbox.pty.unwrap_or(false) {
                                 log::debug!(
-                                    "Routing input to PTY panel {}: {:?}",
-                                    panel_id,
+                                    "Routing input to PTY muxbox {}: {:?}",
+                                    muxbox_id,
                                     input.chars().collect::<Vec<_>>()
                                 );
 
                                 // TODO: Write input to PTY process when PTY manager is thread-safe
                                 // For now, log the successful routing detection
                                 log::info!(
-                                    "PTY input ready for routing to panel {}: {} chars",
-                                    panel_id,
+                                    "PTY input ready for routing to muxbox {}: {} chars",
+                                    muxbox_id,
                                     input.len()
                                 );
                             } else {
                                 log::warn!(
-                                    "Panel {} received PTY input but pty field is false",
-                                    panel_id
+                                    "MuxBox {} received PTY input but pty field is false",
+                                    muxbox_id
                                 );
                             }
                         } else {
-                            log::error!("PTY input received for non-existent panel: {}", panel_id);
+                            log::error!("PTY input received for non-existent muxbox: {}", muxbox_id);
                         }
                     }
                     Message::MouseClick(x, y) => {
@@ -1039,25 +1039,25 @@ create_runnable!(
 
                         // F0187: Check for scrollbar clicks first
                         let mut handled_scrollbar_click = false;
-                        for panel in active_layout.get_all_panels() {
-                            if panel.has_scrollable_content() {
-                                let panel_bounds = panel.bounds();
+                        for muxbox in active_layout.get_all_muxboxes() {
+                            if muxbox.has_scrollable_content() {
+                                let muxbox_bounds = muxbox.bounds();
                                 
                                 // Check for vertical scrollbar click (right border)
-                                if *x as usize == panel_bounds.right() && 
-                                   *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
-                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
-                                    let click_position = ((*y as usize) - panel_bounds.top() - 1) as f64 / track_height as f64;
+                                if *x as usize == muxbox_bounds.right() && 
+                                   *y as usize > muxbox_bounds.top() && (*y as usize) < muxbox_bounds.bottom() {
+                                    let track_height = (muxbox_bounds.height() as isize - 2).max(1) as usize;
+                                    let click_position = ((*y as usize) - muxbox_bounds.top() - 1) as f64 / track_height as f64;
                                     let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
                                     
-                                    log::trace!("Vertical scrollbar click on panel {} at {}%", panel.id, scroll_percentage);
+                                    log::trace!("Vertical scrollbar click on muxbox {} at {}%", muxbox.id, scroll_percentage);
                                     
-                                    // Update panel vertical scroll
-                                    let panel_to_update = app_context_for_click
+                                    // Update muxbox vertical scroll
+                                    let muxbox_to_update = app_context_for_click
                                         .app
-                                        .get_panel_by_id_mut(&panel.id)
+                                        .get_muxbox_by_id_mut(&muxbox.id)
                                         .unwrap();
-                                    panel_to_update.vertical_scroll = Some(scroll_percentage);
+                                    muxbox_to_update.vertical_scroll = Some(scroll_percentage);
                                     
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawApp);
@@ -1066,20 +1066,20 @@ create_runnable!(
                                 }
                                 
                                 // Check for horizontal scrollbar click (bottom border)
-                                if *y as usize == panel_bounds.bottom() && 
-                                   *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
-                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
-                                    let click_position = ((*x as usize) - panel_bounds.left() - 1) as f64 / track_width as f64;
+                                if *y as usize == muxbox_bounds.bottom() && 
+                                   *x as usize > muxbox_bounds.left() && (*x as usize) < muxbox_bounds.right() {
+                                    let track_width = (muxbox_bounds.width() as isize - 2).max(1) as usize;
+                                    let click_position = ((*x as usize) - muxbox_bounds.left() - 1) as f64 / track_width as f64;
                                     let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
                                     
-                                    log::trace!("Horizontal scrollbar click on panel {} at {}%", panel.id, scroll_percentage);
+                                    log::trace!("Horizontal scrollbar click on muxbox {} at {}%", muxbox.id, scroll_percentage);
                                     
-                                    // Update panel horizontal scroll
-                                    let panel_to_update = app_context_for_click
+                                    // Update muxbox horizontal scroll
+                                    let muxbox_to_update = app_context_for_click
                                         .app
-                                        .get_panel_by_id_mut(&panel.id)
+                                        .get_muxbox_by_id_mut(&muxbox.id)
                                         .unwrap();
-                                    panel_to_update.horizontal_scroll = Some(scroll_percentage);
+                                    muxbox_to_update.horizontal_scroll = Some(scroll_percentage);
                                     
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawApp);
@@ -1089,46 +1089,46 @@ create_runnable!(
                             }
                         }
                         
-                        // If scrollbar click was handled, skip panel selection
+                        // If scrollbar click was handled, skip muxbox selection
                         if handled_scrollbar_click {
                             // Continue to next message
                         } else {
-                            // F0091: Find which panel was clicked based on coordinates
-                            if let Some(clicked_panel) = active_layout.find_panel_at_coordinates(*x, *y)
+                            // F0091: Find which muxbox was clicked based on coordinates
+                            if let Some(clicked_muxbox) = active_layout.find_muxbox_at_coordinates(*x, *y)
                         {
-                            log::trace!("Clicked on panel: {}", clicked_panel.id);
+                            log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
 
-                            // Check if panel has choices (menu items)
-                            if let Some(choices) = &clicked_panel.choices {
-                                // Calculate which choice was clicked based on y offset within panel
+                            // Check if muxbox has choices (menu items)
+                            if let Some(choices) = &clicked_muxbox.choices {
+                                // Calculate which choice was clicked based on y and x offset within muxbox
                                 if let Some(clicked_choice_idx) =
-                                    calculate_clicked_choice_index(clicked_panel, *y, choices.len())
+                                    calculate_clicked_choice_index(clicked_muxbox, *x, *y, choices)
                                 {
                                     if let Some(clicked_choice) = choices.get(clicked_choice_idx) {
                                         log::trace!("Clicked on choice: {}", clicked_choice.id);
 
-                                        // First, select the parent panel if not already selected
+                                        // First, select the parent muxbox if not already selected
                                         let layout = app_context_for_click
                                             .app
                                             .get_active_layout_mut()
                                             .unwrap();
-                                        layout.deselect_all_panels();
-                                        layout.select_only_panel(&clicked_panel.id);
+                                        layout.deselect_all_muxboxes();
+                                        layout.select_only_muxbox(&clicked_muxbox.id);
 
                                         // Then select the clicked choice visually
-                                        let panel_to_update = app_context_for_click
+                                        let muxbox_to_update = app_context_for_click
                                             .app
-                                            .get_panel_by_id_mut(&clicked_panel.id)
+                                            .get_muxbox_by_id_mut(&clicked_muxbox.id)
                                             .unwrap();
-                                        if let Some(ref mut panel_choices) = panel_to_update.choices
+                                        if let Some(ref mut muxbox_choices) = muxbox_to_update.choices
                                         {
                                             // Deselect all choices first
-                                            for choice in panel_choices.iter_mut() {
+                                            for choice in muxbox_choices.iter_mut() {
                                                 choice.selected = false;
                                             }
                                             // Select only the clicked choice
                                             if let Some(selected_choice) =
-                                                panel_choices.get_mut(clicked_choice_idx)
+                                                muxbox_choices.get_mut(clicked_choice_idx)
                                             {
                                                 selected_choice.selected = true;
                                             }
@@ -1146,13 +1146,13 @@ create_runnable!(
                                             // Always use threaded execution for mouse clicks to keep UI responsive
                                             let _script_clone = script.clone();
                                             let _choice_id_clone = clicked_choice.id.clone();
-                                            let panel_id_clone = clicked_panel.id.clone();
+                                            let muxbox_id_clone = clicked_muxbox.id.clone();
                                             let libs_clone = libs.clone();
 
                                             // T312: Use unified ExecuteChoice message system
                                             inner.send_message(Message::ExecuteChoice(
                                                 clicked_choice.clone(),
-                                                panel_id_clone,
+                                                muxbox_id_clone,
                                                 libs_clone,
                                             ));
 
@@ -1162,43 +1162,43 @@ create_runnable!(
                                         }
                                     }
                                 } else {
-                                    // Click was on panel with choices but not on any specific choice
-                                    // Only select the panel, don't activate any choice
-                                    if clicked_panel.tab_order.is_some()
-                                        || clicked_panel.has_scrollable_content()
+                                    // Click was on muxbox with choices but not on any specific choice
+                                    // Only select the muxbox, don't activate any choice
+                                    if clicked_muxbox.tab_order.is_some()
+                                        || clicked_muxbox.has_scrollable_content()
                                     {
                                         log::trace!(
-                                            "Selecting panel (clicked on empty area): {}",
-                                            clicked_panel.id
+                                            "Selecting muxbox (clicked on empty area): {}",
+                                            clicked_muxbox.id
                                         );
 
-                                        // Deselect all panels in the layout first
+                                        // Deselect all muxboxes in the layout first
                                         let layout = app_context_for_click
                                             .app
                                             .get_active_layout_mut()
                                             .unwrap();
-                                        layout.deselect_all_panels();
-                                        layout.select_only_panel(&clicked_panel.id);
+                                        layout.deselect_all_muxboxes();
+                                        layout.select_only_muxbox(&clicked_muxbox.id);
 
                                         inner.update_app_context(app_context_for_click);
                                         inner.send_message(Message::RedrawApp);
                                     }
                                 }
                             } else {
-                                // Panel has no choices - just select it if it's selectable
-                                if clicked_panel.tab_order.is_some()
-                                    || clicked_panel.has_scrollable_content()
+                                // MuxBox has no choices - just select it if it's selectable
+                                if clicked_muxbox.tab_order.is_some()
+                                    || clicked_muxbox.has_scrollable_content()
                                 {
                                     log::trace!(
-                                        "Selecting panel (no choices): {}",
-                                        clicked_panel.id
+                                        "Selecting muxbox (no choices): {}",
+                                        clicked_muxbox.id
                                     );
 
-                                    // Deselect all panels in the layout first
+                                    // Deselect all muxboxes in the layout first
                                     let layout =
                                         app_context_for_click.app.get_active_layout_mut().unwrap();
-                                    layout.deselect_all_panels();
-                                    layout.select_only_panel(&clicked_panel.id);
+                                    layout.deselect_all_muxboxes();
+                                    layout.select_only_muxbox(&clicked_muxbox.id);
 
                                     inner.update_app_context(app_context_for_click);
                                     inner.send_message(Message::RedrawApp);
@@ -1208,48 +1208,48 @@ create_runnable!(
                         }
                     }
                     Message::MouseDragStart(x, y) => {
-                        // Check if panels are locked before allowing resize/move
+                        // Check if muxboxes are locked before allowing resize/move
                         if app_context_unwrapped.config.locked {
                             // Skip all resize/move operations when locked
-                            log::trace!("Panel resize/move blocked: panels are locked");
+                            log::trace!("MuxBox resize/move blocked: muxboxes are locked");
                         } else {
-                            // F0189: Check if drag started on a panel border first
+                            // F0189: Check if drag started on a muxbox border first
                             let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
-                            let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                            let mut resize_state = MUXBOX_RESIZE_STATE.lock().unwrap();
                             *resize_state = None; // Clear any previous resize state
                             
-                            // Check for panel border resize first
+                            // Check for muxbox border resize first
                             let mut handled_resize = false;
-                            for panel in active_layout.get_all_panels() {
-                                if let Some(resize_edge) = detect_resize_edge(panel, *x, *y) {
-                                    *resize_state = Some(PanelResizeState {
-                                        panel_id: panel.id.clone(),
+                            for muxbox in active_layout.get_all_muxboxes() {
+                                if let Some(resize_edge) = detect_resize_edge(muxbox, *x, *y) {
+                                    *resize_state = Some(MuxBoxResizeState {
+                                        muxbox_id: muxbox.id.clone(),
                                         resize_edge,
                                         start_x: *x,
                                         start_y: *y,
-                                        original_bounds: panel.position.clone(),
+                                        original_bounds: muxbox.position.clone(),
                                     });
-                                    log::trace!("Started resizing panel {} via {:?} edge", panel.id, resize_state.as_ref().unwrap().resize_edge);
+                                    log::trace!("Started resizing muxbox {} via {:?} edge", muxbox.id, resize_state.as_ref().unwrap().resize_edge);
                                     handled_resize = true;
                                     break;
                                 }
                             }
                             
-                            // F0191: If not a resize, check if drag started on panel title/top border for movement
+                            // F0191: If not a resize, check if drag started on muxbox title/top border for movement
                             let mut handled_move = false;
                             if !handled_resize {
-                                let mut move_state = PANEL_MOVE_STATE.lock().unwrap();
+                                let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
                                 *move_state = None; // Clear any previous move state
                                 
-                                for panel in active_layout.get_all_panels() {
-                                    if detect_move_area(panel, *x, *y) {
-                                        *move_state = Some(PanelMoveState {
-                                            panel_id: panel.id.clone(),
+                                for muxbox in active_layout.get_all_muxboxes() {
+                                    if detect_move_area(muxbox, *x, *y) {
+                                        *move_state = Some(MuxBoxMoveState {
+                                            muxbox_id: muxbox.id.clone(),
                                             start_x: *x,
                                             start_y: *y,
-                                            original_bounds: panel.position.clone(),
+                                            original_bounds: muxbox.position.clone(),
                                         });
-                                        log::trace!("Started moving panel {} via title/top border", panel.id);
+                                        log::trace!("Started moving muxbox {} via title/top border", muxbox.id);
                                         handled_move = true;
                                         break;
                                     }
@@ -1262,12 +1262,12 @@ create_runnable!(
                         
                         // Check if any resize/move states are active (only possible when unlocked)
                         let has_active_resize = if !app_context_unwrapped.config.locked {
-                            let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
+                            let resize_state_guard = MUXBOX_RESIZE_STATE.lock().unwrap();
                             resize_state_guard.is_some()
                         } else { false };
                         
                         let has_active_move = if !app_context_unwrapped.config.locked {
-                            let move_state_guard = PANEL_MOVE_STATE.lock().unwrap();
+                            let move_state_guard = MUXBOX_MOVE_STATE.lock().unwrap();
                             move_state_guard.is_some()
                         } else { false };
                         
@@ -1276,42 +1276,42 @@ create_runnable!(
                             let mut drag_state = DRAG_STATE.lock().unwrap();
                             *drag_state = None; // Clear any previous drag state
 
-                            for panel in active_layout.get_all_panels() {
-                                if panel.has_scrollable_content() {
-                                    let panel_bounds = panel.bounds();
+                            for muxbox in active_layout.get_all_muxboxes() {
+                                if muxbox.has_scrollable_content() {
+                                    let muxbox_bounds = muxbox.bounds();
                                     
                                     // Check if drag started on vertical scroll knob
-                                    if *x as usize == panel_bounds.right() && 
-                                       *y as usize > panel_bounds.top() && (*y as usize) < panel_bounds.bottom() {
+                                    if *x as usize == muxbox_bounds.right() && 
+                                       *y as usize > muxbox_bounds.top() && (*y as usize) < muxbox_bounds.bottom() {
                                         // Check if we clicked on the actual knob, not just the track
-                                        if is_on_vertical_knob(panel, *y as usize) {
-                                            let current_scroll = panel.vertical_scroll.unwrap_or(0.0);
+                                        if is_on_vertical_knob(muxbox, *y as usize) {
+                                            let current_scroll = muxbox.vertical_scroll.unwrap_or(0.0);
                                             *drag_state = Some(DragState {
-                                                panel_id: panel.id.clone(),
+                                                muxbox_id: muxbox.id.clone(),
                                                 is_vertical: true,
                                                 start_x: *x,
                                                 start_y: *y,
                                                 start_scroll_percentage: current_scroll,
                                             });
-                                            log::trace!("Started dragging vertical scroll knob on panel {}", panel.id);
+                                            log::trace!("Started dragging vertical scroll knob on muxbox {}", muxbox.id);
                                             break;
                                         }
                                     }
                                     
                                     // Check if drag started on horizontal scroll knob
-                                    if *y as usize == panel_bounds.bottom() && 
-                                       *x as usize > panel_bounds.left() && (*x as usize) < panel_bounds.right() {
+                                    if *y as usize == muxbox_bounds.bottom() && 
+                                       *x as usize > muxbox_bounds.left() && (*x as usize) < muxbox_bounds.right() {
                                         // Check if we clicked on the actual knob, not just the track
-                                        if is_on_horizontal_knob(panel, *x as usize) {
-                                            let current_scroll = panel.horizontal_scroll.unwrap_or(0.0);
+                                        if is_on_horizontal_knob(muxbox, *x as usize) {
+                                            let current_scroll = muxbox.horizontal_scroll.unwrap_or(0.0);
                                             *drag_state = Some(DragState {
-                                                panel_id: panel.id.clone(),
+                                                muxbox_id: muxbox.id.clone(),
                                                 is_vertical: false,
                                                 start_x: *x,
                                                 start_y: *y,
                                                 start_scroll_percentage: current_scroll,
                                             });
-                                            log::trace!("Started dragging horizontal scroll knob on panel {}", panel.id);
+                                            log::trace!("Started dragging horizontal scroll knob on muxbox {}", muxbox.id);
                                             break;
                                         }
                                 }
@@ -1320,10 +1320,10 @@ create_runnable!(
                         }
                     }
                     Message::MouseDrag(x, y) => {
-                        // Skip resize/move operations when panels are locked
+                        // Skip resize/move operations when muxboxes are locked
                         if !app_context_unwrapped.config.locked {
-                            // F0189: Handle panel border resize during drag
-                            let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
+                            // F0189: Handle muxbox border resize during drag
+                            let resize_state_guard = MUXBOX_RESIZE_STATE.lock().unwrap();
                             if let Some(ref resize_state) = *resize_state_guard {
                             let terminal_width = crate::screen_width();
                             let terminal_height = crate::screen_height();
@@ -1339,16 +1339,16 @@ create_runnable!(
                                 terminal_height,
                             );
                             
-                            // Update the panel bounds in real-time
-                            if let Some(panel) = app_context_unwrapped.app.get_panel_by_id_mut(&resize_state.panel_id) {
-                                panel.position = new_bounds;
+                            // Update the muxbox bounds in real-time
+                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&resize_state.muxbox_id) {
+                                muxbox.position = new_bounds;
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawApp);
                             }
                             }
                             
-                            // F0191: Handle panel movement during drag
-                            let move_state_guard = PANEL_MOVE_STATE.lock().unwrap();
+                            // F0191: Handle muxbox movement during drag
+                            let move_state_guard = MUXBOX_MOVE_STATE.lock().unwrap();
                             if let Some(ref move_state) = *move_state_guard {
                                 let terminal_width = crate::screen_width();
                                 let terminal_height = crate::screen_height();
@@ -1363,9 +1363,9 @@ create_runnable!(
                                     terminal_height,
                                 );
                                 
-                                // Update the panel position in real-time
-                                if let Some(panel) = app_context_unwrapped.app.get_panel_by_id_mut(&move_state.panel_id) {
-                                    panel.position = new_position;
+                                // Update the muxbox position in real-time
+                                if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&move_state.muxbox_id) {
+                                    muxbox.position = new_position;
                                     inner.update_app_context(app_context_unwrapped.clone());
                                     inner.send_message(Message::RedrawApp);
                                 }
@@ -1375,31 +1375,31 @@ create_runnable!(
                         // F0188: Handle scroll knob drag (always allowed, even when locked)
                         let drag_state_guard = DRAG_STATE.lock().unwrap();
                         if let Some(ref drag_state) = *drag_state_guard {
-                            let panel_to_update = app_context_unwrapped
+                            let muxbox_to_update = app_context_unwrapped
                                 .app
-                                .get_panel_by_id_mut(&drag_state.panel_id);
+                                .get_muxbox_by_id_mut(&drag_state.muxbox_id);
                                 
-                            if let Some(panel) = panel_to_update {
-                                let panel_bounds = panel.bounds();
+                            if let Some(muxbox) = muxbox_to_update {
+                                let muxbox_bounds = muxbox.bounds();
                                 
                                 if drag_state.is_vertical {
                                     // Calculate new vertical scroll percentage based on drag distance
-                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
+                                    let track_height = (muxbox_bounds.height() as isize - 2).max(1) as usize;
                                     let drag_delta = (*y as isize) - (drag_state.start_y as isize);
                                     let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
                                     let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
                                         .min(100.0).max(0.0);
                                     
-                                    panel.vertical_scroll = Some(new_percentage);
+                                    muxbox.vertical_scroll = Some(new_percentage);
                                 } else {
                                     // Calculate new horizontal scroll percentage based on drag distance
-                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
+                                    let track_width = (muxbox_bounds.width() as isize - 2).max(1) as usize;
                                     let drag_delta = (*x as isize) - (drag_state.start_x as isize);
                                     let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
                                     let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
                                         .min(100.0).max(0.0);
                                     
-                                    panel.horizontal_scroll = Some(new_percentage);
+                                    muxbox.horizontal_scroll = Some(new_percentage);
                                 }
                                 
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -1408,24 +1408,24 @@ create_runnable!(
                         }
                     }
                     Message::MouseDragEnd(x, y) => {
-                        // Only handle resize/move end when panels are unlocked
+                        // Only handle resize/move end when muxboxes are unlocked
                         if !app_context_unwrapped.config.locked {
-                            // F0189: End panel resize operation
-                            let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                            // F0189: End muxbox resize operation
+                            let mut resize_state = MUXBOX_RESIZE_STATE.lock().unwrap();
                             if let Some(ref resize_state_data) = *resize_state {
-                                log::trace!("Ended panel resize at ({}, {}) for panel {}", x, y, resize_state_data.panel_id);
+                                log::trace!("Ended muxbox resize at ({}, {}) for muxbox {}", x, y, resize_state_data.muxbox_id);
                                 
                                 // Trigger YAML persistence
-                                inner.send_message(Message::PanelResizeComplete(resize_state_data.panel_id.clone()));
+                                inner.send_message(Message::MuxBoxResizeComplete(resize_state_data.muxbox_id.clone()));
                                 *resize_state = None; // Clear resize state
                             } else {
-                                // F0191: End panel move operation
-                            let mut move_state = PANEL_MOVE_STATE.lock().unwrap();
+                                // F0191: End muxbox move operation
+                            let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
                             if let Some(ref move_state_data) = *move_state {
-                                log::trace!("Ended panel move at ({}, {}) for panel {}", x, y, move_state_data.panel_id);
+                                log::trace!("Ended muxbox move at ({}, {}) for muxbox {}", x, y, move_state_data.muxbox_id);
                                 
                                 // Trigger YAML persistence for new position
-                                inner.send_message(Message::PanelMoveComplete(move_state_data.panel_id.clone()));
+                                inner.send_message(Message::MuxBoxMoveComplete(move_state_data.muxbox_id.clone()));
                                 *move_state = None; // Clear move state
                             }
                             }
@@ -1438,11 +1438,11 @@ create_runnable!(
                             *drag_state = None; // Clear drag state
                         }
                     }
-                    Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
+                    Message::ChoiceExecutionComplete(choice_id, muxbox_id, result) => {
                         log::info!(
-                            "=== DRAWLOOP RECEIVED CHOICE EXECUTION COMPLETE: {} on panel {} ===",
+                            "=== DRAWLOOP RECEIVED CHOICE EXECUTION COMPLETE: {} on muxbox {} ===",
                             choice_id,
-                            panel_id
+                            muxbox_id
                         );
                         match result {
                             Ok(ref output) => log::info!(
@@ -1455,9 +1455,9 @@ create_runnable!(
                         }
 
                         // First update the choice waiting state
-                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id_mut(panel_id)
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
                         {
-                            if let Some(ref mut choices) = panel.choices {
+                            if let Some(ref mut choices) = muxbox.choices {
                                 if let Some(choice) =
                                     choices.iter_mut().find(|c| c.id == *choice_id)
                                 {
@@ -1467,20 +1467,20 @@ create_runnable!(
                         }
 
                         // Then handle the output in a separate scope to avoid borrow conflicts
-                        let target_panel_id = {
-                            if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id)
+                        let target_muxbox_id = {
+                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
                             {
-                                if let Some(ref choices) = panel.choices {
+                                if let Some(ref choices) = muxbox.choices {
                                     if let Some(choice) =
                                         choices.iter().find(|c| c.id == *choice_id)
                                     {
                                         let redirect_target = choice
                                             .redirect_output
                                             .as_ref()
-                                            .unwrap_or(panel_id)
+                                            .unwrap_or(muxbox_id)
                                             .clone();
                                         log::info!(
-                                            "Choice {} redirect_output: {:?} -> target panel: {}",
+                                            "Choice {} redirect_output: {:?} -> target muxbox: {}",
                                             choice_id,
                                             choice.redirect_output,
                                             redirect_target
@@ -1488,26 +1488,26 @@ create_runnable!(
                                         redirect_target
                                     } else {
                                         log::warn!(
-                                            "Choice {} not found in panel {}",
+                                            "Choice {} not found in muxbox {}",
                                             choice_id,
-                                            panel_id
+                                            muxbox_id
                                         );
-                                        panel_id.clone()
+                                        muxbox_id.clone()
                                     }
                                 } else {
-                                    log::warn!("Panel {} has no choices", panel_id);
-                                    panel_id.clone()
+                                    log::warn!("MuxBox {} has no choices", muxbox_id);
+                                    muxbox_id.clone()
                                 }
                             } else {
-                                log::error!("Panel {} not found", panel_id);
-                                panel_id.clone()
+                                log::error!("MuxBox {} not found", muxbox_id);
+                                muxbox_id.clone()
                             }
                         };
 
                         let append = {
-                            if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id)
+                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
                             {
-                                if let Some(ref choices) = panel.choices {
+                                if let Some(ref choices) = muxbox.choices {
                                     if let Some(choice) =
                                         choices.iter().find(|c| c.id == *choice_id)
                                     {
@@ -1526,15 +1526,15 @@ create_runnable!(
                         match result {
                             Ok(output) => {
                                 log::info!(
-                                    "Choice {} output length: {} chars, redirecting to panel: {}",
+                                    "Choice {} output length: {} chars, redirecting to muxbox: {}",
                                     choice_id,
                                     output.len(),
-                                    target_panel_id
+                                    target_muxbox_id
                                 );
-                                update_panel_content(
+                                update_muxbox_content(
                                     inner,
                                     &mut app_context_unwrapped,
-                                    &target_panel_id,
+                                    &target_muxbox_id,
                                     true,
                                     append,
                                     output,
@@ -1542,10 +1542,10 @@ create_runnable!(
                             }
                             Err(error) => {
                                 log::error!("Error running choice script: {}", error);
-                                update_panel_content(
+                                update_muxbox_content(
                                     inner,
                                     &mut app_context_unwrapped,
-                                    &target_panel_id,
+                                    &target_muxbox_id,
                                     false,
                                     append,
                                     error,
@@ -1553,58 +1553,58 @@ create_runnable!(
                             }
                         }
                     }
-                    Message::PanelResizeComplete(panel_id) => {
-                        // F0190: Save panel bounds changes to YAML file
-                        log::info!("Saving panel resize changes to YAML for panel: {}", panel_id);
+                    Message::MuxBoxResizeComplete(muxbox_id) => {
+                        // F0190: Save muxbox bounds changes to YAML file
+                        log::info!("Saving muxbox resize changes to YAML for muxbox: {}", muxbox_id);
                         
-                        // Get the updated panel bounds
-                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
-                            let new_bounds = &panel.position;
-                            log::debug!("New bounds for panel {}: x1={}, y1={}, x2={}, y2={}", 
-                                panel_id, new_bounds.x1, new_bounds.y1, new_bounds.x2, new_bounds.y2);
+                        // Get the updated muxbox bounds
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                            let new_bounds = &muxbox.position;
+                            log::debug!("New bounds for muxbox {}: x1={}, y1={}, x2={}, y2={}", 
+                                muxbox_id, new_bounds.x1, new_bounds.y1, new_bounds.x2, new_bounds.y2);
                                 
                             // Find the original YAML file path
                             if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
-                                match save_panel_bounds_to_yaml(yaml_path, panel_id, new_bounds) {
+                                match save_muxbox_bounds_to_yaml(yaml_path, muxbox_id, new_bounds) {
                                     Ok(()) => {
-                                        log::info!("Successfully saved panel {} bounds to YAML file", panel_id);
+                                        log::info!("Successfully saved muxbox {} bounds to YAML file", muxbox_id);
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to save panel {} bounds to YAML: {}", panel_id, e);
+                                        log::error!("Failed to save muxbox {} bounds to YAML: {}", muxbox_id, e);
                                     }
                                 }
                             } else {
-                                log::error!("CRITICAL: No YAML file path available for saving panel bounds - resize changes will not persist!");
+                                log::error!("CRITICAL: No YAML file path available for saving muxbox bounds - resize changes will not persist!");
                             }
                         } else {
-                            log::error!("Panel {} not found for saving bounds", panel_id);
+                            log::error!("MuxBox {} not found for saving bounds", muxbox_id);
                         }
                     }
-                    Message::PanelMoveComplete(panel_id) => {
-                        // F0191: Save panel position changes to YAML file
-                        log::info!("Saving panel move changes to YAML for panel: {}", panel_id);
+                    Message::MuxBoxMoveComplete(muxbox_id) => {
+                        // F0191: Save muxbox position changes to YAML file
+                        log::info!("Saving muxbox move changes to YAML for muxbox: {}", muxbox_id);
                         
-                        // Get the updated panel position
-                        if let Some(panel) = app_context_unwrapped.app.get_panel_by_id(panel_id) {
-                            let new_position = &panel.position;
-                            log::debug!("New position for panel {}: x1={}, y1={}, x2={}, y2={}", 
-                                panel_id, new_position.x1, new_position.y1, new_position.x2, new_position.y2);
+                        // Get the updated muxbox position
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                            let new_position = &muxbox.position;
+                            log::debug!("New position for muxbox {}: x1={}, y1={}, x2={}, y2={}", 
+                                muxbox_id, new_position.x1, new_position.y1, new_position.x2, new_position.y2);
                                 
                             // Find the original YAML file path
                             if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
-                                match save_panel_bounds_to_yaml(yaml_path, panel_id, new_position) {
+                                match save_muxbox_bounds_to_yaml(yaml_path, muxbox_id, new_position) {
                                     Ok(()) => {
-                                        log::info!("Successfully saved panel {} position to YAML file", panel_id);
+                                        log::info!("Successfully saved muxbox {} position to YAML file", muxbox_id);
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to save panel {} position to YAML: {}", panel_id, e);
+                                        log::error!("Failed to save muxbox {} position to YAML: {}", muxbox_id, e);
                                     }
                                 }
                             } else {
-                                log::error!("CRITICAL: No YAML file path available for saving panel position - move changes will not persist!");
+                                log::error!("CRITICAL: No YAML file path available for saving muxbox position - move changes will not persist!");
                             }
                         } else {
-                            log::error!("Panel {} not found for saving position", panel_id);
+                            log::error!("MuxBox {} not found for saving position", muxbox_id);
                         }
                     }
                     _ => {}
@@ -1625,57 +1625,57 @@ create_runnable!(
     }
 );
 
-pub fn update_panel_content(
+pub fn update_muxbox_content(
     inner: &mut RunnableImpl,
     app_context_unwrapped: &mut AppContext,
-    panel_id: &str,
+    muxbox_id: &str,
     success: bool,
     append_output: bool,
     output: &str,
 ) {
     log::info!(
-        "=== UPDATE PANEL CONTENT: {} (success: {}, append: {}, output_len: {}) ===",
-        panel_id,
+        "=== UPDATE MUXBOX CONTENT: {} (success: {}, append: {}, output_len: {}) ===",
+        muxbox_id,
         success,
         append_output,
         output.len()
     );
 
     let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
-    let panel = app_context_unwrapped.app.get_panel_by_id_mut(panel_id);
+    let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id);
 
-    if let Some(found_panel) = panel {
+    if let Some(found_muxbox) = muxbox {
         log::info!(
-            "Found target panel: {} (redirect_output: {:?})",
-            panel_id,
-            found_panel.redirect_output
+            "Found target muxbox: {} (redirect_output: {:?})",
+            muxbox_id,
+            found_muxbox.redirect_output
         );
 
-        if found_panel.redirect_output.is_some()
-            && found_panel.redirect_output.as_ref().unwrap() != panel_id
+        if found_muxbox.redirect_output.is_some()
+            && found_muxbox.redirect_output.as_ref().unwrap() != muxbox_id
         {
             log::info!(
-                "Panel {} has its own redirect to: {}, following redirect chain",
-                panel_id,
-                found_panel.redirect_output.as_ref().unwrap()
+                "MuxBox {} has its own redirect to: {}, following redirect chain",
+                muxbox_id,
+                found_muxbox.redirect_output.as_ref().unwrap()
             );
-            update_panel_content(
+            update_muxbox_content(
                 inner,
                 &mut app_context_unwrapped_cloned,
-                found_panel.redirect_output.as_ref().unwrap(),
+                found_muxbox.redirect_output.as_ref().unwrap(),
                 success,
                 append_output,
                 output,
             );
         } else {
             log::info!(
-                "Updating panel {} content directly (no redirection)",
-                panel_id
+                "Updating muxbox {} content directly (no redirection)",
+                muxbox_id
             );
             log::info!(
-                "Panel {} current content length: {} chars",
-                panel_id,
-                found_panel.content.as_ref().map_or(0, |c| c.len())
+                "MuxBox {} current content length: {} chars",
+                muxbox_id,
+                found_muxbox.content.as_ref().map_or(0, |c| c.len())
             );
 
             // Check if this is PTY streaming output by the newline indicator
@@ -1683,51 +1683,51 @@ pub fn update_panel_content(
 
             if is_pty_streaming {
                 // Use streaming update for PTY output (no timestamp formatting)
-                log::info!("Using streaming update for panel {}", panel_id);
-                found_panel.update_streaming_content(output, success);
+                log::info!("Using streaming update for muxbox {}", muxbox_id);
+                found_muxbox.update_streaming_content(output, success);
             } else {
                 // Use regular update for non-PTY output
                 log::info!(
-                    "Using regular update for panel {} (append: {})",
-                    panel_id,
+                    "Using regular update for muxbox {} (append: {})",
+                    muxbox_id,
                     append_output
                 );
-                found_panel.update_content(output, append_output, success);
+                found_muxbox.update_content(output, append_output, success);
             }
 
             log::info!(
-                "Panel {} updated content length: {} chars",
-                panel_id,
-                found_panel.content.as_ref().map_or(0, |c| c.len())
+                "MuxBox {} updated content length: {} chars",
+                muxbox_id,
+                found_muxbox.content.as_ref().map_or(0, |c| c.len())
             );
             inner.update_app_context(app_context_unwrapped.clone());
-            inner.send_message(Message::RedrawPanel(panel_id.to_string()));
-            log::info!("Sent RedrawPanel message for panel: {}", panel_id);
+            inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
+            log::info!("Sent RedrawMuxBox message for muxbox: {}", muxbox_id);
         }
     } else {
-        log::error!("Could not find panel {} for content update.", panel_id);
-        // List available panels for debugging
-        let available_panels: Vec<String> = app_context_unwrapped
+        log::error!("Could not find muxbox {} for content update.", muxbox_id);
+        // List available muxboxes for debugging
+        let available_muxboxes: Vec<String> = app_context_unwrapped
             .app
             .get_active_layout()
             .unwrap()
-            .get_all_panels()
+            .get_all_muxboxes()
             .iter()
             .map(|p| p.id.clone())
             .collect();
-        log::error!("Available panels: {:?}", available_panels);
+        log::error!("Available muxboxes: {:?}", available_muxboxes);
     }
 }
 
-/// Extract panel content for clipboard copy
-pub fn get_panel_content_for_clipboard(panel: &Panel) -> String {
+/// Extract muxbox content for clipboard copy
+pub fn get_muxbox_content_for_clipboard(muxbox: &MuxBox) -> String {
     // Priority order: output > content > default message
-    if !panel.output.is_empty() {
-        panel.output.clone()
-    } else if let Some(content) = &panel.content {
+    if !muxbox.output.is_empty() {
+        muxbox.output.clone()
+    } else if let Some(content) = &muxbox.content {
         content.clone()
     } else {
-        format!("Panel '{}': No content", panel.id)
+        format!("MuxBox '{}': No content", muxbox.id)
     }
 }
 
@@ -1805,40 +1805,44 @@ pub fn copy_to_clipboard(content: &str) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-/// Calculate which choice was clicked based on panel bounds and click coordinates
-/// Matches the actual choice rendering: one choice per line starting at bounds.top() + 1
+/// Calculate which choice was clicked based on muxbox bounds and click coordinates
+/// T0258: Enhanced to check both X and Y coordinates against actual choice text bounds
+/// Only clicks on actual choice text (not empty space after text) trigger choice activation
 #[cfg(test)]
 pub fn calculate_clicked_choice_index(
-    panel: &Panel,
+    muxbox: &MuxBox,
+    click_x: u16,
     click_y: u16,
-    num_choices: usize,
+    choices: &[crate::model::muxbox::Choice],
 ) -> Option<usize> {
-    calculate_clicked_choice_index_impl(panel, click_y, num_choices)
+    calculate_clicked_choice_index_impl(muxbox, click_x, click_y, choices)
 }
 
 #[cfg(not(test))]
 fn calculate_clicked_choice_index(
-    panel: &Panel,
+    muxbox: &MuxBox,
+    click_x: u16,
     click_y: u16,
-    num_choices: usize,
+    choices: &[crate::model::muxbox::Choice],
 ) -> Option<usize> {
-    calculate_clicked_choice_index_impl(panel, click_y, num_choices)
+    calculate_clicked_choice_index_impl(muxbox, click_x, click_y, choices)
 }
 
 fn calculate_clicked_choice_index_impl(
-    panel: &Panel,
+    muxbox: &MuxBox,
+    click_x: u16,
     click_y: u16,
-    num_choices: usize,
+    choices: &[crate::model::muxbox::Choice],
 ) -> Option<usize> {
-    let bounds = panel.bounds();
-    let panel_top = bounds.y1 as u16;
+    let bounds = muxbox.bounds();
+    let muxbox_top = bounds.y1 as u16;
 
-    if click_y < panel_top || num_choices == 0 {
+    if click_y < muxbox_top || choices.is_empty() {
         return None;
     }
 
-    // Choices start at bounds.top() + 1 (one line below border) as per draw_utils.rs:553
-    let choices_start_y = panel_top + 1;
+    // Choices start at bounds.top() + 1 (one line below border) as per draw_utils.rs:610
+    let choices_start_y = muxbox_top + 1;
 
     if click_y < choices_start_y {
         return None; // Click was on border or title area
@@ -1847,18 +1851,44 @@ fn calculate_clicked_choice_index_impl(
     // Each choice occupies exactly 1 line, so choice index = relative y offset
     let choice_index = (click_y - choices_start_y) as usize;
 
-    // Ensure click is within choice bounds (don't exceed available choices or panel height)
-    let panel_bottom = bounds.y2 as u16;
-    if choice_index < num_choices && click_y < panel_bottom {
-        Some(choice_index)
+    // Ensure click is within choice bounds (don't exceed available choices or muxbox height)
+    let muxbox_bottom = bounds.y2 as u16;
+    if choice_index >= choices.len() || click_y >= muxbox_bottom {
+        return None;
+    }
+
+    // T0258: Check if click is within the actual text bounds of the choice
+    if let Some(choice) = choices.get(choice_index) {
+        if let Some(content) = &choice.content {
+            // Choices are rendered at bounds.left() + 2 (per draw_utils.rs:636)
+            let choice_text_start_x = bounds.left() + 2;
+            
+            // Format the content as it appears (including "..." for waiting choices)
+            let formatted_content = if choice.waiting {
+                format!("{}...", content)
+            } else {
+                content.clone()
+            };
+            
+            let choice_text_end_x = choice_text_start_x + formatted_content.len();
+            
+            // Check if click X is within the actual text bounds
+            if (click_x as usize) >= choice_text_start_x && (click_x as usize) < choice_text_end_x {
+                Some(choice_index)
+            } else {
+                None // Click was after the text on the same line - should only select muxbox
+            }
+        } else {
+            None // Choice has no content to click on
+        }
     } else {
         None
     }
 }
 
-/// Trigger visual flash for panel (stub implementation)
-fn trigger_panel_flash(_panel_id: &str) {
+/// Trigger visual flash for muxbox (stub implementation)
+fn trigger_muxbox_flash(_muxbox_id: &str) {
     // TODO: Implement visual flash with color inversion
-    // This would require storing flash state and modifying panel rendering
+    // This would require storing flash state and modifying muxbox rendering
     // For now, the redraw provides visual feedback
 }

@@ -6,7 +6,7 @@ mod hotkey_tests {
     use crate::model::app::App;
     use crate::model::common::{Anchor, InputBounds};
     use crate::model::layout::Layout;
-    use crate::model::panel::{Choice, Panel};
+    use crate::model::muxbox::{Choice, MuxBox};
     use crate::thread_manager::Message;
     use std::collections::HashMap;
 
@@ -40,9 +40,9 @@ mod hotkey_tests {
         }
     }
 
-    /// Test that find_panel_with_choice method works correctly
+    /// Test that find_muxbox_with_choice method works correctly
     #[test]
-    fn test_find_panel_with_choice() {
+    fn test_find_muxbox_with_choice() {
         use crate::tests::test_utils::TestDataFactory;
 
         let choice = Choice {
@@ -57,19 +57,19 @@ mod hotkey_tests {
             waiting: false,
         };
 
-        let mut panel = TestDataFactory::create_test_panel("test_panel");
-        panel.choices = Some(vec![choice]);
+        let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
+        muxbox.choices = Some(vec![choice]);
 
-        let mut layout = TestDataFactory::create_test_layout("test_layout", Some(vec![panel]));
+        let mut layout = TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox]));
         layout.root = Some(true);
 
         // Test finding existing choice
-        let found_panel = layout.find_panel_with_choice("test_choice");
-        assert!(found_panel.is_some());
-        assert_eq!(found_panel.unwrap().id, "test_panel");
+        let found_muxbox = layout.find_muxbox_with_choice("test_choice");
+        assert!(found_muxbox.is_some());
+        assert_eq!(found_muxbox.unwrap().id, "test_muxbox");
 
         // Test not finding non-existent choice
-        let not_found = layout.find_panel_with_choice("non_existent");
+        let not_found = layout.find_muxbox_with_choice("non_existent");
         assert!(not_found.is_none());
     }
 

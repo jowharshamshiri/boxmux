@@ -131,7 +131,7 @@ boxmux/
 │       ├── mod.rs
 │       ├── app.rs           # Application state
 │       ├── layout.rs        # Layout definitions
-│       ├── panel.rs         # Panel definitions
+│       ├── box.rs         # MuxBox definitions
 │       └── common.rs        # Common types
 ├── layouts/                 # Example configurations
 ├── docs/                    # Documentation
@@ -321,17 +321,17 @@ I follow the standard Rust style guidelines:
 1. **Code comments**:
 
    ```rust
-   /// Renders a panel with the given configuration.
+   /// Renders a box with the given configuration.
    /// 
    /// # Arguments
    /// 
-   /// * `panel` - The panel configuration to render
+   /// * `box` - The box configuration to render
    /// * `bounds` - The screen bounds for rendering
    /// 
    /// # Returns
    /// 
    /// Returns `Ok(())` on success, or an error if rendering fails.
-   pub fn render_panel(panel: &Panel, bounds: &Bounds) -> Result<()> {
+   pub fn render_box(box: &MuxBox, bounds: &Bounds) -> Result<()> {
        // Implementation
    }
    ```
@@ -339,10 +339,10 @@ I follow the standard Rust style guidelines:
 2. **Module documentation**:
 
    ```rust
-   //! This module handles panel rendering and drawing utilities.
+   //! This module handles box rendering and drawing utilities.
    //! 
-   //! The main entry point is the `render_panel` function, which
-   //! handles the rendering pipeline for a panel.
+   //! The main entry point is the `render_box` function, which
+   //! handles the rendering pipeline for a box.
    ```
 
 ## Testing
@@ -360,7 +360,7 @@ cargo test -- --nocapture
 cargo test test_name
 
 # Run tests in a specific module
-cargo test model::panel
+cargo test model::box
 ```
 
 ### Test Organization
@@ -371,13 +371,13 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_panel_creation() {
-        let panel = Panel::new("test_panel");
-        assert_eq!(panel.id(), "test_panel");
+    fn test_box_creation() {
+        let box = MuxBox::new("test_box");
+        assert_eq!(box.id(), "test_box");
     }
     
     #[test]
-    fn test_panel_rendering() {
+    fn test_box_rendering() {
         // Test rendering logic
     }
     

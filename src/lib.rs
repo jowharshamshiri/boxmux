@@ -3,7 +3,7 @@ pub mod model {
     pub mod app;
     pub mod common;
     pub mod layout;
-    pub mod panel;
+    pub mod muxbox;
 }
 
 #[macro_use]
@@ -33,7 +33,7 @@ pub use input_loop::*;
 pub use model::app::*;
 pub use model::common::*;
 pub use model::layout::*;
-pub use model::panel::*;
+pub use model::muxbox::*;
 pub use plugin::*;
 pub use pty_manager::*;
 pub use table::*;

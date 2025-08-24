@@ -26,40 +26,40 @@ mod tests {
     }
 
     #[test]
-    fn test_focusable_panel_detection() {
-        // Test that panels with next_focus_id are considered focusable
-        let mut panel = TestDataFactory::create_test_panel("test_panel");
+    fn test_focusable_muxbox_detection() {
+        // Test that muxboxes with next_focus_id are considered focusable
+        let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
 
-        // Non-focusable panel
-        panel.next_focus_id = None;
+        // Non-focusable muxbox
+        muxbox.next_focus_id = None;
         assert!(
-            panel.next_focus_id.is_none(),
-            "Panel without next_focus_id should not be focusable"
+            muxbox.next_focus_id.is_none(),
+            "MuxBox without next_focus_id should not be focusable"
         );
 
-        // Focusable panel
-        panel.next_focus_id = Some("next_panel".to_string());
+        // Focusable muxbox
+        muxbox.next_focus_id = Some("next_muxbox".to_string());
         assert!(
-            panel.next_focus_id.is_some(),
-            "Panel with next_focus_id should be focusable"
+            muxbox.next_focus_id.is_some(),
+            "MuxBox with next_focus_id should be focusable"
         );
     }
 
     #[test]
     fn test_overflow_behavior_modification() {
-        // Test that overflow behavior is correctly modified for focusable panels
-        let mut panel = TestDataFactory::create_test_panel("test_panel");
-        panel.next_focus_id = Some("next_panel".to_string()); // Make it focusable
-        panel.overflow_behavior = Some("hidden".to_string()); // Originally hidden
+        // Test that overflow behavior is correctly modified for focusable muxboxes
+        let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
+        muxbox.next_focus_id = Some("next_muxbox".to_string()); // Make it focusable
+        muxbox.overflow_behavior = Some("hidden".to_string()); // Originally hidden
 
         // Simulate the logic from draw_utils.rs
         let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15";
-        let mut overflow_behavior = panel
+        let mut overflow_behavior = muxbox
             .overflow_behavior
             .clone()
             .unwrap_or("hidden".to_string());
 
-        if panel.next_focus_id.is_some() {
+        if muxbox.next_focus_id.is_some() {
             let (content_width, content_height) = content_size(content);
             let viewable_width = 10; // Small area to trigger overflow
             let viewable_height = 5;
@@ -69,19 +69,19 @@ mod tests {
             }
         }
 
-        assert_eq!(overflow_behavior, "scroll", "Overflow behavior should be changed to scroll for focusable panel with overflowing content");
+        assert_eq!(overflow_behavior, "scroll", "Overflow behavior should be changed to scroll for focusable muxbox with overflowing content");
     }
 
     #[test]
     fn test_choice_overflow_triggers_scrollbars() {
-        // Test that panels with overflowing choices trigger scrollbar display
-        let mut panel = TestDataFactory::create_test_panel("choice_panel");
-        panel.next_focus_id = Some("next_panel".to_string()); // Make it focusable
+        // Test that muxboxes with overflowing choices trigger scrollbar display
+        let mut muxbox = TestDataFactory::create_test_muxbox("choice_muxbox");
+        muxbox.next_focus_id = Some("next_muxbox".to_string()); // Make it focusable
         
-        // Add many choices that will overflow a small panel
+        // Add many choices that will overflow a small muxbox
         let mut choices = Vec::new();
         for i in 1..=20 {
-            choices.push(crate::model::panel::Choice {
+            choices.push(crate::model::muxbox::Choice {
                 id: format!("choice_{}", i),
                 content: Some(format!("Choice {}", i)),
                 script: None,
@@ -93,10 +93,10 @@ mod tests {
                 waiting: false,
             });
         }
-        panel.choices = Some(choices);
+        muxbox.choices = Some(choices);
         
         // Set small bounds that will cause choice overflow
-        panel.position = crate::model::common::InputBounds {
+        muxbox.position = crate::model::common::InputBounds {
             x1: "0".to_string(),
             y1: "0".to_string(),
             x2: "20".to_string(), // Small width
@@ -104,11 +104,11 @@ mod tests {
         };
 
         // Test that has_scrollable_content detects the choice overflow
-        assert!(panel.has_scrollable_content(), "Panel with overflowing choices should be detected as scrollable");
+        assert!(muxbox.has_scrollable_content(), "MuxBox with overflowing choices should be detected as scrollable");
 
         // Simulate the new logic from draw_utils.rs that uses has_scrollable_content()
         let mut overflow_behavior = "hidden".to_string();
-        if panel.next_focus_id.is_some() && panel.has_scrollable_content() {
+        if muxbox.next_focus_id.is_some() && muxbox.has_scrollable_content() {
             overflow_behavior = "scroll".to_string();
         }
 

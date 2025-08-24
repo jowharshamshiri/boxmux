@@ -1,5 +1,5 @@
 use crate::model::common::Config;
-use crate::{App, Layout, Panel};
+use crate::{App, Layout, MuxBox};
 use jsonschema::JSONSchema;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
@@ -103,7 +103,7 @@ pub type ValidationResult = Result<(), Vec<ValidationError>>;
 /// Central schema validator for BoxMux configurations
 pub struct SchemaValidator {
     errors: Vec<ValidationError>,
-    panel_ids: HashSet<String>,
+    muxbox_ids: HashSet<String>,
     layout_ids: HashSet<String>,
 }
 
@@ -111,7 +111,7 @@ impl SchemaValidator {
     pub fn new() -> Self {
         Self {
             errors: Vec::new(),
-            panel_ids: HashSet::new(),
+            muxbox_ids: HashSet::new(),
             layout_ids: HashSet::new(),
         }
     }
@@ -154,10 +154,10 @@ impl SchemaValidator {
             });
         }
 
-        // Validate panels if present
-        if let Some(panels) = &layout.children {
-            for (idx, panel) in panels.iter().enumerate() {
-                let _ = self.validate_panel(panel, &format!("{}.children[{}]", path, idx));
+        // Validate muxboxes if present
+        if let Some(muxboxes) = &layout.children {
+            for (idx, muxbox) in muxboxes.iter().enumerate() {
+                let _ = self.validate_muxbox(muxbox, &format!("{}.children[{}]", path, idx));
             }
         }
 
@@ -168,27 +168,27 @@ impl SchemaValidator {
         }
     }
 
-    /// Validate a single panel
-    pub fn validate_panel(&mut self, panel: &Panel, path: &str) -> ValidationResult {
+    /// Validate a single muxbox
+    pub fn validate_muxbox(&mut self, muxbox: &MuxBox, path: &str) -> ValidationResult {
         // Validate required fields
-        if panel.id.is_empty() {
+        if muxbox.id.is_empty() {
             self.add_error(ValidationError::MissingRequiredField {
                 field: format!("{}.id", path),
             });
         }
 
         // Validate position bounds
-        self.validate_input_bounds_schema(&panel.position, &format!("{}.position", path));
+        self.validate_input_bounds_schema(&muxbox.position, &format!("{}.position", path));
 
-        // Validate child panels recursively
-        if let Some(children) = &panel.children {
+        // Validate child muxboxes recursively
+        if let Some(children) = &muxbox.children {
             for (idx, child) in children.iter().enumerate() {
-                let _ = self.validate_panel(child, &format!("{}.children[{}]", path, idx));
+                let _ = self.validate_muxbox(child, &format!("{}.children[{}]", path, idx));
             }
         }
 
         // Validate script commands if present
-        if let Some(scripts) = &panel.script {
+        if let Some(scripts) = &muxbox.script {
             for (idx, script) in scripts.iter().enumerate() {
                 if script.trim().is_empty() {
                     self.add_error(ValidationError::InvalidFieldValue {
@@ -375,7 +375,7 @@ impl SchemaValidator {
     /// Helper methods
     fn clear(&mut self) {
         self.errors.clear();
-        self.panel_ids.clear();
+        self.muxbox_ids.clear();
         self.layout_ids.clear();
     }
 
@@ -391,25 +391,25 @@ impl SchemaValidator {
                     location: "layouts".to_string(),
                 });
             }
-            self.collect_panel_ids_recursive(&layout.children, "panels");
+            self.collect_muxbox_ids_recursive(&layout.children, "muxboxes");
         }
     }
 
-    fn collect_panel_ids_recursive(&mut self, panels: &Option<Vec<Panel>>, location: &str) {
-        if let Some(panel_list) = panels {
-            for panel in panel_list {
-                if !self.panel_ids.insert(panel.id.clone()) {
+    fn collect_muxbox_ids_recursive(&mut self, muxboxes: &Option<Vec<MuxBox>>, location: &str) {
+        if let Some(muxbox_list) = muxboxes {
+            for muxbox in muxbox_list {
+                if !self.muxbox_ids.insert(muxbox.id.clone()) {
                     self.add_error(ValidationError::DuplicateId {
-                        id: panel.id.clone(),
+                        id: muxbox.id.clone(),
                         location: location.to_string(),
                     });
                 }
-                self.collect_panel_ids_recursive(&panel.children, location);
+                self.collect_muxbox_ids_recursive(&muxbox.children, location);
 
                 // Check choice IDs if they exist
-                if let Some(choices) = &panel.choices {
+                if let Some(choices) = &muxbox.choices {
                     for choice in choices {
-                        if !self.panel_ids.insert(choice.id.clone()) {
+                        if !self.muxbox_ids.insert(choice.id.clone()) {
                             self.add_error(ValidationError::DuplicateId {
                                 id: choice.id.clone(),
                                 location: "choices".to_string(),
@@ -519,10 +519,10 @@ impl Default for SchemaValidator {
 mod tests {
     use super::*;
     use crate::model::common::{Config, InputBounds};
-    use crate::{App, Layout, Panel};
+    use crate::{App, Layout, MuxBox};
 
-    fn create_test_panel(id: &str) -> Panel {
-        Panel {
+    fn create_test_muxbox(id: &str) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
             position: InputBounds {
                 x1: "10".to_string(),
@@ -537,7 +537,7 @@ mod tests {
     fn create_test_layout(id: &str) -> Layout {
         Layout {
             id: id.to_string(),
-            children: Some(vec![create_test_panel("panel1")]),
+            children: Some(vec![create_test_muxbox("muxbox1")]),
             ..Default::default()
         }
     }
@@ -623,7 +623,7 @@ mod tests {
                     "id": "layout1",
                     "children": [
                         {
-                            "id": "panel1",
+                            "id": "muxbox1",
                             "bounds": {
                                 "x1": "10",
                                 "y1": "20",
@@ -666,8 +666,8 @@ mod tests {
     #[test]
     fn test_validate_empty_bounds() {
         let mut validator = SchemaValidator::new();
-        let panel = Panel {
-            id: "test_panel".to_string(),
+        let muxbox = MuxBox {
+            id: "test_muxbox".to_string(),
             position: InputBounds {
                 x1: "".to_string(), // Empty bound
                 y1: "20".to_string(),
@@ -677,7 +677,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = validator.validate_panel(&panel, "test_panel");
+        let result = validator.validate_muxbox(&muxbox, "test_muxbox");
         assert!(result.is_err());
 
         let errors = result.unwrap_err();
@@ -690,12 +690,12 @@ mod tests {
     fn test_validation_error_formatting() {
         // Test that ValidationError instances format correctly for user display
         let duplicate_error = ValidationError::DuplicateId {
-            id: "panel1".to_string(),
-            location: "panels".to_string(),
+            id: "muxbox1".to_string(),
+            location: "muxboxes".to_string(),
         };
         assert_eq!(
             duplicate_error.to_string(),
-            "Duplicate ID 'panel1' found in panels"
+            "Duplicate ID 'muxbox1' found in muxboxes"
         );
 
         let missing_field_error = ValidationError::MissingRequiredField {
@@ -723,7 +723,7 @@ app:
     - id: 'test_layout'
       title: 'Test Layout'
       children:
-        - id: 'panel1'
+        - id: 'muxbox1'
           position:
             x1: "0%"
             y1: "0%"
@@ -761,7 +761,7 @@ app:
   layouts:
     - id: 'test'
       children:
-        - id: 'panel1'
+        - id: 'muxbox1'
           position:
             x1: "0%"
             y1: "0%"
@@ -801,7 +801,7 @@ app:
   layouts:
     - id: 'test'
       children:
-        - id: 'panel1'
+        - id: 'muxbox1'
           position:
             x1: "0%"
             y1: "0%"
@@ -880,11 +880,11 @@ app:
         let mut layout2 = create_test_layout("layout2");
         layout2.root = Some(true); // Second root - should cause error
 
-        // Error 2: Duplicate panel IDs
-        let panel1 = create_test_panel("panel1");
-        let panel1_dup = create_test_panel("panel1"); // Duplicate ID
-        layout1.children = Some(vec![panel1]);
-        layout2.children = Some(vec![panel1_dup]);
+        // Error 2: Duplicate muxbox IDs
+        let muxbox1 = create_test_muxbox("muxbox1");
+        let muxbox1_dup = create_test_muxbox("muxbox1"); // Duplicate ID
+        layout1.children = Some(vec![muxbox1]);
+        layout2.children = Some(vec![muxbox1_dup]);
 
         app.layouts = vec![layout1, layout2];
 

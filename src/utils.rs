@@ -372,12 +372,12 @@ pub fn apply_buffer_if_changed(
     stdout.flush().unwrap(); // Make sure to flush only once after all changes
 }
 
-pub fn find_selected_panel_uuid(layout: &Layout) -> Option<String> {
+pub fn find_selected_muxbox_uuid(layout: &Layout) -> Option<String> {
     if let Some(children) = &layout.children {
-        for panel in children {
-            if let Some(selected) = panel.selected {
+        for muxbox in children {
+            if let Some(selected) = muxbox.selected {
                 if selected {
-                    return Some(panel.id.clone());
+                    return Some(muxbox.id.clone());
                 }
             }
         }
@@ -395,11 +395,11 @@ pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
     let mut result: HashMap<String, i32> = HashMap::new();
 
     if let Some(children) = &layout.children {
-        for panel in children {
-            let tab_order = panel.tab_order.clone();
+        for muxbox in children {
+            let tab_order = muxbox.tab_order.clone();
             if tab_order.is_some() {
                 result.insert(
-                    panel.id.clone(),
+                    muxbox.id.clone(),
                     tab_order
                         .unwrap()
                         .parse::<i32>()
@@ -421,33 +421,33 @@ pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
     tab_order
 }
 
-pub fn find_next_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
+pub fn find_next_muxbox_uuid(layout: &Layout, current_muxbox_uuid: &str) -> Option<String> {
     let tab_order = calculate_tab_order(layout);
-    let mut found_current_panel = false;
+    let mut found_current_muxbox = false;
 
-    for panel_uuid in tab_order {
-        if found_current_panel {
-            return Some(panel_uuid);
+    for muxbox_uuid in tab_order {
+        if found_current_muxbox {
+            return Some(muxbox_uuid);
         }
 
-        if panel_uuid == current_panel_uuid {
-            found_current_panel = true;
+        if muxbox_uuid == current_muxbox_uuid {
+            found_current_muxbox = true;
         }
     }
 
     None
 }
 
-pub fn find_previous_panel_uuid(layout: &Layout, current_panel_uuid: &str) -> Option<String> {
+pub fn find_previous_muxbox_uuid(layout: &Layout, current_muxbox_uuid: &str) -> Option<String> {
     let tab_order = calculate_tab_order(layout);
-    let mut previous_panel_uuid: Option<String> = None;
+    let mut previous_muxbox_uuid: Option<String> = None;
 
-    for panel_uuid in tab_order {
-        if panel_uuid == current_panel_uuid {
-            return previous_panel_uuid;
+    for muxbox_uuid in tab_order {
+        if muxbox_uuid == current_muxbox_uuid {
+            return previous_muxbox_uuid;
         }
 
-        previous_panel_uuid = Some(panel_uuid);
+        previous_muxbox_uuid = Some(muxbox_uuid);
     }
 
     None
@@ -462,7 +462,7 @@ pub fn run_script_with_pty(
     script: &Vec<String>,
     use_pty: bool,
     pty_manager: Option<&PtyManager>,
-    panel_id: Option<String>,
+    muxbox_id: Option<String>,
     message_sender: Option<(
         std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
         uuid::Uuid,
@@ -473,7 +473,7 @@ pub fn run_script_with_pty(
         script,
         use_pty,
         pty_manager,
-        panel_id,
+        muxbox_id,
         message_sender,
         None,
     )
@@ -484,21 +484,21 @@ pub fn run_script_with_pty_and_redirect(
     script: &Vec<String>,
     use_pty: bool,
     pty_manager: Option<&PtyManager>,
-    panel_id: Option<String>,
+    muxbox_id: Option<String>,
     message_sender: Option<(
         std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
         uuid::Uuid,
     )>,
     redirect_target: Option<String>,
 ) -> io::Result<String> {
-    if use_pty && pty_manager.is_some() && panel_id.is_some() && message_sender.is_some() {
+    if use_pty && pty_manager.is_some() && muxbox_id.is_some() && message_sender.is_some() {
         let pty_mgr = pty_manager.unwrap();
-        let pid = panel_id.unwrap();
+        let pid = muxbox_id.unwrap();
 
         // Check if we should avoid PTY due to recent failures
         if pty_mgr.should_avoid_pty(&pid) {
             log::warn!(
-                "Avoiding PTY for panel {} due to recent failures, using regular execution",
+                "Avoiding PTY for muxbox {} due to recent failures, using regular execution",
                 pid
             );
             return run_script_regular(libs_paths, script);
@@ -518,14 +518,14 @@ pub fn run_script_with_pty_and_redirect(
             Ok(_) => {
                 // PTY started successfully - clear any previous failures
                 pty_mgr.clear_pty_failures(&pid);
-                log::info!("PTY started for panel: {}", pid);
+                log::info!("PTY started for muxbox: {}", pid);
                 // Return empty string - actual output will come through messages
                 Ok(String::new())
             }
             Err(e) => {
                 // Fall back to regular execution on PTY failure
                 log::warn!(
-                    "PTY execution failed for panel {}, falling back to regular execution: {}",
+                    "PTY execution failed for muxbox {}, falling back to regular execution: {}",
                     pid,
                     e
                 );
@@ -584,11 +584,11 @@ fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> 
     }
 }
 
-pub fn should_use_pty(panel: &crate::model::panel::Panel) -> bool {
-    panel.pty.unwrap_or(false)
+pub fn should_use_pty(muxbox: &crate::model::muxbox::MuxBox) -> bool {
+    muxbox.pty.unwrap_or(false)
 }
 
-pub fn should_use_pty_for_choice(choice: &crate::model::panel::Choice) -> bool {
+pub fn should_use_pty_for_choice(choice: &crate::model::muxbox::Choice) -> bool {
     choice.pty.unwrap_or(false)
 }
 
@@ -695,7 +695,7 @@ mod tests {
     use super::*;
     use crate::model::common::{Bounds, InputBounds};
     use crate::model::layout::Layout;
-    use crate::model::panel::Panel;
+    use crate::model::muxbox::MuxBox;
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
     use std::collections::HashMap;
 
@@ -714,18 +714,18 @@ mod tests {
         }
     }
 
-    // Helper function to create test layout with panels
-    fn create_test_layout_with_panels(panels: Vec<Panel>) -> Layout {
+    // Helper function to create test layout with muxboxes
+    fn create_test_layout_with_muxboxes(muxboxes: Vec<MuxBox>) -> Layout {
         Layout {
             id: "test_layout".to_string(),
-            children: Some(panels),
+            children: Some(muxboxes),
             ..Default::default()
         }
     }
 
-    // Helper function to create test panel with ID and tab order
-    fn create_test_panel_with_tab_order(id: &str, tab_order: Option<&str>) -> Panel {
-        Panel {
+    // Helper function to create test muxbox with ID and tab order
+    fn create_test_muxbox_with_tab_order(id: &str, tab_order: Option<&str>) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
             position: create_test_input_bounds("0%", "0%", "100%", "100%"),
             tab_order: tab_order.map(|t| t.to_string()),
@@ -733,9 +733,9 @@ mod tests {
         }
     }
 
-    // Helper function to create test panel with selection state
-    fn create_test_panel_with_selection(id: &str, selected: bool) -> Panel {
-        Panel {
+    // Helper function to create test muxbox with selection state
+    fn create_test_muxbox_with_selection(id: &str, selected: bool) -> MuxBox {
+        MuxBox {
             id: id.to_string(),
             position: create_test_input_bounds("0%", "0%", "100%", "100%"),
             selected: Some(selected),
@@ -1070,66 +1070,66 @@ mod tests {
         assert_eq!(result, Some(3.14f64));
     }
 
-    /// Tests that find_selected_panel_uuid() returns the ID of the selected panel.
-    /// This test demonstrates the selected panel finding feature.
+    /// Tests that find_selected_muxbox_uuid() returns the ID of the selected muxbox.
+    /// This test demonstrates the selected muxbox finding feature.
     #[test]
-    fn test_find_selected_panel_uuid() {
-        let panel1 = create_test_panel_with_selection("panel1", false);
-        let panel2 = create_test_panel_with_selection("panel2", true);
-        let panel3 = create_test_panel_with_selection("panel3", false);
-        let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
+    fn test_find_selected_muxbox_uuid() {
+        let muxbox1 = create_test_muxbox_with_selection("muxbox1", false);
+        let muxbox2 = create_test_muxbox_with_selection("muxbox2", true);
+        let muxbox3 = create_test_muxbox_with_selection("muxbox3", false);
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2, muxbox3]);
 
-        let result = find_selected_panel_uuid(&layout);
-        assert_eq!(result, Some("panel2".to_string()));
+        let result = find_selected_muxbox_uuid(&layout);
+        assert_eq!(result, Some("muxbox2".to_string()));
     }
 
-    /// Tests that find_selected_panel_uuid() returns None when no panel is selected.
+    /// Tests that find_selected_muxbox_uuid() returns None when no muxbox is selected.
     /// This test demonstrates the no selection case handling feature.
     #[test]
-    fn test_find_selected_panel_uuid_none() {
-        let panel1 = create_test_panel_with_selection("panel1", false);
-        let panel2 = create_test_panel_with_selection("panel2", false);
-        let layout = create_test_layout_with_panels(vec![panel1, panel2]);
+    fn test_find_selected_muxbox_uuid_none() {
+        let muxbox1 = create_test_muxbox_with_selection("muxbox1", false);
+        let muxbox2 = create_test_muxbox_with_selection("muxbox2", false);
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2]);
 
-        let result = find_selected_panel_uuid(&layout);
+        let result = find_selected_muxbox_uuid(&layout);
         assert_eq!(result, None);
     }
 
-    /// Tests that find_selected_panel_uuid() returns None when layout has no children.
+    /// Tests that find_selected_muxbox_uuid() returns None when layout has no children.
     /// This test demonstrates the empty layout handling feature.
     #[test]
-    fn test_find_selected_panel_uuid_empty_layout() {
+    fn test_find_selected_muxbox_uuid_empty_layout() {
         let mut layout = Layout::default();
         layout.children = None;
 
-        let result = find_selected_panel_uuid(&layout);
+        let result = find_selected_muxbox_uuid(&layout);
         assert_eq!(result, None);
     }
 
-    /// Tests that calculate_tab_order() returns panels sorted by tab order.
+    /// Tests that calculate_tab_order() returns muxboxes sorted by tab order.
     /// This test demonstrates the tab order calculation feature.
     #[test]
     fn test_calculate_tab_order() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("3"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("1"));
-        let panel3 = create_test_panel_with_tab_order("panel3", Some("2"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("3"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("1"));
+        let muxbox3 = create_test_muxbox_with_tab_order("muxbox3", Some("2"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2, muxbox3]);
 
         let result = calculate_tab_order(&layout);
-        assert_eq!(result, vec!["panel2", "panel3", "panel1"]);
+        assert_eq!(result, vec!["muxbox2", "muxbox3", "muxbox1"]);
     }
 
-    /// Tests that calculate_tab_order() handles panels without tab order.
+    /// Tests that calculate_tab_order() handles muxboxes without tab order.
     /// This test demonstrates the partial tab order handling feature.
     #[test]
     fn test_calculate_tab_order_partial() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("2"));
-        let panel2 = create_test_panel_with_tab_order("panel2", None);
-        let panel3 = create_test_panel_with_tab_order("panel3", Some("1"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("2"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", None);
+        let muxbox3 = create_test_muxbox_with_tab_order("muxbox3", Some("1"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2, muxbox3]);
 
         let result = calculate_tab_order(&layout);
-        assert_eq!(result, vec!["panel3", "panel1"]);
+        assert_eq!(result, vec!["muxbox3", "muxbox1"]);
     }
 
     /// Tests that calculate_tab_order() returns empty vec when layout has no children.
@@ -1143,77 +1143,77 @@ mod tests {
         assert_eq!(result, Vec::<String>::new());
     }
 
-    /// Tests that find_next_panel_uuid() returns the next panel in tab order.
-    /// This test demonstrates the next panel navigation feature.
+    /// Tests that find_next_muxbox_uuid() returns the next muxbox in tab order.
+    /// This test demonstrates the next muxbox navigation feature.
     #[test]
-    fn test_find_next_panel_uuid() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let panel3 = create_test_panel_with_tab_order("panel3", Some("3"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
+    fn test_find_next_muxbox_uuid() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let muxbox3 = create_test_muxbox_with_tab_order("muxbox3", Some("3"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2, muxbox3]);
 
-        let result = find_next_panel_uuid(&layout, "panel2");
-        assert_eq!(result, Some("panel3".to_string()));
+        let result = find_next_muxbox_uuid(&layout, "muxbox2");
+        assert_eq!(result, Some("muxbox3".to_string()));
     }
 
-    /// Tests that find_next_panel_uuid() returns None when current panel is last.
-    /// This test demonstrates the last panel navigation handling feature.
+    /// Tests that find_next_muxbox_uuid() returns None when current muxbox is last.
+    /// This test demonstrates the last muxbox navigation handling feature.
     #[test]
-    fn test_find_next_panel_uuid_last() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2]);
+    fn test_find_next_muxbox_uuid_last() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2]);
 
-        let result = find_next_panel_uuid(&layout, "panel2");
+        let result = find_next_muxbox_uuid(&layout, "muxbox2");
         assert_eq!(result, None);
     }
 
-    /// Tests that find_next_panel_uuid() returns None when current panel not found.
-    /// This test demonstrates the missing panel navigation handling feature.
+    /// Tests that find_next_muxbox_uuid() returns None when current muxbox not found.
+    /// This test demonstrates the missing muxbox navigation handling feature.
     #[test]
-    fn test_find_next_panel_uuid_not_found() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2]);
+    fn test_find_next_muxbox_uuid_not_found() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2]);
 
-        let result = find_next_panel_uuid(&layout, "panel3");
+        let result = find_next_muxbox_uuid(&layout, "muxbox3");
         assert_eq!(result, None);
     }
 
-    /// Tests that find_previous_panel_uuid() returns the previous panel in tab order.
-    /// This test demonstrates the previous panel navigation feature.
+    /// Tests that find_previous_muxbox_uuid() returns the previous muxbox in tab order.
+    /// This test demonstrates the previous muxbox navigation feature.
     #[test]
-    fn test_find_previous_panel_uuid() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let panel3 = create_test_panel_with_tab_order("panel3", Some("3"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2, panel3]);
+    fn test_find_previous_muxbox_uuid() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let muxbox3 = create_test_muxbox_with_tab_order("muxbox3", Some("3"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2, muxbox3]);
 
-        let result = find_previous_panel_uuid(&layout, "panel2");
-        assert_eq!(result, Some("panel1".to_string()));
+        let result = find_previous_muxbox_uuid(&layout, "muxbox2");
+        assert_eq!(result, Some("muxbox1".to_string()));
     }
 
-    /// Tests that find_previous_panel_uuid() returns None when current panel is first.
-    /// This test demonstrates the first panel navigation handling feature.
+    /// Tests that find_previous_muxbox_uuid() returns None when current muxbox is first.
+    /// This test demonstrates the first muxbox navigation handling feature.
     #[test]
-    fn test_find_previous_panel_uuid_first() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2]);
+    fn test_find_previous_muxbox_uuid_first() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2]);
 
-        let result = find_previous_panel_uuid(&layout, "panel1");
+        let result = find_previous_muxbox_uuid(&layout, "muxbox1");
         assert_eq!(result, None);
     }
 
-    /// Tests that find_previous_panel_uuid() returns None when current panel not found.
-    /// This test demonstrates the missing panel navigation handling feature.
+    /// Tests that find_previous_muxbox_uuid() returns None when current muxbox not found.
+    /// This test demonstrates the missing muxbox navigation handling feature.
     #[test]
-    fn test_find_previous_panel_uuid_not_found() {
-        let panel1 = create_test_panel_with_tab_order("panel1", Some("1"));
-        let panel2 = create_test_panel_with_tab_order("panel2", Some("2"));
-        let layout = create_test_layout_with_panels(vec![panel1, panel2]);
+    fn test_find_previous_muxbox_uuid_not_found() {
+        let muxbox1 = create_test_muxbox_with_tab_order("muxbox1", Some("1"));
+        let muxbox2 = create_test_muxbox_with_tab_order("muxbox2", Some("2"));
+        let layout = create_test_layout_with_muxboxes(vec![muxbox1, muxbox2]);
 
-        let result = find_previous_panel_uuid(&layout, "panel3");
+        let result = find_previous_muxbox_uuid(&layout, "muxbox3");
         assert_eq!(result, None);
     }
 
@@ -1544,16 +1544,16 @@ mod tests {
     #[test]
     fn benchmark_large_config_parsing() {
         // Create a large configuration structure
-        let mut panels = Vec::new();
+        let mut muxboxes = Vec::new();
         for i in 0..1000 {
-            panels.push(format!("panel_{}", i));
+            muxboxes.push(format!("muxbox_{}", i));
         }
 
         let start = std::time::Instant::now();
         for _ in 0..1000 {
-            // Simulate processing large panel lists
-            let _sorted: Vec<_> = panels.iter().collect();
-            let _filtered: Vec<_> = panels.iter().filter(|p| p.contains("1")).collect();
+            // Simulate processing large muxbox lists
+            let _sorted: Vec<_> = muxboxes.iter().collect();
+            let _filtered: Vec<_> = muxboxes.iter().filter(|p| p.contains("1")).collect();
         }
         let duration = start.elapsed();
 

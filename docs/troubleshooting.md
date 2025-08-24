@@ -65,7 +65,7 @@ yamllint layouts/dashboard.yaml
 
 #### Script Execution Fails
 
-**Problem**: Panel scripts don't execute
+**Problem**: MuxBox scripts don't execute
 **Solution**:
 
 - Check script permissions: `chmod +x script.sh`
@@ -81,7 +81,7 @@ yamllint layouts/dashboard.yaml
 
 - Increase refresh intervals in configuration
 - Optimize scripts to run faster
-- Reduce number of panels with scripts
+- Reduce number of boxes with scripts
 - Check for infinite loops in scripts
 
 ### Display Issues
@@ -185,8 +185,8 @@ app:
     - id: 'test'
       root: true
       children:
-        - id: 'problem_panel'
-          title: 'Problem Panel'
+        - id: 'problem_box'
+          title: 'Problem MuxBox'
           position:
             x1: 10%
             y1: 10%

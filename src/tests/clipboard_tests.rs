@@ -1,57 +1,57 @@
 #[cfg(test)]
 mod tests {
-    use crate::draw_loop::{copy_to_clipboard, get_panel_content_for_clipboard};
+    use crate::draw_loop::{copy_to_clipboard, get_muxbox_content_for_clipboard};
     use crate::tests::test_utils::TestDataFactory;
 
     #[test]
-    fn test_get_panel_content_output_priority() {
-        // Test that panel output takes priority over content
-        let mut panel = TestDataFactory::create_test_panel("test_panel");
-        panel.content = Some("Static content".to_string());
-        panel.output = "Dynamic output".to_string();
+    fn test_get_muxbox_content_output_priority() {
+        // Test that muxbox output takes priority over content
+        let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
+        muxbox.content = Some("Static content".to_string());
+        muxbox.output = "Dynamic output".to_string();
 
-        let clipboard_content = get_panel_content_for_clipboard(&panel);
+        let clipboard_content = get_muxbox_content_for_clipboard(&muxbox);
         assert_eq!(
             clipboard_content, "Dynamic output",
-            "Panel output should take priority over static content"
+            "MuxBox output should take priority over static content"
         );
     }
 
     #[test]
-    fn test_get_panel_content_static_content() {
+    fn test_get_muxbox_content_static_content() {
         // Test content extraction when only static content is available
-        let mut panel = TestDataFactory::create_test_panel("test_panel");
-        panel.content = Some("Static panel content".to_string());
-        panel.output = "".to_string(); // Empty output
+        let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
+        muxbox.content = Some("Static muxbox content".to_string());
+        muxbox.output = "".to_string(); // Empty output
 
-        let clipboard_content = get_panel_content_for_clipboard(&panel);
+        let clipboard_content = get_muxbox_content_for_clipboard(&muxbox);
         assert_eq!(
-            clipboard_content, "Static panel content",
+            clipboard_content, "Static muxbox content",
             "Should use static content when output is empty"
         );
     }
 
     #[test]
-    fn test_get_panel_content_no_content() {
-        // Test fallback message when panel has no content
-        let mut panel = TestDataFactory::create_test_panel("empty_panel");
-        panel.content = None;
-        panel.output = "".to_string();
+    fn test_get_muxbox_content_no_content() {
+        // Test fallback message when muxbox has no content
+        let mut muxbox = TestDataFactory::create_test_muxbox("empty_muxbox");
+        muxbox.content = None;
+        muxbox.output = "".to_string();
 
-        let clipboard_content = get_panel_content_for_clipboard(&panel);
+        let clipboard_content = get_muxbox_content_for_clipboard(&muxbox);
         assert_eq!(
-            clipboard_content, "Panel 'empty_panel': No content",
-            "Should provide informative message for empty panels"
+            clipboard_content, "MuxBox 'empty_muxbox': No content",
+            "Should provide informative message for empty muxboxes"
         );
     }
 
     #[test]
-    fn test_get_panel_content_multiline() {
+    fn test_get_muxbox_content_multiline() {
         // Test handling of multiline content
-        let mut panel = TestDataFactory::create_test_panel("multiline_panel");
-        panel.output = "Line 1\nLine 2\nLine 3".to_string();
+        let mut muxbox = TestDataFactory::create_test_muxbox("multiline_muxbox");
+        muxbox.output = "Line 1\nLine 2\nLine 3".to_string();
 
-        let clipboard_content = get_panel_content_for_clipboard(&panel);
+        let clipboard_content = get_muxbox_content_for_clipboard(&muxbox);
         assert_eq!(
             clipboard_content, "Line 1\nLine 2\nLine 3",
             "Should preserve multiline content exactly"

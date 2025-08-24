@@ -179,9 +179,9 @@ boxmux hello.yaml
 
 <h2 id="core-concepts">Core Concepts</h2>
 
-<h3 id="1-layouts-and-panels">1. Layouts and Panels</h3>
+<h3 id="1-layouts-and-muxboxes">1. Layouts and MuxBoxes</h3>
 
-<p><strong>Layouts</strong> define the overall structure of your interface. <strong>Panels</strong> are the building blocks within layouts.</p>
+<p><strong>Layouts</strong> define the overall structure of your interface. <strong>MuxBoxes</strong> are the building blocks within layouts.</p>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2
@@ -199,10 +199,10 @@ boxmux hello.yaml
   <span class="na">layouts</span><span class="pi">:</span>                    <span class="c1"># List of layout definitions</span>
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">main'</span>             <span class="c1"># Unique layout identifier</span>
       <span class="na">root</span><span class="pi">:</span> <span class="kc">true</span>             <span class="c1"># This is the main layout</span>
-      <span class="na">children</span><span class="pi">:</span>              <span class="c1"># Panels within this layout</span>
-        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">panel1'</span>       <span class="c1"># Unique panel identifier</span>
-          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Panel'</span>     <span class="c1"># Panel title</span>
-          <span class="na">position</span><span class="pi">:</span>          <span class="c1"># Panel position and size</span>
+      <span class="na">children</span><span class="pi">:</span>              <span class="c1"># MuxBoxes within this layout</span>
+        <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">muxbox1'</span>       <span class="c1"># Unique muxbox identifier</span>
+          <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">MuxBox'</span>     <span class="c1"># MuxBox title</span>
+          <span class="na">position</span><span class="pi">:</span>          <span class="c1"># MuxBox position and size</span>
             <span class="na">x1</span><span class="pi">:</span> <span class="s">10%</span>          <span class="c1"># Left edge (percentage of parent)</span>
             <span class="na">y1</span><span class="pi">:</span> <span class="s">10%</span>          <span class="c1"># Top edge</span>
             <span class="na">x2</span><span class="pi">:</span> <span class="s">90%</span>          <span class="c1"># Right edge</span>
@@ -259,13 +259,13 @@ boxmux hello.yaml
 8
 9
 10
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">menu_panel'</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">menu_muxbox'</span>
   <span class="na">tab_order</span><span class="pi">:</span> <span class="s1">'</span><span class="s">1'</span>           <span class="c1"># Enable keyboard navigation</span>
   <span class="na">choices</span><span class="pi">:</span>
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">action1'</span>
       <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Menu</span><span class="nv"> </span><span class="s">Option</span><span class="nv"> </span><span class="s">1'</span>
       <span class="na">script</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">command</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">execute'</span><span class="pi">]</span>
-      <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">output_panel'</span>  <span class="c1"># Send results to another panel</span>
+      <span class="na">redirect_output</span><span class="pi">:</span> <span class="s1">'</span><span class="s">output_muxbox'</span>  <span class="c1"># Send results to another muxbox</span>
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">action2'</span>
       <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Menu</span><span class="nv"> </span><span class="s">Option</span><span class="nv"> </span><span class="s">2'</span>
       <span class="na">script</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">another</span><span class="nv"> </span><span class="s">command'</span><span class="pi">]</span>
@@ -281,7 +281,7 @@ boxmux hello.yaml
 4
 5
 6
-</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">live_panel'</span>
+</pre></td><td class="rouge-code"><pre><span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">live_muxbox'</span>
   <span class="na">title</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Live</span><span class="nv"> </span><span class="s">Data'</span>
   <span class="na">refresh_interval</span><span class="pi">:</span> <span class="m">2000</span>   <span class="c1"># Update every 2 seconds</span>
   <span class="na">script</span><span class="pi">:</span>
@@ -355,7 +355,7 @@ boxmux hello.yaml
 
 <h4 id="hierarchical-variables">Hierarchical Variables</h4>
 
-<p>Child panels inherit and can override parent variables:</p>
+<p>Child muxboxes inherit and can override parent variables:</p>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2
@@ -529,7 +529,7 @@ boxmux hello.yaml
   <span class="na">title_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">blue'</span>
   <span class="na">selected_bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">bright_blue'</span>
   <span class="na">border_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">green'</span>
-  <span class="c1"># ... children panels inherit these styles</span>
+  <span class="c1"># ... children muxboxes inherit these styles</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
 <h2 id="common-patterns">Common Patterns</h2>
@@ -810,9 +810,9 @@ boxmux hello.yaml
 
 <ul>
   <li><strong>Sketch first</strong>: Plan your layout before writing YAML</li>
-  <li><strong>Start simple</strong>: Begin with basic panels and add complexity</li>
+  <li><strong>Start simple</strong>: Begin with basic muxboxes and add complexity</li>
   <li><strong>Consider screen sizes</strong>: Test on different terminal sizes</li>
-  <li><strong>Group related content</strong>: Keep related functions in nearby panels</li>
+  <li><strong>Group related content</strong>: Keep related functions in nearby muxboxes</li>
 </ul>
 
 <h3 id="2-configuration-organization">2. Configuration Organization</h3>
@@ -831,7 +831,7 @@ boxmux hello.yaml
 12
 </pre></td><td class="rouge-code"><pre><span class="c1"># Use meaningful IDs</span>
 <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">cpu_monitor'</span>        <span class="c1"># Good: descriptive</span>
-<span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">panel1'</span>             <span class="c1"># Bad: generic</span>
+<span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">muxbox1'</span>             <span class="c1"># Bad: generic</span>
 
 <span class="c1"># Consistent styling</span>
 <span class="na">app</span><span class="pi">:</span>
@@ -840,7 +840,7 @@ boxmux hello.yaml
       <span class="c1"># Define colors once at layout level</span>
       <span class="na">bg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">black'</span>
       <span class="na">fg_color</span><span class="pi">:</span> <span class="s1">'</span><span class="s">white'</span>
-      <span class="c1"># Panels inherit these styles</span>
+      <span class="c1"># MuxBoxes inherit these styles</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
 <h3 id="3-performance-optimization">3. Performance Optimization</h3>
@@ -968,7 +968,7 @@ boxmux hello.yaml
 11
 12
 13
-</pre></td><td class="rouge-code"><pre><span class="c1"># Menu with shared output panel</span>
+</pre></td><td class="rouge-code"><pre><span class="c1"># Menu with shared output muxbox</span>
 <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">actions'</span>
   <span class="na">choices</span><span class="pi">:</span>
     <span class="pi">-</span> <span class="na">id</span><span class="pi">:</span> <span class="s1">'</span><span class="s">action1'</span>
@@ -983,7 +983,7 @@ boxmux hello.yaml
   <span class="na">content</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Select</span><span class="nv"> </span><span class="s">an</span><span class="nv"> </span><span class="s">action'</span>
 </pre></td></tr></tbody></table></code></pre></div></div>
 
-<h3 id="nested-panel-hierarchies">Nested Panel Hierarchies</h3>
+<h3 id="nested-muxbox-hierarchies">Nested MuxBox Hierarchies</h3>
 
 <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
 2

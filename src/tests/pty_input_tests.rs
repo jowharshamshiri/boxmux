@@ -1,6 +1,6 @@
 use crate::model::app::AppContext;
 use crate::model::common::InputBounds;
-use crate::model::panel::Panel;
+use crate::model::muxbox::MuxBox;
 use crate::tests::test_utils::TestDataFactory;
 use crate::utils::should_use_pty;
 
@@ -10,42 +10,42 @@ mod pty_input_tests {
 
     #[test]
     fn test_should_use_pty_enabled() {
-        let mut panel = TestDataFactory::create_test_panel("pty_panel");
-        panel.pty = Some(true);
+        let mut muxbox = TestDataFactory::create_test_muxbox("pty_muxbox");
+        muxbox.pty = Some(true);
 
         assert!(
-            should_use_pty(&panel),
-            "Panel with pty: true should use PTY"
+            should_use_pty(&muxbox),
+            "MuxBox with pty: true should use PTY"
         );
     }
 
     #[test]
     fn test_should_use_pty_disabled() {
-        let mut panel = TestDataFactory::create_test_panel("regular_panel");
-        panel.pty = Some(false);
+        let mut muxbox = TestDataFactory::create_test_muxbox("regular_muxbox");
+        muxbox.pty = Some(false);
 
         assert!(
-            !should_use_pty(&panel),
-            "Panel with pty: false should not use PTY"
+            !should_use_pty(&muxbox),
+            "MuxBox with pty: false should not use PTY"
         );
     }
 
     #[test]
     fn test_should_use_pty_default() {
-        let panel = TestDataFactory::create_test_panel("default_panel");
+        let muxbox = TestDataFactory::create_test_muxbox("default_muxbox");
         // pty field is None by default
 
         assert!(
-            !should_use_pty(&panel),
-            "Panel with no pty field should default to false"
+            !should_use_pty(&muxbox),
+            "MuxBox with no pty field should default to false"
         );
     }
 
     #[test]
-    fn test_pty_panel_creation() {
-        let panel = Panel {
+    fn test_pty_muxbox_creation() {
+        let muxbox = MuxBox {
             id: "pty_test".to_string(),
-            title: Some("PTY Test Panel".to_string()),
+            title: Some("PTY Test MuxBox".to_string()),
             position: InputBounds {
                 x1: "0%".to_string(),
                 y1: "0%".to_string(),
@@ -58,9 +58,9 @@ mod pty_input_tests {
             ..Default::default()
         };
 
-        assert_eq!(panel.id, "pty_test");
-        assert_eq!(panel.pty, Some(true));
-        assert!(should_use_pty(&panel));
-        assert_eq!(panel.script.as_ref().unwrap()[0], "echo 'PTY test'");
+        assert_eq!(muxbox.id, "pty_test");
+        assert_eq!(muxbox.pty, Some(true));
+        assert!(should_use_pty(&muxbox));
+        assert_eq!(muxbox.script.as_ref().unwrap()[0], "echo 'PTY test'");
     }
 }

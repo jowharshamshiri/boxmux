@@ -235,7 +235,7 @@ app:
                 - "else"
                 - "  echo 'Service monitoring not available'"
                 - "fi"
-              redirect_output: 'alerts_panel'
+              redirect_output: 'alerts_box'
             - id: 'performance_profile'
               content: 'Performance'
               script:
@@ -261,7 +261,7 @@ app:
                 - "echo 'Boot time: '$(uptime -s 2>/dev/null || echo 'N/A')"
                 - "echo 'Kernel: '$(uname -r)"
                 - "echo 'Architecture: '$(uname -m)"
-              redirect_output: 'alerts_panel'
+              redirect_output: 'alerts_box'
             - id: 'log_analysis'
               content: 'Log Analysis'
               script:
@@ -285,10 +285,10 @@ app:
                 - "else"
                 - "  echo 'Auth logs not accessible'"
                 - "fi"
-              redirect_output: 'alerts_panel'
+              redirect_output: 'alerts_box'
 
         # Alerts and notifications
-        - id: 'alerts_panel'
+        - id: 'alerts_box'
           title: 'System Alerts & Notifications'
           position:
             x1: "35%"

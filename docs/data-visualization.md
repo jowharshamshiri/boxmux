@@ -82,7 +82,7 @@ Great for distribution visualization:
 
 BoxMux includes a smart chart layout engine with responsive design:
 
-- **Automatic sizing**: Charts adapt to panel dimensions
+- **Automatic sizing**: Charts adapt to box dimensions
 - **Smart alignment**: Proper axis alignment and labeling
 - **Responsive scaling**: Charts scale with terminal size changes
 - **Unicode rendering**: High-quality Unicode-based chart display
@@ -217,7 +217,7 @@ Table pagination features:
 - **Configurable page size**: Set rows per page
 - **Navigation info**: Current page and total pages
 - **Keyboard navigation**: Page Up/Down support
-- **Auto-sizing**: Page size adapts to panel height
+- **Auto-sizing**: Page size adapts to box height
 
 ## Performance Features
 
@@ -392,7 +392,7 @@ app:
 ### Chart Design
 
 1. **Choose appropriate chart types**: Bar charts for comparisons, line charts for trends, histograms for distributions
-2. **Size appropriately**: Balance chart detail with panel space
+2. **Size appropriately**: Balance chart detail with box space
 3. **Use meaningful titles**: Clear chart and axis titles
 4. **Consider refresh rates**: Balance real-time updates with performance
 5. **Test with real data**: Verify charts with actual data ranges

@@ -5,7 +5,7 @@ layouts:
   - id: error_states_demo
     bg_color: black
 
-    panels:
+    boxes:
       - id: normal_pty
         title: "Normal PTY"
         position:
@@ -49,9 +49,9 @@ layouts:
           - echo "This PTY will show dead state"
           - echo "💀 Skull indicator"
           - echo "Red border for dead processes"
-        next_focus_id: "info_panel"
+        next_focus_id: "info_box"
 
-      - id: info_panel
+      - id: info_box
         title: "Error States Info"
         position:
           x1: 0%
@@ -68,7 +68,7 @@ layouts:
           Fallback:    ⚠️ [PID:xxx Fallback] - Yellow Border
           
           Visual Hierarchy:
-          🟢 Green:  Regular panels (no PTY)
+          🟢 Green:  Regular boxes (no PTY)
           🔵 Cyan:   Healthy PTY processes
           🟡 Yellow: PTY error states (recoverable)
           🔴 Red:    Dead PTY processes (need restart)

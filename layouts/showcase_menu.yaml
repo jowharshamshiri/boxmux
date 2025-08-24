@@ -47,7 +47,7 @@ app:
                 - "echo ''"
                 - "echo 'A comprehensive DevOps dashboard featuring:'"
                 - "echo ''"
-                - "echo '✓ Service Management Panel'"
+                - "echo '✓ Service Management MuxBox'"
                 - "echo '  • Docker container monitoring'"
                 - "echo '  • Nginx/Apache status checks'"
                 - "echo '  • Database connectivity tests'"
@@ -222,7 +222,7 @@ app:
                 - "echo 'Launch with: boxmux layouts/database_admin.yaml'"
               redirect_output: 'showcase_details'
 
-        # Showcase details panel
+        # Showcase details box
         - id: 'showcase_details'
           title: 'Dashboard Details & Features'
           position:
@@ -234,4 +234,4 @@ app:
           border_color: 'bright_yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "BoxMux Professional Dashboard Showcases\\n\\nSelect a dashboard from the left panel to view detailed\\nfeatures and capabilities.\\n\\nEach showcase demonstrates:\\n\\n• Real-time system monitoring\\n• Interactive command panels\\n• Professional color schemes\\n• Modular panel architecture\\n• Cross-platform compatibility\\n\\nBoxMux Features:\\n• YAML-driven configuration\\n• Multi-threaded architecture\\n• Unix socket communication\\n• Comprehensive validation\\n• Extensible component system\\n\\nAll showcases are fully functional and demonstrate\\nreal-world professional use cases."
+          content: "BoxMux Professional Dashboard Showcases\\n\\nSelect a dashboard from the left box to view detailed\\nfeatures and capabilities.\\n\\nEach showcase demonstrates:\\n\\n• Real-time system monitoring\\n• Interactive command boxes\\n• Professional color schemes\\n• Modular box architecture\\n• Cross-platform compatibility\\n\\nBoxMux Features:\\n• YAML-driven configuration\\n• Multi-threaded architecture\\n• Unix socket communication\\n• Comprehensive validation\\n• Extensible component system\\n\\nAll showcases are fully functional and demonstrate\\nreal-world professional use cases."

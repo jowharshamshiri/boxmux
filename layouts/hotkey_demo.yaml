@@ -11,8 +11,8 @@ app:
       title: "Hot Keys Demo"
       root: true
       children:
-        - id: "control_panel"
-          title: "Control Panel"
+        - id: "control_box"
+          title: "Control MuxBox"
           position:
             x1: "0"
             y1: "0"
@@ -25,7 +25,7 @@ app:
               content: "Deploy Application (Ctrl+d)"
               script: ["echo 'Starting deployment...'; sleep 1; echo 'Deploying to server...'; sleep 1; echo 'Deployment complete!'"]
               thread: true
-              redirect_output: "output_log"  # Output goes to log panel
+              redirect_output: "output_log"  # Output goes to log box
               
             - id: "build"
               content: "Build Project (F2)" 
@@ -56,7 +56,7 @@ app:
           content: "Press Ctrl+d, F2, F3, or Ctrl+r to trigger commands\nOutput will appear here"
           auto_scroll_bottom: true  # Auto-scroll to see new output
           
-        - id: "status_panel"
+        - id: "status_box"
           title: "Instructions"
           position:
             x1: "40"
@@ -74,6 +74,6 @@ app:
             • Ctrl+r = Restart Service
             
             Hot keys trigger choice actions directly without menu navigation.
-            Output redirects to the Output Log panel.
+            Output redirects to the Output Log box.
             
             Try pressing the hot keys to see instant command execution!

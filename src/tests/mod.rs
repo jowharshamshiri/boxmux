@@ -58,6 +58,9 @@ pub mod hotkey_tests;
 pub mod mouse_click_tests;
 
 #[cfg(test)]
+pub mod choice_click_bounds_tests;
+
+#[cfg(test)]
 pub mod clickable_scrollbar_tests;
 
 #[cfg(test)]
@@ -85,13 +88,13 @@ pub mod pty_error_states_tests;
 pub mod socket_pty_control_tests;
 
 #[cfg(test)]
-pub mod panel_resize_tests;
+pub mod muxbox_resize_tests;
 
 #[cfg(test)]
-pub mod panel_move_tests;
+pub mod muxbox_move_tests;
 
 #[cfg(test)]
 pub mod yaml_persistence_integration_test;
 
 #[cfg(test)]
-pub mod panel_bounds_clipping_tests;
+pub mod muxbox_bounds_clipping_tests;
