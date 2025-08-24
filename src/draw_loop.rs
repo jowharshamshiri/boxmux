@@ -64,8 +64,12 @@ pub fn detect_resize_edge(panel: &Panel, click_x: u16, click_y: u16) -> Option<R
     let x = click_x as usize;
     let y = click_y as usize;
     
-    // Check for corner resize (bottom-right only)
-    if x == bounds.x2 && y == bounds.y2 {
+    // Check for corner resize (bottom-right only) with tolerance for easier clicking
+    // Allow clicking within 1 pixel of the exact corner to make it easier to grab
+    let corner_tolerance = 1;
+    
+    if (x >= bounds.x2.saturating_sub(corner_tolerance) && x <= bounds.x2) &&
+       (y >= bounds.y2.saturating_sub(corner_tolerance) && y <= bounds.y2) {
         return Some(ResizeEdge::BottomRight);
     }
     
@@ -1204,51 +1208,71 @@ create_runnable!(
                         }
                     }
                     Message::MouseDragStart(x, y) => {
-                        // F0189: Check if drag started on a panel border first
-                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
-                        let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
-                        *resize_state = None; // Clear any previous resize state
-                        
-                        // Check for panel border resize first
-                        let mut handled_resize = false;
-                        for panel in active_layout.get_all_panels() {
-                            if let Some(resize_edge) = detect_resize_edge(panel, *x, *y) {
-                                *resize_state = Some(PanelResizeState {
-                                    panel_id: panel.id.clone(),
-                                    resize_edge,
-                                    start_x: *x,
-                                    start_y: *y,
-                                    original_bounds: panel.position.clone(),
-                                });
-                                log::trace!("Started resizing panel {} via {:?} edge", panel.id, resize_state.as_ref().unwrap().resize_edge);
-                                handled_resize = true;
-                                break;
-                            }
-                        }
-                        
-                        // F0191: If not a resize, check if drag started on panel title/top border for movement
-                        let mut handled_move = false;
-                        if !handled_resize {
-                            let mut move_state = PANEL_MOVE_STATE.lock().unwrap();
-                            *move_state = None; // Clear any previous move state
+                        // Check if panels are locked before allowing resize/move
+                        if app_context_unwrapped.config.locked {
+                            // Skip all resize/move operations when locked
+                            log::trace!("Panel resize/move blocked: panels are locked");
+                        } else {
+                            // F0189: Check if drag started on a panel border first
+                            let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                            let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                            *resize_state = None; // Clear any previous resize state
                             
+                            // Check for panel border resize first
+                            let mut handled_resize = false;
                             for panel in active_layout.get_all_panels() {
-                                if detect_move_area(panel, *x, *y) {
-                                    *move_state = Some(PanelMoveState {
+                                if let Some(resize_edge) = detect_resize_edge(panel, *x, *y) {
+                                    *resize_state = Some(PanelResizeState {
                                         panel_id: panel.id.clone(),
+                                        resize_edge,
                                         start_x: *x,
                                         start_y: *y,
                                         original_bounds: panel.position.clone(),
                                     });
-                                    log::trace!("Started moving panel {} via title/top border", panel.id);
-                                    handled_move = true;
+                                    log::trace!("Started resizing panel {} via {:?} edge", panel.id, resize_state.as_ref().unwrap().resize_edge);
+                                    handled_resize = true;
                                     break;
+                                }
+                            }
+                            
+                            // F0191: If not a resize, check if drag started on panel title/top border for movement
+                            let mut handled_move = false;
+                            if !handled_resize {
+                                let mut move_state = PANEL_MOVE_STATE.lock().unwrap();
+                                *move_state = None; // Clear any previous move state
+                                
+                                for panel in active_layout.get_all_panels() {
+                                    if detect_move_area(panel, *x, *y) {
+                                        *move_state = Some(PanelMoveState {
+                                            panel_id: panel.id.clone(),
+                                            start_x: *x,
+                                            start_y: *y,
+                                            original_bounds: panel.position.clone(),
+                                        });
+                                        log::trace!("Started moving panel {} via title/top border", panel.id);
+                                        handled_move = true;
+                                        break;
+                                    }
                                 }
                             }
                         }
                         
-                        // F0188: If not a resize or move, check if drag started on a scroll knob
-                        if !handled_resize && !handled_move {
+                        // F0188: Check for scroll knob drag (allowed even when locked)
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        
+                        // Check if any resize/move states are active (only possible when unlocked)
+                        let has_active_resize = if !app_context_unwrapped.config.locked {
+                            let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
+                            resize_state_guard.is_some()
+                        } else { false };
+                        
+                        let has_active_move = if !app_context_unwrapped.config.locked {
+                            let move_state_guard = PANEL_MOVE_STATE.lock().unwrap();
+                            move_state_guard.is_some()
+                        } else { false };
+                        
+                        // F0188: If no resize or move is active, check if drag started on a scroll knob
+                        if !has_active_resize && !has_active_move {
                             let mut drag_state = DRAG_STATE.lock().unwrap();
                             *drag_state = None; // Clear any previous drag state
 
@@ -1296,9 +1320,11 @@ create_runnable!(
                         }
                     }
                     Message::MouseDrag(x, y) => {
-                        // F0189: Handle panel border resize during drag
-                        let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
-                        if let Some(ref resize_state) = *resize_state_guard {
+                        // Skip resize/move operations when panels are locked
+                        if !app_context_unwrapped.config.locked {
+                            // F0189: Handle panel border resize during drag
+                            let resize_state_guard = PANEL_RESIZE_STATE.lock().unwrap();
+                            if let Some(ref resize_state) = *resize_state_guard {
                             let terminal_width = crate::screen_width();
                             let terminal_height = crate::screen_height();
                             
@@ -1319,7 +1345,8 @@ create_runnable!(
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawApp);
                             }
-                        } else {
+                            }
+                            
                             // F0191: Handle panel movement during drag
                             let move_state_guard = PANEL_MOVE_STATE.lock().unwrap();
                             if let Some(ref move_state) = *move_state_guard {
@@ -1342,55 +1369,57 @@ create_runnable!(
                                     inner.update_app_context(app_context_unwrapped.clone());
                                     inner.send_message(Message::RedrawApp);
                                 }
-                            } else {
-                                // F0188: Update scroll position during drag if not resizing or moving
-                            let drag_state_guard = DRAG_STATE.lock().unwrap();
-                            if let Some(ref drag_state) = *drag_state_guard {
-                                let panel_to_update = app_context_unwrapped
-                                    .app
-                                    .get_panel_by_id_mut(&drag_state.panel_id);
-                                    
-                                if let Some(panel) = panel_to_update {
-                                    let panel_bounds = panel.bounds();
-                                    
-                                    if drag_state.is_vertical {
-                                        // Calculate new vertical scroll percentage based on drag distance
-                                        let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
-                                        let drag_delta = (*y as isize) - (drag_state.start_y as isize);
-                                        let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
-                                        let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                            .min(100.0).max(0.0);
-                                        
-                                        panel.vertical_scroll = Some(new_percentage);
-                                    } else {
-                                        // Calculate new horizontal scroll percentage based on drag distance
-                                        let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
-                                        let drag_delta = (*x as isize) - (drag_state.start_x as isize);
-                                        let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
-                                        let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                            .min(100.0).max(0.0);
-                                        
-                                        panel.horizontal_scroll = Some(new_percentage);
-                                    }
-                                    
-                                    inner.update_app_context(app_context_unwrapped.clone());
-                                    inner.send_message(Message::RedrawApp);
-                                }
                             }
+                        }
+                        
+                        // F0188: Handle scroll knob drag (always allowed, even when locked)
+                        let drag_state_guard = DRAG_STATE.lock().unwrap();
+                        if let Some(ref drag_state) = *drag_state_guard {
+                            let panel_to_update = app_context_unwrapped
+                                .app
+                                .get_panel_by_id_mut(&drag_state.panel_id);
+                                
+                            if let Some(panel) = panel_to_update {
+                                let panel_bounds = panel.bounds();
+                                
+                                if drag_state.is_vertical {
+                                    // Calculate new vertical scroll percentage based on drag distance
+                                    let track_height = (panel_bounds.height() as isize - 2).max(1) as usize;
+                                    let drag_delta = (*y as isize) - (drag_state.start_y as isize);
+                                    let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                        .min(100.0).max(0.0);
+                                    
+                                    panel.vertical_scroll = Some(new_percentage);
+                                } else {
+                                    // Calculate new horizontal scroll percentage based on drag distance
+                                    let track_width = (panel_bounds.width() as isize - 2).max(1) as usize;
+                                    let drag_delta = (*x as isize) - (drag_state.start_x as isize);
+                                    let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
+                                        .min(100.0).max(0.0);
+                                    
+                                    panel.horizontal_scroll = Some(new_percentage);
+                                }
+                                
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawApp);
                             }
                         }
                     }
                     Message::MouseDragEnd(x, y) => {
-                        // F0189: End panel resize operation
-                        let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
-                        if let Some(ref resize_state_data) = *resize_state {
-                            log::trace!("Ended panel resize at ({}, {}) for panel {}", x, y, resize_state_data.panel_id);
-                            
-                            // Trigger YAML persistence
-                            inner.send_message(Message::PanelResizeComplete(resize_state_data.panel_id.clone()));
-                            *resize_state = None; // Clear resize state
-                        } else {
-                            // F0191: End panel move operation
+                        // Only handle resize/move end when panels are unlocked
+                        if !app_context_unwrapped.config.locked {
+                            // F0189: End panel resize operation
+                            let mut resize_state = PANEL_RESIZE_STATE.lock().unwrap();
+                            if let Some(ref resize_state_data) = *resize_state {
+                                log::trace!("Ended panel resize at ({}, {}) for panel {}", x, y, resize_state_data.panel_id);
+                                
+                                // Trigger YAML persistence
+                                inner.send_message(Message::PanelResizeComplete(resize_state_data.panel_id.clone()));
+                                *resize_state = None; // Clear resize state
+                            } else {
+                                // F0191: End panel move operation
                             let mut move_state = PANEL_MOVE_STATE.lock().unwrap();
                             if let Some(ref move_state_data) = *move_state {
                                 log::trace!("Ended panel move at ({}, {}) for panel {}", x, y, move_state_data.panel_id);
@@ -1398,14 +1427,15 @@ create_runnable!(
                                 // Trigger YAML persistence for new position
                                 inner.send_message(Message::PanelMoveComplete(move_state_data.panel_id.clone()));
                                 *move_state = None; // Clear move state
-                            } else {
-                                // F0188: End scroll knob drag operation  
-                                let mut drag_state = DRAG_STATE.lock().unwrap();
-                                if drag_state.is_some() {
-                                    log::trace!("Ended scroll knob drag at ({}, {})", x, y);
-                                    *drag_state = None; // Clear drag state
-                                }
                             }
+                            }
+                        }
+                        
+                        // F0188: End scroll knob drag operation (always allowed, even when locked)
+                        let mut drag_state = DRAG_STATE.lock().unwrap();
+                        if drag_state.is_some() {
+                            log::trace!("Ended scroll knob drag at ({}, {})", x, y);
+                            *drag_state = None; // Clear drag state
                         }
                     }
                     Message::ChoiceExecutionComplete(choice_id, panel_id, result) => {
@@ -1544,7 +1574,7 @@ create_runnable!(
                                     }
                                 }
                             } else {
-                                log::warn!("No YAML file path available for saving panel bounds");
+                                log::error!("CRITICAL: No YAML file path available for saving panel bounds - resize changes will not persist!");
                             }
                         } else {
                             log::error!("Panel {} not found for saving bounds", panel_id);
@@ -1571,7 +1601,7 @@ create_runnable!(
                                     }
                                 }
                             } else {
-                                log::warn!("No YAML file path available for saving panel position");
+                                log::error!("CRITICAL: No YAML file path available for saving panel position - move changes will not persist!");
                             }
                         } else {
                             log::error!("Panel {} not found for saving position", panel_id);

@@ -282,6 +282,7 @@ pub fn draw_panel(
                 Some(&panel.calc_border(app_context, app_graph)),
                 panel.current_horizontal_scroll(),
                 panel.current_vertical_scroll(),
+                app_context.config.locked, // Pass locked state from config
                 buffer,
             );
 
@@ -538,6 +539,7 @@ pub fn render_panel(
     border: Option<&bool>,
     horizontal_scroll: f64,
     vertical_scroll: f64,
+    locked: bool, // Whether panels are locked (disable resize/move and hide corner knob)
     buffer: &mut ScreenBuffer,
 ) {
     let draw_border = border.unwrap_or(&true);
@@ -927,13 +929,14 @@ pub fn render_panel(
                 ch: '└',
             },
         );
+        // Bottom-right corner: show resize knob when unlocked, regular corner when locked
         buffer.update(
             bounds.right(),
             bounds.bottom(),
             Cell {
                 fg_color: border_color_code.clone(),
                 bg_color: bg_color_code.clone(),
-                ch: '┘',
+                ch: if locked { '┘' } else { '⋱' }, // Use diagonal dots for resize knob when unlocked
             },
         );
     }

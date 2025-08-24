@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn test_validate_config_zero_frame_delay() {
         let mut validator = SchemaValidator::new();
-        let config = Config { frame_delay: 0 };
+        let config = Config { frame_delay: 0, locked: false };
 
         let result = validator.validate_config(&config);
         assert!(result.is_err());
@@ -601,7 +601,7 @@ mod tests {
     #[test]
     fn test_validate_config_excessive_frame_delay() {
         let mut validator = SchemaValidator::new();
-        let config = Config { frame_delay: 2000 };
+        let config = Config { frame_delay: 2000, locked: false };
 
         let result = validator.validate_config(&config);
         assert!(result.is_err());

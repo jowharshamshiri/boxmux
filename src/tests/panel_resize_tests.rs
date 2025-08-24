@@ -26,6 +26,12 @@ mod tests {
         // Test corner detection (only resize method supported)
         let corner = detect_resize_edge(&panel, bounds.x2 as u16, bounds.y2 as u16);
         assert_eq!(corner, Some(ResizeEdge::BottomRight));
+        
+        // Test corner tolerance - should work 1 pixel before the exact corner
+        if bounds.x2 > 0 && bounds.y2 > 0 {
+            let corner_near = detect_resize_edge(&panel, (bounds.x2 - 1) as u16, (bounds.y2 - 1) as u16);
+            assert_eq!(corner_near, Some(ResizeEdge::BottomRight));
+        }
 
         // Test that right edge no longer supports resize
         let right_edge = detect_resize_edge(&panel, bounds.x2 as u16, (bounds.y1 + bounds.height()/2) as u16);

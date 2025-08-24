@@ -89,3 +89,9 @@ pub mod panel_resize_tests;
 
 #[cfg(test)]
 pub mod panel_move_tests;
+
+#[cfg(test)]
+pub mod yaml_persistence_integration_test;
+
+#[cfg(test)]
+pub mod panel_bounds_clipping_tests;
