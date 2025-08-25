@@ -70,23 +70,23 @@ const config: Config = {
 							content: '""'
 						},
 						'code': {
-							backgroundColor: 'hsl(var(--muted))',
-							color: 'hsl(var(--foreground))',
+							backgroundColor: 'hsl(var(--code-background))',
+							color: 'hsl(var(--code-foreground))',
 							padding: '0.25rem 0.375rem',
 							borderRadius: '0.25rem',
 							fontWeight: '400',
 							fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace'
 						},
 						'pre': {
-							backgroundColor: 'hsl(var(--muted))',
-							color: 'hsl(var(--foreground))',
+							backgroundColor: 'hsl(var(--code-background))',
+							color: 'hsl(var(--code-foreground))',
 							borderRadius: 'var(--radius)',
 							overflowX: 'auto'
 						},
 						'pre code': {
 							backgroundColor: 'transparent',
 							padding: '0',
-							color: 'hsl(var(--muted-foreground))',
+							color: 'inherit',
 							fontSize: '0.875rem',
 							lineHeight: '1.7142857'
 						},
