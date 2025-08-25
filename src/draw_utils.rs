@@ -666,31 +666,129 @@ pub fn render_muxbox(
                 scrollbars_drawn = true;
             }
         } else {
-            // Original choice rendering (no scroll support or other overflow behaviors)
+            // Handle other overflow behaviors (wrap, fill, cross_out, removed) and clipping
             let mut y_position = bounds.top() + 1;
-            for choice in choices {
-                if y_position > bounds.bottom() - 1 {
-                    break; // Don't draw outside the bounds
+            let viewable_width = bounds.width().saturating_sub(4);
+            let viewable_height = bounds.height().saturating_sub(2);
+            
+            if overflow_behavior == "wrap" {
+                // Render choices with word wrapping
+                for choice in choices {
+                    if y_position > bounds.bottom() - 1 {
+                        break; // Don't draw outside the bounds
+                    }
+
+                    let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
+                    let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
+
+                    let formatted_content = if choice.waiting {
+                        format!("{}...", choice.content.as_ref().unwrap())
+                    } else {
+                        choice.content.as_ref().unwrap().to_string()
+                    };
+
+                    // Wrap the choice text
+                    let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
+                    
+                    for wrapped_line in wrapped_lines {
+                        if y_position > bounds.bottom() - 1 {
+                            break; // Don't draw outside the bounds
+                        }
+                        
+                        print_with_color_and_background_at(
+                            y_position,
+                            bounds.left() + 2,
+                            fg_color,
+                            bg_color,
+                            &wrapped_line,
+                            buffer,
+                        );
+                        y_position += 1;
+                    }
                 }
+                
+                // Check if wrapped choices overflow vertically and need scrollbar
+                let total_wrapped_lines: usize = choices.iter().map(|choice| {
+                    let formatted_content = if choice.waiting {
+                        format!("{}...", choice.content.as_ref().unwrap())
+                    } else {
+                        choice.content.as_ref().unwrap().to_string()
+                    };
+                    wrap_text_to_width(&formatted_content, viewable_width).len()
+                }).sum();
+                
+                if total_wrapped_lines > viewable_height && *draw_border {
+                    draw_vertical_scrollbar(
+                        &bounds,
+                        total_wrapped_lines,
+                        viewable_height,
+                        vertical_scroll,
+                        border_color,
+                        bg_color,
+                        buffer,
+                    );
+                    scrollbars_drawn = true;
+                }
+            } else {
+                // Original choice rendering (simple clipping for other overflow behaviors)
+                for choice in choices {
+                    if y_position > bounds.bottom() - 1 {
+                        break; // Don't draw outside the bounds
+                    }
 
-                let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
-                let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
+                    let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
+                    let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
 
-                let formatted_content = if choice.waiting {
-                    format!("{}...", choice.content.as_ref().unwrap())
-                } else {
-                    choice.content.as_ref().unwrap().to_string()
-                };
+                    let formatted_content = if choice.waiting {
+                        format!("{}...", choice.content.as_ref().unwrap())
+                    } else {
+                        choice.content.as_ref().unwrap().to_string()
+                    };
 
-                print_with_color_and_background_at(
-                    y_position,
-                    bounds.left() + 2,
-                    fg_color,
-                    bg_color,
-                    &formatted_content,
-                    buffer,
-                );
-                y_position += 1;
+                    // Apply overflow behavior to choice text
+                    let processed_content = match overflow_behavior {
+                        "fill" => {
+                            let mut filled = formatted_content.clone();
+                            while filled.len() < viewable_width {
+                                filled.push(' ');
+                            }
+                            filled.truncate(viewable_width);
+                            filled
+                        },
+                        "cross_out" => {
+                            let mut crossed = String::new();
+                            for ch in formatted_content.chars().take(viewable_width) {
+                                if ch == ' ' {
+                                    crossed.push(' ');
+                                } else {
+                                    crossed.push('X');
+                                }
+                            }
+                            crossed
+                        },
+                        "removed" => {
+                            continue; // Don't draw removed choices
+                        },
+                        _ => {
+                            // Default clipping behavior
+                            if formatted_content.len() > viewable_width {
+                                formatted_content.chars().take(viewable_width).collect()
+                            } else {
+                                formatted_content
+                            }
+                        }
+                    };
+
+                    print_with_color_and_background_at(
+                        y_position,
+                        bounds.left() + 2,
+                        fg_color,
+                        bg_color,
+                        &processed_content,
+                        buffer,
+                    );
+                    y_position += 1;
+                }
             }
         }
     } else if let Some(content) = content {

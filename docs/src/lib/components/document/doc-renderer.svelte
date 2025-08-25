@@ -66,17 +66,12 @@
 		max-width: calc(100vw - 3rem);
 		overflow-x: auto;
 		display: block;
-		background-color: #f6f8fa;
-		border: 1px solid #d0d7de;
+		background-color: hsl(var(--code-background));
+		border: 1px solid hsl(var(--border));
 	}
 
 	:global(ol .shiki-wrapper) {
 		max-width: calc(100vw - 5rem);
-	}
-
-	:global(.dark .shiki-wrapper) {
-		background-color: #0d1117 !important;
-		border-color: #30363d;
 	}
 
 	/* Code highlighting styles */
@@ -91,20 +86,18 @@
 	:global(.prose pre) {
 		padding: 0.75rem !important;
 		margin: 0;
-		background-color: #f6f8fa !important;
+		background-color: hsl(var(--code-background)) !important;
+		color: hsl(var(--code-foreground)) !important;
 	}
 
 	:global(.prose :not(pre) > code) {
-		background-color: rgb(175 184 193 / 20%);
+		background-color: hsl(var(--code-background));
+		color: hsl(var(--code-foreground));
 		padding: 0.25rem;
 		border-radius: 0.25rem;
 		font-size: 0.875em;
 		font-weight: 400;
 		max-width: 100%;
-	}
-
-	:global(.dark .prose :not(pre) > code) {
-		background-color: rgb(30 41 59);
 	}
 
 	/* Remove default code decorations */
