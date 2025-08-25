@@ -50,7 +50,7 @@ impl Hash for Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Config { 
+        Config {
             frame_delay: 30,
             locked: false, // Default to unlocked (resizable/movable)
         }
@@ -59,16 +59,19 @@ impl Default for Config {
 
 impl Config {
     pub fn new(frame_delay: u64) -> Self {
-        let result = Config { 
+        let result = Config {
             frame_delay,
             locked: false, // Default to unlocked
         };
         result.validate();
         result
     }
-    
+
     pub fn new_with_lock(frame_delay: u64, locked: bool) -> Self {
-        let result = Config { frame_delay, locked };
+        let result = Config {
+            frame_delay,
+            locked,
+        };
         result.validate();
         result
     }
@@ -146,10 +149,7 @@ pub fn run_socket_function(
         SocketFunction::StartBoxRefresh { box_id } => {
             messages.push(Message::StartBoxRefresh(box_id));
         }
-        SocketFunction::ReplaceBox {
-            box_id,
-            new_box,
-        } => {
+        SocketFunction::ReplaceBox { box_id, new_box } => {
             messages.push(Message::ReplaceMuxBox(box_id, new_box));
         }
         SocketFunction::SwitchActiveLayout { layout_id } => {
@@ -425,11 +425,13 @@ impl Bounds {
     }
 
     pub fn width(&self) -> usize {
-        self.x2.saturating_sub(self.x1)
+        // For inclusive coordinate bounds, width is x2 - x1 + 1
+        self.x2.saturating_sub(self.x1).saturating_add(1)
     }
 
     pub fn height(&self) -> usize {
-        self.y2.saturating_sub(self.y1)
+        // For inclusive coordinate bounds, height is y2 - y1 + 1
+        self.y2.saturating_sub(self.y1).saturating_add(1)
     }
 
     pub fn to_string(&self) -> String {
@@ -910,7 +912,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "Validation error: frame_delay cannot be 0")]
     fn test_config_validate_zero_frame_delay() {
-        let config = Config { frame_delay: 0, locked: false };
+        let config = Config {
+            frame_delay: 0,
+            locked: false,
+        };
         config.validate();
     }
 
@@ -918,7 +923,10 @@ mod tests {
     /// This test demonstrates successful Config validation.
     #[test]
     fn test_config_validate_valid() {
-        let config = Config { frame_delay: 16, locked: false };
+        let config = Config {
+            frame_delay: 16,
+            locked: false,
+        };
         config.validate(); // Should not panic
     }
 

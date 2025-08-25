@@ -94,6 +94,15 @@ pub mod muxbox_resize_tests;
 pub mod muxbox_move_tests;
 
 #[cfg(test)]
+pub mod resize_100_percent_debug;
+
+#[cfg(test)]
+pub mod terminal_100_width_reality_test;
+
+#[cfg(test)]
+pub mod debug_bounds_calculation;
+
+#[cfg(test)]
 pub mod yaml_persistence_integration_test;
 
 #[cfg(test)]

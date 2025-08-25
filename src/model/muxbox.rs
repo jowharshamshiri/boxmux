@@ -1155,19 +1155,14 @@ impl MuxBox {
             if choice_count > viewable_height {
                 return true; // Choices overflow vertically
             }
-            
+
             // Check if any choice content is too wide
             let max_choice_width = choices
                 .iter()
-                .map(|choice| {
-                    choice.content
-                        .as_ref()
-                        .map(|c| c.len())
-                        .unwrap_or(0)
-                })
+                .map(|choice| choice.content.as_ref().map(|c| c.len()).unwrap_or(0))
                 .max()
                 .unwrap_or(0);
-            
+
             if max_choice_width > viewable_width {
                 return true; // Choice content overflows horizontally
             }
@@ -1834,7 +1829,6 @@ impl Updatable for MuxBox {
                 });
             }
         }
-
 
         if self.refresh_interval != other.refresh_interval {
             if let Some(new_value) = other.refresh_interval {
@@ -3437,8 +3431,8 @@ mod tests {
             position: InputBounds {
                 x1: "0".to_string(),
                 y1: "0".to_string(),
-                x2: "50".to_string(),  // Moderate width
-                y2: "20".to_string(),  // Moderate height
+                x2: "50".to_string(), // Moderate width
+                y2: "20".to_string(), // Moderate height
             },
             anchor: Anchor::TopLeft,
             tab_order: None,
@@ -3448,7 +3442,10 @@ mod tests {
         };
 
         // Test: MuxBox with no choices should not be scrollable
-        assert!(!muxbox.has_scrollable_content(), "Empty muxbox should not be scrollable");
+        assert!(
+            !muxbox.has_scrollable_content(),
+            "Empty muxbox should not be scrollable"
+        );
 
         // Test: MuxBox with few choices that fit should not be scrollable
         muxbox.choices = Some(vec![
@@ -3456,34 +3453,46 @@ mod tests {
             create_test_choice("choice2", "Item 2"),
             create_test_choice("choice3", "Item 3"),
         ]);
-        assert!(!muxbox.has_scrollable_content(), "MuxBox with few choices should not be scrollable");
+        assert!(
+            !muxbox.has_scrollable_content(),
+            "MuxBox with few choices should not be scrollable"
+        );
 
         // Test: MuxBox with many choices should be scrollable (vertical overflow)
-        let many_choices: Vec<Choice> = (0..25).map(|i| {
-            create_test_choice(&format!("choice{}", i), &format!("Menu Item {}", i))
-        }).collect();
+        let many_choices: Vec<Choice> = (0..25)
+            .map(|i| create_test_choice(&format!("choice{}", i), &format!("Menu Item {}", i)))
+            .collect();
         muxbox.choices = Some(many_choices);
-        assert!(muxbox.has_scrollable_content(), "MuxBox with many choices should be scrollable");
+        assert!(
+            muxbox.has_scrollable_content(),
+            "MuxBox with many choices should be scrollable"
+        );
 
         // Test: MuxBox with wide choice content should be scrollable (horizontal overflow)
         muxbox.choices = Some(vec![
             create_test_choice("wide_choice", "This is a very long menu choice that definitely exceeds the muxbox width and should trigger horizontal scrolling")
         ]);
-        assert!(muxbox.has_scrollable_content(), "MuxBox with wide choice content should be scrollable");
+        assert!(
+            muxbox.has_scrollable_content(),
+            "MuxBox with wide choice content should be scrollable"
+        );
 
         // Test: Large muxbox with choices should not be scrollable
         muxbox.position = InputBounds {
             x1: "0".to_string(),
             y1: "0".to_string(),
             x2: "200".to_string(), // Very large width
-            y2: "100".to_string(),  // Very large height
+            y2: "100".to_string(), // Very large height
         };
         muxbox.choices = Some(vec![
             create_test_choice("choice1", "Item 1"),
             create_test_choice("choice2", "Item 2"),
         ]);
         muxbox.content = None;
-        assert!(!muxbox.has_scrollable_content(), "Large muxbox with few choices should not be scrollable");
+        assert!(
+            !muxbox.has_scrollable_content(),
+            "Large muxbox with few choices should not be scrollable"
+        );
     }
 
     // === MuxBox with Choices Tests ===

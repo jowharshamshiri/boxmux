@@ -1,4 +1,6 @@
 use crate::draw_utils::{draw_app, draw_muxbox};
+use crate::model::app::save_muxbox_bounds_to_yaml;
+use crate::model::common::InputBounds;
 use crate::model::muxbox::Choice;
 use crate::thread_manager::Runnable;
 use crate::utils::{run_script_with_pty_and_redirect, should_use_pty_for_choice};
@@ -6,8 +8,6 @@ use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, AppContext, MuxBox,
     ScreenBuffer,
 };
-use crate::model::app::save_muxbox_bounds_to_yaml;
-use crate::model::common::InputBounds;
 use crate::{thread_manager::*, FieldUpdate};
 // use crossbeam_channel::Sender; // T311: Removed with ChoiceThreadManager
 use crossterm::{
@@ -24,7 +24,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 struct DragState {
     muxbox_id: String,
-    is_vertical: bool,  // true for vertical scrollbar, false for horizontal
+    is_vertical: bool, // true for vertical scrollbar, false for horizontal
     start_x: u16,
     start_y: u16,
     start_scroll_percentage: f64,
@@ -51,7 +51,7 @@ struct MuxBoxMoveState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResizeEdge {
-    BottomRight,  // Only corner resize allowed
+    BottomRight, // Only corner resize allowed
 }
 
 static DRAG_STATE: Mutex<Option<DragState>> = Mutex::new(None);
@@ -63,16 +63,18 @@ pub fn detect_resize_edge(muxbox: &MuxBox, click_x: u16, click_y: u16) -> Option
     let bounds = muxbox.bounds();
     let x = click_x as usize;
     let y = click_y as usize;
-    
+
     // Check for corner resize (bottom-right only) with tolerance for easier clicking
     // Allow clicking within 1 pixel of the exact corner to make it easier to grab
     let corner_tolerance = 1;
-    
-    if (x >= bounds.x2.saturating_sub(corner_tolerance) && x <= bounds.x2) &&
-       (y >= bounds.y2.saturating_sub(corner_tolerance) && y <= bounds.y2) {
+
+    // Standard detection zone - same for all panels including 100% width
+    if (x >= bounds.x2.saturating_sub(corner_tolerance) && x <= bounds.x2)
+        && (y >= bounds.y2.saturating_sub(corner_tolerance) && y <= bounds.y2)
+    {
         return Some(ResizeEdge::BottomRight);
     }
-    
+
     None
 }
 
@@ -81,46 +83,66 @@ pub fn detect_move_area(muxbox: &MuxBox, click_x: u16, click_y: u16) -> bool {
     let bounds = muxbox.bounds();
     let x = click_x as usize;
     let y = click_y as usize;
-    
+
     // Check for title area or top border (y1 coordinate across muxbox width)
     y == bounds.y1 && x >= bounds.x1 && x <= bounds.x2
 }
 
 pub fn calculate_new_bounds(
-    original_bounds: &InputBounds, 
+    original_bounds: &InputBounds,
     resize_edge: &ResizeEdge,
     start_x: u16,
     start_y: u16,
-    current_x: u16, 
+    current_x: u16,
     current_y: u16,
     terminal_width: usize,
     terminal_height: usize,
 ) -> InputBounds {
     let delta_x = (current_x as i32) - (start_x as i32);
     let delta_y = (current_y as i32) - (start_y as i32);
-    
+
     let mut new_bounds = original_bounds.clone();
-    
+
+    // F0197: Minimum resize constraints - prevent boxes smaller than 2x2 characters
+    let min_width_percent = (2.0 / terminal_width as f32) * 100.0;
+    let min_height_percent = (2.0 / terminal_height as f32) * 100.0;
+
     match resize_edge {
         ResizeEdge::BottomRight => {
             // Update both x2 and y2 coordinates for corner resize
             if let Ok(current_x2_percent) = new_bounds.x2.replace('%', "").parse::<f32>() {
-                let pixel_delta_x = delta_x as f32;
-                let percent_delta_x = (pixel_delta_x / terminal_width as f32) * 100.0;
-                let new_x2_percent = (current_x2_percent + percent_delta_x).max(10.0).min(100.0);
-                new_bounds.x2 = format!("{}%", new_x2_percent.round() as i32);
+                if let Ok(current_x1_percent) = new_bounds.x1.replace('%', "").parse::<f32>() {
+                    let pixel_delta_x = delta_x as f32;
+                    let percent_delta_x = (pixel_delta_x / terminal_width as f32) * 100.0;
+                    let new_x2_percent =
+                        (current_x2_percent + percent_delta_x).max(10.0).min(100.0);
+
+                    // Enforce minimum width constraint
+                    let min_x2_for_width = current_x1_percent + min_width_percent;
+                    let constrained_x2 = new_x2_percent.max(min_x2_for_width);
+
+                    new_bounds.x2 = format!("{}%", constrained_x2.round() as i32);
+                }
             }
-            
+
             // Also update y2 coordinate for corner resize
             if let Ok(current_y2_percent) = new_bounds.y2.replace('%', "").parse::<f32>() {
-                let pixel_delta_y = delta_y as f32;
-                let percent_delta_y = (pixel_delta_y / terminal_height as f32) * 100.0;
-                let new_y2_percent = (current_y2_percent + percent_delta_y).max(10.0).min(100.0);
-                new_bounds.y2 = format!("{}%", new_y2_percent.round() as i32);
+                if let Ok(current_y1_percent) = new_bounds.y1.replace('%', "").parse::<f32>() {
+                    let pixel_delta_y = delta_y as f32;
+                    let percent_delta_y = (pixel_delta_y / terminal_height as f32) * 100.0;
+                    let new_y2_percent =
+                        (current_y2_percent + percent_delta_y).max(10.0).min(100.0);
+
+                    // Enforce minimum height constraint
+                    let min_y2_for_height = current_y1_percent + min_height_percent;
+                    let constrained_y2 = new_y2_percent.max(min_y2_for_height);
+
+                    new_bounds.y2 = format!("{}%", constrained_y2.round() as i32);
+                }
             }
         }
     }
-    
+
     new_bounds
 }
 
@@ -136,46 +158,46 @@ pub fn calculate_new_position(
 ) -> InputBounds {
     let delta_x = (current_x as i32) - (start_x as i32);
     let delta_y = (current_y as i32) - (start_y as i32);
-    
+
     let mut new_bounds = original_bounds.clone();
-    
+
     // Convert pixel deltas to percentage deltas and update position
     let pixel_delta_x = delta_x as f32;
     let percent_delta_x = (pixel_delta_x / terminal_width as f32) * 100.0;
-    
+
     let pixel_delta_y = delta_y as f32;
     let percent_delta_y = (pixel_delta_y / terminal_height as f32) * 100.0;
-    
+
     // Update x1 and x2 (maintain width)
     if let (Ok(current_x1), Ok(current_x2)) = (
         new_bounds.x1.replace('%', "").parse::<f32>(),
-        new_bounds.x2.replace('%', "").parse::<f32>()
+        new_bounds.x2.replace('%', "").parse::<f32>(),
     ) {
         let new_x1 = (current_x1 + percent_delta_x).max(0.0).min(90.0);
         let new_x2 = (current_x2 + percent_delta_x).max(10.0).min(100.0);
-        
+
         // Ensure we don't go beyond boundaries while maintaining muxbox width
         if new_x2 <= 100.0 && new_x1 >= 0.0 {
             new_bounds.x1 = format!("{}%", new_x1.round() as i32);
             new_bounds.x2 = format!("{}%", new_x2.round() as i32);
         }
     }
-    
+
     // Update y1 and y2 (maintain height)
     if let (Ok(current_y1), Ok(current_y2)) = (
         new_bounds.y1.replace('%', "").parse::<f32>(),
-        new_bounds.y2.replace('%', "").parse::<f32>()
+        new_bounds.y2.replace('%', "").parse::<f32>(),
     ) {
         let new_y1 = (current_y1 + percent_delta_y).max(0.0).min(90.0);
         let new_y2 = (current_y2 + percent_delta_y).max(10.0).min(100.0);
-        
+
         // Ensure we don't go beyond boundaries while maintaining muxbox height
         if new_y2 <= 100.0 && new_y1 >= 0.0 {
             new_bounds.y1 = format!("{}%", new_y1.round() as i32);
             new_bounds.y2 = format!("{}%", new_y2.round() as i32);
         }
     }
-    
+
     new_bounds
 }
 
@@ -183,12 +205,12 @@ pub fn calculate_new_position(
 fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
     let muxbox_bounds = muxbox.bounds();
     let viewable_height = muxbox_bounds.height().saturating_sub(4);
-    
+
     // Get content dimensions to calculate knob position and size
     let max_content_height = if let Some(content) = &muxbox.content {
         let lines: Vec<&str> = content.split('\n').collect();
         let mut total_height = lines.len();
-        
+
         // Add choices height if present
         if let Some(choices) = &muxbox.choices {
             total_height += choices.len();
@@ -199,77 +221,78 @@ fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
     } else {
         viewable_height // No scrolling needed
     };
-    
+
     if max_content_height <= viewable_height {
         return false; // No scrollbar needed
     }
-    
+
     let track_height = viewable_height.saturating_sub(2);
     if track_height == 0 {
         return false;
     }
-    
+
     // Calculate knob position and size (matching draw_utils.rs logic)
     let content_ratio = viewable_height as f64 / max_content_height as f64;
     let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
     let available_track = track_height.saturating_sub(knob_size);
-    
+
     let vertical_scroll = muxbox.vertical_scroll.unwrap_or(0.0);
     let knob_position = if available_track > 0 {
         ((vertical_scroll / 100.0) * available_track as f64).round() as usize
     } else {
         0
     };
-    
+
     // Check if click is within knob bounds
     let knob_start_y = muxbox_bounds.top() + 1 + knob_position;
     let knob_end_y = knob_start_y + knob_size;
-    
+
     click_y >= knob_start_y && click_y < knob_end_y
 }
 
 fn is_on_horizontal_knob(muxbox: &MuxBox, click_x: usize) -> bool {
     let muxbox_bounds = muxbox.bounds();
     let viewable_width = muxbox_bounds.width().saturating_sub(4);
-    
+
     // Get content width to calculate knob position and size
     let max_content_width = if let Some(content) = &muxbox.content {
         let lines: Vec<&str> = content.split('\n').collect();
         lines.iter().map(|line| line.len()).max().unwrap_or(0)
     } else if let Some(choices) = &muxbox.choices {
-        choices.iter()
+        choices
+            .iter()
             .map(|choice| choice.content.as_ref().map(|c| c.len()).unwrap_or(0))
             .max()
             .unwrap_or(0)
     } else {
         viewable_width // No scrolling needed
     };
-    
+
     if max_content_width <= viewable_width {
         return false; // No scrollbar needed
     }
-    
+
     let track_width = viewable_width.saturating_sub(2);
     if track_width == 0 {
         return false;
     }
-    
+
     // Calculate knob position and size (matching draw_utils.rs logic)
     let content_ratio = viewable_width as f64 / max_content_width as f64;
     let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
     let available_track = track_width.saturating_sub(knob_size);
-    
+
     let horizontal_scroll = muxbox.horizontal_scroll.unwrap_or(0.0);
     let knob_position = if available_track > 0 {
         ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
     } else {
         0
     };
-    
+
     // Check if click is within knob bounds
     let knob_start_x = muxbox_bounds.left() + 1 + knob_position;
     let knob_end_x = knob_start_x + knob_size;
-    
+
     click_x >= knob_start_x && click_x < knob_end_x
 }
 
@@ -431,7 +454,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 if found_muxbox.choices.is_some() {
                                     //select first or next choice
@@ -465,7 +489,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 if found_muxbox.choices.is_some() {
                                     //select first or next choice
@@ -497,7 +522,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.scroll_left(Some(1.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -513,7 +539,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.scroll_right(Some(1.0));
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -529,7 +556,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // Page up scrolls by larger amount (10 units for page-based scrolling)
                                 found_muxbox.scroll_up(Some(10.0));
@@ -546,7 +574,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // Page down scrolls by larger amount (10 units for page-based scrolling)
                                 found_muxbox.scroll_down(Some(10.0));
@@ -563,7 +592,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // Page left scrolls by larger amount (10 units for page-based scrolling)
                                 found_muxbox.scroll_left(Some(10.0));
@@ -580,7 +610,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // Page right scrolls by larger amount (10 units for page-based scrolling)
                                 found_muxbox.scroll_right(Some(10.0));
@@ -598,7 +629,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(0.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -615,7 +647,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(100.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -632,7 +665,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(0.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -649,7 +683,8 @@ create_runnable!(
                             .get_selected_muxboxes();
                         if !selected_muxboxes.is_empty() {
                             let selected_id = selected_muxboxes.first().unwrap().id.clone();
-                            let muxbox = app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
+                            let muxbox =
+                                app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(100.0);
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -668,7 +703,8 @@ create_runnable!(
                             let muxbox = app_context_unwrapped.app.get_muxbox_by_id(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // Get muxbox content to copy
-                                let content_to_copy = get_muxbox_content_for_clipboard(found_muxbox);
+                                let content_to_copy =
+                                    get_muxbox_content_for_clipboard(found_muxbox);
 
                                 // Copy to clipboard
                                 if copy_to_clipboard(&content_to_copy).is_ok() {
@@ -720,6 +756,18 @@ create_runnable!(
                         apply_buffer(&mut new_buffer, screen);
                         *buffer = new_buffer;
                     }
+                    Message::RedrawAppDiff => {
+                        // Redraw entire app with diff-based rendering (no screen clear)
+                        let mut new_buffer = ScreenBuffer::new();
+                        draw_app(
+                            &app_context_unwrapped,
+                            &app_graph,
+                            &adjusted_bounds,
+                            &mut new_buffer,
+                        );
+                        apply_buffer_if_changed(buffer, &new_buffer, screen);
+                        *buffer = new_buffer;
+                    }
                     Message::MuxBoxOutputUpdate(muxbox_id, success, output) => {
                         log::info!("RECEIVED MuxBoxOutputUpdate for muxbox: {}, success: {}, output_len: {}, preview: {}", 
                                    muxbox_id, success, output.len(), output.chars().take(50).collect::<String>());
@@ -740,8 +788,10 @@ create_runnable!(
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
                         } else {
                             // Use regular update for non-PTY output
-                            let muxbox =
-                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id).unwrap();
+                            let muxbox = app_context_unwrapped
+                                .app
+                                .get_muxbox_by_id(muxbox_id)
+                                .unwrap();
                             update_muxbox_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
@@ -765,7 +815,8 @@ create_runnable!(
 
                         // Find the choice by ID in any muxbox
                         log::info!("Searching for choice {} in active layout", choice_id);
-                        if let Some(choice_muxbox) = active_layout.find_muxbox_with_choice(&choice_id)
+                        if let Some(choice_muxbox) =
+                            active_layout.find_muxbox_with_choice(&choice_id)
                         {
                             log::info!("Found choice in muxbox: {}", choice_muxbox.id);
 
@@ -827,12 +878,13 @@ create_runnable!(
 
                         let selected_muxboxes: Vec<&MuxBox> = active_layout.get_selected_muxboxes();
 
-                        let selected_muxboxes_with_keypress_events: Vec<&MuxBox> = selected_muxboxes
-                            .clone()
-                            .into_iter()
-                            .filter(|p| p.on_keypress.is_some())
-                            .filter(|p| p.choices.is_none())
-                            .collect();
+                        let selected_muxboxes_with_keypress_events: Vec<&MuxBox> =
+                            selected_muxboxes
+                                .clone()
+                                .into_iter()
+                                .filter(|p| p.on_keypress.is_some())
+                                .filter(|p| p.choices.is_none())
+                                .collect();
 
                         let libs = app_context_unwrapped.app.libs.clone();
 
@@ -1007,7 +1059,8 @@ create_runnable!(
                         log::trace!("PTY input for muxbox {}: {}", muxbox_id, input);
 
                         // Find the target muxbox to verify it exists and has PTY enabled
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                        {
                             if muxbox.pty.unwrap_or(false) {
                                 log::debug!(
                                     "Routing input to PTY muxbox {}: {:?}",
@@ -1029,7 +1082,10 @@ create_runnable!(
                                 );
                             }
                         } else {
-                            log::error!("PTY input received for non-existent muxbox: {}", muxbox_id);
+                            log::error!(
+                                "PTY input received for non-existent muxbox: {}",
+                                muxbox_id
+                            );
                         }
                     }
                     Message::MouseClick(x, y) => {
@@ -1042,133 +1098,182 @@ create_runnable!(
                         for muxbox in active_layout.get_all_muxboxes() {
                             if muxbox.has_scrollable_content() {
                                 let muxbox_bounds = muxbox.bounds();
-                                
+
                                 // Check for vertical scrollbar click (right border)
-                                if *x as usize == muxbox_bounds.right() && 
-                                   *y as usize > muxbox_bounds.top() && (*y as usize) < muxbox_bounds.bottom() {
-                                    let track_height = (muxbox_bounds.height() as isize - 2).max(1) as usize;
-                                    let click_position = ((*y as usize) - muxbox_bounds.top() - 1) as f64 / track_height as f64;
-                                    let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
-                                    
-                                    log::trace!("Vertical scrollbar click on muxbox {} at {}%", muxbox.id, scroll_percentage);
-                                    
+                                if *x as usize == muxbox_bounds.right()
+                                    && *y as usize > muxbox_bounds.top()
+                                    && (*y as usize) < muxbox_bounds.bottom()
+                                {
+                                    let track_height =
+                                        (muxbox_bounds.height() as isize - 2).max(1) as usize;
+                                    let click_position = ((*y as usize) - muxbox_bounds.top() - 1)
+                                        as f64
+                                        / track_height as f64;
+                                    let scroll_percentage =
+                                        (click_position * 100.0).min(100.0).max(0.0);
+
+                                    log::trace!(
+                                        "Vertical scrollbar click on muxbox {} at {}%",
+                                        muxbox.id,
+                                        scroll_percentage
+                                    );
+
                                     // Update muxbox vertical scroll
                                     let muxbox_to_update = app_context_for_click
                                         .app
                                         .get_muxbox_by_id_mut(&muxbox.id)
                                         .unwrap();
                                     muxbox_to_update.vertical_scroll = Some(scroll_percentage);
-                                    
+
                                     inner.update_app_context(app_context_for_click.clone());
-                                    inner.send_message(Message::RedrawApp);
+                                    inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
                                     break;
                                 }
-                                
+
                                 // Check for horizontal scrollbar click (bottom border)
-                                if *y as usize == muxbox_bounds.bottom() && 
-                                   *x as usize > muxbox_bounds.left() && (*x as usize) < muxbox_bounds.right() {
-                                    let track_width = (muxbox_bounds.width() as isize - 2).max(1) as usize;
-                                    let click_position = ((*x as usize) - muxbox_bounds.left() - 1) as f64 / track_width as f64;
-                                    let scroll_percentage = (click_position * 100.0).min(100.0).max(0.0);
-                                    
-                                    log::trace!("Horizontal scrollbar click on muxbox {} at {}%", muxbox.id, scroll_percentage);
-                                    
+                                if *y as usize == muxbox_bounds.bottom()
+                                    && *x as usize > muxbox_bounds.left()
+                                    && (*x as usize) < muxbox_bounds.right()
+                                {
+                                    let track_width =
+                                        (muxbox_bounds.width() as isize - 2).max(1) as usize;
+                                    let click_position = ((*x as usize) - muxbox_bounds.left() - 1)
+                                        as f64
+                                        / track_width as f64;
+                                    let scroll_percentage =
+                                        (click_position * 100.0).min(100.0).max(0.0);
+
+                                    log::trace!(
+                                        "Horizontal scrollbar click on muxbox {} at {}%",
+                                        muxbox.id,
+                                        scroll_percentage
+                                    );
+
                                     // Update muxbox horizontal scroll
                                     let muxbox_to_update = app_context_for_click
                                         .app
                                         .get_muxbox_by_id_mut(&muxbox.id)
                                         .unwrap();
                                     muxbox_to_update.horizontal_scroll = Some(scroll_percentage);
-                                    
+
                                     inner.update_app_context(app_context_for_click.clone());
-                                    inner.send_message(Message::RedrawApp);
+                                    inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
                                     break;
                                 }
                             }
                         }
-                        
+
                         // If scrollbar click was handled, skip muxbox selection
                         if handled_scrollbar_click {
                             // Continue to next message
                         } else {
                             // F0091: Find which muxbox was clicked based on coordinates
-                            if let Some(clicked_muxbox) = active_layout.find_muxbox_at_coordinates(*x, *y)
-                        {
-                            log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
+                            if let Some(clicked_muxbox) =
+                                active_layout.find_muxbox_at_coordinates(*x, *y)
+                            {
+                                log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
 
-                            // Check if muxbox has choices (menu items)
-                            if let Some(choices) = &clicked_muxbox.choices {
-                                // Calculate which choice was clicked based on y and x offset within muxbox
-                                if let Some(clicked_choice_idx) =
-                                    calculate_clicked_choice_index(clicked_muxbox, *x, *y, choices)
-                                {
-                                    if let Some(clicked_choice) = choices.get(clicked_choice_idx) {
-                                        log::trace!("Clicked on choice: {}", clicked_choice.id);
-
-                                        // First, select the parent muxbox if not already selected
-                                        let layout = app_context_for_click
-                                            .app
-                                            .get_active_layout_mut()
-                                            .unwrap();
-                                        layout.deselect_all_muxboxes();
-                                        layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                        // Then select the clicked choice visually
-                                        let muxbox_to_update = app_context_for_click
-                                            .app
-                                            .get_muxbox_by_id_mut(&clicked_muxbox.id)
-                                            .unwrap();
-                                        if let Some(ref mut muxbox_choices) = muxbox_to_update.choices
+                                // Check if muxbox has choices (menu items)
+                                if let Some(choices) = &clicked_muxbox.choices {
+                                    // Calculate which choice was clicked based on y and x offset within muxbox
+                                    if let Some(clicked_choice_idx) = calculate_clicked_choice_index(
+                                        clicked_muxbox,
+                                        *x,
+                                        *y,
+                                        choices,
+                                    ) {
+                                        if let Some(clicked_choice) =
+                                            choices.get(clicked_choice_idx)
                                         {
-                                            // Deselect all choices first
-                                            for choice in muxbox_choices.iter_mut() {
-                                                choice.selected = false;
-                                            }
-                                            // Select only the clicked choice
-                                            if let Some(selected_choice) =
-                                                muxbox_choices.get_mut(clicked_choice_idx)
+                                            log::trace!("Clicked on choice: {}", clicked_choice.id);
+
+                                            // First, select the parent muxbox if not already selected
+                                            let layout = app_context_for_click
+                                                .app
+                                                .get_active_layout_mut()
+                                                .unwrap();
+                                            layout.deselect_all_muxboxes();
+                                            layout.select_only_muxbox(&clicked_muxbox.id);
+
+                                            // Then select the clicked choice visually
+                                            let muxbox_to_update = app_context_for_click
+                                                .app
+                                                .get_muxbox_by_id_mut(&clicked_muxbox.id)
+                                                .unwrap();
+                                            if let Some(ref mut muxbox_choices) =
+                                                muxbox_to_update.choices
                                             {
-                                                selected_choice.selected = true;
+                                                // Deselect all choices first
+                                                for choice in muxbox_choices.iter_mut() {
+                                                    choice.selected = false;
+                                                }
+                                                // Select only the clicked choice
+                                                if let Some(selected_choice) =
+                                                    muxbox_choices.get_mut(clicked_choice_idx)
+                                                {
+                                                    selected_choice.selected = true;
+                                                }
+                                            }
+
+                                            // Update the app context and immediately trigger redraw for responsiveness
+                                            inner.update_app_context(app_context_for_click.clone());
+                                            inner.send_message(Message::RedrawAppDiff);
+
+                                            // Then activate the clicked choice (same as pressing Enter)
+                                            // Force threaded execution for clicked choices to maintain UI responsiveness
+                                            if let Some(script) = &clicked_choice.script {
+                                                let libs = app_context_unwrapped.app.libs.clone();
+
+                                                // Always use threaded execution for mouse clicks to keep UI responsive
+                                                let _script_clone = script.clone();
+                                                let _choice_id_clone = clicked_choice.id.clone();
+                                                let muxbox_id_clone = clicked_muxbox.id.clone();
+                                                let libs_clone = libs.clone();
+
+                                                // T312: Use unified ExecuteChoice message system
+                                                inner.send_message(Message::ExecuteChoice(
+                                                    clicked_choice.clone(),
+                                                    muxbox_id_clone,
+                                                    libs_clone,
+                                                ));
+
+                                                // Spawn the choice execution in ThreadManager
+                                                // TODO: Get ThreadManager reference to spawn the runnable
+                                                log::trace!("Mouse click choice {} ready for ThreadManager execution", clicked_choice.id);
                                             }
                                         }
+                                    } else {
+                                        // Click was on muxbox with choices but not on any specific choice
+                                        // Only select the muxbox, don't activate any choice
+                                        if clicked_muxbox.tab_order.is_some()
+                                            || clicked_muxbox.has_scrollable_content()
+                                        {
+                                            log::trace!(
+                                                "Selecting muxbox (clicked on empty area): {}",
+                                                clicked_muxbox.id
+                                            );
 
-                                        // Update the app context and immediately trigger redraw for responsiveness
-                                        inner.update_app_context(app_context_for_click.clone());
-                                        inner.send_message(Message::RedrawApp);
+                                            // Deselect all muxboxes in the layout first
+                                            let layout = app_context_for_click
+                                                .app
+                                                .get_active_layout_mut()
+                                                .unwrap();
+                                            layout.deselect_all_muxboxes();
+                                            layout.select_only_muxbox(&clicked_muxbox.id);
 
-                                        // Then activate the clicked choice (same as pressing Enter)
-                                        // Force threaded execution for clicked choices to maintain UI responsiveness
-                                        if let Some(script) = &clicked_choice.script {
-                                            let libs = app_context_unwrapped.app.libs.clone();
-
-                                            // Always use threaded execution for mouse clicks to keep UI responsive
-                                            let _script_clone = script.clone();
-                                            let _choice_id_clone = clicked_choice.id.clone();
-                                            let muxbox_id_clone = clicked_muxbox.id.clone();
-                                            let libs_clone = libs.clone();
-
-                                            // T312: Use unified ExecuteChoice message system
-                                            inner.send_message(Message::ExecuteChoice(
-                                                clicked_choice.clone(),
-                                                muxbox_id_clone,
-                                                libs_clone,
-                                            ));
-
-                                            // Spawn the choice execution in ThreadManager
-                                            // TODO: Get ThreadManager reference to spawn the runnable
-                                            log::trace!("Mouse click choice {} ready for ThreadManager execution", clicked_choice.id);
+                                            inner.update_app_context(app_context_for_click);
+                                            inner.send_message(Message::RedrawAppDiff);
                                         }
                                     }
                                 } else {
-                                    // Click was on muxbox with choices but not on any specific choice
-                                    // Only select the muxbox, don't activate any choice
+                                    // MuxBox has no choices - just select it if it's selectable
                                     if clicked_muxbox.tab_order.is_some()
                                         || clicked_muxbox.has_scrollable_content()
                                     {
                                         log::trace!(
-                                            "Selecting muxbox (clicked on empty area): {}",
+                                            "Selecting muxbox (no choices): {}",
                                             clicked_muxbox.id
                                         );
 
@@ -1181,30 +1286,10 @@ create_runnable!(
                                         layout.select_only_muxbox(&clicked_muxbox.id);
 
                                         inner.update_app_context(app_context_for_click);
-                                        inner.send_message(Message::RedrawApp);
+                                        inner.send_message(Message::RedrawAppDiff);
                                     }
                                 }
-                            } else {
-                                // MuxBox has no choices - just select it if it's selectable
-                                if clicked_muxbox.tab_order.is_some()
-                                    || clicked_muxbox.has_scrollable_content()
-                                {
-                                    log::trace!(
-                                        "Selecting muxbox (no choices): {}",
-                                        clicked_muxbox.id
-                                    );
-
-                                    // Deselect all muxboxes in the layout first
-                                    let layout =
-                                        app_context_for_click.app.get_active_layout_mut().unwrap();
-                                    layout.deselect_all_muxboxes();
-                                    layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                    inner.update_app_context(app_context_for_click);
-                                    inner.send_message(Message::RedrawApp);
-                                }
                             }
-                        }
                         }
                     }
                     Message::MouseDragStart(x, y) => {
@@ -1214,10 +1299,11 @@ create_runnable!(
                             log::trace!("MuxBox resize/move blocked: muxboxes are locked");
                         } else {
                             // F0189: Check if drag started on a muxbox border first
-                            let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                            let active_layout =
+                                app_context_unwrapped.app.get_active_layout().unwrap();
                             let mut resize_state = MUXBOX_RESIZE_STATE.lock().unwrap();
                             *resize_state = None; // Clear any previous resize state
-                            
+
                             // Check for muxbox border resize first
                             let mut handled_resize = false;
                             for muxbox in active_layout.get_all_muxboxes() {
@@ -1229,18 +1315,22 @@ create_runnable!(
                                         start_y: *y,
                                         original_bounds: muxbox.position.clone(),
                                     });
-                                    log::trace!("Started resizing muxbox {} via {:?} edge", muxbox.id, resize_state.as_ref().unwrap().resize_edge);
+                                    log::trace!(
+                                        "Started resizing muxbox {} via {:?} edge",
+                                        muxbox.id,
+                                        resize_state.as_ref().unwrap().resize_edge
+                                    );
                                     handled_resize = true;
                                     break;
                                 }
                             }
-                            
+
                             // F0191: If not a resize, check if drag started on muxbox title/top border for movement
                             let mut handled_move = false;
                             if !handled_resize {
                                 let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
                                 *move_state = None; // Clear any previous move state
-                                
+
                                 for muxbox in active_layout.get_all_muxboxes() {
                                     if detect_move_area(muxbox, *x, *y) {
                                         *move_state = Some(MuxBoxMoveState {
@@ -1249,28 +1339,35 @@ create_runnable!(
                                             start_y: *y,
                                             original_bounds: muxbox.position.clone(),
                                         });
-                                        log::trace!("Started moving muxbox {} via title/top border", muxbox.id);
+                                        log::trace!(
+                                            "Started moving muxbox {} via title/top border",
+                                            muxbox.id
+                                        );
                                         handled_move = true;
                                         break;
                                     }
                                 }
                             }
                         }
-                        
+
                         // F0188: Check for scroll knob drag (allowed even when locked)
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
-                        
+
                         // Check if any resize/move states are active (only possible when unlocked)
                         let has_active_resize = if !app_context_unwrapped.config.locked {
                             let resize_state_guard = MUXBOX_RESIZE_STATE.lock().unwrap();
                             resize_state_guard.is_some()
-                        } else { false };
-                        
+                        } else {
+                            false
+                        };
+
                         let has_active_move = if !app_context_unwrapped.config.locked {
                             let move_state_guard = MUXBOX_MOVE_STATE.lock().unwrap();
                             move_state_guard.is_some()
-                        } else { false };
-                        
+                        } else {
+                            false
+                        };
+
                         // F0188: If no resize or move is active, check if drag started on a scroll knob
                         if !has_active_resize && !has_active_move {
                             let mut drag_state = DRAG_STATE.lock().unwrap();
@@ -1279,13 +1376,16 @@ create_runnable!(
                             for muxbox in active_layout.get_all_muxboxes() {
                                 if muxbox.has_scrollable_content() {
                                     let muxbox_bounds = muxbox.bounds();
-                                    
+
                                     // Check if drag started on vertical scroll knob
-                                    if *x as usize == muxbox_bounds.right() && 
-                                       *y as usize > muxbox_bounds.top() && (*y as usize) < muxbox_bounds.bottom() {
+                                    if *x as usize == muxbox_bounds.right()
+                                        && *y as usize > muxbox_bounds.top()
+                                        && (*y as usize) < muxbox_bounds.bottom()
+                                    {
                                         // Check if we clicked on the actual knob, not just the track
                                         if is_on_vertical_knob(muxbox, *y as usize) {
-                                            let current_scroll = muxbox.vertical_scroll.unwrap_or(0.0);
+                                            let current_scroll =
+                                                muxbox.vertical_scroll.unwrap_or(0.0);
                                             *drag_state = Some(DragState {
                                                 muxbox_id: muxbox.id.clone(),
                                                 is_vertical: true,
@@ -1297,13 +1397,16 @@ create_runnable!(
                                             break;
                                         }
                                     }
-                                    
+
                                     // Check if drag started on horizontal scroll knob
-                                    if *y as usize == muxbox_bounds.bottom() && 
-                                       *x as usize > muxbox_bounds.left() && (*x as usize) < muxbox_bounds.right() {
+                                    if *y as usize == muxbox_bounds.bottom()
+                                        && *x as usize > muxbox_bounds.left()
+                                        && (*x as usize) < muxbox_bounds.right()
+                                    {
                                         // Check if we clicked on the actual knob, not just the track
                                         if is_on_horizontal_knob(muxbox, *x as usize) {
-                                            let current_scroll = muxbox.horizontal_scroll.unwrap_or(0.0);
+                                            let current_scroll =
+                                                muxbox.horizontal_scroll.unwrap_or(0.0);
                                             *drag_state = Some(DragState {
                                                 muxbox_id: muxbox.id.clone(),
                                                 is_vertical: false,
@@ -1314,9 +1417,9 @@ create_runnable!(
                                             log::trace!("Started dragging horizontal scroll knob on muxbox {}", muxbox.id);
                                             break;
                                         }
+                                    }
                                 }
                             }
-                        }
                         }
                     }
                     Message::MouseDrag(x, y) => {
@@ -1325,34 +1428,60 @@ create_runnable!(
                             // F0189: Handle muxbox border resize during drag
                             let resize_state_guard = MUXBOX_RESIZE_STATE.lock().unwrap();
                             if let Some(ref resize_state) = *resize_state_guard {
-                            let terminal_width = crate::screen_width();
-                            let terminal_height = crate::screen_height();
-                            
-                            let new_bounds = calculate_new_bounds(
-                                &resize_state.original_bounds,
-                                &resize_state.resize_edge,
-                                resize_state.start_x,
-                                resize_state.start_y,
-                                *x,
-                                *y,
-                                terminal_width,
-                                terminal_height,
-                            );
-                            
-                            // Update the muxbox bounds in real-time
-                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&resize_state.muxbox_id) {
-                                muxbox.position = new_bounds;
-                                inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawApp);
+                                let terminal_width = crate::screen_width();
+                                let terminal_height = crate::screen_height();
+
+                                // FIXED: Handle 100% width panels where horizontal drag events may not work
+                                let (effective_x, effective_y) =
+                                    if resize_state.original_bounds.x2 == "100%" {
+                                        // For 100% width panels at rightmost edge, if no horizontal movement is detected,
+                                        // use the vertical movement as a proxy for horizontal movement to enable resizing
+                                        let horizontal_delta =
+                                            (*x as i32) - (resize_state.start_x as i32);
+                                        let vertical_delta =
+                                            (*y as i32) - (resize_state.start_y as i32);
+
+                                        if horizontal_delta == 0 && vertical_delta != 0 {
+                                            // No horizontal movement detected but vertical movement exists
+                                            // Use diagonal movement: apply vertical delta to horizontal as well
+                                            let adjusted_x =
+                                                resize_state.start_x as i32 + vertical_delta;
+                                            (adjusted_x.max(0) as u16, *y)
+                                        } else {
+                                            (*x, *y)
+                                        }
+                                    } else {
+                                        (*x, *y)
+                                    };
+
+                                let new_bounds = calculate_new_bounds(
+                                    &resize_state.original_bounds,
+                                    &resize_state.resize_edge,
+                                    resize_state.start_x,
+                                    resize_state.start_y,
+                                    effective_x,
+                                    effective_y,
+                                    terminal_width,
+                                    terminal_height,
+                                );
+
+                                // Update the muxbox bounds in real-time
+                                if let Some(muxbox) = app_context_unwrapped
+                                    .app
+                                    .get_muxbox_by_id_mut(&resize_state.muxbox_id)
+                                {
+                                    muxbox.position = new_bounds;
+                                    inner.update_app_context(app_context_unwrapped.clone());
+                                    inner.send_message(Message::RedrawAppDiff);
+                                }
                             }
-                            }
-                            
+
                             // F0191: Handle muxbox movement during drag
                             let move_state_guard = MUXBOX_MOVE_STATE.lock().unwrap();
                             if let Some(ref move_state) = *move_state_guard {
                                 let terminal_width = crate::screen_width();
                                 let terminal_height = crate::screen_height();
-                                
+
                                 let new_position = calculate_new_position(
                                     &move_state.original_bounds,
                                     move_state.start_x,
@@ -1362,48 +1491,59 @@ create_runnable!(
                                     terminal_width,
                                     terminal_height,
                                 );
-                                
+
                                 // Update the muxbox position in real-time
-                                if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&move_state.muxbox_id) {
+                                if let Some(muxbox) = app_context_unwrapped
+                                    .app
+                                    .get_muxbox_by_id_mut(&move_state.muxbox_id)
+                                {
                                     muxbox.position = new_position;
                                     inner.update_app_context(app_context_unwrapped.clone());
-                                    inner.send_message(Message::RedrawApp);
+                                    inner.send_message(Message::RedrawAppDiff);
                                 }
                             }
                         }
-                        
+
                         // F0188: Handle scroll knob drag (always allowed, even when locked)
                         let drag_state_guard = DRAG_STATE.lock().unwrap();
                         if let Some(ref drag_state) = *drag_state_guard {
                             let muxbox_to_update = app_context_unwrapped
                                 .app
                                 .get_muxbox_by_id_mut(&drag_state.muxbox_id);
-                                
+
                             if let Some(muxbox) = muxbox_to_update {
                                 let muxbox_bounds = muxbox.bounds();
-                                
+
                                 if drag_state.is_vertical {
                                     // Calculate new vertical scroll percentage based on drag distance
-                                    let track_height = (muxbox_bounds.height() as isize - 2).max(1) as usize;
+                                    let track_height =
+                                        (muxbox_bounds.height() as isize - 2).max(1) as usize;
                                     let drag_delta = (*y as isize) - (drag_state.start_y as isize);
-                                    let percentage_delta = (drag_delta as f64 / track_height as f64) * 100.0;
-                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                        .min(100.0).max(0.0);
-                                    
+                                    let percentage_delta =
+                                        (drag_delta as f64 / track_height as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage
+                                        + percentage_delta)
+                                        .min(100.0)
+                                        .max(0.0);
+
                                     muxbox.vertical_scroll = Some(new_percentage);
                                 } else {
                                     // Calculate new horizontal scroll percentage based on drag distance
-                                    let track_width = (muxbox_bounds.width() as isize - 2).max(1) as usize;
+                                    let track_width =
+                                        (muxbox_bounds.width() as isize - 2).max(1) as usize;
                                     let drag_delta = (*x as isize) - (drag_state.start_x as isize);
-                                    let percentage_delta = (drag_delta as f64 / track_width as f64) * 100.0;
-                                    let new_percentage = (drag_state.start_scroll_percentage + percentage_delta)
-                                        .min(100.0).max(0.0);
-                                    
+                                    let percentage_delta =
+                                        (drag_delta as f64 / track_width as f64) * 100.0;
+                                    let new_percentage = (drag_state.start_scroll_percentage
+                                        + percentage_delta)
+                                        .min(100.0)
+                                        .max(0.0);
+
                                     muxbox.horizontal_scroll = Some(new_percentage);
                                 }
-                                
+
                                 inner.update_app_context(app_context_unwrapped.clone());
-                                inner.send_message(Message::RedrawApp);
+                                inner.send_message(Message::RedrawAppDiff);
                             }
                         }
                     }
@@ -1413,24 +1553,38 @@ create_runnable!(
                             // F0189: End muxbox resize operation
                             let mut resize_state = MUXBOX_RESIZE_STATE.lock().unwrap();
                             if let Some(ref resize_state_data) = *resize_state {
-                                log::trace!("Ended muxbox resize at ({}, {}) for muxbox {}", x, y, resize_state_data.muxbox_id);
-                                
+                                log::trace!(
+                                    "Ended muxbox resize at ({}, {}) for muxbox {}",
+                                    x,
+                                    y,
+                                    resize_state_data.muxbox_id
+                                );
+
                                 // Trigger YAML persistence
-                                inner.send_message(Message::MuxBoxResizeComplete(resize_state_data.muxbox_id.clone()));
+                                inner.send_message(Message::MuxBoxResizeComplete(
+                                    resize_state_data.muxbox_id.clone(),
+                                ));
                                 *resize_state = None; // Clear resize state
                             } else {
                                 // F0191: End muxbox move operation
-                            let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
-                            if let Some(ref move_state_data) = *move_state {
-                                log::trace!("Ended muxbox move at ({}, {}) for muxbox {}", x, y, move_state_data.muxbox_id);
-                                
-                                // Trigger YAML persistence for new position
-                                inner.send_message(Message::MuxBoxMoveComplete(move_state_data.muxbox_id.clone()));
-                                *move_state = None; // Clear move state
-                            }
+                                let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
+                                if let Some(ref move_state_data) = *move_state {
+                                    log::trace!(
+                                        "Ended muxbox move at ({}, {}) for muxbox {}",
+                                        x,
+                                        y,
+                                        move_state_data.muxbox_id
+                                    );
+
+                                    // Trigger YAML persistence for new position
+                                    inner.send_message(Message::MuxBoxMoveComplete(
+                                        move_state_data.muxbox_id.clone(),
+                                    ));
+                                    *move_state = None; // Clear move state
+                                }
                             }
                         }
-                        
+
                         // F0188: End scroll knob drag operation (always allowed, even when locked)
                         let mut drag_state = DRAG_STATE.lock().unwrap();
                         if drag_state.is_some() {
@@ -1455,7 +1609,8 @@ create_runnable!(
                         }
 
                         // First update the choice waiting state
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
                         {
                             if let Some(ref mut choices) = muxbox.choices {
                                 if let Some(choice) =
@@ -1468,7 +1623,8 @@ create_runnable!(
 
                         // Then handle the output in a separate scope to avoid borrow conflicts
                         let target_muxbox_id = {
-                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                            if let Some(muxbox) =
+                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
                             {
                                 if let Some(ref choices) = muxbox.choices {
                                     if let Some(choice) =
@@ -1505,7 +1661,8 @@ create_runnable!(
                         };
 
                         let append = {
-                            if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                            if let Some(muxbox) =
+                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
                             {
                                 if let Some(ref choices) = muxbox.choices {
                                     if let Some(choice) =
@@ -1555,22 +1712,39 @@ create_runnable!(
                     }
                     Message::MuxBoxResizeComplete(muxbox_id) => {
                         // F0190: Save muxbox bounds changes to YAML file
-                        log::info!("Saving muxbox resize changes to YAML for muxbox: {}", muxbox_id);
-                        
+                        log::info!(
+                            "Saving muxbox resize changes to YAML for muxbox: {}",
+                            muxbox_id
+                        );
+
                         // Get the updated muxbox bounds
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                        {
                             let new_bounds = &muxbox.position;
-                            log::debug!("New bounds for muxbox {}: x1={}, y1={}, x2={}, y2={}", 
-                                muxbox_id, new_bounds.x1, new_bounds.y1, new_bounds.x2, new_bounds.y2);
-                                
+                            log::debug!(
+                                "New bounds for muxbox {}: x1={}, y1={}, x2={}, y2={}",
+                                muxbox_id,
+                                new_bounds.x1,
+                                new_bounds.y1,
+                                new_bounds.x2,
+                                new_bounds.y2
+                            );
+
                             // Find the original YAML file path
                             if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
                                 match save_muxbox_bounds_to_yaml(yaml_path, muxbox_id, new_bounds) {
                                     Ok(()) => {
-                                        log::info!("Successfully saved muxbox {} bounds to YAML file", muxbox_id);
+                                        log::info!(
+                                            "Successfully saved muxbox {} bounds to YAML file",
+                                            muxbox_id
+                                        );
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to save muxbox {} bounds to YAML: {}", muxbox_id, e);
+                                        log::error!(
+                                            "Failed to save muxbox {} bounds to YAML: {}",
+                                            muxbox_id,
+                                            e
+                                        );
                                     }
                                 }
                             } else {
@@ -1582,22 +1756,40 @@ create_runnable!(
                     }
                     Message::MuxBoxMoveComplete(muxbox_id) => {
                         // F0191: Save muxbox position changes to YAML file
-                        log::info!("Saving muxbox move changes to YAML for muxbox: {}", muxbox_id);
-                        
+                        log::info!(
+                            "Saving muxbox move changes to YAML for muxbox: {}",
+                            muxbox_id
+                        );
+
                         // Get the updated muxbox position
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                        {
                             let new_position = &muxbox.position;
-                            log::debug!("New position for muxbox {}: x1={}, y1={}, x2={}, y2={}", 
-                                muxbox_id, new_position.x1, new_position.y1, new_position.x2, new_position.y2);
-                                
+                            log::debug!(
+                                "New position for muxbox {}: x1={}, y1={}, x2={}, y2={}",
+                                muxbox_id,
+                                new_position.x1,
+                                new_position.y1,
+                                new_position.x2,
+                                new_position.y2
+                            );
+
                             // Find the original YAML file path
                             if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
-                                match save_muxbox_bounds_to_yaml(yaml_path, muxbox_id, new_position) {
+                                match save_muxbox_bounds_to_yaml(yaml_path, muxbox_id, new_position)
+                                {
                                     Ok(()) => {
-                                        log::info!("Successfully saved muxbox {} position to YAML file", muxbox_id);
+                                        log::info!(
+                                            "Successfully saved muxbox {} position to YAML file",
+                                            muxbox_id
+                                        );
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to save muxbox {} position to YAML: {}", muxbox_id, e);
+                                        log::error!(
+                                            "Failed to save muxbox {} position to YAML: {}",
+                                            muxbox_id,
+                                            e
+                                        );
                                     }
                                 }
                             } else {
@@ -1862,16 +2054,16 @@ fn calculate_clicked_choice_index_impl(
         if let Some(content) = &choice.content {
             // Choices are rendered at bounds.left() + 2 (per draw_utils.rs:636)
             let choice_text_start_x = bounds.left() + 2;
-            
+
             // Format the content as it appears (including "..." for waiting choices)
             let formatted_content = if choice.waiting {
                 format!("{}...", content)
             } else {
                 content.clone()
             };
-            
+
             let choice_text_end_x = choice_text_start_x + formatted_content.len();
-            
+
             // Check if click X is within the actual text bounds
             if (click_x as usize) >= choice_text_start_x && (click_x as usize) < choice_text_end_x {
                 Some(choice_index)

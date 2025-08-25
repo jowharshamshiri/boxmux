@@ -628,9 +628,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 return Ok(());
             } else {
-                return Err(
-                    "New Box Content is required for update_box_content command".into(),
-                );
+                return Err("New Box Content is required for update_box_content command".into());
             }
         } else {
             return Err("Box ID is required for update_box_content command".into());
@@ -746,9 +744,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Convert to absolute path to ensure YAML persistence works regardless of working directory
-    let yaml_path = yaml_path.canonicalize().map_err(|e| {
-        format!("Failed to resolve absolute path for YAML file: {}", e)
-    })?;
+    let yaml_path = yaml_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve absolute path for YAML file: {}", e))?;
 
     // Removed old simplelog - using our new comprehensive logging system instead
     let config = boxmux_lib::model::common::Config::new_with_lock(frame_delay, locked);
@@ -775,7 +773,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let app_context = if let Some(pty_mgr) = pty_manager.as_ref() {
-        AppContext::new_with_pty_and_yaml(app, config, pty_mgr.clone(), yaml_path.to_str().unwrap().to_string())
+        AppContext::new_with_pty_and_yaml(
+            app,
+            config,
+            pty_mgr.clone(),
+            yaml_path.to_str().unwrap().to_string(),
+        )
     } else {
         AppContext::new_with_yaml_path(app, config, yaml_path.to_str().unwrap().to_string())
     };

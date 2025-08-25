@@ -403,10 +403,9 @@ impl IntegrationTestUtils {
             }
             SocketFunction::StopBoxRefresh { box_id } => Message::StopBoxRefresh(box_id),
             SocketFunction::StartBoxRefresh { box_id } => Message::StartBoxRefresh(box_id),
-            SocketFunction::ReplaceBox {
-                box_id,
-                new_box,
-            } => Message::ReplaceMuxBox(box_id, new_box),
+            SocketFunction::ReplaceBox { box_id, new_box } => {
+                Message::ReplaceMuxBox(box_id, new_box)
+            }
             SocketFunction::SwitchActiveLayout { layout_id } => {
                 Message::SwitchActiveLayout(layout_id)
             }

@@ -977,7 +977,12 @@ fn apply_muxbox_variable_substitution(
             *script_line = local_context
                 .substitute_in_string(script_line, &full_hierarchy)
                 .map_err(|e| {
-                    format!("Error in muxbox '{}' script line {}: {}", muxbox.id, i + 1, e)
+                    format!(
+                        "Error in muxbox '{}' script line {}: {}",
+                        muxbox.id,
+                        i + 1,
+                        e
+                    )
                 })?;
         }
     }
@@ -1659,7 +1664,10 @@ mod tests {
 
         // Original muxboxes should be unchanged
         let original_muxbox = app.get_muxbox_by_id("muxbox1").unwrap();
-        assert_eq!(original_muxbox.title, Some("Test MuxBox muxbox1".to_string()));
+        assert_eq!(
+            original_muxbox.title,
+            Some("Test MuxBox muxbox1".to_string())
+        );
     }
 
     // === App Clone Tests ===
@@ -1963,7 +1971,11 @@ mod tests {
         ];
         for &muxbox_id in muxboxes.iter() {
             let muxbox = app_graph.get_muxbox_by_id(muxbox_id);
-            assert!(muxbox.is_some(), "MuxBox with ID {} should exist", muxbox_id);
+            assert!(
+                muxbox.is_some(),
+                "MuxBox with ID {} should exist",
+                muxbox_id
+            );
         }
     }
 
@@ -2154,21 +2166,25 @@ pub fn save_muxbox_bounds_to_yaml(
     muxbox_id: &str,
     new_bounds: &crate::InputBounds,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use std::fs;
     use serde_yaml::{self, Value};
-    
+    use std::fs;
+
     // Read the current YAML file
     let yaml_content = fs::read_to_string(yaml_path)?;
     let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
-    
+
     // Find and update the muxbox bounds
     update_muxbox_bounds_recursive(&mut yaml_value, muxbox_id, new_bounds)?;
-    
+
     // Write back to file
     let updated_yaml = serde_yaml::to_string(&yaml_value)?;
     fs::write(yaml_path, updated_yaml)?;
-    
-    log::info!("Updated muxbox {} bounds in YAML file: {}", muxbox_id, yaml_path);
+
+    log::info!(
+        "Updated muxbox {} bounds in YAML file: {}",
+        muxbox_id,
+        yaml_path
+    );
     Ok(())
 }
 
@@ -2184,26 +2200,55 @@ pub fn update_muxbox_bounds_recursive(
             if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
                 if id == target_muxbox_id {
                     // Update the bounds in the position field
-                    if let Some(position_value) = map.get_mut(&Value::String("position".to_string())) {
+                    if let Some(position_value) =
+                        map.get_mut(&Value::String("position".to_string()))
+                    {
                         if let Value::Mapping(position_map) = position_value {
-                            position_map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
-                            position_map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
-                            position_map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
-                            position_map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
+                            position_map.insert(
+                                Value::String("x1".to_string()),
+                                Value::String(new_bounds.x1.clone()),
+                            );
+                            position_map.insert(
+                                Value::String("y1".to_string()),
+                                Value::String(new_bounds.y1.clone()),
+                            );
+                            position_map.insert(
+                                Value::String("x2".to_string()),
+                                Value::String(new_bounds.x2.clone()),
+                            );
+                            position_map.insert(
+                                Value::String("y2".to_string()),
+                                Value::String(new_bounds.y2.clone()),
+                            );
                             return Ok(true);
                         }
                     }
                     // If no position field exists, create one
                     let mut position_map = serde_yaml::Mapping::new();
-                    position_map.insert(Value::String("x1".to_string()), Value::String(new_bounds.x1.clone()));
-                    position_map.insert(Value::String("y1".to_string()), Value::String(new_bounds.y1.clone()));
-                    position_map.insert(Value::String("x2".to_string()), Value::String(new_bounds.x2.clone()));
-                    position_map.insert(Value::String("y2".to_string()), Value::String(new_bounds.y2.clone()));
-                    map.insert(Value::String("position".to_string()), Value::Mapping(position_map));
+                    position_map.insert(
+                        Value::String("x1".to_string()),
+                        Value::String(new_bounds.x1.clone()),
+                    );
+                    position_map.insert(
+                        Value::String("y1".to_string()),
+                        Value::String(new_bounds.y1.clone()),
+                    );
+                    position_map.insert(
+                        Value::String("x2".to_string()),
+                        Value::String(new_bounds.x2.clone()),
+                    );
+                    position_map.insert(
+                        Value::String("y2".to_string()),
+                        Value::String(new_bounds.y2.clone()),
+                    );
+                    map.insert(
+                        Value::String("position".to_string()),
+                        Value::Mapping(position_map),
+                    );
                     return Ok(true);
                 }
             }
-            
+
             // Recursively search in children and other mappings
             for (_, child_value) in map.iter_mut() {
                 if update_muxbox_bounds_recursive(child_value, target_muxbox_id, new_bounds)? {
@@ -2223,6 +2268,6 @@ pub fn update_muxbox_bounds_recursive(
             // Other value types don't contain muxboxes
         }
     }
-    
+
     Ok(false)
 }

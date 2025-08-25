@@ -290,7 +290,7 @@ impl Layout {
 
         let next_muxbox_index = match selected_muxbox_index {
             Some(index) => (index + 1) % muxboxes.len(), // Get next muxbox, wrap around if at the end
-            None => 0,                                 // No muxbox is selected, select the first one
+            None => 0, // No muxbox is selected, select the first one
         };
 
         let next_muxbox_id = muxboxes[next_muxbox_index].id.clone();
@@ -376,7 +376,11 @@ impl Layout {
     }
 
     pub fn find_muxbox_at_coordinates(&self, x: u16, y: u16) -> Option<&MuxBox> {
-        fn find_in_muxboxes_at_coords<'a>(muxboxes: &'a [MuxBox], x: u16, y: u16) -> Option<&'a MuxBox> {
+        fn find_in_muxboxes_at_coords<'a>(
+            muxboxes: &'a [MuxBox],
+            x: u16,
+            y: u16,
+        ) -> Option<&'a MuxBox> {
             for muxbox in muxboxes {
                 let bounds = muxbox.bounds();
                 if x >= bounds.x1 as u16

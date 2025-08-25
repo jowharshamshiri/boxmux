@@ -56,7 +56,8 @@ mod mouse_click_tests {
         let mut muxbox2 = TestDataFactory::create_test_muxbox("muxbox2");
 
         // Create layout with muxboxes at different positions
-        let layout = TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox1, muxbox2]));
+        let layout =
+            TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox1, muxbox2]));
 
         // Test finding muxboxes at various coordinates
         // Note: The actual coordinates depend on bounds calculation which needs screen size
@@ -172,7 +173,8 @@ mod mouse_click_tests {
         let mut parent_muxbox = TestDataFactory::create_test_muxbox("parent");
         parent_muxbox.children = Some(vec![child_muxbox]);
 
-        let layout = TestDataFactory::create_test_layout("nested_layout", Some(vec![parent_muxbox]));
+        let layout =
+            TestDataFactory::create_test_layout("nested_layout", Some(vec![parent_muxbox]));
 
         // Test that coordinate detection works with nested structure
         // The method should handle nested muxboxes without panicking
