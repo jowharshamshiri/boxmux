@@ -43,9 +43,8 @@ pub struct Layout {
     pub root: Option<bool>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
-    #[serde(skip)]
     pub active: Option<bool>,
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub muxbox_ids_in_tab_order: Option<Vec<String>>,
 }
 

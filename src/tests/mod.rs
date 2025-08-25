@@ -88,6 +88,9 @@ pub mod pty_process_info_tests;
 pub mod pty_error_states_tests;
 
 #[cfg(test)]
+pub mod text_wrapping_tests;
+
+#[cfg(test)]
 pub mod socket_pty_control_tests;
 
 #[cfg(test)]
@@ -95,6 +98,9 @@ pub mod muxbox_resize_tests;
 
 #[cfg(test)]
 pub mod muxbox_move_tests;
+
+#[cfg(test)]
+pub mod yaml_live_persistence_tests;
 
 #[cfg(test)]
 pub mod resize_100_percent_debug;

@@ -52,6 +52,10 @@ pub enum Message {
     MuxBoxResizeComplete(String),       // muxbox_id - save changes to YAML
     MuxBoxMove(String, u16, u16),       // muxbox_id, x, y coordinates - move muxbox
     MuxBoxMoveComplete(String),         // muxbox_id - save position changes to YAML
+    SaveYamlState,                      // F0200: Trigger complete YAML state persistence
+    SaveActiveLayout(String),           // F0200: Save active layout to YAML
+    SaveMuxBoxContent(String, String),  // F0200: Save muxbox content to YAML
+    SaveMuxBoxScroll(String, usize, usize), // F0200: Save muxbox scroll position
     PTYInput(String, String),           // muxbox_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, muxbox_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, muxbox_id, result
@@ -158,6 +162,22 @@ impl Hash for Message {
             Message::MuxBoxMoveComplete(muxbox_id) => {
                 "muxbox_move_complete".hash(state);
                 muxbox_id.hash(state);
+            }
+            Message::SaveYamlState => "save_yaml_state".hash(state),
+            Message::SaveActiveLayout(layout_id) => {
+                "save_active_layout".hash(state);
+                layout_id.hash(state);
+            }
+            Message::SaveMuxBoxContent(muxbox_id, content) => {
+                "save_muxbox_content".hash(state);
+                muxbox_id.hash(state);
+                content.hash(state);
+            }
+            Message::SaveMuxBoxScroll(muxbox_id, x, y) => {
+                "save_muxbox_scroll".hash(state);
+                muxbox_id.hash(state);
+                x.hash(state);
+                y.hash(state);
             }
             Message::PTYInput(muxbox_id, input) => {
                 "pty_input".hash(state);

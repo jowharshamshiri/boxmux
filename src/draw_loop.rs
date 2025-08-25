@@ -1,5 +1,5 @@
 use crate::draw_utils::{draw_app, draw_muxbox};
-use crate::model::app::save_muxbox_bounds_to_yaml;
+use crate::model::app::{save_muxbox_bounds_to_yaml, save_complete_state_to_yaml, save_active_layout_to_yaml, save_muxbox_content_to_yaml, save_muxbox_scroll_to_yaml};
 use crate::model::common::InputBounds;
 use crate::model::muxbox::Choice;
 use crate::thread_manager::Runnable;
@@ -633,6 +633,13 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(0.0);
+                                
+                                // F0200: Save scroll position to YAML
+                                inner.send_message(Message::SaveMuxBoxScroll(
+                                    found_muxbox.id.clone(),
+                                    0,
+                                    (found_muxbox.vertical_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                ));
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
@@ -651,6 +658,13 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(100.0);
+                                
+                                // F0200: Save scroll position to YAML
+                                inner.send_message(Message::SaveMuxBoxScroll(
+                                    found_muxbox.id.clone(),
+                                    100,
+                                    (found_muxbox.vertical_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                ));
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
@@ -669,6 +683,13 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(0.0);
+                                
+                                // F0200: Save scroll position to YAML
+                                inner.send_message(Message::SaveMuxBoxScroll(
+                                    found_muxbox.id.clone(),
+                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                    0,
+                                ));
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
@@ -687,6 +708,13 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(100.0);
+                                
+                                // F0200: Save scroll position to YAML
+                                inner.send_message(Message::SaveMuxBoxScroll(
+                                    found_muxbox.id.clone(),
+                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                    100,
+                                ));
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(selected_id));
                             }
@@ -779,19 +807,34 @@ create_runnable!(
 
                         if is_pty_streaming {
                             // Use streaming update for PTY output
-                            let target_muxbox = app_context_unwrapped_cloned
-                                .app
-                                .get_muxbox_by_id_mut(muxbox_id)
-                                .unwrap();
-                            target_muxbox.update_streaming_content(output, *success);
+                            let content_for_save = {
+                                let target_muxbox = app_context_unwrapped_cloned
+                                    .app
+                                    .get_muxbox_by_id_mut(muxbox_id)
+                                    .unwrap();
+                                target_muxbox.update_streaming_content(output, *success);
+                                target_muxbox.content.clone()
+                            };
                             inner.update_app_context(app_context_unwrapped_cloned.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
+                            
+                            // F0200: Save PTY streaming content to YAML
+                            if let Some(updated_content) = content_for_save {
+                                inner.send_message(Message::SaveMuxBoxContent(
+                                    muxbox_id.clone(),
+                                    updated_content,
+                                ));
+                            }
                         } else {
                             // Use regular update for non-PTY output
                             let muxbox = app_context_unwrapped
                                 .app
                                 .get_muxbox_by_id(muxbox_id)
                                 .unwrap();
+                            
+                            // Store content before update for YAML persistence
+                            let old_content = muxbox.content.clone();
+                            
                             update_muxbox_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
@@ -800,6 +843,18 @@ create_runnable!(
                                 muxbox.append_output.unwrap_or(false),
                                 output,
                             );
+                            
+                            // F0200: Save updated content to YAML if it changed
+                            if let Some(updated_muxbox) = app_context_unwrapped_cloned.app.get_muxbox_by_id(muxbox_id) {
+                                if updated_muxbox.content != old_content {
+                                    if let Some(new_content) = &updated_muxbox.content {
+                                        inner.send_message(Message::SaveMuxBoxContent(
+                                            muxbox_id.clone(),
+                                            new_content.clone(),
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                     // ExternalMessage handling is now done by RSJanusComms library
@@ -1119,15 +1174,25 @@ create_runnable!(
                                     );
 
                                     // Update muxbox vertical scroll
-                                    let muxbox_to_update = app_context_for_click
-                                        .app
-                                        .get_muxbox_by_id_mut(&muxbox.id)
-                                        .unwrap();
-                                    muxbox_to_update.vertical_scroll = Some(scroll_percentage);
+                                    let (muxbox_id, horizontal_scroll) = {
+                                        let muxbox_to_update = app_context_for_click
+                                            .app
+                                            .get_muxbox_by_id_mut(&muxbox.id)
+                                            .unwrap();
+                                        muxbox_to_update.vertical_scroll = Some(scroll_percentage);
+                                        (muxbox_to_update.id.clone(), muxbox_to_update.horizontal_scroll.unwrap_or(0.0))
+                                    };
 
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
+                                    
+                                    // F0200: Save scroll position to YAML
+                                    inner.send_message(Message::SaveMuxBoxScroll(
+                                        muxbox_id,
+                                        (horizontal_scroll * 100.0) as usize,
+                                        (scroll_percentage * 100.0) as usize,
+                                    ));
                                     break;
                                 }
 
@@ -1151,15 +1216,25 @@ create_runnable!(
                                     );
 
                                     // Update muxbox horizontal scroll
-                                    let muxbox_to_update = app_context_for_click
-                                        .app
-                                        .get_muxbox_by_id_mut(&muxbox.id)
-                                        .unwrap();
-                                    muxbox_to_update.horizontal_scroll = Some(scroll_percentage);
+                                    let (muxbox_id, vertical_scroll) = {
+                                        let muxbox_to_update = app_context_for_click
+                                            .app
+                                            .get_muxbox_by_id_mut(&muxbox.id)
+                                            .unwrap();
+                                        muxbox_to_update.horizontal_scroll = Some(scroll_percentage);
+                                        (muxbox_to_update.id.clone(), muxbox_to_update.vertical_scroll.unwrap_or(0.0))
+                                    };
 
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
+                                    
+                                    // F0200: Save scroll position to YAML
+                                    inner.send_message(Message::SaveMuxBoxScroll(
+                                        muxbox_id,
+                                        (scroll_percentage * 100.0) as usize,
+                                        (vertical_scroll * 100.0) as usize,
+                                    ));
                                     break;
                                 }
                             }
@@ -1799,6 +1874,98 @@ create_runnable!(
                             log::error!("MuxBox {} not found for saving position", muxbox_id);
                         }
                     }
+                    Message::SaveYamlState => {
+                        // F0200: Save complete application state to YAML
+                        log::info!("Saving complete application state to YAML");
+
+                        if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
+                            match save_complete_state_to_yaml(yaml_path, &app_context_unwrapped) {
+                                Ok(()) => {
+                                    log::info!("Successfully saved complete state to YAML file");
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to save complete state to YAML: {}", e);
+                                }
+                            }
+                        } else {
+                            log::error!("CRITICAL: No YAML file path available for saving complete state!");
+                        }
+                    }
+                    Message::SaveActiveLayout(layout_id) => {
+                        // F0200: Save active layout to YAML
+                        log::info!("Saving active layout '{}' to YAML", layout_id);
+
+                        if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
+                            match save_active_layout_to_yaml(yaml_path, layout_id) {
+                                Ok(()) => {
+                                    log::info!("Successfully saved active layout to YAML file");
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to save active layout to YAML: {}", e);
+                                }
+                            }
+                        } else {
+                            log::error!("CRITICAL: No YAML file path available for saving active layout!");
+                        }
+                    }
+                    Message::SaveMuxBoxContent(muxbox_id, content) => {
+                        // F0200: Save muxbox content changes to YAML
+                        log::debug!("Saving content changes to YAML for muxbox: {}", muxbox_id);
+
+                        if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
+                            match save_muxbox_content_to_yaml(yaml_path, muxbox_id, content) {
+                                Ok(()) => {
+                                    log::debug!("Successfully saved muxbox {} content to YAML", muxbox_id);
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to save muxbox {} content to YAML: {}", muxbox_id, e);
+                                }
+                            }
+                        } else {
+                            log::warn!("No YAML file path available for saving muxbox content");
+                        }
+                    }
+                    Message::SaveMuxBoxScroll(muxbox_id, scroll_x, scroll_y) => {
+                        // F0200: Save muxbox scroll position to YAML
+                        log::debug!("Saving scroll position to YAML for muxbox: {} ({}, {})", muxbox_id, scroll_x, scroll_y);
+
+                        if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
+                            match save_muxbox_scroll_to_yaml(yaml_path, muxbox_id, *scroll_x, *scroll_y) {
+                                Ok(()) => {
+                                    log::debug!("Successfully saved muxbox {} scroll position to YAML", muxbox_id);
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to save muxbox {} scroll position to YAML: {}", muxbox_id, e);
+                                }
+                            }
+                        } else {
+                            log::warn!("No YAML file path available for saving muxbox scroll position");
+                        }
+                    }
+                    Message::SwitchActiveLayout(layout_id) => {
+                        // F0200: Switch active layout with YAML persistence
+                        log::info!("Switching to active layout: {}", layout_id);
+                        
+                        // Update the active layout in app context
+                        let mut app_context_cloned = app_context_unwrapped.clone();
+                        match app_context_cloned.app.set_active_layout_with_yaml_save(
+                            layout_id,
+                            app_context_cloned.yaml_file_path.as_deref()
+                        ) {
+                            Ok(()) => {
+                                inner.update_app_context(app_context_cloned);
+                                inner.send_message(Message::RedrawApp);
+                                log::info!("Successfully switched to layout '{}' with YAML persistence", layout_id);
+                            }
+                            Err(e) => {
+                                log::error!("Failed to switch layout with YAML persistence: {}", e);
+                                // Still update app context without YAML persistence
+                                app_context_cloned.app.set_active_layout(layout_id);
+                                inner.update_app_context(app_context_cloned);
+                                inner.send_message(Message::RedrawApp);
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -2040,7 +2207,16 @@ fn calculate_clicked_choice_index_impl(
         return None; // Click was on border or title area
     }
 
-    // Each choice occupies exactly 1 line, so choice index = relative y offset
+    // Check if this muxbox uses text wrapping by checking overflow_behavior directly
+    // Note: We assume "wrap" behavior since this function will be called from contexts
+    // where the overflow behavior is already determined to be "wrap"
+    if let Some(overflow_behavior) = &muxbox.overflow_behavior {
+        if overflow_behavior == "wrap" {
+            return calculate_wrapped_choice_click(muxbox, click_x, click_y, choices);
+        }
+    }
+
+    // Original logic for non-wrapped choices
     let choice_index = (click_y - choices_start_y) as usize;
 
     // Ensure click is within choice bounds (don't exceed available choices or muxbox height)
@@ -2076,6 +2252,137 @@ fn calculate_clicked_choice_index_impl(
     } else {
         None
     }
+}
+
+/// Handle click detection for wrapped choices
+fn calculate_wrapped_choice_click(
+    muxbox: &MuxBox,
+    click_x: u16,
+    click_y: u16,
+    choices: &[crate::model::muxbox::Choice],
+) -> Option<usize> {
+    let bounds = muxbox.bounds();
+    let viewable_width = bounds.width().saturating_sub(4);
+    let choices_start_y = bounds.y1 as u16 + 1;
+    let choice_text_start_x = bounds.left() + 2;
+
+    // Create wrapped choice lines (same logic as in draw_utils.rs)
+    let mut wrapped_choices = Vec::new();
+    
+    for (choice_idx, choice) in choices.iter().enumerate() {
+        if let Some(content) = &choice.content {
+            let formatted_content = if choice.waiting {
+                format!("{}...", content)
+            } else {
+                content.clone()
+            };
+            
+            let wrapped_lines = wrap_text_to_width_simple(&formatted_content, viewable_width);
+            
+            for wrapped_line in wrapped_lines {
+                wrapped_choices.push((choice_idx, wrapped_line));
+            }
+        }
+    }
+
+    if wrapped_choices.is_empty() {
+        return None;
+    }
+
+    // Calculate which wrapped line was clicked
+    let clicked_line_index = (click_y - choices_start_y) as usize;
+    
+    if clicked_line_index >= wrapped_choices.len() {
+        return None;
+    }
+
+    let (original_choice_index, line_content) = &wrapped_choices[clicked_line_index];
+    let choice_text_end_x = choice_text_start_x + line_content.len();
+
+    // Check if click X is within the actual text bounds of this wrapped line
+    if (click_x as usize) >= choice_text_start_x && (click_x as usize) < choice_text_end_x {
+        Some(*original_choice_index)
+    } else {
+        None // Click was after the text on the same line - should only select muxbox
+    }
+}
+
+/// Simple text wrapping for click detection (matches draw_utils.rs logic)
+fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![text.to_string()];
+    }
+
+    let mut wrapped_lines = Vec::new();
+    
+    for line in text.lines() {
+        if line.len() <= width {
+            wrapped_lines.push(line.to_string());
+            continue;
+        }
+
+        // Split long line into multiple wrapped lines
+        let mut current_line = String::new();
+        let mut current_width = 0;
+
+        for word in line.split_whitespace() {
+            let word_len = word.len();
+            
+            // If word itself is longer than width, break it
+            if word_len > width {
+                // Finish current line if it has content
+                if !current_line.is_empty() {
+                    wrapped_lines.push(current_line.clone());
+                    current_line.clear();
+                    current_width = 0;
+                }
+                
+                // Break the long word across multiple lines
+                let mut remaining_word = word;
+                while remaining_word.len() > width {
+                    let (chunk, rest) = remaining_word.split_at(width);
+                    wrapped_lines.push(chunk.to_string());
+                    remaining_word = rest;
+                }
+                
+                if !remaining_word.is_empty() {
+                    current_line = remaining_word.to_string();
+                    current_width = remaining_word.len();
+                }
+                continue;
+            }
+
+            // Check if adding this word would exceed width
+            let space_needed = if current_line.is_empty() { 0 } else { 1 }; // Space before word
+            if current_width + space_needed + word_len > width {
+                // Start new line with this word
+                if !current_line.is_empty() {
+                    wrapped_lines.push(current_line.clone());
+                }
+                current_line = word.to_string();
+                current_width = word_len;
+            } else {
+                // Add word to current line
+                if !current_line.is_empty() {
+                    current_line.push(' ');
+                    current_width += 1;
+                }
+                current_line.push_str(word);
+                current_width += word_len;
+            }
+        }
+
+        // Add final line if it has content
+        if !current_line.is_empty() {
+            wrapped_lines.push(current_line);
+        }
+    }
+
+    if wrapped_lines.is_empty() {
+        wrapped_lines.push(String::new());
+    }
+
+    wrapped_lines
 }
 
 /// Trigger visual flash for muxbox (stub implementation)
