@@ -29,4 +29,20 @@
 
 		<SocialMedia />
 	</div>
+	
+	<!-- Credits -->
+	<div class="mt-6 text-center text-xs text-gray-400 dark:text-neutral-600">
+		Documentation site based on 
+		<a 
+			href="https://github.com/code-gio/svelte-docs-starter" 
+			class="hover:text-gray-600 dark:hover:text-neutral-400 underline"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			Svelte Docs Starter
+		</a>
+		by code-gio
+		<br/>
+		Claude AI assisted with specific development sections under heavy human supervision
+	</div>
 </footer>
