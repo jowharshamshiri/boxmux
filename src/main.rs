@@ -750,7 +750,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Removed old simplelog - using our new comprehensive logging system instead
     let config = boxmux_lib::model::common::Config::new_with_lock(frame_delay, locked);
-    let app = match load_app_from_yaml(yaml_path.to_str().unwrap()) {
+    let app = match load_app_from_yaml_with_lock(yaml_path.to_str().unwrap(), locked) {
         Ok(app) => app,
         Err(e) => {
             // The enhanced error handling is now built into load_app_from_yaml
@@ -773,14 +773,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let app_context = if let Some(pty_mgr) = pty_manager.as_ref() {
-        AppContext::new_with_pty_and_yaml(
+        AppContext::new_with_pty_and_yaml_and_lock(
             app,
             config,
             pty_mgr.clone(),
             yaml_path.to_str().unwrap().to_string(),
+            locked,
         )
     } else {
-        AppContext::new_with_yaml_path(app, config, yaml_path.to_str().unwrap().to_string())
+        AppContext::new_with_yaml_path_and_lock(app, config, yaml_path.to_str().unwrap().to_string(), locked)
     };
 
     //create alternate screen in terminal and clear it

@@ -2,6 +2,11 @@ use crate::model::common::*;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
+
+// Helper function for serde skip_serializing_if
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -131,6 +136,7 @@ impl Clone for Choice {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct MuxBox {
     pub id: String,
     pub title: Option<String>,
@@ -201,11 +207,15 @@ pub struct MuxBox {
     pub pty: Option<bool>,
     #[serde(default)]
     pub z_index: Option<i32>,
-    #[serde(skip)]
+    #[serde(default)]
     pub output: String,
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub scroll_x: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub scroll_y: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_layout_id: Option<String>,
     #[serde(skip, default)]
     pub error_state: bool,
@@ -375,6 +385,8 @@ impl Default for MuxBox {
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
+            scroll_x: 0,
+            scroll_y: 0,
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
@@ -509,6 +521,8 @@ impl Clone for MuxBox {
             on_keypress: self.on_keypress.clone(),
             variables: self.variables.clone(),
             output: self.output.clone(),
+            scroll_x: self.scroll_x,
+            scroll_y: self.scroll_y,
             save_in_file: self.save_in_file.clone(),
             chart_type: self.chart_type.clone(),
             chart_data: self.chart_data.clone(),

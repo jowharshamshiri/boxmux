@@ -12,6 +12,7 @@ pub mod thread_manager;
 pub mod ansi_processor;
 pub mod chart;
 pub mod circular_buffer;
+pub mod live_yaml_sync;
 pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;

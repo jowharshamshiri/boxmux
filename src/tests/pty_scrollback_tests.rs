@@ -253,6 +253,8 @@ mod pty_scrollback_tests {
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
+            scroll_x: 0,
+            scroll_y: 0,
         }
     }
 

@@ -1,5 +1,6 @@
 use crate::model::muxbox::*;
 use crate::{model::layout::Layout, Bounds};
+use crate::live_yaml_sync::LiveYamlSync;
 
 use std::fs::File;
 use std::io::Read;
@@ -7,8 +8,24 @@ use std::io::Read;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
+
+// F0200: Serializable wrapper for complete app state
+#[derive(Debug, Serialize)]
+struct SerializableApp {
+    app: App,
+}
+
+// Implement custom serialization that includes proper app wrapper
+impl SerializableApp {
+    fn to_yaml_string(&self) -> Result<String, Box<dyn std::error::Error>> {
+        // Create proper app structure for YAML
+        let yaml_content = serde_yaml::to_string(&self)?;
+        Ok(yaml_content)
+    }
+}
 use serde_yaml;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::validation::SchemaValidator;
 use crate::{calculate_bounds_map, Config, FieldUpdate, Updatable};
@@ -280,6 +297,18 @@ impl App {
         if !found_layout {
             log::error!("Layout with ID '{}' not found.", layout_id);
         }
+    }
+
+    // F0200: Set active layout with YAML persistence
+    pub fn set_active_layout_with_yaml_save(&mut self, layout_id: &str, yaml_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+        self.set_active_layout(layout_id);
+        
+        // Save to YAML if path provided
+        if let Some(path) = yaml_path {
+            save_active_layout_to_yaml(path, layout_id)?;
+        }
+        
+        Ok(())
     }
 
     pub fn get_muxbox_by_id(&self, id: &str) -> Option<&MuxBox> {
@@ -606,13 +635,17 @@ impl AppGraph {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct AppContext {
     pub app: App,
     pub config: Config,
+    #[serde(skip)]
     pub plugin_registry: std::sync::Arc<std::sync::Mutex<crate::plugin::PluginRegistry>>,
+    #[serde(skip)]
     pub pty_manager: Option<std::sync::Arc<crate::pty_manager::PtyManager>>,
-    pub yaml_file_path: Option<String>, // F0190: Store original YAML file path for live updates
+    pub yaml_file_path: Option<String>,
+    #[serde(skip)]
+    pub live_yaml_sync: Option<Arc<LiveYamlSync>>,
 }
 
 impl Updatable for AppContext {
@@ -676,6 +709,7 @@ impl AppContext {
             )),
             pty_manager: None,
             yaml_file_path: None,
+            live_yaml_sync: None,
         }
     }
 
@@ -692,11 +726,31 @@ impl AppContext {
             )),
             pty_manager: Some(pty_manager),
             yaml_file_path: None,
+            live_yaml_sync: None,
         }
     }
 
     // F0190: Constructor with YAML file path for live updates
     pub fn new_with_yaml_path(app: App, config: Config, yaml_path: String) -> Self {
+        Self::new_with_yaml_path_and_lock(app, config, yaml_path, false)
+    }
+    
+    pub fn new_with_yaml_path_and_lock(app: App, config: Config, yaml_path: String, locked: bool) -> Self {
+        let live_yaml_sync = if !locked {
+            match LiveYamlSync::new(yaml_path.clone(), true) {
+                Ok(sync) => {
+                    log::info!("Live YAML sync initialized");
+                    Some(Arc::new(sync))
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize live YAML sync: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        
         AppContext {
             app,
             config,
@@ -705,6 +759,7 @@ impl AppContext {
             )),
             pty_manager: None,
             yaml_file_path: Some(yaml_path),
+            live_yaml_sync,
         }
     }
 
@@ -714,6 +769,31 @@ impl AppContext {
         pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>,
         yaml_path: String,
     ) -> Self {
+        Self::new_with_pty_and_yaml_and_lock(app, config, pty_manager, yaml_path, false)
+    }
+    
+    pub fn new_with_pty_and_yaml_and_lock(
+        app: App,
+        config: Config,
+        pty_manager: std::sync::Arc<crate::pty_manager::PtyManager>,
+        yaml_path: String,
+        locked: bool,
+    ) -> Self {
+        let live_yaml_sync = if !locked {
+            match LiveYamlSync::new(yaml_path.clone(), true) {
+                Ok(sync) => {
+                    log::info!("Live YAML sync initialized with PTY");
+                    Some(Arc::new(sync))
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize live YAML sync: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        
         AppContext {
             app,
             config,
@@ -722,6 +802,7 @@ impl AppContext {
             )),
             pty_manager: Some(pty_manager),
             yaml_file_path: Some(yaml_path),
+            live_yaml_sync,
         }
     }
 }
@@ -734,6 +815,7 @@ impl Clone for AppContext {
             plugin_registry: self.plugin_registry.clone(),
             pty_manager: self.pty_manager.clone(),
             yaml_file_path: self.yaml_file_path.clone(),
+            live_yaml_sync: self.live_yaml_sync.clone(),
         }
     }
 }
@@ -776,6 +858,10 @@ impl Clone for AppGraph {
 }
 
 pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Error>> {
+    load_app_from_yaml_with_lock(file_path, false)
+}
+
+pub fn load_app_from_yaml_with_lock(file_path: &str, _locked: bool) -> Result<App, Box<dyn std::error::Error>> {
     let mut file = File::open(file_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -2160,6 +2246,77 @@ app:
     }
 }
 
+// F0200: Complete YAML Persistence System - Live Synchronization
+
+/// Save complete application state to YAML file
+pub fn save_complete_state_to_yaml(
+    yaml_path: &str,
+    app_context: &AppContext,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+
+    // Create a complete app structure for serialization
+    let serializable_app = SerializableApp {
+        app: app_context.app.clone(),
+    };
+
+    // Convert to YAML with proper formatting (skip wrapper)
+    let yaml_content = serializable_app.to_yaml_string()?;
+    
+    // Atomic write - write to temp file then rename
+    let temp_path = format!("{}.tmp", yaml_path);
+    fs::write(&temp_path, yaml_content)?;
+    fs::rename(&temp_path, yaml_path)?;
+    
+    log::debug!("Saved complete application state to YAML: {}", yaml_path);
+    Ok(())
+}
+
+/// Save active layout state to YAML file
+pub fn save_active_layout_to_yaml(
+    yaml_path: &str,
+    active_layout_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_yaml::Value;
+    use std::fs;
+
+    // Read current YAML content
+    let yaml_content = fs::read_to_string(yaml_path)?;
+    let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
+
+    // Update active layout in all layouts
+    if let Some(root_map) = yaml_value.as_mapping_mut() {
+        if let Some(app_map) = root_map.get_mut(&Value::String("app".to_string())) {
+            if let Value::Mapping(app_map) = app_map {
+                if let Some(layouts_seq) = app_map.get_mut(&Value::String("layouts".to_string())) {
+                    if let Value::Sequence(layouts_seq) = layouts_seq {
+                        for layout_value in layouts_seq.iter_mut() {
+                            if let Value::Mapping(layout_map) = layout_value {
+                                if let Some(Value::String(layout_id)) = layout_map.get(&Value::String("id".to_string())) {
+                                    let is_active = layout_id == active_layout_id;
+                                    layout_map.insert(
+                                        Value::String("active".to_string()),
+                                        Value::Bool(is_active)
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Atomic write
+    let temp_path = format!("{}.tmp", yaml_path);
+    let updated_yaml = serde_yaml::to_string(&yaml_value)?;
+    fs::write(&temp_path, updated_yaml)?;
+    fs::rename(&temp_path, yaml_path)?;
+
+    log::info!("Updated active layout to '{}' in YAML: {}", active_layout_id, yaml_path);
+    Ok(())
+}
+
 // F0190: YAML persistence functions for live muxbox resizing
 pub fn save_muxbox_bounds_to_yaml(
     yaml_path: &str,
@@ -2176,16 +2333,99 @@ pub fn save_muxbox_bounds_to_yaml(
     // Find and update the muxbox bounds
     update_muxbox_bounds_recursive(&mut yaml_value, muxbox_id, new_bounds)?;
 
-    // Write back to file
+    // Atomic write
+    let temp_path = format!("{}.tmp", yaml_path);
     let updated_yaml = serde_yaml::to_string(&yaml_value)?;
-    fs::write(yaml_path, updated_yaml)?;
+    fs::write(&temp_path, updated_yaml)?;
+    fs::rename(&temp_path, yaml_path)?;
 
-    log::info!(
-        "Updated muxbox {} bounds in YAML file: {}",
-        muxbox_id,
-        yaml_path
-    );
+    log::debug!("Updated muxbox {} bounds in YAML: {}", muxbox_id, yaml_path);
     Ok(())
+}
+
+/// Save muxbox content changes to YAML
+pub fn save_muxbox_content_to_yaml(
+    yaml_path: &str,
+    muxbox_id: &str,
+    new_content: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_yaml::Value;
+    use std::fs;
+
+    let yaml_content = fs::read_to_string(yaml_path)?;
+    let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
+
+    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "content", &Value::String(new_content.to_string()))?;
+
+    let temp_path = format!("{}.tmp", yaml_path);
+    let updated_yaml = serde_yaml::to_string(&yaml_value)?;
+    fs::write(&temp_path, updated_yaml)?;
+    fs::rename(&temp_path, yaml_path)?;
+
+    log::debug!("Updated muxbox {} content in YAML: {}", muxbox_id, yaml_path);
+    Ok(())
+}
+
+/// Save muxbox scroll position to YAML
+pub fn save_muxbox_scroll_to_yaml(
+    yaml_path: &str,
+    muxbox_id: &str,
+    scroll_x: usize,
+    scroll_y: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_yaml::Value;
+    use std::fs;
+
+    let yaml_content = fs::read_to_string(yaml_path)?;
+    let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
+
+    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "scroll_x", &Value::Number(serde_yaml::Number::from(scroll_x)))?;
+    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "scroll_y", &Value::Number(serde_yaml::Number::from(scroll_y)))?;
+
+    let temp_path = format!("{}.tmp", yaml_path);
+    let updated_yaml = serde_yaml::to_string(&yaml_value)?;
+    fs::write(&temp_path, updated_yaml)?;
+    fs::rename(&temp_path, yaml_path)?;
+
+    log::debug!("Updated muxbox {} scroll position in YAML: {}", muxbox_id, yaml_path);
+    Ok(())
+}
+
+/// Generic function to update any muxbox field in YAML
+fn update_muxbox_field_recursive(
+    value: &mut serde_yaml::Value,
+    target_muxbox_id: &str,
+    field_name: &str,
+    new_value: &serde_yaml::Value,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    use serde_yaml::Value;
+    match value {
+        Value::Mapping(map) => {
+            // Check if this is the target muxbox
+            if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
+                if id == target_muxbox_id {
+                    map.insert(Value::String(field_name.to_string()), new_value.clone());
+                    return Ok(true);
+                }
+            }
+
+            // Recursively search in all fields
+            for (_, child_value) in map.iter_mut() {
+                if update_muxbox_field_recursive(child_value, target_muxbox_id, field_name, new_value)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Value::Sequence(seq) => {
+            for child_value in seq.iter_mut() {
+                if update_muxbox_field_recursive(child_value, target_muxbox_id, field_name, new_value)? {
+                    return Ok(true);
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(false)
 }
 
 pub fn update_muxbox_bounds_recursive(

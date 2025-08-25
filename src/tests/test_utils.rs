@@ -91,6 +91,8 @@ impl TestDataFactory {
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
+            scroll_x: 0,
+            scroll_y: 0,
         }
     }
 
@@ -208,6 +210,7 @@ impl TestDataFactory {
             )),
             pty_manager: None,
             yaml_file_path: None,
+            live_yaml_sync: None,
         }
     }
 

@@ -1,0 +1,57 @@
+app:
+  layouts:
+    - id: text_wrapping_demo
+      title: Text Wrapping Demo
+      bg_color: blue
+      boxes:
+        - id: wrapped_text_box
+          title: "Text Wrapping Demo (wrap)"
+          position:
+            x1: "5%"
+            y1: "5%"
+            x2: "50%"
+            y2: "80%"
+          border: true
+          border_color: white
+          bg_color: black
+          fg_color: white
+          overflow_behavior: "wrap"
+          content: "This is a very long line of text that will be wrapped to fit within the box boundaries. It demonstrates the text wrapping functionality that preserves word boundaries and handles multiple lines properly. You should see this text wrap nicely within the box without horizontal scrollbars."
+
+        - id: scrolling_text_box
+          title: "Text Scrolling Demo (scroll)"
+          position:
+            x1: "55%"
+            y1: "5%"
+            x2: "95%"
+            y2: "80%"
+          border: true
+          border_color: yellow
+          bg_color: black
+          fg_color: white
+          overflow_behavior: "scroll"
+          content: "This is the same very long line of text but this box uses scroll behavior instead of wrap. You should see horizontal scrollbars for this box when the text exceeds the width, allowing you to scroll to see the full content."
+
+        - id: wrapped_choices_box
+          title: "Wrapped Choices Demo"
+          position:
+            x1: "20%"
+            y1: "85%"
+            x2: "80%"
+            y2: "95%"
+          border: true
+          border_color: green
+          bg_color: black
+          fg_color: white
+          menu_fg_color: cyan
+          menu_bg_color: black
+          selected_menu_fg_color: black
+          selected_menu_bg_color: cyan
+          overflow_behavior: "wrap"
+          choices:
+            - id: choice1
+              content: "Short choice"
+            - id: choice2
+              content: "This is a very long choice that should wrap to multiple lines when overflow_behavior is set to wrap"
+            - id: choice3
+              content: "Another long choice that demonstrates wrapped menu items with proper click detection on each wrapped line"

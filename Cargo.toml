@@ -91,7 +91,7 @@ license = "MIT"
 name = "boxmux"
 readme = "README.md"
 repository = "https://github.com/jowharshamshiri/boxmux"
-version = "0.169.3157"
+version = "0.170.3163"
 
 [package.metadata.deb]
 assets = [["target/release/boxmux", "usr/bin/", "755"], ["README.md", "usr/share/doc/boxmux/README", "644"], ["examples/*", "usr/share/doc/boxmux/examples/", "644"]]
@@ -127,3 +127,6 @@ source = "README.md"
 dest = "/usr/share/doc/boxmux/examples/"
 mode = "644"
 source = "examples/*"
+
+[target."cfg(unix)".dependencies]
+libc = "0.2"

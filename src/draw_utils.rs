@@ -613,40 +613,85 @@ pub fn render_muxbox(
         );
     }
 
-    if let Some(choices) = choices {
-        let mut y_position = bounds.top() + 1; // Start drawing menu items below the border
-        for choice in choices {
-            if y_position > bounds.bottom() - 1 {
-                break; // Don't draw outside the bounds
+    if let Some(ref choices) = choices {
+        let viewable_height = bounds.height().saturating_sub(2); // Account for borders
+        let total_choices = choices.len();
+        let choice_overflows = total_choices > viewable_height;
+        
+        // Calculate scroll offset for choices
+        let vertical_offset = if choice_overflows {
+            ((vertical_scroll / 100.0) * (total_choices - viewable_height) as f64).floor() as usize
+        } else {
+            0
+        };
+        
+        // Respect overflow_behavior for choices
+        if choice_overflows && overflow_behavior == "scroll" {
+            // Render visible choices with scrolling
+            let visible_choices = choices.iter().skip(vertical_offset).take(viewable_height);
+            let mut y_position = bounds.top() + 1;
+            
+            for choice in visible_choices {
+                let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
+                let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
+
+                let formatted_content = if choice.waiting {
+                    format!("{}...", choice.content.as_ref().unwrap())
+                } else {
+                    choice.content.as_ref().unwrap().to_string()
+                };
+
+                print_with_color_and_background_at(
+                    y_position,
+                    bounds.left() + 2,
+                    fg_color,
+                    bg_color,
+                    &formatted_content,
+                    buffer,
+                );
+                y_position += 1;
             }
-
-            let fg_color = if choice.selected {
-                selected_menu_fg_color
-            } else {
-                menu_fg_color
-            };
-            let bg_color = if choice.selected {
-                selected_menu_bg_color
-            } else {
-                menu_bg_color
-            };
-
-            let formatted_content;
-            if choice.waiting {
-                formatted_content = format!("{}...", choice.content.as_ref().unwrap());
-            } else {
-                formatted_content = choice.content.as_ref().unwrap().to_string();
+            
+            // Draw vertical scrollbar for choices
+            if *draw_border {
+                draw_vertical_scrollbar(
+                    &bounds,
+                    total_choices,
+                    viewable_height,
+                    vertical_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+                scrollbars_drawn = true;
             }
+        } else {
+            // Original choice rendering (no scroll support or other overflow behaviors)
+            let mut y_position = bounds.top() + 1;
+            for choice in choices {
+                if y_position > bounds.bottom() - 1 {
+                    break; // Don't draw outside the bounds
+                }
 
-            print_with_color_and_background_at(
-                y_position,
-                bounds.left() + 2,
-                fg_color,
-                bg_color,
-                &formatted_content,
-                buffer,
-            );
-            y_position += 1;
+                let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
+                let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
+
+                let formatted_content = if choice.waiting {
+                    format!("{}...", choice.content.as_ref().unwrap())
+                } else {
+                    choice.content.as_ref().unwrap().to_string()
+                };
+
+                print_with_color_and_background_at(
+                    y_position,
+                    bounds.left() + 2,
+                    fg_color,
+                    bg_color,
+                    &formatted_content,
+                    buffer,
+                );
+                y_position += 1;
+            }
         }
     } else if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
@@ -858,7 +903,8 @@ pub fn render_muxbox(
         }
     }
 
-    if _overflowing && overflow_behavior != "scroll" {
+    // Handle special overflow behaviors that completely replace content
+    if _overflowing && overflow_behavior != "scroll" && overflow_behavior != "wrap" {
         if overflow_behavior == "fill" {
             fill_muxbox(&bounds, true, bg_color, '█', buffer);
         } else if overflow_behavior == "cross_out" {
@@ -873,20 +919,155 @@ pub fn render_muxbox(
         } else if overflow_behavior == "removed" {
             fill_muxbox(&bounds, false, parent_bg_color, ' ', buffer);
         }
-    } else if *draw_border {
-        // Draw bottom border
-        if !scrollbars_drawn {
-            draw_horizontal_line(
-                bounds.bottom(),
-                bounds.left(),
-                bounds.right(),
-                border_color,
+        return; // These behaviors completely replace the muxbox, no borders needed
+    }
+    
+    // Handle text wrapping - render wrapped content but still draw borders and scrollbars
+    if _overflowing && overflow_behavior == "wrap" {
+        if let Some(content) = content {
+            let viewable_width = bounds.width().saturating_sub(4);
+            let wrapped_content = wrap_text_to_width(content, viewable_width);
+            
+            // Check if wrapped content still overflows vertically
+            let viewable_height = bounds.height().saturating_sub(4);
+            let wrapped_overflows_vertically = wrapped_content.len() > viewable_height;
+            
+            render_wrapped_content(
+                &wrapped_content,
+                &bounds,
+                vertical_scroll,
+                fg_color,
                 bg_color,
                 buffer,
             );
+            
+            // Draw vertical scrollbar if wrapped content overflows
+            if wrapped_overflows_vertically && *draw_border {
+                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
+                let content_height = wrapped_content.len();
+                
+                // Draw vertical scroll track
+                for y in (bounds.top() + 1)..bounds.bottom() {
+                    print_with_color_and_background_at(
+                        y,
+                        bounds.right(),
+                        "bright_black",
+                        bg_color,
+                        V_SCROLL_TRACK,
+                        buffer,
+                    );
+                }
+                
+                if track_height > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_height as f64 / content_height as f64;
+                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+                    let available_track = track_height.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional vertical scroll knob
+                    for i in 0..knob_size {
+                        let knob_y = bounds.top() + 1 + knob_position + i;
+                        if knob_y < bounds.bottom() {
+                            print_with_color_and_background_at(
+                                knob_y,
+                                bounds.right(),
+                                border_color,
+                                bg_color,
+                                V_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
+                scrollbars_drawn = true;
+            }
+        } else if let Some(ref choices) = choices {
+            let viewable_width = bounds.width().saturating_sub(4);
+            let wrapped_choices = wrap_choices_to_width(choices, viewable_width);
+            
+            // Check if wrapped choices overflow vertically
+            let viewable_height = bounds.height().saturating_sub(4);
+            let wrapped_overflows_vertically = wrapped_choices.len() > viewable_height;
+            
+            render_wrapped_choices(
+                &choices,
+                &bounds,
+                vertical_scroll,
+                fg_color,
+                bg_color,
+                selected_menu_fg_color,
+                selected_menu_bg_color,
+                buffer,
+            );
+            
+            // Draw vertical scrollbar if wrapped choices overflow
+            if wrapped_overflows_vertically && *draw_border {
+                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
+                let content_height = wrapped_choices.len();
+                
+                // Draw vertical scroll track
+                for y in (bounds.top() + 1)..bounds.bottom() {
+                    print_with_color_and_background_at(
+                        y,
+                        bounds.right(),
+                        "bright_black",
+                        bg_color,
+                        V_SCROLL_TRACK,
+                        buffer,
+                    );
+                }
+                
+                if track_height > 0 {
+                    // Calculate proportional knob size and position
+                    let content_ratio = viewable_height as f64 / content_height as f64;
+                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+                    let available_track = track_height.saturating_sub(knob_size);
+                    
+                    let knob_position = if available_track > 0 {
+                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    // Draw proportional vertical scroll knob
+                    for i in 0..knob_size {
+                        let knob_y = bounds.top() + 1 + knob_position + i;
+                        if knob_y < bounds.bottom() {
+                            print_with_color_and_background_at(
+                                knob_y,
+                                bounds.right(),
+                                border_color,
+                                bg_color,
+                                V_SCROLL_CHAR,
+                                buffer,
+                            );
+                        }
+                    }
+                }
+                scrollbars_drawn = true;
+            }
         }
+    }
 
-        // Draw left border
+    // Draw borders for all cases (normal, scroll, wrap) - but not for special behaviors (fill, cross_out, removed)
+    if *draw_border {
+        // Draw bottom border - always draw this
+        draw_horizontal_line(
+            bounds.bottom(),
+            bounds.left(),
+            bounds.right(),
+            border_color,
+            bg_color,
+            buffer,
+        );
+
+        // Draw left border - always draw this
         draw_vertical_line(
             bounds.left(),
             bounds.top() + 1,
@@ -896,7 +1077,7 @@ pub fn render_muxbox(
             buffer,
         );
 
-        // Draw right border
+        // Draw right border - only skip if vertical scrollbars are drawn
         if !scrollbars_drawn {
             draw_vertical_line(
                 bounds.right(),
@@ -949,6 +1130,59 @@ pub fn render_muxbox(
     }
 }
 
+// Helper function to draw vertical scrollbars - unified for choices and content
+fn draw_vertical_scrollbar(
+    bounds: &Bounds,
+    content_height: usize,
+    viewable_height: usize,
+    vertical_scroll: f64,
+    border_color: &str,
+    bg_color: &str,
+    buffer: &mut ScreenBuffer,
+) {
+    let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
+    
+    // Draw vertical scroll track
+    for y in (bounds.top() + 1)..bounds.bottom() {
+        print_with_color_and_background_at(
+            y,
+            bounds.right(),
+            "bright_black",
+            bg_color,
+            V_SCROLL_TRACK,
+            buffer,
+        );
+    }
+    
+    if track_height > 0 {
+        // Calculate proportional knob size and position
+        let content_ratio = viewable_height as f64 / content_height as f64;
+        let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+        let available_track = track_height.saturating_sub(knob_size);
+        
+        let knob_position = if available_track > 0 {
+            ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+        } else {
+            0
+        };
+        
+        // Draw proportional vertical scroll knob
+        for i in 0..knob_size {
+            let knob_y = bounds.top() + 1 + knob_position + i;
+            if knob_y < bounds.bottom() {
+                print_with_color_and_background_at(
+                    knob_y,
+                    bounds.right(),
+                    border_color,
+                    bg_color,
+                    V_SCROLL_CHAR,
+                    buffer,
+                );
+            }
+        }
+    }
+}
+
 pub fn fill_muxbox(
     bounds: &Bounds,
     inside: bool,
@@ -980,5 +1214,217 @@ pub fn fill_muxbox(
             };
             buffer.update(x, y, cell);
         }
+    }
+}
+
+/// Wrap text to fit within specified width, preserving word boundaries
+pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![text.to_string()];
+    }
+
+    let mut wrapped_lines = Vec::new();
+    
+    for line in text.lines() {
+        if line.len() <= width {
+            wrapped_lines.push(line.to_string());
+            continue;
+        }
+
+        // Split long line into multiple wrapped lines
+        let mut current_line = String::new();
+        let mut current_width = 0;
+
+        for word in line.split_whitespace() {
+            let word_len = word.len();
+            
+            // If word itself is longer than width, break it
+            if word_len > width {
+                // Finish current line if it has content
+                if !current_line.is_empty() {
+                    wrapped_lines.push(current_line.clone());
+                    current_line.clear();
+                    current_width = 0;
+                }
+                
+                // Break the long word across multiple lines
+                let mut remaining_word = word;
+                while remaining_word.len() > width {
+                    let (chunk, rest) = remaining_word.split_at(width);
+                    wrapped_lines.push(chunk.to_string());
+                    remaining_word = rest;
+                }
+                
+                if !remaining_word.is_empty() {
+                    current_line = remaining_word.to_string();
+                    current_width = remaining_word.len();
+                }
+                continue;
+            }
+
+            // Check if adding this word would exceed width
+            let space_needed = if current_line.is_empty() { 0 } else { 1 }; // Space before word
+            if current_width + space_needed + word_len > width {
+                // Start new line with this word
+                if !current_line.is_empty() {
+                    wrapped_lines.push(current_line.clone());
+                }
+                current_line = word.to_string();
+                current_width = word_len;
+            } else {
+                // Add word to current line
+                if !current_line.is_empty() {
+                    current_line.push(' ');
+                    current_width += 1;
+                }
+                current_line.push_str(word);
+                current_width += word_len;
+            }
+        }
+
+        // Add final line if it has content
+        if !current_line.is_empty() {
+            wrapped_lines.push(current_line);
+        }
+    }
+
+    if wrapped_lines.is_empty() {
+        wrapped_lines.push(String::new());
+    }
+
+    wrapped_lines
+}
+
+/// Render wrapped text content within bounds
+fn render_wrapped_content(
+    wrapped_lines: &[String],
+    bounds: &Bounds,
+    vertical_scroll: f64,
+    fg_color: &str,
+    bg_color: &str,
+    buffer: &mut ScreenBuffer,
+) {
+    let viewable_height = bounds.height().saturating_sub(4);
+    let content_start_x = bounds.left() + 2;
+    let content_start_y = bounds.top() + 2;
+    
+    // Calculate scroll offset
+    let max_vertical_offset = wrapped_lines.len().saturating_sub(viewable_height);
+    let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
+    
+    // Render visible lines
+    let visible_lines = wrapped_lines
+        .iter()
+        .skip(vertical_offset)
+        .take(viewable_height);
+
+    for (i, line) in visible_lines.enumerate() {
+        let render_y = content_start_y + i;
+        if render_y >= bounds.bottom() {
+            break;
+        }
+        
+        print_with_color_and_background_at(
+            render_y,
+            content_start_x,
+            fg_color,
+            bg_color,
+            line,
+            buffer,
+        );
+    }
+}
+
+/// Wrap choice content and store wrapped lines with original choice index
+#[derive(Clone)]
+pub struct WrappedChoice {
+    pub original_index: usize,
+    pub line_index: usize,  // Which line of the wrapped choice this is (0-based)
+    pub content: String,
+    pub is_selected: bool,
+    pub is_waiting: bool,
+}
+
+/// Wrap choices to fit within specified width, handling multi-line choices
+pub fn wrap_choices_to_width(choices: &[crate::model::muxbox::Choice], width: usize) -> Vec<WrappedChoice> {
+    let mut wrapped_choices = Vec::new();
+    
+    for (choice_idx, choice) in choices.iter().enumerate() {
+        if let Some(content) = &choice.content {
+            let formatted_content = if choice.waiting {
+                format!("{}...", content)
+            } else {
+                content.clone()
+            };
+            
+            let wrapped_lines = wrap_text_to_width(&formatted_content, width);
+            
+            for (line_idx, wrapped_line) in wrapped_lines.iter().enumerate() {
+                wrapped_choices.push(WrappedChoice {
+                    original_index: choice_idx,
+                    line_index: line_idx,
+                    content: wrapped_line.clone(),
+                    is_selected: choice.selected,
+                    is_waiting: choice.waiting,
+                });
+            }
+        }
+    }
+    
+    wrapped_choices
+}
+
+/// Render wrapped choices within bounds
+fn render_wrapped_choices(
+    choices: &[crate::model::muxbox::Choice],
+    bounds: &Bounds,
+    vertical_scroll: f64,
+    fg_color: &str,
+    bg_color: &str,
+    selected_choice_fg_color: &str,
+    selected_choice_bg_color: &str,
+    buffer: &mut ScreenBuffer,
+) {
+    let viewable_width = bounds.width().saturating_sub(4);
+    let viewable_height = bounds.height().saturating_sub(4);
+    let wrapped_choices = wrap_choices_to_width(choices, viewable_width);
+    
+    if wrapped_choices.is_empty() {
+        return;
+    }
+    
+    // Calculate scroll offset
+    let max_vertical_offset = wrapped_choices.len().saturating_sub(viewable_height);
+    let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
+    
+    // Render visible wrapped choice lines
+    let visible_wrapped_choices = wrapped_choices
+        .iter()
+        .skip(vertical_offset)
+        .take(viewable_height);
+
+    let choice_start_x = bounds.left() + 2;
+    let choice_start_y = bounds.top() + 1;
+
+    for (display_idx, wrapped_choice) in visible_wrapped_choices.enumerate() {
+        let render_y = choice_start_y + display_idx;
+        if render_y >= bounds.bottom() {
+            break;
+        }
+
+        let (choice_fg, choice_bg) = if wrapped_choice.is_selected {
+            (selected_choice_fg_color, selected_choice_bg_color)
+        } else {
+            (fg_color, bg_color)
+        };
+
+        print_with_color_and_background_at(
+            render_y,
+            choice_start_x,
+            choice_fg,
+            choice_bg,
+            &wrapped_choice.content,
+            buffer,
+        );
     }
 }
