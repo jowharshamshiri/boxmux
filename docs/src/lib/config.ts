@@ -12,9 +12,9 @@ import type { Feature, PromoConfig, SiteConfig } from "./types/config";
 
 export const siteConfig: SiteConfig = {
     version: '0.174.28875',
-    title: 'BoxMux Documentation',
+    title: 'BoxMux',
     description:
-        'Documentation for BoxMux - A YAML-driven terminal UI framework for CLI applications and dashboards.',
+        'A YAML-driven terminal UI framework for CLI applications and dashboards.',
     github: 'https://github.com/jowharshamshiri/boxmux',
     npm: 'boxmux',
 
