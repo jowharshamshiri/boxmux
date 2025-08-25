@@ -1,152 +1,256 @@
 ---
-title: Syntax Highlighting
-description: Learn how to customize code syntax highlighting using Shiki
+title: BoxMux Code Highlighting
+description: Syntax highlighting and code formatting in BoxMux YAML configurations
 ---
 
+# BoxMux Code Highlighting
 
-The documentation template uses [Shiki](https://shiki.matsu.io/) for syntax highlighting. This guide explains how to customize themes and add support for additional programming languages.
+BoxMux configurations use YAML syntax and support embedded shell scripts with proper syntax highlighting in documentation and examples.
 
-## Adding Custom Themes
+## YAML Configuration Syntax
 
-### Step 1: Import Themes
-In your `doc-render.svelte` component, modify the `createHighlighter` configuration to include your preferred themes:
+BoxMux uses standard YAML syntax with specific structures for terminal UI definition:
 
-```typescript
-highlighter = await createHighlighter({
-    themes: [
-        'github-dark',        // Default dark theme
-        'github-light',       // Default light theme
-        'dracula',           // Add more themes
-        'nord',
-        'material-theme'
-    ],
-    langs: [ ... ]
-});
+```yaml
+# Basic BoxMux configuration structure
+title: "My Application"
+refresh_rate: 100
+
+variables:
+  app_name: "MyApp"
+  version: "1.0.0"
+
+layouts:
+  main:
+    type: "MuxBox"
+    bounds: { x1: "0%", y1: "0%", x2: "100%", y2: "100%" }
+    content: "Welcome to {{app_name}} v{{version}}"
 ```
 
-### Available Built-in Themes
-Shiki includes many popular themes out of the box:
-- `'github-dark'`
-- `'github-light'`
-- `'dracula'`
-- `'nord'`
-- `'monokai'`
-- `'material-theme'`
-- `'one-dark-pro'`
-- And [many more](https://github.com/shikijs/shiki/blob/main/docs/themes.md)
+## Shell Script Highlighting
 
-## Adding Programming Languages
+BoxMux configurations often contain embedded shell scripts with proper syntax highlighting:
 
-### Step 1: Update Language Support
-Modify the `langs` array in the `createHighlighter` configuration:
-
-```typescript
-highlighter = await createHighlighter({
-    themes: ['github-dark', 'github-light'],
-    langs: [
-        // Currently supported languages
-        'typescript',
-        'javascript',
-        'bash',
-        'markdown',
-        'json',
-        'html',
-        'css',
-        'svelte',
-        'shell',
-        'tsx',
-        // Add more languages
-        'python',
-        'rust',
-        'go',
-        'java',
-        'php',
-        'ruby',
-        'yaml'
-    ]
-});
+```yaml
+boxes:
+  system_monitor:
+    title: "System Stats"
+    script: |
+      #!/bin/bash
+      echo "CPU Usage:"
+      top -l1 | grep "CPU usage" | awk '{print $3, $5}'
+      echo "Memory:"
+      vm_stat | grep -E "(Pages active)" | awk '{print $3}'
+    refresh_interval: 2000
+    thread: true
 ```
 
-### Available Languages
-Shiki supports a wide range of programming languages. Here are some popular ones:
-- Web: `html`, `css`, `javascript`, `typescript`, `jsx`, `tsx`
-- Backend: `python`, `ruby`, `php`, `java`, `rust`, `go`
-- Data: `json`, `yaml`, `toml`
-- Shell: `bash`, `shell`, `powershell`
-- And [many more](https://github.com/shikijs/shiki/blob/main/docs/languages.md)
+## Configuration Examples by Language
 
-## Customizing Styles
-
-### Code Block Wrapper
-Modify the wrapper styles in the component's `<style>` section:
-
-```css
-:global(.shiki-wrapper) {
-    margin: 1.5em 0;
-    padding: 1.25rem;
-    border-radius: 0.5rem;
-    width: 100%;
-    max-width: calc(100vw - 3rem);
-    overflow-x: auto;
-    display: block;
-    background-color: #f6f8fa;
-    border: 1px solid #d0d7de;
-}
-
-:global(.dark .shiki-wrapper) {
-    background-color: #0d1117 !important;
-    border-color: #30363d;
-}
+### Bash Scripts
+```yaml
+boxes:
+  bash_example:
+    script: |
+      #!/bin/bash
+      for i in {1..5}; do
+        echo "Count: $i"
+        sleep 1
+      done
 ```
 
-### Code Font and Size
-Customize the code appearance:
-
-```css
-:global(.shiki) {
-    background-color: transparent !important;
-    font-family: 'JetBrains Mono', ui-monospace;
-    font-size: 0.9em;
-    line-height: 1.5;
-}
+### Python Scripts
+```yaml
+boxes:
+  python_example:
+    script: |
+      #!/usr/bin/env python3
+      import json
+      import requests
+      
+      response = requests.get('https://api.github.com/user')
+      print(json.dumps(response.json(), indent=2))
 ```
 
-### Inline Code
-Style inline code blocks:
-
-```css
-:global(.prose :not(pre) > code) {
-    background-color: rgb(175 184 193 / 20%);
-    padding: 0.25rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-weight: 400;
-    max-width: 100%;
-}
-
-:global(.dark .prose :not(pre) > code) {
-    background-color: rgb(30 41 59);
-}
+### Node.js Scripts
+```yaml
+boxes:
+  nodejs_example:
+    script: |
+      #!/usr/bin/env node
+      const fs = require('fs');
+      const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      console.log(`Project: ${package.name} v${package.version}`);
 ```
 
-### Line Hover Effects
-Customize line highlighting effects:
+### Docker Commands
+```yaml
+boxes:
+  docker_example:
+    script: |
+      #!/bin/bash
+      echo "Running Containers:"
+      docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      echo ""
+      echo "Images:"
+      docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+```
 
-```css
-:global(.line:hover) {
-    background-color: rgb(175 184 193 / 10%);
-}
+## Advanced Configuration Patterns
 
-:global(.dark .line:hover) {
-    background-color: #1f2937;
+### Multi-line YAML Values
+```yaml
+boxes:
+  complex_script:
+    script: |
+      #!/bin/bash
+      # This is a complex monitoring script
+      echo "=== System Overview ==="
+      uname -a
+      
+      echo "=== Load Average ==="
+      uptime | awk '{print $NF}'
+      
+      echo "=== Disk Usage ==="
+      df -h | grep -v tmpfs | grep -v devtmpfs
+      
+      echo "=== Network Connections ==="
+      netstat -tuln | head -10
+```
+
+### Variable Substitution Patterns
+```yaml
+variables:
+  server_host: "production-server.com"
+  ssh_user: "deploy"
+  app_path: "/var/www/myapp"
+
+boxes:
+  deployment:
+    script: |
+      #!/bin/bash
+      echo "Deploying to {{server_host}}"
+      ssh {{ssh_user}}@{{server_host}} "cd {{app_path}} && git pull && npm install"
+      echo "Deployment complete!"
+```
+
+## PTY Integration Examples
+
+### Interactive Terminal Sessions
+```yaml
+boxes:
+  terminal:
+    pty: true                    # Enable pseudo-terminal
+    script: "bash"               # Start interactive bash
+    title: "⚡ Interactive Terminal"
+    border_color: "BrightCyan"
+```
+
+### Interactive Applications
+```yaml
+boxes:
+  file_manager:
+    pty: true
+    script: "ranger"             # File manager requires PTY
+    title: "📁 File Manager"
+    
+  process_monitor:
+    pty: true
+    script: "htop"               # Process monitor requires PTY
+    title: "📊 Process Monitor"
+    
+  text_editor:
+    pty: true
+    script: "vim README.md"      # Text editor requires PTY
+    title: "📝 Editor"
+```
+
+## Socket API Command Syntax
+
+### CLI Command Examples
+```bash
+# Update box content via socket
+boxmux replace-muxbox-content "status_box" "New status: Online"
+
+# Execute PTY commands
+boxmux spawn-pty "terminal_box" --script="vim file.txt" --pty
+
+# Send input to PTY processes  
+boxmux send-pty-input "terminal_box" "Hello World\n"
+
+# Query PTY status
+boxmux query-pty-status "terminal_box"
+```
+
+### Socket Function Configuration
+```yaml
+# Remote control via socket commands
+boxes:
+  remote_controlled:
+    content: "This box can be updated via socket"
+    # Content will be replaced via socket commands:
+    # boxmux replace-muxbox-content "remote_controlled" "New content"
+```
+
+## Color and Styling Syntax
+
+### ANSI Color Support
+```yaml
+boxes:
+  colored_box:
+    border_color: "BrightCyan"       # 16 ANSI colors
+    foreground_color: "BrightWhite"  # Text color
+    background_color: "Black"        # Background color
+    title_color: "BrightYellow"      # Title color
+```
+
+### Available Colors
+```yaml
+# Standard ANSI colors
+colors:
+  - "Black"       - "Red"         - "Green"       - "Yellow"
+  - "Blue"        - "Magenta"     - "Cyan"        - "White"
+  - "BrightBlack" - "BrightRed"   - "BrightGreen" - "BrightYellow"  
+  - "BrightBlue"  - "BrightMagenta" - "BrightCyan" - "BrightWhite"
+```
+
+## Configuration Validation
+
+BoxMux includes JSON schema validation for YAML files:
+
+```json
+{
+  "$schema": "https://boxmux.com/schema/app_schema.json",
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "refresh_rate": { "type": "integer", "minimum": 1 },
+    "layouts": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/MuxBox" }
+    }
+  }
 }
 ```
 
 ## Best Practices
 
-1. **Theme Consistency**: Choose themes that match your site's overall design
-2. **Performance**: Only load the languages you need to minimize bundle size
-3. **Accessibility**: Ensure sufficient contrast in code blocks
-4. **Mobile Support**: Test code block appearance on different screen sizes
+### YAML Formatting
+- Use 2-space indentation consistently
+- Quote string values that contain special characters
+- Use `|` for multi-line script content
+- Validate YAML syntax before running
 
-Remember to rebuild your site after making changes to see the updates take effect.
+### Script Organization
+- Use shebang lines for clarity (`#!/bin/bash`)
+- Add comments to explain complex operations
+- Test scripts independently before embedding
+- Handle errors gracefully with appropriate exit codes
+
+### Variable Usage
+- Use descriptive variable names
+- Document variable purposes in comments
+- Prefer environment variables for sensitive data
+- Use hierarchical variable scoping appropriately
+
+BoxMux uses YAML configuration files to define terminal applications with syntax highlighting and validation support.
