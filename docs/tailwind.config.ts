@@ -86,7 +86,7 @@ const config: Config = {
 						'pre code': {
 							backgroundColor: 'transparent',
 							padding: '0',
-							color: 'hsl(var(--foreground))',
+							color: 'hsl(var(--muted-foreground))',
 							fontSize: '0.875rem',
 							lineHeight: '1.7142857'
 						},
