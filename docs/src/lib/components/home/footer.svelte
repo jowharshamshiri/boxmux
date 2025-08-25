@@ -41,8 +41,6 @@
 		>
 			Svelte Docs Starter
 		</a>
-		by code-gio
-		<br/>
-		Claude AI assisted with specific development sections.
+		by code-gio. Claude AI assisted with development.
 	</div>
 </footer>

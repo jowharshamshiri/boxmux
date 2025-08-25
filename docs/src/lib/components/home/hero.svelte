@@ -5,6 +5,7 @@
 	import { ChevronRight, Clipboard, Check } from 'lucide-svelte';
 	import { siteConfig } from '$lib/config';
 	import { toast } from 'svelte-sonner';
+	import { latestVersion } from '$lib/stores/version';
 
 	export let data: { latestVersion: string; releaseUrl: string };
 
@@ -35,7 +36,7 @@
 				href={data.releaseUrl}
 				class="inline-flex items-center gap-x-2 rounded-full border border-gray-200 bg-white p-1 ps-3 text-sm text-gray-800 transition hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
 			>
-				Version {data.latestVersion} - Latest Release
+				Version {$latestVersion} - Latest Release
 				<Badge variant="secondary" class="gap-x-2 rounded-full">
 					<span class="hidden sm:inline">View on GitHub</span>
 					<ChevronRight class="size-4" />
