@@ -1,0 +1,92 @@
+app:
+  layouts:
+    - id: "multi_stream_tabs_demo"
+      root: true
+      children:
+        # Demo box showing multiple input streams with tabs
+        - id: "multi_stream_box"
+          title: "Multi-Stream Demo"
+          position:
+            x1: "5%"
+            y1: "5%"
+            x2: "95%"
+            y2: "60%"
+          border: true
+          border_color: "cyan"
+          selected_border_color: "bright_cyan"
+          content: "This box will show multiple tabs when it has multiple input streams"
+          
+          # Own script creates one stream
+          script:
+            - "echo 'Primary script output'"
+            - "echo 'This is the main script for this box'"
+            
+          # Choices that redirect here create additional streams  
+          choices:
+            - id: "deploy"
+              content: "Deploy App"
+              script:
+                - "echo 'Starting deployment...'"
+                - "sleep 2"
+                - "echo 'Deployment complete!'"
+              redirect_output: "multi_stream_box"
+              
+            - id: "monitor"
+              content: "Monitor Logs" 
+              script:
+                - "echo 'Monitoring application logs...'"
+                - "for i in {1..5}; do echo \"Log entry $i\"; sleep 1; done"
+              redirect_output: "multi_stream_box"
+              
+            - id: "pty_process"
+              content: "Start PTY Process"
+              pty: true
+              script:
+                - "top -n 3"
+              redirect_output: "multi_stream_box"
+
+        # Control panel box
+        - id: "control_panel"
+          title: "Control Panel"
+          position:
+            x1: "5%"
+            y1: "65%"
+            x2: "45%"
+            y2: "95%"
+          border: true
+          border_color: "yellow"
+          selected_border_color: "bright_yellow"
+          tab_order: "1"
+          choices:
+            - id: "external_stream"
+              content: "Add External Stream"
+              script:
+                - "echo 'This creates another tab in the multi-stream box'"
+                - "echo 'External process output flowing to multi-stream box'"
+              redirect_output: "multi_stream_box"
+
+        # Instructions box
+        - id: "instructions"
+          title: "Tab System Instructions"
+          position:
+            x1: "50%"
+            y1: "65%"
+            x2: "95%"
+            y2: "95%"
+          border: true
+          border_color: "green"
+          content: |
+            F0203: Multi-Stream Input Tabs Demo
+            
+            1. Select choices in the multi-stream box to create additional input streams
+            2. Each stream will appear as a separate tab in the title bar
+            3. Click tabs to switch between different input streams
+            4. Original content, choice outputs, and PTY sessions all get separate tabs
+            5. Tab labels show the stream type: [Script], [Deploy], [Monitor], etc.
+            
+            Features demonstrated:
+            - Automatic tab creation for multiple input sources
+            - Visual tab indicators within existing title bar height  
+            - Mouse click tab switching
+            - Stream content isolation
+            - Tab label truncation for long names

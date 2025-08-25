@@ -1172,6 +1172,25 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
                     choices[0].selected = true;
                 }
             }
+            
+            // F0204-F0209: Initialize stream architecture for each muxbox
+            muxbox.initialize_streams();
+            
+            // Initialize streams for children recursively
+            fn initialize_child_streams(muxbox: &mut MuxBox) {
+                muxbox.initialize_streams();
+                if let Some(children) = &mut muxbox.children {
+                    for child in children {
+                        initialize_child_streams(child);
+                    }
+                }
+            }
+            
+            if let Some(children) = &mut muxbox.children {
+                for child in children {
+                    initialize_child_streams(child);
+                }
+            }
         }
     }
 

@@ -17,6 +17,25 @@ pub enum EntityType {
     MuxBox,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum StreamType {
+    Content,
+    Choices,
+    RedirectedOutput(String), // Named redirect output
+    PTY,
+    Plugin(String),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct Stream {
+    pub id: String,
+    pub stream_type: StreamType,
+    pub label: String,
+    pub content: Vec<String>,
+    pub choices: Option<Vec<crate::model::muxbox::Choice>>, // For choices stream
+    pub active: bool,
+}
+
 // Represents a granular field update
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct FieldUpdate {
@@ -1589,5 +1608,152 @@ mod tests {
 
         // Clean up
         let _ = std::fs::remove_file(socket_path);
+    }
+}
+
+// F0203: Multi-Stream Input Tabs - Tab system data structures (uses StreamType defined above)
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StreamSource {
+    pub id: String,                    // Unique stream identifier
+    pub source_type: StreamType,       // Type and details of input stream
+    pub label: String,                 // Display name for tab  
+    pub created_at: std::time::SystemTime, // Stream creation timestamp
+    pub last_update: std::time::SystemTime, // Last content update
+    pub active: bool,                  // Whether this stream is currently active
+}
+
+impl Hash for StreamSource {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.source_type.hash(state);
+        self.label.hash(state);
+        self.active.hash(state);
+        // Skip timestamps as they change frequently
+    }
+}
+
+impl Eq for StreamSource {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TabSystem {
+    pub streams: Vec<StreamSource>,              // All input streams for this box
+    pub active_tab: usize,                       // Index of currently active tab
+    pub tab_content: HashMap<String, String>,    // Content per stream ID
+    pub max_tab_width: usize,                    // Maximum characters per tab label
+}
+
+impl Hash for TabSystem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.streams.hash(state);
+        self.active_tab.hash(state);
+        self.max_tab_width.hash(state);
+        // Skip content as it changes frequently
+    }
+}
+
+impl Eq for TabSystem {}
+
+impl Default for TabSystem {
+    fn default() -> Self {
+        TabSystem {
+            streams: Vec::new(),
+            active_tab: 0,
+            tab_content: HashMap::new(),
+            max_tab_width: 12, // Reasonable default for tab labels
+        }
+    }
+}
+
+impl TabSystem {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_stream(&mut self, stream: StreamSource) -> String {
+        let stream_id = stream.id.clone();
+        self.streams.push(stream);
+        self.tab_content.insert(stream_id.clone(), String::new());
+        stream_id
+    }
+
+    pub fn get_active_stream(&self) -> Option<&StreamSource> {
+        self.streams.get(self.active_tab)
+    }
+
+    pub fn get_active_content(&self) -> Option<&String> {
+        if let Some(stream) = self.get_active_stream() {
+            self.tab_content.get(&stream.id)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_stream_content(&self, stream_id: &str) -> Option<&String> {
+        self.tab_content.get(stream_id)
+    }
+
+    pub fn update_stream_content(&mut self, stream_id: &str, content: String) {
+        self.tab_content.insert(stream_id.to_string(), content);
+        
+        // Update last_update timestamp for the stream
+        if let Some(stream) = self.streams.iter_mut().find(|s| s.id == stream_id) {
+            stream.last_update = std::time::SystemTime::now();
+        }
+    }
+
+    pub fn switch_to_tab(&mut self, tab_index: usize) -> bool {
+        if tab_index < self.streams.len() {
+            self.active_tab = tab_index;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn switch_to_stream(&mut self, stream_id: &str) -> bool {
+        if let Some(index) = self.streams.iter().position(|s| s.id == stream_id) {
+            self.active_tab = index;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_stream(&mut self, stream_id: &str) -> bool {
+        if let Some(index) = self.streams.iter().position(|s| s.id == stream_id) {
+            self.streams.remove(index);
+            self.tab_content.remove(stream_id);
+            
+            // Adjust active tab if necessary
+            if self.active_tab >= self.streams.len() && !self.streams.is_empty() {
+                self.active_tab = self.streams.len() - 1;
+            } else if self.streams.is_empty() {
+                self.active_tab = 0;
+            }
+            
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn has_multiple_streams(&self) -> bool {
+        self.streams.len() > 1
+    }
+
+    pub fn get_tab_labels(&self) -> Vec<String> {
+        self.streams.iter().map(|stream| {
+            let label = &stream.label;
+            let char_count = label.chars().count();
+            
+            if char_count > self.max_tab_width {
+                // Take the first (max_tab_width - 1) characters and add ellipsis
+                let truncated: String = label.chars().take(self.max_tab_width - 1).collect();
+                format!("{}…", truncated)
+            } else {
+                label.clone()
+            }
+        }).collect()
     }
 }
