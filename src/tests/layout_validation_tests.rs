@@ -187,7 +187,10 @@ mod layout_validation_tests {
                     let has_plugins = children
                         .iter()
                         .any(|muxbox| muxbox.plugin_component.is_some());
-                    assert!(has_plugins, "plugin_demo.yaml should contain plugin muxboxes");
+                    assert!(
+                        has_plugins,
+                        "plugin_demo.yaml should contain plugin muxboxes"
+                    );
                 }
                 _ => {
                     // Generic validation for other files

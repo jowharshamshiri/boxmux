@@ -34,6 +34,7 @@ pub enum Message {
     Resize,
     RedrawMuxBox(String),
     RedrawApp,
+    RedrawAppDiff, // Redraw entire app using diff-based rendering (no screen clear)
     MuxBoxEventRefresh(String),
     MuxBoxOutputUpdate(String, bool, String),
     MuxBoxScriptUpdate(String, Vec<String>),
@@ -47,11 +48,11 @@ pub enum Message {
     MouseDragStart(u16, u16),                           // x, y coordinates - start drag
     MouseDrag(u16, u16),                                // x, y coordinates - continue drag
     MouseDragEnd(u16, u16),                             // x, y coordinates - end drag
-    MuxBoxBorderDrag(String, u16, u16),                  // muxbox_id, x, y coordinates - resize muxbox
-    MuxBoxResizeComplete(String),                        // muxbox_id - save changes to YAML
-    MuxBoxMove(String, u16, u16),                        // muxbox_id, x, y coordinates - move muxbox
-    MuxBoxMoveComplete(String),                          // muxbox_id - save position changes to YAML
-    PTYInput(String, String),                           // muxbox_id, input_text
+    MuxBoxBorderDrag(String, u16, u16), // muxbox_id, x, y coordinates - resize muxbox
+    MuxBoxResizeComplete(String),       // muxbox_id - save changes to YAML
+    MuxBoxMove(String, u16, u16),       // muxbox_id, x, y coordinates - move muxbox
+    MuxBoxMoveComplete(String),         // muxbox_id - save position changes to YAML
+    PTYInput(String, String),           // muxbox_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, muxbox_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, muxbox_id, result
     ExternalMessage(String),
@@ -72,6 +73,7 @@ impl Hash for Message {
                 muxbox_id.hash(state);
             }
             Message::RedrawApp => "redraw_app".hash(state),
+            Message::RedrawAppDiff => "redraw_app_diff".hash(state),
             Message::SwitchActiveLayout(layout_id) => {
                 "switch_active_layout".hash(state);
                 layout_id.hash(state);

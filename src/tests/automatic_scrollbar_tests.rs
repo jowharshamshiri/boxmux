@@ -77,7 +77,7 @@ mod tests {
         // Test that muxboxes with overflowing choices trigger scrollbar display
         let mut muxbox = TestDataFactory::create_test_muxbox("choice_muxbox");
         muxbox.next_focus_id = Some("next_muxbox".to_string()); // Make it focusable
-        
+
         // Add many choices that will overflow a small muxbox
         let mut choices = Vec::new();
         for i in 1..=20 {
@@ -94,7 +94,7 @@ mod tests {
             });
         }
         muxbox.choices = Some(choices);
-        
+
         // Set small bounds that will cause choice overflow
         muxbox.position = crate::model::common::InputBounds {
             x1: "0".to_string(),
@@ -104,7 +104,10 @@ mod tests {
         };
 
         // Test that has_scrollable_content detects the choice overflow
-        assert!(muxbox.has_scrollable_content(), "MuxBox with overflowing choices should be detected as scrollable");
+        assert!(
+            muxbox.has_scrollable_content(),
+            "MuxBox with overflowing choices should be detected as scrollable"
+        );
 
         // Simulate the new logic from draw_utils.rs that uses has_scrollable_content()
         let mut overflow_behavior = "hidden".to_string();
@@ -112,6 +115,9 @@ mod tests {
             overflow_behavior = "scroll".to_string();
         }
 
-        assert_eq!(overflow_behavior, "scroll", "Choice overflow should trigger scrollbar display");
+        assert_eq!(
+            overflow_behavior, "scroll",
+            "Choice overflow should trigger scrollbar display"
+        );
     }
 }

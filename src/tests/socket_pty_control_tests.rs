@@ -287,7 +287,8 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) = &messages[0]
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+            &messages[0]
         {
             assert!(!success);
             assert!(message.contains("PTY manager not available"));
@@ -304,7 +305,8 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) = &messages[0]
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+            &messages[0]
         {
             assert!(!success);
             assert!(message.contains("PTY manager not available"));
@@ -321,7 +323,8 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) = &messages[0]
+        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+            &messages[0]
         {
             assert!(!success);
             assert!(message.contains("PTY manager not available"));

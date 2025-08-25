@@ -24,8 +24,8 @@ pub fn screen_bounds() -> Bounds {
     Bounds {
         x1: 0,
         y1: 0,
-        x2: screen_width(),
-        y2: screen_height(),
+        x2: screen_width().saturating_sub(1), // Last valid column coordinate
+        y2: screen_height().saturating_sub(1), // Last valid row coordinate
     }
 }
 
@@ -73,7 +73,7 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
                 if total == 0 {
                     0
                 } else if percentage >= 100.0 {
-                    total - 1  // 100% maps to last valid coordinate
+                    total - 1 // 100% maps to last valid coordinate
                 } else {
                     (normalized * (total - 1) as f64).round() as usize
                 }
