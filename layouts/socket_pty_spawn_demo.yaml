@@ -1,0 +1,82 @@
+name: "Socket PTY Spawn Demo"
+description: "Demonstrates remote PTY process spawning via socket commands"
+
+global_hot_keys:
+  "?": help
+
+layouts:
+  - id: "socket_pty_demo"
+    name: "Socket PTY Spawn Demo"
+    active: true
+    children:
+      - id: "instructions"
+        title: "Socket PTY Spawn Instructions"
+        x: "5%"
+        y: "5%"
+        width: "90%"
+        height: "25%"
+        border_color: "blue"
+        content: |
+          Socket PTY Spawn Demo - F0136 Implementation
+
+          Use these CLI commands to spawn PTY processes remotely:
+
+          # Basic PTY spawn with simple script
+          boxmux spawn_pty_process pty_demo_box '["echo Hello PTY", "date", "sleep 2", "echo Done"]'
+
+          # PTY spawn with library sourcing
+          boxmux spawn_pty_process pty_demo_box '["echo Using libs"]' --libs '["/usr/local/lib/utils.sh"]'
+
+          # PTY spawn with output redirection
+          boxmux spawn_pty_process source_box '["echo Redirected output"]' --redirect-output output_box
+
+          # Query PTY status after spawning
+          boxmux query_pty_status pty_demo_box
+
+          # Kill PTY process when needed
+          boxmux kill_pty_process pty_demo_box
+
+      - id: "pty_demo_box"
+        title: "PTY Demo Box - Target for Spawning"
+        x: "5%"
+        y: "35%"
+        width: "45%"
+        height: "30%"
+        border_color: "green"
+        content: "Ready to receive PTY processes via socket commands..."
+        pty: false  # Will be enabled when process is spawned via socket
+
+      - id: "output_box"
+        title: "Output Redirect Target"
+        x: "50%"
+        y: "35%"
+        width: "45%"
+        height: "30%"
+        border_color: "cyan"
+        content: "This box will receive redirected output from PTY spawns..."
+
+      - id: "source_box"
+        title: "Source Box for Redirect Testing"
+        x: "5%"
+        y: "70%"
+        width: "45%"
+        height: "25%"
+        border_color: "yellow"
+        content: "Use this box ID as source for redirect testing..."
+
+      - id: "status_box"
+        title: "Status and Control"
+        x: "50%"
+        y: "70%"
+        width: "45%"
+        height: "25%"
+        border_color: "magenta"
+        content: |
+          PTY Status Commands:
+          - Query: boxmux query_pty_status pty_demo_box
+          - Kill: boxmux kill_pty_process pty_demo_box
+          - Restart: boxmux restart_pty_process pty_demo_box
+
+          Watch this space for status updates...
+
+frame_delay: 100

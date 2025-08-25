@@ -492,6 +492,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .help("The box id to query PTY status for"),
                 ),
         )
+        // F0136: Socket PTY Spawn - Spawn PTY processes via socket commands
+        .subcommand(
+            Command::new("spawn_pty_process")
+                .about("Spawns a PTY process for a box with specified script")
+                .arg(
+                    Arg::new("box_id")
+                        .required(true)
+                        .index(1)
+                        .help("The box id to spawn PTY process for"),
+                )
+                .arg(
+                    Arg::new("script")
+                        .required(true)
+                        .index(2)
+                        .help("The script commands to run in the PTY (JSON array of strings)"),
+                )
+                .arg(
+                    Arg::new("libs")
+                        .long("libs")
+                        .help("Optional library paths to source (JSON array of strings)"),
+                )
+                .arg(
+                    Arg::new("redirect_output")
+                        .long("redirect-output")
+                        .help("Optional box ID to redirect output to"),
+                ),
+        )
+        // F0139: Socket PTY Input - Send input to PTY processes remotely
+        .subcommand(
+            Command::new("send_pty_input")
+                .about("Sends input to a running PTY process for interactive control")
+                .arg(
+                    Arg::new("box_id")
+                        .required(true)
+                        .index(1)
+                        .help("The box id with the PTY process to send input to"),
+                )
+                .arg(
+                    Arg::new("input")
+                        .required(true)
+                        .index(2)
+                        .help("The input text to send to the PTY process"),
+                ),
+        )
         .get_matches();
 
     // Initialize logging framework (F0161/F0162)
@@ -725,6 +769,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         } else {
             return Err("Box ID is required for query_pty_status command".into());
+        }
+    }
+
+    // F0136: Socket PTY Spawn - Handle spawn_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("spawn_pty_process") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(script_json) = matches.get_one::<String>("script") {
+                // Parse script JSON array
+                let script: Vec<String> = serde_json::from_str(script_json)
+                    .map_err(|e| format!("Invalid script JSON: {}", e))?;
+
+                // Parse optional libs JSON array
+                let libs: Option<Vec<String>> = if let Some(libs_json) = matches.get_one::<String>("libs") {
+                    Some(serde_json::from_str(libs_json)
+                        .map_err(|e| format!("Invalid libs JSON: {}", e))?)
+                } else {
+                    None
+                };
+
+                let redirect_output = matches.get_one::<String>("redirect_output").cloned();
+
+                let socket_function = SocketFunction::SpawnPtyProcess {
+                    box_id: box_id.clone(),
+                    script,
+                    libs,
+                    redirect_output,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Script is required for spawn_pty_process command".into());
+            }
+        } else {
+            return Err("Box ID is required for spawn_pty_process command".into());
+        }
+    }
+
+    // F0139: Socket PTY Input - Handle send_pty_input subcommand
+    if let Some(matches) = matches.subcommand_matches("send_pty_input") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(input) = matches.get_one::<String>("input") {
+                let socket_function = SocketFunction::SendPtyInput {
+                    box_id: box_id.clone(),
+                    input: input.clone(),
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Input is required for send_pty_input command".into());
+            }
+        } else {
+            return Err("Box ID is required for send_pty_input command".into());
         }
     }
 

@@ -124,6 +124,18 @@ pub enum SocketFunction {
     QueryPtyStatus {
         box_id: String,
     },
+    // F0136: Socket PTY Spawn - Spawn PTY processes via socket commands
+    SpawnPtyProcess {
+        box_id: String,
+        script: Vec<String>,
+        libs: Option<Vec<String>>,
+        redirect_output: Option<String>,
+    },
+    // F0139: Socket PTY Input - Send input to PTY processes remotely
+    SendPtyInput {
+        box_id: String,
+        input: String,
+    },
 }
 
 pub fn run_socket_function(
@@ -233,6 +245,89 @@ pub fn run_socket_function(
                         false,
                         format!("No PTY process found for box {}", box_id),
                     ));
+                }
+            } else {
+                messages.push(Message::MuxBoxOutputUpdate(
+                    box_id.clone(),
+                    false,
+                    "PTY manager not available".to_string(),
+                ));
+            }
+        }
+        // F0136: Socket PTY Spawn - Spawn PTY processes via socket commands
+        SocketFunction::SpawnPtyProcess {
+            box_id,
+            script,
+            libs,
+            redirect_output,
+        } => {
+            if let Some(pty_manager) = &app_context.pty_manager {
+                // We need to create a temporary message sender for PTY operations
+                // This is a limitation of the socket API - it doesn't have access to the main ThreadManager
+                let (temp_sender, _temp_receiver) = std::sync::mpsc::channel();
+                let temp_uuid = uuid::Uuid::new_v4();
+                
+                let spawn_result = if redirect_output.is_some() {
+                    pty_manager.spawn_pty_script_with_redirect(
+                        box_id.clone(),
+                        &script,
+                        libs,
+                        temp_sender,
+                        temp_uuid,
+                        redirect_output,
+                    )
+                } else {
+                    pty_manager.spawn_pty_script(
+                        box_id.clone(),
+                        &script,
+                        libs,
+                        temp_sender,
+                        temp_uuid,
+                    )
+                };
+                
+                match spawn_result {
+                    Ok(_) => {
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            box_id.clone(),
+                            true,
+                            format!("PTY process spawned successfully for box {}", box_id),
+                        ));
+                    }
+                    Err(err) => {
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            box_id.clone(),
+                            false,
+                            format!("Failed to spawn PTY process: {}", err),
+                        ));
+                    }
+                }
+            } else {
+                messages.push(Message::MuxBoxOutputUpdate(
+                    box_id.clone(),
+                    false,
+                    "PTY manager not available".to_string(),
+                ));
+            }
+        }
+        // F0139: Socket PTY Input - Send input to PTY processes remotely
+        SocketFunction::SendPtyInput { box_id, input } => {
+            if let Some(pty_manager) = &app_context.pty_manager {
+                match pty_manager.send_input(&box_id, &input) {
+                    Ok(_) => {
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            box_id.clone(),
+                            true,
+                            format!("Input sent successfully to PTY process for box {}", box_id),
+                        ));
+                    }
+                    Err(err) => {
+                        messages.push(Message::MuxBoxOutputUpdate(
+                            box_id.clone(),
+                            false,
+                            format!("Failed to send input to PTY process: {}", err),
+                        ));
+                    }
                 }
             } else {
                 messages.push(Message::MuxBoxOutputUpdate(

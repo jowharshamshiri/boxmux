@@ -943,48 +943,15 @@ pub fn render_muxbox(
             
             // Draw vertical scrollbar if wrapped content overflows
             if wrapped_overflows_vertically && *draw_border {
-                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
-                let content_height = wrapped_content.len();
-                
-                // Draw vertical scroll track
-                for y in (bounds.top() + 1)..bounds.bottom() {
-                    print_with_color_and_background_at(
-                        y,
-                        bounds.right(),
-                        "bright_black",
-                        bg_color,
-                        V_SCROLL_TRACK,
-                        buffer,
-                    );
-                }
-                
-                if track_height > 0 {
-                    // Calculate proportional knob size and position
-                    let content_ratio = viewable_height as f64 / content_height as f64;
-                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
-                    let available_track = track_height.saturating_sub(knob_size);
-                    
-                    let knob_position = if available_track > 0 {
-                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
-                    } else {
-                        0
-                    };
-                    
-                    // Draw proportional vertical scroll knob
-                    for i in 0..knob_size {
-                        let knob_y = bounds.top() + 1 + knob_position + i;
-                        if knob_y < bounds.bottom() {
-                            print_with_color_and_background_at(
-                                knob_y,
-                                bounds.right(),
-                                border_color,
-                                bg_color,
-                                V_SCROLL_CHAR,
-                                buffer,
-                            );
-                        }
-                    }
-                }
+                draw_vertical_scrollbar(
+                    &bounds,
+                    wrapped_content.len(),
+                    viewable_height,
+                    vertical_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
                 scrollbars_drawn = true;
             }
         } else if let Some(ref choices) = choices {
@@ -1008,48 +975,15 @@ pub fn render_muxbox(
             
             // Draw vertical scrollbar if wrapped choices overflow
             if wrapped_overflows_vertically && *draw_border {
-                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
-                let content_height = wrapped_choices.len();
-                
-                // Draw vertical scroll track
-                for y in (bounds.top() + 1)..bounds.bottom() {
-                    print_with_color_and_background_at(
-                        y,
-                        bounds.right(),
-                        "bright_black",
-                        bg_color,
-                        V_SCROLL_TRACK,
-                        buffer,
-                    );
-                }
-                
-                if track_height > 0 {
-                    // Calculate proportional knob size and position
-                    let content_ratio = viewable_height as f64 / content_height as f64;
-                    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
-                    let available_track = track_height.saturating_sub(knob_size);
-                    
-                    let knob_position = if available_track > 0 {
-                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
-                    } else {
-                        0
-                    };
-                    
-                    // Draw proportional vertical scroll knob
-                    for i in 0..knob_size {
-                        let knob_y = bounds.top() + 1 + knob_position + i;
-                        if knob_y < bounds.bottom() {
-                            print_with_color_and_background_at(
-                                knob_y,
-                                bounds.right(),
-                                border_color,
-                                bg_color,
-                                V_SCROLL_CHAR,
-                                buffer,
-                            );
-                        }
-                    }
-                }
+                draw_vertical_scrollbar(
+                    &bounds,
+                    wrapped_choices.len(),
+                    viewable_height,
+                    vertical_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
                 scrollbars_drawn = true;
             }
         }

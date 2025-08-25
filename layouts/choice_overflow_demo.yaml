@@ -1,0 +1,93 @@
+app:
+  layouts:
+    - id: "choice_overflow_test"
+      title: "Choice Overflow Demo"
+      children:
+        - id: "scrollable_choices_menu"
+          title: "Many Choices (Scroll Mode)"
+          position:
+            x1: "0%"
+            y1: "0%" 
+            x2: "45%"
+            y2: "90%"
+          border: true
+          border_color: white
+          bg_color: black
+          fg_color: white
+          menu_fg_color: white
+          menu_bg_color: black
+          selected_menu_fg_color: black
+          selected_menu_bg_color: white
+          overflow_behavior: "scroll"
+          choices:
+            - id: "choice1"
+              content: "First Choice"
+            - id: "choice2" 
+              content: "Second Choice"
+            - id: "choice3"
+              content: "Third Choice"
+            - id: "choice4"
+              content: "Fourth Choice"
+            - id: "choice5"
+              content: "Fifth Choice" 
+            - id: "choice6"
+              content: "Sixth Choice"
+            - id: "choice7"
+              content: "Seventh Choice"
+            - id: "choice8"
+              content: "Eighth Choice"
+            - id: "choice9"
+              content: "Ninth Choice"
+            - id: "choice10"
+              content: "Tenth Choice"
+            - id: "choice11"
+              content: "Eleventh Choice"
+            - id: "choice12" 
+              content: "Twelfth Choice"
+            - id: "choice13"
+              content: "Thirteenth Choice"
+            - id: "choice14"
+              content: "Fourteenth Choice"
+            - id: "choice15"
+              content: "Fifteenth Choice"
+        
+        - id: "wrapped_choices_menu"
+          title: "Long Choices (Wrap Mode)"
+          position:
+            x1: "55%"
+            y1: "0%"
+            x2: "100%" 
+            y2: "90%"
+          border: true
+          border_color: yellow
+          bg_color: black
+          fg_color: white
+          menu_fg_color: cyan
+          menu_bg_color: black
+          selected_menu_fg_color: black
+          selected_menu_bg_color: cyan
+          overflow_behavior: "wrap"
+          choices:
+            - id: "wrap1"
+              content: "Very long choice that should wrap to multiple lines in narrow box"
+            - id: "wrap2"
+              content: "Another really long choice text that demonstrates wrapping behavior" 
+            - id: "wrap3"
+              content: "Third extremely long choice demonstrating text wrapping functionality"
+            - id: "wrap4"
+              content: "Fourth choice with very long text to test wrapping with scrolling"
+            - id: "wrap5"
+              content: "Fifth wrapped choice to test vertical scrolling of wrapped content"
+        
+        - id: "status_bar"
+          title: "Status"
+          position:
+            x1: "0%"
+            y1: "90%"
+            x2: "100%"
+            y2: "100%"
+          border: true
+          border_color: green
+          bg_color: black
+          fg_color: green
+          content: "Demo: Use Arrow Keys to Scroll | Both boxes should show scrollbars when choices overflow"

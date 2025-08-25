@@ -425,6 +425,14 @@ impl IntegrationTestUtils {
             SocketFunction::QueryPtyStatus { box_id } => {
                 Message::MuxBoxOutputUpdate(box_id, true, "PTY status queried".to_string())
             }
+            // F0136: Socket PTY Spawn pattern
+            SocketFunction::SpawnPtyProcess { box_id, .. } => {
+                Message::MuxBoxOutputUpdate(box_id, true, "PTY process spawned".to_string())
+            }
+            // F0139: Socket PTY Input pattern
+            SocketFunction::SendPtyInput { box_id, .. } => {
+                Message::MuxBoxOutputUpdate(box_id, true, "PTY input sent".to_string())
+            }
         };
 
         tx.send((test_uuid, boxmux_message))?;
