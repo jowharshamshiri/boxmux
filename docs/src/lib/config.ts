@@ -11,7 +11,7 @@ import type { Feature, PromoConfig, SiteConfig } from "./types/config";
 
 
 export const siteConfig: SiteConfig = {
-    version: '0.174.28875',
+    version: 'dynamic', // Version now fetched dynamically from GitHub API
     title: 'BoxMux',
     description:
         'A YAML-driven terminal UI framework for CLI applications and dashboards.',
