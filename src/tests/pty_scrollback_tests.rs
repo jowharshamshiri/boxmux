@@ -248,6 +248,7 @@ mod pty_scrollback_tests {
             table_config: None,
             auto_scroll_bottom: None,
             pty: Some(true), // This is a PTY muxbox
+            z_index: None,
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,
