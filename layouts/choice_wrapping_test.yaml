@@ -1,61 +1,71 @@
-app:
-  title: "Choice Wrapping Test"
-  layouts:
-    - name: "main"
-      active: true
-      children:
-        - id: "wrap_choices"
-          title: "Word Wrapping Choices"
-          left: 10%
-          top: 10%
-          width: 30%
-          height: 40%
-          overflow_behavior: "wrap"
-          border_color: "yellow"
-          background_color: "black"
-          choices:
-            - content: "This is a very long choice that should wrap across multiple lines when displayed"
-              script: "echo 'Choice 1 selected'"
-            - content: "Another long choice with lots of text that will also wrap nicely"
-              script: "echo 'Choice 2 selected'"
-            - content: "Short choice"
-              script: "echo 'Choice 3 selected'"
-            - content: "This is an extremely long choice with even more text that should definitely wrap across multiple lines and demonstrate the wrapping behavior properly"
-              script: "echo 'Choice 4 selected'"
-        
-        - id: "scroll_choices" 
-          title: "Scrolling Choices"
-          left: 50%
-          top: 10%
-          width: 30%
-          height: 40%
-          overflow_behavior: "scroll"
-          border_color: "green"
-          background_color: "black"
-          choices:
-            - content: "Choice 1 - This is a long choice that will be clipped"
-              script: "echo 'Scroll Choice 1'"
-            - content: "Choice 2 - Another choice"  
-              script: "echo 'Scroll Choice 2'"
-            - content: "Choice 3 - Short"
-              script: "echo 'Scroll Choice 3'"
-            - content: "Choice 4 - Medium length choice here"
-              script: "echo 'Scroll Choice 4'"
-            - content: "Choice 5 - Extra choice"
-              script: "echo 'Scroll Choice 5'"
-            - content: "Choice 6 - More choices"
-              script: "echo 'Scroll Choice 6'"
-            - content: "Choice 7 - Even more"
-              script: "echo 'Scroll Choice 7'"
-            - content: "Choice 8 - Last choice"
-              script: "echo 'Scroll Choice 8'"
+layouts:
+  - id: "main"
+    active: true
+    boxes:
+      - id: "wrap_choices"
+        title: "Word Wrapping Choices"
+        left: 10%
+        top: 10%
+        width: 30%
+        height: 40%
+        overflow_behavior: "wrap"
+        border_color: "yellow"
+        bg_color: "black"
+        choices:
+          - id: "choice1"
+            content: "This is a very long choice that should wrap across multiple lines when displayed"
+            script: "echo 'Choice 1 selected'"
+          - id: "choice2"
+            content: "Another long choice with lots of text that will also wrap nicely"
+            script: "echo 'Choice 2 selected'"
+          - id: "choice3"
+            content: "Short choice"
+            script: "echo 'Choice 3 selected'"
+          - id: "choice4"
+            content: "This is an extremely long choice with even more text that should definitely wrap across multiple lines and demonstrate the wrapping behavior properly"
+            script: "echo 'Choice 4 selected'"
+      
+      - id: "scroll_choices" 
+        title: "Scrolling Choices"
+        left: 50%
+        top: 10%
+        width: 30%
+        height: 40%
+        overflow_behavior: "scroll"
+        border_color: "green"
+        bg_color: "black"
+        choices:
+          - id: "scroll_choice1"
+            content: "Choice 1 - This is a long choice that will be clipped"
+            script: "echo 'Scroll Choice 1'"
+          - id: "scroll_choice2"
+            content: "Choice 2 - Another choice"  
+            script: "echo 'Scroll Choice 2'"
+          - id: "scroll_choice3"
+            content: "Choice 3 - Short"
+            script: "echo 'Scroll Choice 3'"
+          - id: "scroll_choice4"
+            content: "Choice 4 - Medium length choice here"
+            script: "echo 'Scroll Choice 4'"
+          - id: "scroll_choice5"
+            content: "Choice 5 - Extra choice"
+            script: "echo 'Scroll Choice 5'"
+          - id: "scroll_choice6"
+            content: "Choice 6 - More choices"
+            script: "echo 'Scroll Choice 6'"
+          - id: "scroll_choice7"
+            content: "Choice 7 - Even more"
+            script: "echo 'Scroll Choice 7'"
+          - id: "scroll_choice8"
+            content: "Choice 8 - Last choice"
+            script: "echo 'Scroll Choice 8'"
 
-        - id: "output"
-          title: "Output"
-          left: 10%
-          top: 60%
-          width: 70%
-          height: 30%
-          border_color: "blue"
-          background_color: "black"
-          content: "Click choices above to see output here. The left box uses word wrapping, the right box uses scrolling."
+      - id: "output"
+        title: "Output"
+        left: 10%
+        top: 60%
+        width: 70%
+        height: 30%
+        border_color: "blue"
+        bg_color: "black"
+        content: "Click choices above to see output here. The left box uses word wrapping, the right box uses scrolling."

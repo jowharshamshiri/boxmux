@@ -1,5 +1,5 @@
 ---
-title: Variable System Guide - BoxMux
+title: Variable System Guide
 description: Complete guide to BoxMux variable system - hierarchical variables, environment integration, template-driven configuration, and dynamic deployments
 ---
 

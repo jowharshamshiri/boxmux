@@ -1,5 +1,5 @@
 ---
-title: API Reference - BoxMux
+title: API Reference
 description: Complete API reference for BoxMux socket messaging, external integrations, and programmatic control - commands, message formats, and integration examples
 ---
 

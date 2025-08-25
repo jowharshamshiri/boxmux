@@ -1,5 +1,5 @@
 ---
-title: Roadmap - BoxMux
+title: Roadmap
 description: BoxMux development roadmap and project vision for future releases.
 ---
 
@@ -10,6 +10,7 @@ description: BoxMux development roadmap and project vision for future releases.
 **Create a declarative, accessible framework that makes building rich terminal interfaces as simple as writing configuration files.**
 
 ### Core Objectives
+
 - **Accessibility**: Make TUI development accessible to non-programmers
 - **Performance**: Maintain high performance even with complex interfaces  
 - **Flexibility**: Support diverse use cases from system monitoring to development tools
@@ -19,6 +20,7 @@ description: BoxMux development roadmap and project vision for future releases.
 BoxMux is a mature terminal UI framework with 79 implemented features (92% complete).
 
 ### ✅ Completed Core Features
+
 - **YAML Configuration System** - Declarative interface definition with JSON schema validation
 - **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
 - **Socket-based API** - External control via Unix domain sockets
@@ -30,6 +32,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 - **Performance Optimization** - Sub-millisecond input handling, efficient rendering
 
 ### Recently Completed Features
+
 - **Auto-Scroll to Bottom**: Boxes automatically scroll to show latest content for logs and command output  
 - **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
 - **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
@@ -40,9 +43,11 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
 ## Planned Enhancements
 
 ### 🎯 Next Release (v0.8) - Enhanced Capabilities
+
 **Focus**: Advanced features and developer experience improvements
 
 #### Remaining Features
+
 - [ ] **Performance Profiling**
   - Built-in performance monitoring and optimization tools
   - Runtime metrics collection and display
@@ -62,6 +67,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
   - Community-contributed components
 
 #### Medium Priority Features  
+
 - [ ] **Hot Configuration Reload**
   - Watch configuration files for changes
   - Safe state preservation during reload
@@ -74,9 +80,11 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
   - Built-in profiling and benchmarking tools
 
 ### 🚀 Future Releases (v1.0+) - Advanced Features
+
 **Focus**: Enterprise features and ecosystem expansion
 
 #### Enterprise Features
+
 - [ ] **Multi-file Configuration System**
   - Include/import system for modular configurations
   - Template and component libraries
@@ -95,6 +103,7 @@ BoxMux is a mature terminal UI framework with 79 implemented features (92% compl
   - Responsive design templates
 
 #### Developer Experience
+
 - [ ] **Enhanced Tooling**
   - Configuration file generator and wizard
   - Visual layout editor

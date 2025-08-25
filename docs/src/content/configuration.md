@@ -1,5 +1,5 @@
 ---
-title: Configuration Reference - BoxMux
+title: Configuration Reference
 description: Complete reference for BoxMux YAML configuration files - file structure, layouts, boxes, positioning, choices, and all configuration options
 ---
 
@@ -702,7 +702,7 @@ Variables use the following patterns:
 Variables are resolved in strict hierarchical order:
 
 1. **Box-specific variables** (highest precedence, most granular)
-2. **Parent box variables** (inherited through box hierarchy) 
+2. **Parent box variables** (inherited through box hierarchy)
 3. **Layout-level variables** (layout scope)
 4. **Application-global variables** (app-wide scope)
 5. **Environment variables** (system fallback)

@@ -472,6 +472,9 @@ create_runnable!(
                                     for (i, choice) in choices.iter_mut().enumerate() {
                                         choice.selected = i == new_selected_choice;
                                     }
+
+                                    // Auto-scroll to keep selected choice visible
+                                    auto_scroll_to_selected_choice(found_muxbox, new_selected_choice);
                                 } else {
                                     found_muxbox.scroll_down(Some(1.0));
                                 }
@@ -506,6 +509,9 @@ create_runnable!(
                                     for (i, choice) in choices.iter_mut().enumerate() {
                                         choice.selected = i == new_selected_choice;
                                     }
+
+                                    // Auto-scroll to keep selected choice visible
+                                    auto_scroll_to_selected_choice(found_muxbox, new_selected_choice);
                                 } else {
                                     found_muxbox.scroll_up(Some(1.0));
                                 }
@@ -2383,6 +2389,123 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
     }
 
     wrapped_lines
+}
+
+/// Auto-scroll to ensure selected choice is visible
+fn auto_scroll_to_selected_choice(muxbox: &mut crate::model::muxbox::MuxBox, selected_choice_index: usize) {
+    use crate::draw_utils::wrap_text_to_width;
+    
+    let bounds = muxbox.bounds();
+    let viewable_height = bounds.height().saturating_sub(2); // Account for borders
+    
+    // Handle different overflow behaviors
+    if let Some(overflow_behavior) = &muxbox.overflow_behavior {
+        match overflow_behavior.as_str() {
+            "wrap" => {
+                // Calculate wrapped lines for auto-scroll in wrapped choice mode
+                if let Some(choices) = &muxbox.choices {
+                    let viewable_width = bounds.width().saturating_sub(4);
+                    let mut total_lines = 0;
+                    let mut selected_line_start = 0;
+                    let mut selected_line_end = 0;
+                    
+                    for (i, choice) in choices.iter().enumerate() {
+                        if let Some(content) = &choice.content {
+                            let formatted_content = if choice.waiting {
+                                format!("{}...", content)
+                            } else {
+                                content.clone()
+                            };
+                            
+                            let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
+                            let line_count = wrapped_lines.len();
+                            
+                            if i == selected_choice_index {
+                                selected_line_start = total_lines;
+                                selected_line_end = total_lines + line_count - 1;
+                            }
+                            
+                            total_lines += line_count;
+                        }
+                    }
+                    
+                    // Adjust scroll to keep selected wrapped lines visible
+                    if total_lines > viewable_height {
+                        let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
+                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_lines - viewable_height) as f64).floor() as usize;
+                        let visible_start = current_scroll_offset;
+                        let visible_end = visible_start + viewable_height - 1;
+                        
+                        let mut new_scroll_percent = current_scroll_percent;
+                        
+                        // Scroll down if selected choice is below visible area
+                        if selected_line_end > visible_end {
+                            let new_offset = selected_line_end.saturating_sub(viewable_height - 1);
+                            new_scroll_percent = (new_offset as f64 / (total_lines - viewable_height) as f64) * 100.0;
+                        }
+                        // Scroll up if selected choice is above visible area
+                        else if selected_line_start < visible_start {
+                            let new_offset = selected_line_start;
+                            new_scroll_percent = (new_offset as f64 / (total_lines - viewable_height) as f64) * 100.0;
+                        }
+                        
+                        muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
+                    }
+                }
+            },
+            "scroll" => {
+                // For scroll mode, use choice index directly
+                if let Some(choices) = &muxbox.choices {
+                    let total_choices = choices.len();
+                    if total_choices > viewable_height {
+                        let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
+                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_choices - viewable_height) as f64).floor() as usize;
+                        let visible_start = current_scroll_offset;
+                        let visible_end = visible_start + viewable_height - 1;
+                        
+                        let mut new_scroll_percent = current_scroll_percent;
+                        
+                        // Scroll down if selected choice is below visible area
+                        if selected_choice_index > visible_end {
+                            let new_offset = selected_choice_index.saturating_sub(viewable_height - 1);
+                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                        }
+                        // Scroll up if selected choice is above visible area
+                        else if selected_choice_index < visible_start {
+                            let new_offset = selected_choice_index;
+                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                        }
+                        
+                        muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
+                    }
+                }
+            },
+            _ => {
+                // For other overflow behaviors (fill, cross_out, etc.), use simple choice index
+                if let Some(choices) = &muxbox.choices {
+                    let total_choices = choices.len();
+                    if total_choices > viewable_height {
+                        let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
+                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_choices - viewable_height) as f64).floor() as usize;
+                        let visible_start = current_scroll_offset;
+                        let visible_end = visible_start + viewable_height - 1;
+                        
+                        let mut new_scroll_percent = current_scroll_percent;
+                        
+                        if selected_choice_index > visible_end {
+                            let new_offset = selected_choice_index.saturating_sub(viewable_height - 1);
+                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                        } else if selected_choice_index < visible_start {
+                            let new_offset = selected_choice_index;
+                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                        }
+                        
+                        muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Trigger visual flash for muxbox (stub implementation)
