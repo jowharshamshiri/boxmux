@@ -19,7 +19,14 @@ const config = {
 			fallback: '404.html',
 			precompress: false,
 			strict: true
-		})
+		}),
+		paths: {
+			base: '',  // Empty for custom domain (boxmux.com)
+			assets: '' // Assets served from root
+		},
+		prerender: {
+			handleHttpError: 'warn'
+		}
 	}
 };
 
