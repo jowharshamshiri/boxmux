@@ -6,12 +6,13 @@
 [![Crates.io](https://img.shields.io/crates/v/boxmux.svg)](https://crates.io/crates/boxmux)
 [![Downloads](https://img.shields.io/crates/d/boxmux.svg)](https://crates.io/crates/boxmux)
 [![Docs.rs](https://docs.rs/boxmux/badge.svg)](https://docs.rs/boxmux)
+[![Documentation](https://img.shields.io/badge/docs-boxmux.com-blue.svg)](https://boxmux.com)
 
-![BoxMux Dashboard](./docs/static/code.png)
-![BoxMux Dashboard](./docs/static/socket_control.png)
+![BoxMux Dashboard](https://boxmux.com/code.png)
+![BoxMux Dashboard](https://boxmux.com/socket_control.png)
 
-![BoxMux Dashboard](./docs/static/screenshot.png)
-![BoxMux Dashboard](./docs/static/screenshot_2.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot_2.png)
 
 ## What is BoxMux?
 
@@ -210,18 +211,18 @@ boxmux my-interface.yaml
 
 ### Core Concepts
 
-- [User Guide](docs/src/content/user-guide.md) - Step-by-step guide to your first interface
-- [Configuration Reference](docs/src/content/configuration.md) - YAML configuration guide
-- [Examples](docs/src/content/examples.md) - Real-world examples and use cases
-- [API Reference](docs/src/content/api.md) - Socket messaging and programmatic control
+- [User Guide](https://boxmux.com/docs/user-guide) - Step-by-step guide to your first interface
+- [Configuration Reference](https://boxmux.com/docs/configuration) - YAML configuration guide
+- [Examples](https://boxmux.com/docs/examples) - Real-world examples and use cases
+- [API Reference](https://boxmux.com/docs/api) - Socket messaging and programmatic control
 
 ### Advanced Features
 
-- [PTY Features](docs/src/content/pty-features.md) - Interactive terminal applications
-- [Data Visualization](docs/src/content/data-visualization.md) - Charts and tables
-- [Plugin System](docs/src/content/plugin-system.md) - Extending functionality
-- [Advanced Features](docs/src/content/advanced-features.md) - Mouse support, clipboard, navigation
-- [Variable System](docs/src/content/variables.md) - Template-driven configuration
+- [PTY Features](https://boxmux.com/docs/pty-features) - Interactive terminal applications
+- [Data Visualization](https://boxmux.com/docs/data-visualization) - Charts and tables
+- [Plugin System](https://boxmux.com/docs/plugin-system) - Extending functionality
+- [Advanced Features](https://boxmux.com/docs/advanced-features) - Mouse support, clipboard, navigation
+- [Variable System](https://boxmux.com/docs/variables) - Template-driven configuration
 
 ## Interface Components
 
@@ -607,7 +608,7 @@ BoxMux performance characteristics (validated with 402 passing tests):
 - Optimize scripts
 - Monitor memory usage
 
-For more help, see our [Troubleshooting Guide](docs/src/content/troubleshooting.md).
+For more help, see our [Troubleshooting Guide](https://boxmux.com/docs/troubleshooting).
 
 ## License
 
@@ -615,8 +616,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Layouts Showcase
 
-![BoxMux Dashboard](./docs/static/screenshot_3.png)
-![BoxMux Dashboard](./docs/static/screenshot_4.png)
-![BoxMux Dashboard](./docs/static/screenshot_5.png)
-![BoxMux Dashboard](./docs/static/screenshot_6.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot_3.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot_4.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot_5.png)
+![BoxMux Dashboard](https://boxmux.com/screenshot_6.png)
 ---
