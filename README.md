@@ -7,11 +7,11 @@
 [![Downloads](https://img.shields.io/crates/d/boxmux.svg)](https://crates.io/crates/boxmux)
 [![Docs.rs](https://docs.rs/boxmux/badge.svg)](https://docs.rs/boxmux)
 
-![BoxMux Dashboard](./docs/code.png)
-![BoxMux Dashboard](./docs/socket_control.png)
+![BoxMux Dashboard](./docs/static/code.png)
+![BoxMux Dashboard](./docs/static/socket_control.png)
 
-![BoxMux Dashboard](./docs/screenshot.png)
-![BoxMux Dashboard](./docs/screenshot_2.png)
+![BoxMux Dashboard](./docs/static/screenshot.png)
+![BoxMux Dashboard](./docs/static/screenshot_2.png)
 
 ## What is BoxMux?
 
@@ -210,17 +210,18 @@ boxmux my-interface.yaml
 
 ### Core Concepts
 
-- [Getting Started](docs/getting-started.md) - Step-by-step guide to your first interface
-- [Configuration Reference](docs/configuration.md) - YAML configuration guide
-- [Examples](docs/examples.md) - Real-world examples and use cases
-- [API Reference](docs/api.md) - Socket messaging and programmatic control
+- [User Guide](docs/src/content/user-guide.md) - Step-by-step guide to your first interface
+- [Configuration Reference](docs/src/content/configuration.md) - YAML configuration guide
+- [Examples](docs/src/content/examples.md) - Real-world examples and use cases
+- [API Reference](docs/src/content/api.md) - Socket messaging and programmatic control
 
-### Topics
+### Advanced Features
 
-- [Layouts & Positioning](docs/layouts.md) - Creating layouts
-- [Scripting & Automation](docs/scripting.md) - Integrating shell scripts
-- [Themes & Styling](docs/themes.md) - Customizing appearance
-- [Performance & Optimization](docs/performance.md) - Best practices
+- [PTY Features](docs/src/content/pty-features.md) - Interactive terminal applications
+- [Data Visualization](docs/src/content/data-visualization.md) - Charts and tables
+- [Plugin System](docs/src/content/plugin-system.md) - Extending functionality
+- [Advanced Features](docs/src/content/advanced-features.md) - Mouse support, clipboard, navigation
+- [Variable System](docs/src/content/variables.md) - Template-driven configuration
 
 ## Interface Components
 
@@ -606,7 +607,7 @@ BoxMux performance characteristics (validated with 402 passing tests):
 - Optimize scripts
 - Monitor memory usage
 
-For more help, see our [Troubleshooting Guide](docs/troubleshooting.md).
+For more help, see our [Troubleshooting Guide](docs/src/content/troubleshooting.md).
 
 ## License
 
@@ -614,8 +615,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Layouts Showcase
 
-![BoxMux Dashboard](./docs/screenshot_3.png)
-![BoxMux Dashboard](./docs/screenshot_4.png)
-![BoxMux Dashboard](./docs/screenshot_5.png)
-![BoxMux Dashboard](./docs/screenshot_6.png)
+![BoxMux Dashboard](./docs/static/screenshot_3.png)
+![BoxMux Dashboard](./docs/static/screenshot_4.png)
+![BoxMux Dashboard](./docs/static/screenshot_5.png)
+![BoxMux Dashboard](./docs/static/screenshot_6.png)
 ---
