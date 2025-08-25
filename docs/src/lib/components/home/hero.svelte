@@ -6,6 +6,8 @@
 	import { siteConfig } from '$lib/config';
 	import { toast } from 'svelte-sonner';
 
+	export let data: { latestVersion: string; releaseUrl: string };
+
 	let isCopied = false;
 	const cargoCommand = `cargo install ${siteConfig.npm}`;
 
@@ -30,10 +32,10 @@
 		<!-- Version badge -->
 		<div class="flex justify-center">
 			<a
-				href={siteConfig.github}
+				href={data.releaseUrl}
 				class="inline-flex items-center gap-x-2 rounded-full border border-gray-200 bg-white p-1 ps-3 text-sm text-gray-800 transition hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
 			>
-				Version {siteConfig.version} - Latest Release
+				Version {data.latestVersion} - Latest Release
 				<Badge variant="secondary" class="gap-x-2 rounded-full">
 					<span class="hidden sm:inline">View on GitHub</span>
 					<ChevronRight class="size-4" />
