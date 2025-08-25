@@ -11,16 +11,18 @@ import type { Feature, PromoConfig, SiteConfig } from "./types/config";
 
 
 export const siteConfig: SiteConfig = {
-    version: '0.0.1',
-    title: 'Documentation',
+    version: '0.174.28875',
+    title: 'BoxMux Documentation',
     description:
-        'Comprehensive documentation for your project. Built with Svelte 5, MDSvex, Tailwind CSS, and shadcn/ui components.',
-    github: 'https://github.com/code-gio/svelte-firekit-docs',
-    npm: '',
+        'Documentation for BoxMux - A YAML-driven terminal UI framework for CLI applications and dashboards.',
+    github: 'https://github.com/bahram/boxmux',
+    npm: 'boxmux',
 
     quickLinks: [
-        { title: 'Customize', href: '/docs/customize' },
-        { title: 'Examples', href: '/docs/examples' }
+        { title: 'Configuration', href: '/docs/configuration' },
+        { title: 'User Guide', href: '/docs/user-guide' },
+        { title: 'API Reference', href: '/docs/api' },
+        { title: 'PTY Features', href: '/docs/pty-features' }
     ],
     logo: '/logo.svg',
     logoDark: '/logo-white.svg',
@@ -37,50 +39,43 @@ export let navItems: NavItem[] = [
 ];
 
 export let socialLinks: SocialLink[] = [
-
-    {
-        title: 'LinkedIn',
-        href: 'https://www.linkedin.com/in/giovanirodriguez26/',
-        icon: 'linkedin'
-    },
     {
         title: 'GitHub',
-        href: 'https://github.com/code-gio',
+        href: 'https://github.com/bahram/boxmux',
         icon: 'github'
     },
-
 ];
 
 
 export const features: Feature[] = [
     {
         icon: Boxes,
-        title: 'Component Library',
-        description: 'Built on top of shadcn/ui, offering comprehensive accessible components with complete documentation'
+        title: 'YAML Configuration',
+        description: 'Define terminal interfaces using YAML files with nested box layouts, menus, and content'
     },
     {
         icon: Workflow,
-        title: 'Type Safe',
-        description: 'Fully typed with TypeScript, providing excellent IDE support and reliable development experience'
+        title: 'Script Execution',
+        description: 'Execute shell scripts with output streaming, background threading, and output redirection'
     },
     {
         icon: Paintbrush,
-        title: 'Fully Customizable',
-        description: 'Easily customize themes, layouts, and components to match your brand identity and requirements'
+        title: 'PTY Support',
+        description: 'Pseudo-terminal integration for running interactive programs like vim, htop, and SSH'
     },
     {
         icon: Zap,
-        title: 'Fast & Modern',
-        description: 'Powered by Svelte 5, MDSvex, and TailwindCSS for optimal performance and developer experience'
+        title: 'Socket Remote Control',
+        description: 'Control BoxMux applications via Unix sockets with CLI and API commands'
     }
 ];
 
 export let promoConfig: PromoConfig = {
-    title: 'Need help with your project?',
+    title: 'Build terminal UIs with YAML',
     description:
-        'I offer custom development services, consulting, and technical guidance for your web applications.',
-    ctaText: "Let's work together",
-    ctaLink: 'mailto:info@codegio.com',
-    lightImage: '/images/dev-services-light.jpg',
-    darkImage: '/images/dev-services-dark.jpg'
+        'BoxMux uses YAML configuration files to define CLI applications with real-time execution.',
+    ctaText: "Documentation",
+    ctaLink: '/docs',
+    lightImage: '/screenshot.png',
+    darkImage: '/screenshot.png'
 };
