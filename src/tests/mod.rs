@@ -79,6 +79,10 @@ pub mod special_key_tests;
 pub mod pty_scrollback_tests;
 
 #[cfg(test)]
+pub mod multi_stream_tabs_tests;
+
+
+#[cfg(test)]
 pub mod z_index_tests;
 
 #[cfg(test)]

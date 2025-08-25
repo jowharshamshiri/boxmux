@@ -216,10 +216,8 @@ pub fn draw_muxbox(
                 }
             }
 
-            // check output is not null or empty - output overrides everything (including scrollback)
-            if !muxbox.output.is_empty() {
-                content = Some(&muxbox.output);
-            }
+            // F0209: Stream Content Rendering - Pass streams to render function
+            // The render function will extract tabs, content, and choices from streams
 
             // Automatic scrollbar logic for focusable muxboxes
             let mut overflow_behavior = muxbox.calc_overflow_behavior(app_context, app_graph);
@@ -271,16 +269,15 @@ pub fn draw_muxbox(
                 &border_color,
                 &bg_color,
                 &parent_bg_color,
-                title_with_pty_indicator.as_deref(),
+                &muxbox.streams, // F0209: Pass streams HashMap - contains all content, choices, redirects
+                muxbox.get_active_tab_index(), // F0208: Pass active tab index from muxbox
                 &title_fg_color,
                 &title_bg_color,
                 &muxbox.calc_title_position(app_context, app_graph),
-                muxbox.choices.clone(),
                 &muxbox.calc_menu_fg_color(app_context, app_graph),
                 &muxbox.calc_menu_bg_color(app_context, app_graph),
                 &muxbox.calc_selected_menu_fg_color(app_context, app_graph),
                 &muxbox.calc_selected_menu_bg_color(app_context, app_graph),
-                content,
                 &fg_color,
                 &overflow_behavior,
                 Some(&muxbox.calc_border(app_context, app_graph)),
@@ -526,21 +523,177 @@ static V_SCROLL_CHAR: &str = "█";
 static H_SCROLL_TRACK: &str = "─";
 static V_SCROLL_TRACK: &str = "│";
 
+// F0203: Multi-Stream Input Tabs - Tab rendering functions
+pub fn draw_horizontal_line_with_tabs(
+    y: usize,
+    x1: usize,
+    x2: usize,
+    fg_color: &str,
+    bg_color: &str,
+    title: Option<&str>,
+    title_fg_color: &str,
+    title_bg_color: &str,
+    title_position: &str,
+    draw_border: bool,
+    tab_labels: &[String],
+    active_tab_index: usize,
+    buffer: &mut ScreenBuffer,
+) {
+    let width = x2.saturating_sub(x1);
+    
+    // All boxes show tabs - render tab bar if tabs exist, otherwise empty bar
+    if tab_labels.len() > 0 {
+        draw_tab_bar(
+            y, x1, x2, fg_color, bg_color, title_fg_color, title_bg_color,
+            tab_labels, active_tab_index, draw_border, buffer
+        );
+    } else {
+        // No tabs initialized - fall back to empty border line
+        draw_horizontal_line_with_title(
+            y, x1, x2, fg_color, bg_color, None, title_fg_color,
+            title_bg_color, title_position, draw_border, buffer
+        );
+    }
+}
+
+fn draw_tab_bar(
+    y: usize,
+    x1: usize,
+    x2: usize,
+    fg_color: &str,
+    bg_color: &str,
+    title_fg_color: &str,
+    title_bg_color: &str,
+    tab_labels: &[String],
+    active_tab_index: usize,
+    draw_border: bool,
+    buffer: &mut ScreenBuffer,
+) {
+    let width = x2.saturating_sub(x1);
+    let mut current_x = x1;
+    
+    // Calculate available width for tabs (reserve space for borders if needed)
+    let available_width = if draw_border {
+        width.saturating_sub(4) // Reserve space for border segments
+    } else {
+        width
+    };
+    
+    // Calculate tab width - distribute evenly but cap at reasonable size
+    let max_tab_width = 16; // Maximum width per tab
+    let min_tab_width = 6;  // Minimum width per tab
+    let calculated_tab_width = available_width / tab_labels.len().max(1);
+    let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+    
+    // Draw leading border if needed
+    if draw_border && current_x < x2 {
+        draw_horizontal_line(y, current_x, current_x + 2, fg_color, bg_color, buffer);
+        current_x += 2;
+    }
+    
+    // Draw each tab
+    for (i, label) in tab_labels.iter().enumerate() {
+        if current_x >= x2 {
+            break; // No more space
+        }
+        
+        let is_active = i == active_tab_index;
+        let (tab_fg, tab_bg) = if is_active {
+            (title_bg_color, title_fg_color) // Inverted colors for active tab
+        } else {
+            (title_fg_color, title_bg_color)
+        };
+        
+        // Truncate label to fit tab width
+        let mut display_label = label.clone();
+        if display_label.len() > tab_width.saturating_sub(2) {
+            display_label.truncate(tab_width.saturating_sub(3));
+            display_label.push('…');
+        }
+        
+        // Pad label to center it in tab
+        let padded_label = format!(" {} ", display_label);
+        let padded_len = padded_label.len().min(tab_width);
+        
+        // Draw tab background
+        let tab_end = (current_x + tab_width).min(x2);
+        fill_horizontal_background(y, current_x, tab_end - 1, tab_fg, tab_bg, buffer);
+        
+        // Draw tab text
+        if current_x + padded_len <= x2 {
+            print_with_color_and_background_at(
+                y, current_x, tab_fg, tab_bg, &padded_label[..padded_len], buffer
+            );
+        }
+        
+        current_x = tab_end;
+        
+        // Add separator between tabs (but not after last tab)
+        if i < tab_labels.len() - 1 && current_x < x2 && draw_border {
+            print_with_color_and_background_at(y, current_x, fg_color, bg_color, "│", buffer);
+            current_x += 1;
+        }
+    }
+    
+    // Draw trailing border to fill remaining space
+    if draw_border && current_x < x2 {
+        draw_horizontal_line(y, current_x, x2, fg_color, bg_color, buffer);
+    }
+}
+
+pub fn calculate_tab_click_index(
+    click_x: usize,
+    x1: usize,
+    x2: usize,
+    tab_labels: &[String],
+    draw_border: bool,
+) -> Option<usize> {
+    if tab_labels.len() == 0 {
+        return None; // No tabs to click
+    }
+    
+    let width = x2.saturating_sub(x1);
+    let available_width = if draw_border {
+        width.saturating_sub(4)
+    } else {
+        width
+    };
+    
+    let max_tab_width = 16;
+    let min_tab_width = 6;
+    let calculated_tab_width = available_width / tab_labels.len().max(1);
+    let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+    
+    let start_x = if draw_border { x1 + 2 } else { x1 };
+    
+    if click_x < start_x || click_x >= x2 {
+        return None;
+    }
+    
+    let relative_x = click_x - start_x;
+    let tab_index = relative_x / (tab_width + if draw_border { 1 } else { 0 }); // Account for separators
+    
+    if tab_index < tab_labels.len() {
+        Some(tab_index)
+    } else {
+        None
+    }
+}
+
 pub fn render_muxbox(
     bounds: &Bounds,
     border_color: &str,
     bg_color: &str,
     parent_bg_color: &str,
-    title: Option<&str>,
+    streams: &std::collections::HashMap<String, crate::model::common::Stream>, // F0209: Stream-based rendering
+    active_tab_index: usize, // F0208: Active tab index from muxbox
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
-    choices: Option<Vec<Choice>>,
     menu_fg_color: &str,
     menu_bg_color: &str,
     selected_menu_fg_color: &str,
     selected_menu_bg_color: &str,
-    content: Option<&str>,
     fg_color: &str,
     overflow_behavior: &str,
     border: Option<&bool>,
@@ -549,6 +702,56 @@ pub fn render_muxbox(
     locked: bool, // Whether muxboxes are locked (disable resize/move and hide corner knob)
     buffer: &mut ScreenBuffer,
 ) {
+    // F0209: Extract content and tabs from streams
+    let (should_render_choices, content_str, tab_labels) = if !streams.is_empty() {
+        // Get active stream content
+        let active_stream = streams.values().find(|s| s.active);
+        let should_render_choices = if let Some(stream) = active_stream {
+            matches!(stream.stream_type, crate::model::common::StreamType::Choices)
+        } else {
+            false
+        };
+        
+        let content_str = if should_render_choices {
+            None
+        } else if let Some(stream) = active_stream {
+            Some(stream.content.join("\n"))
+        } else {
+            None
+        };
+        
+        // Generate tab labels from streams (sorted by priority)
+        let mut sorted_streams: Vec<_> = streams.values().collect();
+        sorted_streams.sort_by(|a, b| {
+            match (&a.stream_type, &b.stream_type) {
+                (crate::model::common::StreamType::Content, _) => std::cmp::Ordering::Less,
+                (_, crate::model::common::StreamType::Content) => std::cmp::Ordering::Greater,
+                (crate::model::common::StreamType::Choices, _) => std::cmp::Ordering::Less,
+                (_, crate::model::common::StreamType::Choices) => std::cmp::Ordering::Greater,
+                _ => a.id.cmp(&b.id),
+            }
+        });
+        let tabs: Vec<String> = sorted_streams.iter().map(|s| s.label.clone()).collect();
+        
+        (should_render_choices, content_str, tabs)
+    } else {
+        // No streams - empty content
+        (false, None, vec![])
+    };
+    
+    let content = content_str.as_deref();
+    // active_tab_index passed as parameter from muxbox
+    
+    // Extract choices from streams for legacy rendering logic compatibility
+    let choices = if should_render_choices {
+        streams.values()
+            .find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices))
+            .and_then(|s| s.choices.as_ref())
+            .map(|c| c.clone())
+    } else {
+        None
+    };
+    
     let draw_border = border.unwrap_or(&true);
     let border_color_code = get_fg_color(border_color);
     // let fg_color_code = get_fg_color(fg_color);
@@ -566,43 +769,27 @@ pub fn render_muxbox(
         .intersection(&screen_bounds)
         .unwrap_or_else(|| bounds.clone());
 
-    // Draw top border with title
+    // F0208: Draw top border with tabs (no separate title - streams determine content)
     let top_border_length = bounds.width();
-    if let Some(title) = title {
-        let mut formatted_title = format!(" {} ", title);
-        let title_length = formatted_title.len();
-        let mut max_title_length = title_length;
-
-        if title_length < top_border_length {
-            if top_border_length < 5 {
-                _title_overflowing = true;
-            } else {
-                if max_title_length > top_border_length.saturating_sub(3) {
-                    max_title_length = top_border_length.saturating_sub(3);
-                }
-
-                if title_length > max_title_length {
-                    formatted_title = format!("{}...", &formatted_title[..max_title_length]);
-                }
-            }
-        }
-
-        if !_title_overflowing {
-            draw_horizontal_line_with_title(
-                bounds.top(),
-                bounds.left(),
-                bounds.right(),
-                border_color,
-                bg_color,
-                Some(&formatted_title),
-                title_fg_color,
-                title_bg_color,
-                title_position,
-                *draw_border,
-                buffer,
-            );
-        }
+    if !tab_labels.is_empty() {
+        // Draw tabs when streams exist
+        draw_horizontal_line_with_tabs(
+            bounds.top(),
+            bounds.left(),
+            bounds.right(),
+            border_color,
+            bg_color,
+            None, // No separate title - tabs show stream labels
+            title_fg_color,
+            title_bg_color,
+            title_position,
+            *draw_border,
+            &tab_labels,
+            active_tab_index,
+            buffer,
+        );
     } else if *draw_border {
+        // Draw plain border when no streams
         draw_horizontal_line(
             bounds.top(),
             bounds.left(),
@@ -613,10 +800,16 @@ pub fn render_muxbox(
         );
     }
 
-    if let Some(ref choices) = choices {
-        let viewable_height = bounds.height().saturating_sub(2); // Account for borders
-        let total_choices = choices.len();
-        let choice_overflows = total_choices > viewable_height;
+    // F0206: Render choices from streams if active stream is choices
+    if should_render_choices {
+        // Get choices from the choices stream
+        let choices_stream = streams.values().find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices));
+        if let Some(stream) = choices_stream {
+            if let Some(ref choices) = stream.choices {
+                // Use existing choices rendering logic - pass the Choice objects directly
+                let viewable_height = bounds.height().saturating_sub(2); // Account for borders
+                let total_choices = choices.len();
+                let choice_overflows = total_choices > viewable_height;
         
         // Calculate scroll offset for choices
         let vertical_offset = if choice_overflows {
@@ -801,7 +994,9 @@ pub fn render_muxbox(
                     y_position += 1;
                 }
             }
+            }
         }
+    }
     } else if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
         let viewable_width = bounds.width().saturating_sub(4);

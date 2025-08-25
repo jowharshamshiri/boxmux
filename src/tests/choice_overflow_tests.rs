@@ -60,6 +60,9 @@ mod choice_overflow_tests {
             0.0, // horizontal_scroll
             0.0, // vertical_scroll (top)
             false,
+            // F0203: Multi-Stream Input Tabs parameters
+            &Vec::<String>::new(), // No tabs for test
+            0, // active_tab_index
             &mut buffer,
         );
         
@@ -115,6 +118,9 @@ mod choice_overflow_tests {
             0.0,
             100.0, // vertical_scroll (bottom) - should show later choices
             false,
+            // F0203: Multi-Stream Input Tabs parameters
+            &Vec::<String>::new(), // No tabs for test
+            0, // active_tab_index
             &mut buffer,
         );
         
@@ -150,6 +156,9 @@ mod choice_overflow_tests {
             Some(&true),
             0.0, 0.0,
             false,
+            // F0203: Multi-Stream Input Tabs parameters
+            &Vec::<String>::new(), // No tabs for test
+            0, // active_tab_index
             &mut buffer,
         );
         
@@ -194,6 +203,9 @@ mod choice_overflow_tests {
             Some(&true),
             0.0, 50.0, // Middle scroll position
             false,
+            // F0203: Multi-Stream Input Tabs parameters
+            &Vec::<String>::new(), // No tabs for test
+            0, // active_tab_index
             &mut buffer,
         );
         
