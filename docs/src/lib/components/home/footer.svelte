@@ -43,6 +43,6 @@
 		</a>
 		by code-gio
 		<br/>
-		Claude AI assisted with specific development sections under heavy human supervision
+		Claude AI assisted with specific development sections.
 	</div>
 </footer>
