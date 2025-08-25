@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting Guide - BoxMux
+title: Troubleshooting Guide
 description: Comprehensive troubleshooting guide for BoxMux - common issues, debugging techniques, performance problems, and recovery procedures
 ---
 

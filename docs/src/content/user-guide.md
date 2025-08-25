@@ -1,5 +1,5 @@
 ---
-title: User Guide - BoxMux
+title: User Guide
 description: Complete guide for building terminal interfaces with BoxMux - from basic concepts to advanced techniques
 ---
 

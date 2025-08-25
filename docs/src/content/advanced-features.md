@@ -1,5 +1,5 @@
 ---
-title: Advanced Features - BoxMux
+title: Advanced Features
 description: Mouse support, hot keys, clipboard integration, navigation, and performance monitoring.
 ---
 
@@ -197,7 +197,6 @@ Page Up/Down  - Page-based scrolling
   title: 'Large Overflow (Small Knob)'
   script: ['seq 1 1000'] # Many extra lines - small scrollbar knob
 ```
-
 
 ## Clipboard Integration
 

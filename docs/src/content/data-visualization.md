@@ -1,5 +1,5 @@
 ---
-title: Data Visualization - BoxMux
+title: Data Visualization
 description: Data visualization through charts and tables with features for displaying, sorting, and filtering structured data, including real-time updates.
 ---
 

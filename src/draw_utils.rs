@@ -672,12 +672,9 @@ pub fn render_muxbox(
             let viewable_height = bounds.height().saturating_sub(2);
             
             if overflow_behavior == "wrap" {
-                // Render choices with word wrapping
+                // Create all wrapped lines first
+                let mut all_wrapped_lines = Vec::new();
                 for choice in choices {
-                    if y_position > bounds.bottom() - 1 {
-                        break; // Don't draw outside the bounds
-                    }
-
                     let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
                     let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
 
@@ -691,20 +688,34 @@ pub fn render_muxbox(
                     let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
                     
                     for wrapped_line in wrapped_lines {
-                        if y_position > bounds.bottom() - 1 {
-                            break; // Don't draw outside the bounds
-                        }
-                        
-                        print_with_color_and_background_at(
-                            y_position,
-                            bounds.left() + 2,
-                            fg_color,
-                            bg_color,
-                            &wrapped_line,
-                            buffer,
-                        );
-                        y_position += 1;
+                        all_wrapped_lines.push((wrapped_line, fg_color, bg_color));
                     }
+                }
+                
+                // Calculate scroll offset for wrapped lines
+                let total_wrapped_lines = all_wrapped_lines.len();
+                let vertical_offset = if total_wrapped_lines > viewable_height {
+                    ((vertical_scroll / 100.0) * (total_wrapped_lines - viewable_height) as f64).floor() as usize
+                } else {
+                    0
+                };
+                
+                // Render visible wrapped lines with scroll offset
+                let visible_lines = all_wrapped_lines.iter().skip(vertical_offset).take(viewable_height);
+                for (wrapped_line, fg_color, bg_color) in visible_lines {
+                    if y_position > bounds.bottom() - 1 {
+                        break; // Don't draw outside the bounds
+                    }
+                    
+                    print_with_color_and_background_at(
+                        y_position,
+                        bounds.left() + 2,
+                        *fg_color,
+                        *bg_color,
+                        wrapped_line,
+                        buffer,
+                    );
+                    y_position += 1;
                 }
                 
                 // Check if wrapped choices overflow vertically and need scrollbar
