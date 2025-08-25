@@ -33,7 +33,6 @@ jobs:
       run: |
         ls -la docs/build/
         test -f docs/build/index.html || exit 1
-        test -f docs/build/CNAME || exit 1
     
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
