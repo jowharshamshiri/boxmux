@@ -35,7 +35,7 @@
 	<Sidebar.Content>
 		<Sidebar.Group>
 			<Sidebar.Menu>
-				{#each docsNavigation.docNav as groupItem (groupItem.title)}
+				{#each docsNavigation.docNav.filter(item => !item.disabled) as groupItem (groupItem.title)}
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton class="font-medium" isActive={path === groupItem.href}>
 							{#snippet child({ props })}
@@ -46,7 +46,7 @@
 						</Sidebar.MenuButton>
 						{#if groupItem.items?.length}
 							<Sidebar.MenuSub>
-								{#each groupItem.items as item (item.title)}
+								{#each groupItem.items.filter(item => !item.disabled) as item (item.title)}
 									<Sidebar.MenuSubItem>
 										<Sidebar.MenuSubButton isActive={path === item.href}>
 											{#snippet child({ props })}

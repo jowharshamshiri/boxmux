@@ -7,11 +7,11 @@
 	import { toast } from 'svelte-sonner';
 
 	let isCopied = false;
-	const npmCommand = `npm install ${siteConfig.npm}`;
+	const cargoCommand = `cargo install ${siteConfig.npm}`;
 
-	async function copyNpmCommand() {
+	async function copyCargoCommand() {
 		try {
-			await navigator.clipboard.writeText(npmCommand);
+			await navigator.clipboard.writeText(cargoCommand);
 			isCopied = true;
 			toast.success('Copied to clipboard');
 
@@ -65,8 +65,8 @@
 			</Button>
 
 			{#if siteConfig.npm !== ''}
-				<Button variant="outline" class="font-mono" onclick={copyNpmCommand}>
-					{npmCommand}
+				<Button variant="outline" class="font-mono" onclick={copyCargoCommand}>
+					{cargoCommand}
 					<span class="ml-2 rounded bg-gray-200 p-1 dark:bg-neutral-700">
 						{#if isCopied}
 							<Check class="size-4 text-green-500 transition-transform" />
