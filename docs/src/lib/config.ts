@@ -15,7 +15,7 @@ export const siteConfig: SiteConfig = {
     title: 'BoxMux Documentation',
     description:
         'Documentation for BoxMux - A YAML-driven terminal UI framework for CLI applications and dashboards.',
-    github: 'https://github.com/bahram/boxmux',
+    github: 'https://github.com/jowharshamshiri/boxmux',
     npm: 'boxmux',
 
     quickLinks: [
@@ -41,7 +41,7 @@ export let navItems: NavItem[] = [
 export let socialLinks: SocialLink[] = [
     {
         title: 'GitHub',
-        href: 'https://github.com/bahram/boxmux',
+        href: 'https://github.com/jowharshamshiri/boxmux',
         icon: 'github'
     },
 ];
