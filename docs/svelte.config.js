@@ -25,6 +25,7 @@ const config = {
 			assets: '' // Assets served from root
 		},
 		prerender: {
+			entries: ['/', '/docs', '/docs/*'],
 			handleHttpError: 'warn'
 		}
 	}
