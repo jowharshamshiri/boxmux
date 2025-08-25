@@ -105,7 +105,11 @@ pub fn draw_layout(
     }
 
     if let Some(children) = &cloned_layout.children {
-        for muxbox in children.iter() {
+        // Sort children by z_index (lower z_index first, higher z_index on top)
+        let mut sorted_children: Vec<&MuxBox> = children.iter().collect();
+        sorted_children.sort_by_key(|muxbox| muxbox.effective_z_index());
+        
+        for muxbox in sorted_children.iter() {
             draw_muxbox(
                 app_context,
                 app_graph,
@@ -286,9 +290,12 @@ pub fn draw_muxbox(
                 buffer,
             );
 
-            // Draw children
+            // Draw children sorted by z_index
             if let Some(children) = &muxbox.children {
-                for child in children.iter() {
+                let mut sorted_children: Vec<&MuxBox> = children.iter().collect();
+                sorted_children.sort_by_key(|child| child.effective_z_index());
+                
+                for child in sorted_children.iter() {
                     draw_muxbox(
                         app_context,
                         app_graph,

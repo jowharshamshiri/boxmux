@@ -199,6 +199,8 @@ pub struct MuxBox {
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
     pub pty: Option<bool>,
+    #[serde(default)]
+    pub z_index: Option<i32>,
     #[serde(skip)]
     pub output: String,
     #[serde(skip)]
@@ -287,6 +289,7 @@ impl Hash for MuxBox {
         }
         self.auto_scroll_bottom.hash(state);
         self.pty.hash(state);
+        self.z_index.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -368,6 +371,7 @@ impl Default for MuxBox {
             table_config: None,
             auto_scroll_bottom: None,
             pty: None,
+            z_index: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -444,6 +448,7 @@ impl PartialEq for MuxBox {
             && self.table_config == other.table_config
             && self.auto_scroll_bottom == other.auto_scroll_bottom
             && self.pty == other.pty
+            && self.z_index == other.z_index
             && self.error_state == other.error_state
     }
 }
@@ -513,6 +518,7 @@ impl Clone for MuxBox {
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
             pty: self.pty,
+            z_index: self.z_index,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -538,6 +544,10 @@ impl MuxBox {
         let screen_bounds_value = screen_bounds();
         let actual_parent_bounds = parent_bounds.unwrap_or(&screen_bounds_value);
         self.position = bounds_to_input_bounds(&bounds, actual_parent_bounds);
+    }
+
+    pub fn effective_z_index(&self) -> i32 {
+        self.z_index.unwrap_or(0)
     }
 
     pub fn set_output(&mut self, output: &str) {

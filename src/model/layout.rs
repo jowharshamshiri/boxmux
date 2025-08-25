@@ -381,6 +381,10 @@ impl Layout {
             x: u16,
             y: u16,
         ) -> Option<&'a MuxBox> {
+            // Collect matching boxes and their children, then sort by z_index (highest first)
+            let mut candidates: Vec<&MuxBox> = Vec::new();
+            
+            // Find all boxes that contain the click coordinates
             for muxbox in muxboxes {
                 let bounds = muxbox.bounds();
                 if x >= bounds.x1 as u16
@@ -388,14 +392,23 @@ impl Layout {
                     && y >= bounds.y1 as u16
                     && y <= bounds.y2 as u16
                 {
-                    // Check children first (they might overlay)
-                    if let Some(ref children) = muxbox.children {
-                        if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y) {
-                            return Some(child_muxbox);
-                        }
-                    }
-                    return Some(muxbox);
+                    candidates.push(muxbox);
                 }
+            }
+            
+            // Sort candidates by z_index (highest first for click priority)
+            candidates.sort_by_key(|muxbox| std::cmp::Reverse(muxbox.effective_z_index()));
+            
+            // Check candidates in z_index order (highest z_index first)
+            for muxbox in candidates {
+                // Check children first (they take priority over parent)
+                if let Some(ref children) = muxbox.children {
+                    if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y) {
+                        return Some(child_muxbox);
+                    }
+                }
+                // Return this muxbox (highest z_index among candidates)
+                return Some(muxbox);
             }
             None
         }

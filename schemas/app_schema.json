@@ -468,6 +468,10 @@
         "pty": {
           "type": "boolean",
           "description": "Run script in a pseudo-terminal (PTY) for interactive programs and real-time output"
+        },
+        "z_index": {
+          "type": "integer",
+          "description": "Layering priority - higher values appear on top when boxes overlap (default: 0)"
         }
       },
       "required": ["id"],

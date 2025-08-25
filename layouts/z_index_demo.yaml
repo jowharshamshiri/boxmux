@@ -1,0 +1,88 @@
+app:
+  layouts:
+  - id: main
+    root: true
+    title: "Z-Index Layering Demo"
+    children:
+      # Background box (z_index: -1, appears behind)
+      - id: background
+        title: "Background Layer"
+        bounds:
+          x1: 10%
+          y1: 10%
+          x2: 90%
+          y2: 90%
+        z_index: -1
+        bg_color: blue
+        border: true
+        border_color: blue
+        content: "This is the background layer (z_index: -1)"
+
+      # Middle box (default z_index: 0) 
+      - id: middle
+        title: "Middle Layer"
+        bounds:
+          x1: 20%
+          y1: 20%
+          x2: 80%
+          y2: 80%
+        bg_color: green  
+        border: true
+        border_color: green
+        content: "This is the middle layer (default z_index: 0)"
+
+      # Foreground box (z_index: 10, appears on top)
+      - id: foreground
+        title: "Foreground Layer"
+        bounds:
+          x1: 30%
+          y1: 30%
+          x2: 70%
+          y2: 70%
+        z_index: 10
+        bg_color: red
+        border: true
+        border_color: red
+        content: "This is the foreground layer (z_index: 10) - click me!"
+        choices:
+          - id: test_click
+            content: "Test Click Detection"
+            script:
+              - echo "Clicked the topmost box!"
+
+      # Nested example with child z-index
+      - id: parent_container
+        title: "Container with Nested Z-Index"
+        bounds:
+          x1: 60%
+          y1: 10%
+          x2: 95%
+          y2: 50%
+        z_index: 5
+        bg_color: yellow
+        border: true
+        border_color: yellow
+        children:
+          - id: child_behind
+            title: "Child Behind"
+            bounds:
+              x1: 5%
+              y1: 10%
+              x2: 95%
+              y2: 45%
+            z_index: 1
+            bg_color: cyan
+            border: true
+            content: "Child with z_index: 1"
+            
+          - id: child_front
+            title: "Child Front"
+            bounds:
+              x1: 10%
+              y1: 20%
+              x2: 90%
+              y2: 90%
+            z_index: 5
+            bg_color: magenta
+            border: true
+            content: "Child with z_index: 5 (on top)"
