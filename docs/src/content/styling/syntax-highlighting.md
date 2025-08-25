@@ -220,7 +220,7 @@ BoxMux includes JSON schema validation for YAML files:
 
 ```json
 {
-  "$schema": "https://boxmux.com/schema/app_schema.json",
+  "$schema": "https://raw.githubusercontent.com/jowharshamshiri/boxmux/main/schemas/app_schema.json",
   "type": "object",
   "properties": {
     "title": { "type": "string" },
