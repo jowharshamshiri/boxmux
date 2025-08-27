@@ -353,7 +353,7 @@ impl Layout {
     pub fn find_muxbox_with_choice(&self, choice_id: &str) -> Option<&MuxBox> {
         fn find_in_muxboxes<'a>(muxboxes: &'a [MuxBox], choice_id: &str) -> Option<&'a MuxBox> {
             for muxbox in muxboxes {
-                if let Some(choices) = &muxbox.choices {
+                if let Some(choices) = muxbox.get_active_stream_choices() {
                     if choices.iter().any(|c| c.id == choice_id) {
                         return Some(muxbox);
                     }

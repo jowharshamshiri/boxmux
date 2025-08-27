@@ -62,6 +62,12 @@ pub enum Message {
     ExternalMessage(String),
     AddBox(String, MuxBox),
     RemoveBox(String),
+    // F0203: Multi-Stream Input Tabs messages
+    SwitchTab(String, usize),           // muxbox_id, tab_index
+    SwitchToStream(String, String),     // muxbox_id, stream_id
+    AddStream(String, crate::model::common::StreamSource), // muxbox_id, stream
+    RemoveStream(String, String),       // muxbox_id, stream_id
+    UpdateStreamContent(String, String, String), // muxbox_id, stream_id, content
 }
 
 impl Hash for Message {
@@ -227,6 +233,33 @@ impl Hash for Message {
             Message::RemoveBox(box_id) => {
                 "remove_box".hash(state);
                 box_id.hash(state);
+            }
+            // F0203: Multi-Stream Input Tabs hash implementations
+            Message::SwitchTab(muxbox_id, tab_index) => {
+                "switch_tab".hash(state);
+                muxbox_id.hash(state);
+                tab_index.hash(state);
+            }
+            Message::SwitchToStream(muxbox_id, stream_id) => {
+                "switch_to_stream".hash(state);
+                muxbox_id.hash(state);
+                stream_id.hash(state);
+            }
+            Message::AddStream(muxbox_id, stream) => {
+                "add_stream".hash(state);
+                muxbox_id.hash(state);
+                stream.hash(state);
+            }
+            Message::RemoveStream(muxbox_id, stream_id) => {
+                "remove_stream".hash(state);
+                muxbox_id.hash(state);
+                stream_id.hash(state);
+            }
+            Message::UpdateStreamContent(muxbox_id, stream_id, content) => {
+                "update_stream_content".hash(state);
+                muxbox_id.hash(state);
+                stream_id.hash(state);
+                content.hash(state);
             }
         }
     }

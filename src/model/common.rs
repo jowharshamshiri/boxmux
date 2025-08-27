@@ -17,6 +17,452 @@ pub enum EntityType {
     MuxBox,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum StreamType {
+    Content,
+    Choices,
+    RedirectedOutput(String), // Named redirect output
+    PTY,
+    Plugin(String),
+    // F0210: Complete StreamType Enum - Add missing variants for source tracking
+    ChoiceExecution(String), // Track choice executions as streams
+    RedirectSource(String),  // Track redirect output sources 
+    ExternalSocket,          // External socket connections
+    PtySession(String),      // PTY session with command info
+    OwnScript,              // Box's own script execution stream
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct Stream {
+    pub id: String,
+    pub stream_type: StreamType,
+    pub label: String,
+    pub content: Vec<String>,
+    pub choices: Option<Vec<crate::model::muxbox::Choice>>, // For choices stream
+    pub active: bool,
+    // F0212: Stream Source Tracking - enable stream termination when tabs closed
+    pub source: Option<StreamSource>,
+    // F0216: Stream Change Detection - track content changes for efficient updates
+    #[serde(skip, default = "default_content_hash")]
+    pub content_hash: u64,
+    #[serde(skip, default = "default_system_time")]
+    pub last_updated: std::time::SystemTime,
+    #[serde(skip, default = "default_system_time")]
+    pub created_at: std::time::SystemTime,
+}
+
+// Helper functions for default values
+fn default_content_hash() -> u64 { 0 }
+fn default_system_time() -> std::time::SystemTime { std::time::SystemTime::now() }
+
+// F0217: Stream rendering behavior traits - exclusive content OR choices
+pub trait ContentStreamTrait {
+    fn get_content_lines(&self) -> &Vec<String>;
+    fn set_content_lines(&mut self, content: Vec<String>);
+}
+
+pub trait ChoicesStreamTrait {
+    fn get_choices(&self) -> &Vec<crate::model::muxbox::Choice>;
+    fn get_choices_mut(&mut self) -> &mut Vec<crate::model::muxbox::Choice>;
+    fn set_choices(&mut self, choices: Vec<crate::model::muxbox::Choice>);
+}
+
+// F0212: Base trait for all stream sources with lifecycle management
+pub trait StreamSourceTrait {
+    fn source_type(&self) -> &'static str;
+    fn source_id(&self) -> String;
+    fn can_terminate(&self) -> bool;
+    fn cleanup(&self) -> Result<(), String>;
+    fn get_metadata(&self) -> std::collections::HashMap<String, String>;
+}
+
+// F0212: Static content sources (no lifecycle management needed)
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct StaticContentSource {
+    pub content_type: String,  // "default", "choices", "manual"
+    pub created_at: std::time::SystemTime,
+}
+
+impl StreamSourceTrait for StaticContentSource {
+    fn source_type(&self) -> &'static str { "static_content" }
+    fn source_id(&self) -> String { format!("static_{}", self.content_type) }
+    fn can_terminate(&self) -> bool { false }
+    fn cleanup(&self) -> Result<(), String> { Ok(()) }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("content_type".to_string(), self.content_type.clone());
+        meta.insert("created_at".to_string(), format!("{:?}", self.created_at));
+        meta
+    }
+}
+
+// F0212: Choice execution sources with thread management
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct ChoiceExecutionSource {
+    pub choice_id: String,
+    pub muxbox_id: String,
+    pub thread_id: Option<String>,    // For thread tracking
+    pub process_id: Option<u32>,      // For process-based choices
+    pub execution_type: String,       // "threaded", "process", "pty"
+    pub started_at: std::time::SystemTime,
+    pub timeout_seconds: Option<u32>,
+}
+
+impl StreamSourceTrait for ChoiceExecutionSource {
+    fn source_type(&self) -> &'static str { "choice_execution" }
+    fn source_id(&self) -> String { self.choice_id.clone() }
+    fn can_terminate(&self) -> bool { true }
+    fn cleanup(&self) -> Result<(), String> {
+        match self.execution_type.as_str() {
+            "process" => {
+                if let Some(pid) = self.process_id {
+                    // Terminate the process
+                    let _ = std::process::Command::new("kill")
+                        .arg("-9")
+                        .arg(pid.to_string())
+                        .output();
+                }
+                Ok(())
+            },
+            "threaded" => {
+                // Thread cleanup would be handled by ThreadManager
+                Ok(())
+            },
+            _ => Ok(())
+        }
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("choice_id".to_string(), self.choice_id.clone());
+        meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
+        meta.insert("execution_type".to_string(), self.execution_type.clone());
+        if let Some(pid) = self.process_id {
+            meta.insert("process_id".to_string(), pid.to_string());
+        }
+        if let Some(thread_id) = &self.thread_id {
+            meta.insert("thread_id".to_string(), thread_id.clone());
+        }
+        meta
+    }
+}
+
+// F0212: PTY sources with process and terminal management
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct PTYSource {
+    pub pty_id: String,
+    pub process_id: u32,
+    pub command: String,
+    pub args: Vec<String>,
+    pub working_dir: Option<String>,
+    pub reader_thread_id: Option<String>,
+    pub started_at: std::time::SystemTime,
+    pub terminal_size: (u16, u16),    // (rows, cols)
+}
+
+impl StreamSourceTrait for PTYSource {
+    fn source_type(&self) -> &'static str { "pty" }
+    fn source_id(&self) -> String { self.pty_id.clone() }
+    fn can_terminate(&self) -> bool { true }
+    fn cleanup(&self) -> Result<(), String> {
+        // Terminate PTY process
+        let result = std::process::Command::new("kill")
+            .arg("-9")
+            .arg(self.process_id.to_string())
+            .output();
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to terminate PTY process {}: {}", self.process_id, e))
+        }
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("pty_id".to_string(), self.pty_id.clone());
+        meta.insert("process_id".to_string(), self.process_id.to_string());
+        meta.insert("command".to_string(), self.command.clone());
+        meta.insert("args".to_string(), self.args.join(" "));
+        meta.insert("terminal_size".to_string(), format!("{}x{}", self.terminal_size.0, self.terminal_size.1));
+        if let Some(ref thread_id) = self.reader_thread_id {
+            meta.insert("reader_thread_id".to_string(), thread_id.clone());
+        }
+        meta
+    }
+}
+
+// F0212: Redirect sources with source tracking
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct RedirectSource {
+    pub source_muxbox_id: String,
+    pub source_choice_id: Option<String>,
+    pub redirect_name: String,
+    pub redirect_type: String,        // "choice", "script", "pty", "external"
+    pub created_at: std::time::SystemTime,
+    pub source_process_id: Option<u32>,  // For process-based redirects
+}
+
+impl StreamSourceTrait for RedirectSource {
+    fn source_type(&self) -> &'static str { "redirect" }
+    fn source_id(&self) -> String { format!("{}_{}", self.source_muxbox_id, self.redirect_name) }
+    fn can_terminate(&self) -> bool { self.source_process_id.is_some() }
+    fn cleanup(&self) -> Result<(), String> {
+        if let Some(pid) = self.source_process_id {
+            let result = std::process::Command::new("kill")
+                .arg("-9")
+                .arg(pid.to_string())
+                .output();
+            match result {
+                Ok(_) => Ok(()),
+                Err(e) => Err(format!("Failed to terminate redirect source process {}: {}", pid, e))
+            }
+        } else {
+            Ok(())
+        }
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("source_muxbox_id".to_string(), self.source_muxbox_id.clone());
+        meta.insert("redirect_name".to_string(), self.redirect_name.clone());
+        meta.insert("redirect_type".to_string(), self.redirect_type.clone());
+        if let Some(ref choice_id) = self.source_choice_id {
+            meta.insert("source_choice_id".to_string(), choice_id.clone());
+        }
+        if let Some(pid) = self.source_process_id {
+            meta.insert("source_process_id".to_string(), pid.to_string());
+        }
+        meta
+    }
+}
+
+// F0212: Socket sources with connection management
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct SocketSource {
+    pub connection_id: String,
+    pub socket_path: Option<String>,
+    pub client_info: String,
+    pub protocol_version: String,
+    pub connected_at: std::time::SystemTime,
+    pub last_activity: std::time::SystemTime,
+}
+
+impl StreamSourceTrait for SocketSource {
+    fn source_type(&self) -> &'static str { "socket" }
+    fn source_id(&self) -> String { self.connection_id.clone() }
+    fn can_terminate(&self) -> bool { true }
+    fn cleanup(&self) -> Result<(), String> {
+        // Socket cleanup would be handled by socket manager
+        Ok(())
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("connection_id".to_string(), self.connection_id.clone());
+        meta.insert("client_info".to_string(), self.client_info.clone());
+        meta.insert("protocol_version".to_string(), self.protocol_version.clone());
+        if let Some(ref socket_path) = self.socket_path {
+            meta.insert("socket_path".to_string(), socket_path.clone());
+        }
+        meta
+    }
+}
+
+// F0212: Unified stream source enum containing all source types
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum StreamSource {
+    StaticContent(StaticContentSource),
+    ChoiceExecution(ChoiceExecutionSource),
+    PTY(PTYSource),
+    Redirect(RedirectSource),
+    Socket(SocketSource),
+}
+
+// F0212: Implementation of StreamSourceTrait for the unified enum
+impl StreamSourceTrait for StreamSource {
+    fn source_type(&self) -> &'static str {
+        match self {
+            StreamSource::StaticContent(s) => s.source_type(),
+            StreamSource::ChoiceExecution(s) => s.source_type(),
+            StreamSource::PTY(s) => s.source_type(),
+            StreamSource::Redirect(s) => s.source_type(),
+            StreamSource::Socket(s) => s.source_type(),
+        }
+    }
+
+    fn source_id(&self) -> String {
+        match self {
+            StreamSource::StaticContent(s) => s.source_id(),
+            StreamSource::ChoiceExecution(s) => s.source_id(),
+            StreamSource::PTY(s) => s.source_id(),
+            StreamSource::Redirect(s) => s.source_id(),
+            StreamSource::Socket(s) => s.source_id(),
+        }
+    }
+
+    fn can_terminate(&self) -> bool {
+        match self {
+            StreamSource::StaticContent(s) => s.can_terminate(),
+            StreamSource::ChoiceExecution(s) => s.can_terminate(),
+            StreamSource::PTY(s) => s.can_terminate(),
+            StreamSource::Redirect(s) => s.can_terminate(),
+            StreamSource::Socket(s) => s.can_terminate(),
+        }
+    }
+
+    fn cleanup(&self) -> Result<(), String> {
+        match self {
+            StreamSource::StaticContent(s) => s.cleanup(),
+            StreamSource::ChoiceExecution(s) => s.cleanup(),
+            StreamSource::PTY(s) => s.cleanup(),
+            StreamSource::Redirect(s) => s.cleanup(),
+            StreamSource::Socket(s) => s.cleanup(),
+        }
+    }
+
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        match self {
+            StreamSource::StaticContent(s) => s.get_metadata(),
+            StreamSource::ChoiceExecution(s) => s.get_metadata(),
+            StreamSource::PTY(s) => s.get_metadata(),
+            StreamSource::Redirect(s) => s.get_metadata(),
+            StreamSource::Socket(s) => s.get_metadata(),
+        }
+    }
+}
+
+// F0216: Stream Change Detection Implementation
+impl Stream {
+    /// Create a new stream with proper change detection initialization
+    pub fn new(
+        id: String,
+        stream_type: StreamType,
+        label: String,
+        content: Vec<String>,
+        choices: Option<Vec<crate::model::muxbox::Choice>>,
+        source: Option<StreamSource>,
+    ) -> Self {
+        let now = std::time::SystemTime::now();
+        let mut stream = Self {
+            id,
+            stream_type,
+            label,
+            content,
+            choices,
+            active: false,
+            source,
+            content_hash: 0,
+            last_updated: now,
+            created_at: now,
+        };
+        stream.update_content_hash();
+        stream
+    }
+
+    /// Update the content hash for change detection
+    pub fn update_content_hash(&mut self) {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        self.content.hash(&mut hasher);
+        if let Some(ref choices) = self.choices {
+            choices.hash(&mut hasher);
+        }
+        self.content_hash = hasher.finish();
+        self.last_updated = std::time::SystemTime::now();
+    }
+
+    /// Check if content has changed since last hash update
+    pub fn has_content_changed(&self) -> bool {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        self.content.hash(&mut hasher);
+        if let Some(ref choices) = self.choices {
+            choices.hash(&mut hasher);
+        }
+        let current_hash = hasher.finish();
+        current_hash != self.content_hash
+    }
+
+    /// Update content and automatically refresh change detection
+    pub fn update_content(&mut self, new_content: Vec<String>) {
+        self.content = new_content;
+        self.update_content_hash();
+    }
+
+    /// Update choices and automatically refresh change detection  
+    pub fn update_choices(&mut self, new_choices: Option<Vec<crate::model::muxbox::Choice>>) {
+        self.choices = new_choices;
+        self.update_content_hash();
+    }
+
+    /// Get time since last update for staleness detection
+    pub fn time_since_last_update(&self) -> Result<std::time::Duration, std::time::SystemTimeError> {
+        std::time::SystemTime::now().duration_since(self.last_updated)
+    }
+}
+
+// F0217: Implement ContentStreamTrait for content-type streams
+impl ContentStreamTrait for Stream {
+    fn get_content_lines(&self) -> &Vec<String> {
+        match self.stream_type {
+            StreamType::Content | 
+            StreamType::RedirectedOutput(_) |
+            StreamType::PTY |
+            StreamType::Plugin(_) |
+            StreamType::ChoiceExecution(_) |
+            StreamType::PtySession(_) |
+            StreamType::OwnScript => &self.content,
+            _ => panic!("ContentStreamTrait called on non-content stream: {:?}", self.stream_type),
+        }
+    }
+    
+    fn set_content_lines(&mut self, content: Vec<String>) {
+        match self.stream_type {
+            StreamType::Content | 
+            StreamType::RedirectedOutput(_) |
+            StreamType::PTY |
+            StreamType::Plugin(_) |
+            StreamType::ChoiceExecution(_) |
+            StreamType::PtySession(_) |
+            StreamType::OwnScript => {
+                self.content = content;
+                self.update_content_hash();
+            },
+            _ => panic!("ContentStreamTrait called on non-content stream: {:?}", self.stream_type),
+        }
+    }
+}
+
+// F0217: Implement ChoicesStreamTrait for choices-type streams
+impl ChoicesStreamTrait for Stream {
+    fn get_choices(&self) -> &Vec<crate::model::muxbox::Choice> {
+        match self.stream_type {
+            StreamType::Choices => {
+                self.choices.as_ref().expect("Choices stream must have choices")
+            },
+            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+        }
+    }
+    
+    fn get_choices_mut(&mut self) -> &mut Vec<crate::model::muxbox::Choice> {
+        match self.stream_type {
+            StreamType::Choices => {
+                self.choices.as_mut().expect("Choices stream must have choices")
+            },
+            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+        }
+    }
+    
+    fn set_choices(&mut self, choices: Vec<crate::model::muxbox::Choice>) {
+        match self.stream_type {
+            StreamType::Choices => {
+                self.choices = Some(choices);
+                self.update_content_hash();
+            },
+            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+        }
+    }
+}
+
 // Represents a granular field update
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct FieldUpdate {
@@ -1589,5 +2035,92 @@ mod tests {
 
         // Clean up
         let _ = std::fs::remove_file(socket_path);
+    }
+}
+
+// F0203: Multi-Stream Input Tabs - Tab system data structures (uses StreamType defined above)
+
+// Duplicate StreamSource removed - using new trait-based system above
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TabSystem {
+    pub streams: Vec<StreamSource>,              // All input streams for this box
+    pub active_tab: usize,                       // Index of currently active tab
+    pub tab_content: HashMap<String, String>,    // Content per stream ID
+    pub max_tab_width: usize,                    // Maximum characters per tab label
+}
+
+impl Hash for TabSystem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.streams.hash(state);
+        self.active_tab.hash(state);
+        self.max_tab_width.hash(state);
+        // Skip content as it changes frequently
+    }
+}
+
+impl Eq for TabSystem {}
+
+impl Default for TabSystem {
+    fn default() -> Self {
+        TabSystem {
+            streams: Vec::new(),
+            active_tab: 0,
+            tab_content: HashMap::new(),
+            max_tab_width: 12, // Reasonable default for tab labels
+        }
+    }
+}
+
+impl TabSystem {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_stream(&mut self, _stream: StreamSource) -> String {
+        // DEPRECATED: This method is part of the old tab system
+        // New stream architecture uses MuxBox.streams HashMap instead
+        String::new()
+    }
+
+    pub fn get_active_stream(&self) -> Option<&StreamSource> {
+        self.streams.get(self.active_tab)
+    }
+
+    pub fn get_active_content(&self) -> Option<&String> {
+        // DEPRECATED: Using new stream architecture instead
+        None
+    }
+
+    pub fn get_stream_content(&self, stream_id: &str) -> Option<&String> {
+        self.tab_content.get(stream_id)
+    }
+
+    pub fn update_stream_content(&mut self, _stream_id: &str, _content: String) {
+        // DEPRECATED: Using new stream architecture instead
+    }
+
+    pub fn switch_to_tab(&mut self, _tab_index: usize) -> bool {
+        // DEPRECATED: Using new stream architecture instead
+        false
+    }
+
+    pub fn switch_to_stream(&mut self, _stream_id: &str) -> bool {
+        // DEPRECATED: Using new stream architecture instead  
+        false
+    }
+
+    pub fn remove_stream(&mut self, _stream_id: &str) -> bool {
+        // DEPRECATED: Using new stream architecture instead
+        false
+    }
+
+    pub fn has_multiple_streams(&self) -> bool {
+        self.streams.len() > 1
+    }
+
+    pub fn get_tab_labels(&self) -> Vec<String> {
+        // DEPRECATED: Using new stream architecture instead
+        vec![]
     }
 }
