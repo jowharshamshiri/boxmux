@@ -15,6 +15,7 @@ env_logger = "0.10"
 fern = "0.6"
 geo = "0.27"
 geo-types = "0.7"
+indexmap = "2.0"
 jsonschema = "0.17"
 lazy_static = "1.4"
 libloading = "0.8"
@@ -91,7 +92,7 @@ license = "MIT"
 name = "boxmux"
 readme = "README.md"
 repository = "https://github.com/jowharshamshiri/boxmux"
-version = "0.195.3113"
+version = "0.196.3488"
 
 [package.metadata.deb]
 assets = [["target/release/boxmux", "usr/bin/", "755"], ["README.md", "usr/share/doc/boxmux/README", "644"], ["examples/*", "usr/share/doc/boxmux/examples/", "644"]]

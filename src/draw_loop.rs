@@ -1257,21 +1257,20 @@ create_runnable!(
                         if handled_scrollbar_click {
                             // Continue to next message
                         } else {
-                            // F0203: Check for tab clicks first
+                            // F0203: Check for tab clicks first using proper z-index ordering
                             let mut handled_tab_click = false;
-                            for muxbox in active_layout.get_all_muxboxes() {
-                                let muxbox_bounds = muxbox.bounds();
+                            
+                            // Find the top-most muxbox at the click coordinates (respects z-index)
+                            if let Some(clicked_muxbox) = active_layout.find_muxbox_at_coordinates(*x, *y) {
+                                let muxbox_bounds = clicked_muxbox.bounds();
                                 
-                                // Check if click is in title bar area (all boxes have tabs)
-                                if *y as usize == muxbox_bounds.top() && 
-                                   *x as usize >= muxbox_bounds.left() && 
-                                   *x as usize <= muxbox_bounds.right() {
+                                // Check if click is in title bar area specifically
+                                if *y as usize == muxbox_bounds.top() {
+                                    let tab_labels = clicked_muxbox.get_tab_labels();
+                                    log::debug!("Title bar click at ({},{}) in top-most muxbox '{}' with {} tabs: {:?}", 
+                                        *x, *y, clicked_muxbox.id, tab_labels.len(), tab_labels);
                                     
-                                    let tab_labels = muxbox.get_tab_labels();
-                                    log::debug!("Title bar click at ({},{}) in muxbox '{}' with {} tabs: {:?}", 
-                                        *x, *y, muxbox.id, tab_labels.len(), tab_labels);
-                                    
-                                    let has_border = muxbox.calc_border(&app_context_unwrapped.clone(), &app_graph);
+                                    let has_border = clicked_muxbox.calc_border(&app_context_unwrapped.clone(), &app_graph);
                                     log::debug!("Muxbox bounds: left={}, right={}, top={}, border={}", 
                                         muxbox_bounds.left(), muxbox_bounds.right(), muxbox_bounds.top(), has_border);
                                     
@@ -1283,11 +1282,11 @@ create_runnable!(
                                         has_border
                                     ) {
                                         log::info!("Tab click detected: muxbox {} tab {} ({})", 
-                                            muxbox.id, clicked_tab_index, 
+                                            clicked_muxbox.id, clicked_tab_index, 
                                             tab_labels.get(clicked_tab_index).unwrap_or(&"unknown".to_string()));
                                         
-                                        log::info!("Processing SwitchTab directly: muxbox={}, tab_index={}", muxbox.id, clicked_tab_index);
-                                        if let Some(muxbox) = app_context_for_click.app.get_muxbox_by_id_mut(&muxbox.id) {
+                                        log::info!("Processing SwitchTab directly: muxbox={}, tab_index={}", clicked_muxbox.id, clicked_tab_index);
+                                        if let Some(muxbox) = app_context_for_click.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
                                             if muxbox.switch_to_tab(clicked_tab_index) {
                                                 log::info!("Successfully switched muxbox '{}' to tab {}", muxbox.id, clicked_tab_index);
                                                 inner.update_app_context(app_context_for_click.clone());
@@ -1296,7 +1295,6 @@ create_runnable!(
                                             }
                                         }
                                         handled_tab_click = true;
-                                        break;
                                     } else {
                                         log::debug!("Click in title bar but not on tab area - allowing move/drag operation");
                                     }
@@ -1850,14 +1848,14 @@ create_runnable!(
                         } else { None };
                         
                         // Create stream in target muxbox (mutable borrow) - works for both redirect and local
-                        if let Some((choice_id_clone, stream_label)) = choice_details {
+                        let actual_stream_id = if let Some((choice_id_clone, stream_label)) = choice_details {
                             if let Some(target_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&target_muxbox_id) {
                                 // Initialize default stream if tab system is empty
                                 target_muxbox.ensure_tabs_initialized();
                                 
                                 // Create choice execution stream
                                 let stream_id = target_muxbox.add_input_stream(
-                                    crate::model::common::StreamType::RedirectedOutput(choice_id_clone),
+                                    crate::model::common::StreamType::RedirectedOutput(choice_id_clone.clone()),
                                     stream_label
                                 );
                                 
@@ -1866,8 +1864,9 @@ create_runnable!(
                                     stream_id,
                                     target_muxbox_id
                                 );
-                            }
-                        }
+                                Some(stream_id)
+                            } else { None }
+                        } else { None };
 
                         match result {
                             Ok(output) => {
@@ -1877,11 +1876,13 @@ create_runnable!(
                                     output.len(),
                                     target_muxbox_id
                                 );
+                                // Use the actual stream ID returned from creation, or fall back to choice_id
+                                let stream_identifier = actual_stream_id.unwrap_or_else(|| choice_id.clone());
                                 update_muxbox_content_with_stream(
                                     inner,
                                     &mut app_context_unwrapped,
                                     &target_muxbox_id,
-                                    choice_id, // Use choice_id as stream identifier
+                                    &stream_identifier, // Use the actual stream ID
                                     true,
                                     append,
                                     output,
@@ -1889,11 +1890,13 @@ create_runnable!(
                             }
                             Err(error) => {
                                 log::error!("Error running choice script: {}", error);
+                                // Use the actual stream ID returned from creation, or fall back to choice_id
+                                let stream_identifier = actual_stream_id.unwrap_or_else(|| choice_id.clone());
                                 update_muxbox_content_with_stream(
                                     inner,
                                     &mut app_context_unwrapped,
                                     &target_muxbox_id,
-                                    choice_id, // Use choice_id as stream identifier  
+                                    &stream_identifier, // Use the actual stream ID
                                     false,
                                     append,
                                     error,
@@ -2106,9 +2109,10 @@ create_runnable!(
                             }
                         }
                     }
-                    Message::AddStream(muxbox_id, stream) => {
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
-                            muxbox.tab_system.add_stream(stream.clone());
+                    Message::AddStream(muxbox_id, _stream) => {
+                        if let Some(_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                            // AddStream is deprecated - use add_input_stream() method directly on muxbox instead
+                            log::warn!("AddStream message is deprecated - use muxbox.add_input_stream() instead");
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                         }
@@ -2147,11 +2151,9 @@ create_runnable!(
                                     }
                                 }
                                 
-                                // Remove from tab system after source cleanup
-                                if muxbox.tab_system.remove_stream(stream_id) {
-                                    inner.update_app_context(app_context_unwrapped.clone());
-                                    inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
-                                }
+                                // Stream already removed by muxbox.remove_stream() call above
+                                inner.update_app_context(app_context_unwrapped.clone());
+                                inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                             } else {
                                 log::warn!("Stream {} not found in muxbox {} for cleanup", stream_id, muxbox_id);
                             }
@@ -2159,7 +2161,12 @@ create_runnable!(
                     }
                     Message::UpdateStreamContent(muxbox_id, stream_id, content) => {
                         if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
-                            muxbox.update_stream_content_with_tab(stream_id, content.clone());
+                            // Update stream content directly using new stream system
+                            if let Some(stream) = muxbox.streams.get_mut(stream_id) {
+                                stream.content = content.lines().map(|s| s.to_string()).collect();
+                            } else {
+                                log::warn!("Stream {} not found in muxbox {} for content update", stream_id, muxbox_id);
+                            }
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                         }
@@ -2299,9 +2306,9 @@ pub fn update_muxbox_content_with_stream(
 
     if let Some(found_muxbox) = muxbox {
         log::info!(
-            "Found target muxbox: {} with tab system streams: {}",
+            "Found target muxbox: {} with streams: {}",
             muxbox_id,
-            found_muxbox.tab_system.streams.len()
+            found_muxbox.streams.len()
         );
 
         // Format output with timestamp if success (non-PTY format)
@@ -2312,7 +2319,7 @@ pub fn update_muxbox_content_with_stream(
             } else {
                 // Regular output - add timestamp
                 let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-                if append_output && found_muxbox.tab_system.get_stream_content(stream_id).is_some() {
+                if append_output {
                     format!("{}", output)
                 } else {
                     format!("[{}] {}", timestamp, output)
@@ -2322,24 +2329,43 @@ pub fn update_muxbox_content_with_stream(
             format!("ERROR: {}", output)
         };
 
-        // Update the specific stream content
-        found_muxbox.tab_system.update_stream_content(stream_id, formatted_output.clone());
+        // Update the specific stream content - find stream by actual stream ID
+        let mut stream_updated = false;
         
-        // Switch to the updated stream only if this is the first content for this stream
-        // This shows new stream results but doesn't disrupt users viewing other tabs
-        let should_switch = found_muxbox.tab_system.get_stream_content(stream_id)
-            .map(|content| content == &formatted_output) // True if this is the first content
-            .unwrap_or(false);
+        // Check if stream exists and update content
+        if found_muxbox.streams.contains_key(stream_id) {
+            // Update the stream content
+            if let Some(stream) = found_muxbox.streams.get_mut(stream_id) {
+                if append_output {
+                    stream.content.push(formatted_output.clone());
+                } else {
+                    stream.content = vec![formatted_output.clone()];
+                }
+                stream_updated = true;
+            }
             
-        if should_switch {
-            found_muxbox.tab_system.switch_to_stream(stream_id);
-            log::info!("Switched to new stream {} with first content", stream_id);
-        } else {
-            log::info!("Updated existing stream {} content without switching", stream_id);
+            // Check if we need to activate this stream (separate borrow)
+            let has_active_streams = found_muxbox.streams.values().any(|s| s.active && s.id != stream_id);
+            let should_activate = !has_active_streams || found_muxbox.streams.len() == 1;
+            
+            if should_activate {
+                // Deactivate all other streams first
+                for (_, other_stream) in found_muxbox.streams.iter_mut() {
+                    other_stream.active = other_stream.id == stream_id;
+                }
+            }
+            
+            log::info!("Updated stream {} with new content", stream_id);
+        }
+
+        if !stream_updated {
+            log::warn!("Stream {} not found in muxbox {}, fallback to updating content", stream_id, muxbox_id);
+            // Fallback to updating the muxbox content directly
+            found_muxbox.update_content(&formatted_output, append_output, success);
         }
 
         log::info!(
-            "Updated stream {} content in muxbox {}, switched to stream",
+            "Updated stream {} content in muxbox {}",
             stream_id,
             muxbox_id
         );

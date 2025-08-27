@@ -1,5 +1,6 @@
 use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
+use indexmap::IndexMap;
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
@@ -2042,85 +2043,3 @@ mod tests {
 
 // Duplicate StreamSource removed - using new trait-based system above
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TabSystem {
-    pub streams: Vec<StreamSource>,              // All input streams for this box
-    pub active_tab: usize,                       // Index of currently active tab
-    pub tab_content: HashMap<String, String>,    // Content per stream ID
-    pub max_tab_width: usize,                    // Maximum characters per tab label
-}
-
-impl Hash for TabSystem {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.streams.hash(state);
-        self.active_tab.hash(state);
-        self.max_tab_width.hash(state);
-        // Skip content as it changes frequently
-    }
-}
-
-impl Eq for TabSystem {}
-
-impl Default for TabSystem {
-    fn default() -> Self {
-        TabSystem {
-            streams: Vec::new(),
-            active_tab: 0,
-            tab_content: HashMap::new(),
-            max_tab_width: 12, // Reasonable default for tab labels
-        }
-    }
-}
-
-impl TabSystem {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn add_stream(&mut self, _stream: StreamSource) -> String {
-        // DEPRECATED: This method is part of the old tab system
-        // New stream architecture uses MuxBox.streams HashMap instead
-        String::new()
-    }
-
-    pub fn get_active_stream(&self) -> Option<&StreamSource> {
-        self.streams.get(self.active_tab)
-    }
-
-    pub fn get_active_content(&self) -> Option<&String> {
-        // DEPRECATED: Using new stream architecture instead
-        None
-    }
-
-    pub fn get_stream_content(&self, stream_id: &str) -> Option<&String> {
-        self.tab_content.get(stream_id)
-    }
-
-    pub fn update_stream_content(&mut self, _stream_id: &str, _content: String) {
-        // DEPRECATED: Using new stream architecture instead
-    }
-
-    pub fn switch_to_tab(&mut self, _tab_index: usize) -> bool {
-        // DEPRECATED: Using new stream architecture instead
-        false
-    }
-
-    pub fn switch_to_stream(&mut self, _stream_id: &str) -> bool {
-        // DEPRECATED: Using new stream architecture instead  
-        false
-    }
-
-    pub fn remove_stream(&mut self, _stream_id: &str) -> bool {
-        // DEPRECATED: Using new stream architecture instead
-        false
-    }
-
-    pub fn has_multiple_streams(&self) -> bool {
-        self.streams.len() > 1
-    }
-
-    pub fn get_tab_labels(&self) -> Vec<String> {
-        // DEPRECATED: Using new stream architecture instead
-        vec![]
-    }
-}

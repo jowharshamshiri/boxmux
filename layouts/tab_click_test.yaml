@@ -1,0 +1,57 @@
+app:
+  layouts:
+    - id: "tab_click_test"
+      root: true
+      children:
+        # Test case: overlapping boxes with different z-index
+        - id: "box1"
+          title: "Box 1 (z=1)"
+          z_index: 1
+          position:
+            x1: "10%"
+            y1: "10%"
+            x2: "70%"
+            y2: "60%"
+          border: true
+          border_color: "red"
+          content: "Box 1 content"
+          choices:
+            - id: "box1_choice"
+              content: "Box 1 Choice"
+              script:
+                - "echo 'Box 1 choice executed'"
+              redirect_output: "box1"
+              
+        - id: "box2"
+          title: "Box 2 (z=10)"
+          z_index: 10
+          position:
+            x1: "30%"
+            y1: "20%"
+            x2: "90%"
+            y2: "70%"
+          border: true
+          border_color: "green"  
+          content: "Box 2 content"
+          choices:
+            - id: "box2_choice"
+              content: "Box 2 Choice"
+              script:
+                - "echo 'Box 2 choice executed'"
+              redirect_output: "box2"
+              
+        - id: "instructions"
+          title: "Instructions"
+          position:
+            x1: "10%"
+            y1: "75%"
+            x2: "90%"
+            y2: "95%"
+          border: true
+          border_color: "yellow"
+          content: |
+            Tab Click Test:
+            1. Box 1 (red, z=1) and Box 2 (green, z=10) overlap
+            2. Click tabs on overlapping area - should affect Box 2 (higher z-index)
+            3. Click tabs on non-overlapping areas - should affect correct box
+            4. Each box should have Content, Choices, and additional tabs from choices

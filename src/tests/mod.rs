@@ -78,8 +78,6 @@ pub mod special_key_tests;
 #[cfg(test)]
 pub mod pty_scrollback_tests;
 
-#[cfg(test)]
-pub mod multi_stream_tabs_tests;
 
 
 #[cfg(test)]
@@ -123,6 +121,7 @@ pub mod muxbox_bounds_clipping_tests;
 
 #[cfg(test)]
 pub mod conditional_stream_creation_tests;
+
 
 // Commented out due to test framework complexity - functionality tested via demo YAML
 //#[cfg(test)]

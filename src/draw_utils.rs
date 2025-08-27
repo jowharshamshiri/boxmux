@@ -720,7 +720,7 @@ pub fn render_muxbox(
     border_color: &str,
     bg_color: &str,
     parent_bg_color: &str,
-    streams: &std::collections::HashMap<String, crate::model::common::Stream>, // F0209: Stream-based rendering
+    streams: &indexmap::IndexMap<String, crate::model::common::Stream>, // F0209: Stream-based rendering
     active_tab_index: usize, // F0208: Active tab index from muxbox
     title_fg_color: &str,
     title_bg_color: &str,
@@ -768,18 +768,8 @@ pub fn render_muxbox(
             None
         };
         
-        // Generate tab labels from streams (sorted by priority)
-        let mut sorted_streams: Vec<_> = streams.values().collect();
-        sorted_streams.sort_by(|a, b| {
-            match (&a.stream_type, &b.stream_type) {
-                (crate::model::common::StreamType::Content, _) => std::cmp::Ordering::Less,
-                (_, crate::model::common::StreamType::Content) => std::cmp::Ordering::Greater,
-                (crate::model::common::StreamType::Choices, _) => std::cmp::Ordering::Less,
-                (_, crate::model::common::StreamType::Choices) => std::cmp::Ordering::Greater,
-                _ => a.id.cmp(&b.id),
-            }
-        });
-        let tabs: Vec<String> = sorted_streams.iter().map(|s| s.label.clone()).collect();
+        // Generate tab labels from streams using IndexMap insertion order (same as muxbox.get_tab_labels())
+        let tabs: Vec<String> = streams.iter().map(|(_, s)| s.label.clone()).collect();
         
         (should_render_choices, content_str, tabs)
     } else {

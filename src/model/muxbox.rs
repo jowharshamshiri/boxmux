@@ -2,9 +2,10 @@ use crate::model::common::*;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
+use indexmap::IndexMap;
 
 /// Priority order for stream types in tab display
-fn stream_type_priority(stream_type: &crate::model::common::StreamType) -> u8 {
+pub fn stream_type_priority(stream_type: &crate::model::common::StreamType) -> u8 {
     use crate::model::common::StreamType;
     match stream_type {
         StreamType::Content => 0,           // Main content first
@@ -216,7 +217,7 @@ pub struct MuxBox {
     pub content: Option<String>,
     pub save_in_file: Option<String>,
     #[serde(skip, default)]
-    pub streams: HashMap<String, Stream>,
+    pub streams: IndexMap<String, Stream>,
     pub chart_type: Option<String>,
     pub chart_data: Option<String>,
     pub plugin_component: Option<String>,
@@ -227,8 +228,6 @@ pub struct MuxBox {
     pub pty: Option<bool>,
     #[serde(default)]
     pub z_index: Option<i32>,
-    #[serde(skip, default)]
-    pub tab_system: crate::model::common::TabSystem,
     #[serde(default)]
     pub output: String,
     #[serde(default, skip_serializing_if = "is_zero")]
@@ -322,7 +321,6 @@ impl Hash for MuxBox {
         self.auto_scroll_bottom.hash(state);
         self.pty.hash(state);
         self.z_index.hash(state);
-        self.tab_system.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
         }
@@ -410,7 +408,6 @@ impl Default for MuxBox {
             auto_scroll_bottom: None,
             pty: None,
             z_index: None,
-            tab_system: crate::model::common::TabSystem::new(),
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
             selected: Some(false),
@@ -419,7 +416,7 @@ impl Default for MuxBox {
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
-            streams: HashMap::new(),
+            streams: IndexMap::new(),
         }
     }
 }
@@ -491,7 +488,6 @@ impl PartialEq for MuxBox {
             && self.auto_scroll_bottom == other.auto_scroll_bottom
             && self.pty == other.pty
             && self.z_index == other.z_index
-            && self.tab_system == other.tab_system
             && self.error_state == other.error_state
             && self.streams == other.streams
     }
@@ -565,7 +561,6 @@ impl Clone for MuxBox {
             auto_scroll_bottom: self.auto_scroll_bottom,
             pty: self.pty,
             z_index: self.z_index,
-            tab_system: self.tab_system.clone(),
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
             selected: self.selected,
@@ -1408,32 +1403,25 @@ impl MuxBox {
     }
 
     pub fn update_content(&mut self, new_content: &str, append_content: bool, success: bool) {
-        // F0203: Update content through tab system if available
-        if !self.tab_system.streams.is_empty() {
-            // Get the current stream ID or use default
-            let current_stream_id = self.get_current_stream_id()
-                .unwrap_or_else(|| format!("{}_default", self.id));
-            
-            // If this is a new content update for the active stream, update it
-            if let Some(current_content) = self.tab_system.get_active_content() {
-                let formatted_content = if append_content {
-                    format!(
-                        "[{}]\n\n{}\n\n\n\n{}",
-                        chrono::Local::now().to_rfc2822(),
-                        current_content,
-                        new_content
-                    )
-                } else {
-                    format!("[{}]\n\n{}", chrono::Local::now().to_rfc2822(), new_content)
-                };
-                
-                self.update_stream_content_with_tab(&current_stream_id, formatted_content);
-                self.error_state = !success;
-                return;
-            }
+        // Update active stream content
+        if let Some(active_stream) = self.get_active_stream_mut() {
+            let current_content = active_stream.content.join("\n");
+            let formatted_content = if append_content {
+                format!(
+                    "[{}]\n\n{}\n\n\n\n{}",
+                    chrono::Local::now().to_rfc2822(),
+                    current_content,
+                    new_content
+                )
+            } else {
+                format!("[{}]\n\n{}", chrono::Local::now().to_rfc2822(), new_content)
+            };
+            active_stream.content = formatted_content.lines().map(|s| s.to_string()).collect();
+            self.error_state = !success;
+            return;
         }
         
-        // Fallback to regular content update if no tab system
+        // Fallback to regular content update if no streams
         // Preserve current scroll position
         let preserved_horizontal_scroll = self.horizontal_scroll;
         let preserved_vertical_scroll = self.vertical_scroll;
@@ -1827,9 +1815,9 @@ impl MuxBox {
 
     // F0203: Multi-Stream Input Tabs - Unified tab system initialization
     pub fn ensure_tabs_initialized(&mut self) {
-        // Every box must have tabs - if empty, initialize them
-        if self.tab_system.streams.is_empty() {
-            self.initialize_default_tabs();
+        // Every box must have streams - if empty, initialize them
+        if self.streams.is_empty() {
+            self.initialize_streams();
         }
     }
 
@@ -1857,24 +1845,11 @@ impl MuxBox {
         stream_id
     }
 
-    /// Update stream content
-    pub fn update_stream_content_with_tab(&mut self, stream_id: &str, content: String) {
-        // F0212: Stream Source Tracking - Update stream content in streams HashMap
-        if let Some(stream) = self.streams.get_mut(stream_id) {
-            stream.content = content.lines().map(|s| s.to_string()).collect();
-        }
-    }
 
     pub fn switch_to_tab(&mut self, tab_index: usize) -> bool {
         // F0218: Stream Tab Integration - tabs control active stream
-        // Get stream IDs in priority order (not alphabetical)
-        let mut stream_items: Vec<_> = self.streams.iter().collect();
-        stream_items.sort_by(|a, b| {
-            let priority_a = stream_type_priority(&a.1.stream_type);
-            let priority_b = stream_type_priority(&b.1.stream_type);
-            priority_a.cmp(&priority_b).then_with(|| a.1.created_at.cmp(&b.1.created_at))
-        });
-        let stream_ids: Vec<String> = stream_items.iter().map(|(id, _)| (*id).clone()).collect();
+        // Get stream IDs in natural insertion order (same as tab drawing)
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
         
         if tab_index < stream_ids.len() {
             let target_stream_id = &stream_ids[tab_index];
@@ -2011,7 +1986,7 @@ impl MuxBox {
     
     /// F0212: Remove stream and return its source for cleanup
     pub fn remove_stream(&mut self, stream_id: &str) -> Option<crate::model::common::StreamSource> {
-        self.streams.remove(stream_id)
+        self.streams.shift_remove(stream_id)
             .and_then(|stream| stream.source)
     }
     
@@ -2053,17 +2028,8 @@ impl MuxBox {
     
     /// Get all streams as tab labels
     pub fn get_stream_tabs(&self) -> Vec<String> {
-        let mut streams: Vec<_> = self.streams.values().collect();
-        streams.sort_by(|a, b| {
-            match (&a.stream_type, &b.stream_type) {
-                (StreamType::Content, _) => std::cmp::Ordering::Less,
-                (_, StreamType::Content) => std::cmp::Ordering::Greater,
-                (StreamType::Choices, _) => std::cmp::Ordering::Less,
-                (_, StreamType::Choices) => std::cmp::Ordering::Greater,
-                _ => a.id.cmp(&b.id),
-            }
-        });
-        streams.iter().map(|s| s.label.clone()).collect()
+        // Use exact same ordering as get_tab_labels() - IndexMap insertion order
+        self.streams.iter().map(|(_, s)| s.label.clone()).collect()
     }
     
     /// Get the active stream (unified approach)
@@ -2100,19 +2066,8 @@ impl MuxBox {
     
     /// Switch to a specific stream by index
     pub fn switch_to_stream_by_index(&mut self, stream_index: usize) -> bool {
-        let stream_ids: Vec<String> = {
-            let mut streams: Vec<_> = self.streams.values().collect();
-            streams.sort_by(|a, b| {
-                match (&a.stream_type, &b.stream_type) {
-                    (StreamType::Content, _) => std::cmp::Ordering::Less,
-                    (_, StreamType::Content) => std::cmp::Ordering::Greater,
-                    (StreamType::Choices, _) => std::cmp::Ordering::Less,
-                    (_, StreamType::Choices) => std::cmp::Ordering::Greater,
-                    _ => a.id.cmp(&b.id),
-                }
-            });
-            streams.iter().map(|s| s.id.clone()).collect()
-        };
+        // Use exact same ordering as all other tab functions - IndexMap insertion order
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
         
         if stream_index >= stream_ids.len() {
             return false;
@@ -2146,22 +2101,15 @@ impl MuxBox {
             return 0;
         }
         
-        // Get sorted streams (same order as get_stream_tabs)
-        let mut sorted_streams: Vec<_> = self.streams.values().collect();
-        sorted_streams.sort_by(|a, b| {
-            match (&a.stream_type, &b.stream_type) {
-                (StreamType::Content, _) => std::cmp::Ordering::Less,
-                (_, StreamType::Content) => std::cmp::Ordering::Greater,
-                (StreamType::Choices, _) => std::cmp::Ordering::Less,
-                (_, StreamType::Choices) => std::cmp::Ordering::Greater,
-                _ => a.id.cmp(&b.id),
-            }
-        });
+        // Use exact same ordering as get_tab_labels() and switch_to_tab() - IndexMap insertion order
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
         
         // Find the index of the active stream
-        for (index, stream) in sorted_streams.iter().enumerate() {
-            if stream.active {
-                return index;
+        for (index, stream_id) in stream_ids.iter().enumerate() {
+            if let Some(stream) = self.streams.get(stream_id) {
+                if stream.active {
+                    return index;
+                }
             }
         }
         
@@ -2198,24 +2146,20 @@ impl MuxBox {
     }
 
 
-    /// All boxes need tabs - check if they're missing
+    /// All boxes need streams - check if they're missing
     pub fn needs_tab_initialization(&self) -> bool {
-        self.tab_system.streams.is_empty()
+        self.streams.is_empty()
     }
 
     pub fn get_tab_labels(&self) -> Vec<String> {
         // F0218: Stream Tab Integration - generate tabs from streams
         let mut labels = Vec::new();
         
-        // Collect stream labels in priority order (same as tab switching)
-        let mut stream_items: Vec<_> = self.streams.iter().collect();
-        stream_items.sort_by(|a, b| {
-            let priority_a = stream_type_priority(&a.1.stream_type);
-            let priority_b = stream_type_priority(&b.1.stream_type);
-            priority_a.cmp(&priority_b).then_with(|| a.1.created_at.cmp(&b.1.created_at))
-        });
+        // Use exact same ordering as switch_to_tab() - natural IndexMap insertion order
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
         
-        for (_stream_id, stream) in stream_items {
+        for stream_id in stream_ids {
+            let stream = &self.streams[&stream_id];
             // Use the stream's actual label instead of hardcoded titles
             let label = match &stream.stream_type {
                 crate::model::common::StreamType::Content |

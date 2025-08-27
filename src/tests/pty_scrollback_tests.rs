@@ -249,14 +249,13 @@ mod pty_scrollback_tests {
             auto_scroll_bottom: None,
             pty: Some(true), // This is a PTY muxbox
             z_index: None,
-            tab_system: crate::model::common::TabSystem::new(),
             output: String::new(),
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
             scroll_x: 0,
             scroll_y: 0,
-            streams: std::collections::HashMap::new(),
+            streams: indexmap::IndexMap::new(),
         }
     }
 
