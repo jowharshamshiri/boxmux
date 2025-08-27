@@ -1899,45 +1899,66 @@ impl MuxBox {
     pub fn initialize_streams(&mut self) {
         self.streams.clear();
         
-        // Create default content stream
-        let mut default_stream = Stream::new(
-            format!("{}_content", self.id),
-            StreamType::Content,
-            self.title.clone().unwrap_or_else(|| "Content".to_string()),
-            if let Some(ref content) = self.content {
-                content.lines().map(|s| s.to_string()).collect()
-            } else {
-                vec![]
-            },
-            None,
-            Some(crate::model::common::StreamSource::StaticContent(
-                crate::model::common::StaticContentSource {
-                    content_type: "default".to_string(),
-                    created_at: std::time::SystemTime::now(),
-                }
-            )),
-        );
-        default_stream.active = true;
-        self.streams.insert(default_stream.id.clone(), default_stream);
+        let has_content = self.content.as_ref().map_or(false, |c| !c.trim().is_empty());
+        let has_choices = self.choices.as_ref().map_or(false, |choices| !choices.is_empty());
         
-        // Create choices stream if choices exist
-        if let Some(ref choices) = self.choices {
-            if !choices.is_empty() {
-                let choices_stream = Stream::new(
-                    format!("{}_choices", self.id),
-                    StreamType::Choices,
-                    "Choices".to_string(),
-                    vec![], // Choices stream doesn't use content field
-                    Some(choices.clone()), // Store actual Choice objects
-                    Some(crate::model::common::StreamSource::StaticContent(
-                        crate::model::common::StaticContentSource {
-                            content_type: "choices".to_string(),
-                            created_at: std::time::SystemTime::now(),
-                        }
-                    )),
-                );
-                self.streams.insert(choices_stream.id.clone(), choices_stream);
+        // Create content stream only if content field is present and non-empty
+        if has_content {
+            let content_title = if has_choices {
+                // If both content and choices exist, content tab gets box title or box ID
+                self.title.clone().unwrap_or_else(|| self.id.clone())
+            } else {
+                // Content is the only stream, use default "Content" title
+                "Content".to_string()
+            };
+            
+            let mut content_stream = Stream::new(
+                format!("{}_content", self.id),
+                StreamType::Content,
+                content_title,
+                self.content.as_ref().unwrap().lines().map(|s| s.to_string()).collect(),
+                None,
+                Some(crate::model::common::StreamSource::StaticContent(
+                    crate::model::common::StaticContentSource {
+                        content_type: "default".to_string(),
+                        created_at: std::time::SystemTime::now(),
+                    }
+                )),
+            );
+            content_stream.active = true;
+            self.streams.insert(content_stream.id.clone(), content_stream);
+        }
+        
+        // Create choices stream only if choices exist and are non-empty
+        if has_choices {
+            let choices_title = if has_content {
+                // If both content and choices exist, choices get "Choices" title
+                "Choices".to_string()
+            } else {
+                // Choices is the only stream, use box title or box ID
+                self.title.clone().unwrap_or_else(|| self.id.clone())
+            };
+            
+            let mut choices_stream = Stream::new(
+                format!("{}_choices", self.id),
+                StreamType::Choices,
+                choices_title,
+                vec![], // Choices stream doesn't use content field
+                Some(self.choices.as_ref().unwrap().clone()), // Store actual Choice objects
+                Some(crate::model::common::StreamSource::StaticContent(
+                    crate::model::common::StaticContentSource {
+                        content_type: "choices".to_string(),
+                        created_at: std::time::SystemTime::now(),
+                    }
+                )),
+            );
+            
+            // If no content stream exists, choices stream becomes active
+            if !has_content {
+                choices_stream.active = true;
             }
+            
+            self.streams.insert(choices_stream.id.clone(), choices_stream);
         }
     }
     
@@ -2195,9 +2216,10 @@ impl MuxBox {
         });
         
         for (_stream_id, stream) in stream_items {
+            // Use the stream's actual label instead of hardcoded titles
             let label = match &stream.stream_type {
-                crate::model::common::StreamType::Content => "Content".to_string(),
-                crate::model::common::StreamType::Choices => "Choices".to_string(),
+                crate::model::common::StreamType::Content |
+                crate::model::common::StreamType::Choices => stream.label.clone(),
                 crate::model::common::StreamType::RedirectedOutput(name) => format!("→{}", name),
                 crate::model::common::StreamType::PTY => "PTY".to_string(),
                 crate::model::common::StreamType::Plugin(name) => format!("Plugin:{}", name),
@@ -2210,11 +2232,7 @@ impl MuxBox {
             labels.push(label);
         }
         
-        // Always have at least one tab
-        if labels.is_empty() {
-            labels.push("Main".to_string());
-        }
-        
+        // No default tab - empty boxes have no tabs
         labels
     }
 
