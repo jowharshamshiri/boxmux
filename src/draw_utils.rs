@@ -1,7 +1,7 @@
 use crossterm::style::{Color, SetBackgroundColor, SetForegroundColor};
 
 use crate::{
-    set_terminal_title, AppContext, AppGraph, Bounds, Choice, Layout, MuxBox, ScreenBuffer,
+    set_terminal_title, AppContext, AppGraph, Bounds, Layout, MuxBox, ScreenBuffer,
 };
 use std::collections::HashMap;
 
@@ -182,27 +182,35 @@ pub fn draw_muxbox(
             // Draw fill
             fill_muxbox(value, border, &bg_color, fill_char, buffer);
 
-            let mut content = muxbox.content.as_deref();
-            let mut chart_content = None;
-            let mut plugin_content = None;
-            let mut table_content = None;
-
-            // Generate plugin content if muxbox has plugin configuration
-            if let Some(generated_plugin) = muxbox.generate_plugin_content(app_context, value) {
-                plugin_content = Some(generated_plugin);
-                content = plugin_content.as_deref();
-            }
-
-            // Generate chart content if muxbox has chart configuration (charts override plugins)
-            if let Some(generated_chart) = muxbox.generate_chart_content(value) {
-                chart_content = Some(generated_chart);
-                content = chart_content.as_deref();
-            }
-
-            // Generate table content if muxbox has table configuration (tables override charts)
-            if let Some(generated_table) = muxbox.generate_table_content(value) {
-                table_content = Some(generated_table);
-                content = table_content.as_deref();
+            // F0217: New unified stream approach - use traits based on stream type
+            let mut content = None;
+            let mut content_string = None;
+            
+            if let Some(active_stream) = muxbox.get_active_stream() {
+                match active_stream.stream_type {
+                    crate::model::common::StreamType::Content | 
+                    crate::model::common::StreamType::RedirectedOutput(_) |
+                    crate::model::common::StreamType::PTY |
+                    crate::model::common::StreamType::Plugin(_) |
+                    crate::model::common::StreamType::ChoiceExecution(_) |
+                    crate::model::common::StreamType::PtySession(_) |
+                    crate::model::common::StreamType::OwnScript => {
+                        // Stream has content - access via ContentStreamTrait
+                        use crate::model::common::ContentStreamTrait;
+                        let content_lines = active_stream.get_content_lines();
+                        if !content_lines.is_empty() {
+                            content_string = Some(content_lines.join("\n"));
+                            content = content_string.as_deref();
+                        }
+                    },
+                    crate::model::common::StreamType::Choices => {
+                        // Stream has choices - will be handled separately
+                        // Content rendering doesn't apply to choices streams
+                    },
+                    _ => {
+                        // Other stream types don't render content
+                    }
+                }
             }
 
             // F0120: PTY Scrollback - Use scrollback content for PTY muxboxes
@@ -604,25 +612,36 @@ fn draw_tab_bar(
             (title_fg_color, title_bg_color)
         };
         
-        // Truncate label to fit tab width
+        // Truncate label to fit tab width (character-aware)
         let mut display_label = label.clone();
-        if display_label.len() > tab_width.saturating_sub(2) {
-            display_label.truncate(tab_width.saturating_sub(3));
+        let max_label_chars = tab_width.saturating_sub(2); // Account for padding spaces
+        
+        if display_label.chars().count() > max_label_chars {
+            let truncate_chars = max_label_chars.saturating_sub(1); // Account for ellipsis
+            display_label = display_label.chars().take(truncate_chars).collect::<String>();
             display_label.push('…');
         }
         
         // Pad label to center it in tab
         let padded_label = format!(" {} ", display_label);
-        let padded_len = padded_label.len().min(tab_width);
+        let padded_char_count = padded_label.chars().count();
+        let display_chars = padded_char_count.min(tab_width);
+        
+        // Create display string with proper character boundaries
+        let display_text = if display_chars < padded_char_count {
+            padded_label.chars().take(display_chars).collect::<String>()
+        } else {
+            padded_label
+        };
         
         // Draw tab background
         let tab_end = (current_x + tab_width).min(x2);
         fill_horizontal_background(y, current_x, tab_end - 1, tab_fg, tab_bg, buffer);
         
         // Draw tab text
-        if current_x + padded_len <= x2 {
+        if current_x + display_text.len() <= x2 {
             print_with_color_and_background_at(
-                y, current_x, tab_fg, tab_bg, &padded_label[..padded_len], buffer
+                y, current_x, tab_fg, tab_bg, &display_text, buffer
             );
         }
         
@@ -648,7 +667,11 @@ pub fn calculate_tab_click_index(
     tab_labels: &[String],
     draw_border: bool,
 ) -> Option<usize> {
+    log::trace!("calculate_tab_click_index: click_x={}, x1={}, x2={}, tabs={:?}, border={}", 
+        click_x, x1, x2, tab_labels, draw_border);
+    
     if tab_labels.len() == 0 {
+        log::trace!("No tabs to click");
         return None; // No tabs to click
     }
     
@@ -666,12 +689,24 @@ pub fn calculate_tab_click_index(
     
     let start_x = if draw_border { x1 + 2 } else { x1 };
     
-    if click_x < start_x || click_x >= x2 {
+    // Calculate the total width occupied by all tabs
+    let total_tabs_width = tab_labels.len() * tab_width + (tab_labels.len().saturating_sub(1)) * (if draw_border { 1 } else { 0 });
+    let tab_area_end = start_x + total_tabs_width;
+    
+    log::trace!("Tab calculation: width={}, available_width={}, tab_width={}, start_x={}, tab_area_end={}", 
+        width, available_width, tab_width, start_x, tab_area_end);
+    
+    // Only process clicks within the actual tab area, not the entire title bar
+    if click_x < start_x || click_x >= tab_area_end.min(x2) {
+        log::trace!("Click outside tab area: click_x={}, start_x={}, tab_area_end={}", 
+            click_x, start_x, tab_area_end.min(x2));
         return None;
     }
     
     let relative_x = click_x - start_x;
     let tab_index = relative_x / (tab_width + if draw_border { 1 } else { 0 }); // Account for separators
+    
+    log::trace!("Tab hit calculation: relative_x={}, tab_index={}", relative_x, tab_index);
     
     if tab_index < tab_labels.len() {
         Some(tab_index)
@@ -702,9 +737,9 @@ pub fn render_muxbox(
     locked: bool, // Whether muxboxes are locked (disable resize/move and hide corner knob)
     buffer: &mut ScreenBuffer,
 ) {
-    // F0209: Extract content and tabs from streams
+    // F0217: Extract content and tabs from streams using trait-based approach
     let (should_render_choices, content_str, tab_labels) = if !streams.is_empty() {
-        // Get active stream content
+        // Get active stream
         let active_stream = streams.values().find(|s| s.active);
         let should_render_choices = if let Some(stream) = active_stream {
             matches!(stream.stream_type, crate::model::common::StreamType::Choices)
@@ -713,9 +748,22 @@ pub fn render_muxbox(
         };
         
         let content_str = if should_render_choices {
-            None
+            None // Choices streams don't render content
         } else if let Some(stream) = active_stream {
-            Some(stream.content.join("\n"))
+            // Use ContentStreamTrait to get content from content-type streams
+            match stream.stream_type {
+                crate::model::common::StreamType::Content | 
+                crate::model::common::StreamType::RedirectedOutput(_) |
+                crate::model::common::StreamType::PTY |
+                crate::model::common::StreamType::Plugin(_) |
+                crate::model::common::StreamType::ChoiceExecution(_) |
+                crate::model::common::StreamType::PtySession(_) |
+                crate::model::common::StreamType::OwnScript => {
+                    use crate::model::common::ContentStreamTrait;
+                    Some(stream.get_content_lines().join("\n"))
+                },
+                _ => None
+            }
         } else {
             None
         };
@@ -744,10 +792,13 @@ pub fn render_muxbox(
     
     // Extract choices from streams for legacy rendering logic compatibility
     let choices = if should_render_choices {
+        // Use ChoicesStreamTrait to get choices from choices-type stream
         streams.values()
             .find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices))
-            .and_then(|s| s.choices.as_ref())
-            .map(|c| c.clone())
+            .map(|stream| {
+                use crate::model::common::ChoicesStreamTrait;
+                stream.get_choices().clone()
+            })
     } else {
         None
     };
@@ -802,10 +853,12 @@ pub fn render_muxbox(
 
     // F0206: Render choices from streams if active stream is choices
     if should_render_choices {
-        // Get choices from the choices stream
+        // Get choices from the choices stream using ChoicesStreamTrait
         let choices_stream = streams.values().find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices));
         if let Some(stream) = choices_stream {
-            if let Some(ref choices) = stream.choices {
+            use crate::model::common::ChoicesStreamTrait;
+            let choices = stream.get_choices();
+            if !choices.is_empty() {
                 // Use existing choices rendering logic - pass the Choice objects directly
                 let viewable_height = bounds.height().saturating_sub(2); // Account for borders
                 let total_choices = choices.len();

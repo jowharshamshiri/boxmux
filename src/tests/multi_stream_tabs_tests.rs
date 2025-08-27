@@ -18,14 +18,10 @@ mod multi_stream_tabs_tests {
     fn test_add_stream() {
         let mut tab_system = TabSystem::new();
         
-        let stream = StreamSource {
-            id: "stream1".to_string(),
-            source_type: StreamType::Content,
-            label: "Script".to_string(),
+        let stream = StreamSource::StaticContent(crate::model::common::StaticContentSource {
+            content_type: "default".to_string(),
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: true,
-        };
+        });
         
         let stream_id = tab_system.add_stream(stream);
         assert_eq!(stream_id, "stream1");
@@ -33,14 +29,10 @@ mod multi_stream_tabs_tests {
         assert!(!tab_system.has_multiple_streams()); // Only one stream
         
         // Add second stream
-        let stream2 = StreamSource {
-            id: "stream2".to_string(),
-            source_type: StreamType::RedirectedOutput("other_box".to_string()),
-            label: "Redirect".to_string(),
+        let stream2 = StreamSource::StaticContent(crate::model::common::StaticContentSource {
+            content_type: "choices".to_string(),
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: false,
-        };
+        });
         
         tab_system.add_stream(stream2);
         assert_eq!(tab_system.streams.len(), 2);
@@ -51,14 +43,10 @@ mod multi_stream_tabs_tests {
     fn test_stream_content_management() {
         let mut tab_system = TabSystem::new();
         
-        let stream = StreamSource {
-            id: "test_stream".to_string(),
-            source_type: StreamType::PTY,
-            label: "HTTop".to_string(),
+        let stream = StreamSource::StaticContent(crate::model::common::StaticContentSource {
+            content_type: "pty".to_string(),
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: true,
-        };
+        });
         
         tab_system.add_stream(stream);
         tab_system.update_stream_content("test_stream", "Test content".to_string());
@@ -71,23 +59,20 @@ mod multi_stream_tabs_tests {
         let mut tab_system = TabSystem::new();
         
         // Add two streams
-        let stream1 = StreamSource {
-            id: "stream1".to_string(),
-            source_type: StreamType::Content,
-            label: "Script".to_string(),
+        let stream1 = StreamSource::StaticContent(crate::model::common::StaticContentSource {
+            content_type: "content".to_string(),
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: true,
-        };
+        });
         
-        let stream2 = StreamSource {
-            id: "stream2".to_string(),
-            source_type: StreamType::ChoiceExecution("choice1".to_string()),
-            label: "Deploy".to_string(),
-            created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: false,
-        };
+        let stream2 = StreamSource::ChoiceExecution(crate::model::common::ChoiceExecutionSource {
+            choice_id: "choice1".to_string(),
+            muxbox_id: "test_box".to_string(),
+            thread_id: None,
+            process_id: None,
+            execution_type: "threaded".to_string(),
+            started_at: SystemTime::now(),
+            timeout_seconds: None,
+        });
         
         tab_system.add_stream(stream1);
         tab_system.add_stream(stream2);
@@ -115,32 +100,28 @@ mod multi_stream_tabs_tests {
         let mut tab_system = TabSystem::new();
         
         // Add three streams
-        let stream1 = StreamSource {
-            id: "stream1".to_string(),
-            source_type: StreamType::Content,
-            label: "Script".to_string(),
+        let stream1 = StreamSource::StaticContent(crate::model::common::StaticContentSource {
+            content_type: "content".to_string(),
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: true,
-        };
+        });
         
-        let stream2 = StreamSource {
-            id: "stream2".to_string(),
-            source_type: StreamType::RedirectSource("box1".to_string()),
-            label: "Redirect".to_string(),
+        let stream2 = StreamSource::Redirect(crate::model::common::RedirectSource {
+            source_muxbox_id: "box1".to_string(),
+            redirect_name: "output".to_string(),
+            redirect_type: "append".to_string(),
+            source_choice_id: None,
             created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: false,
-        };
+            source_process_id: None,
+        });
         
-        let stream3 = StreamSource {
-            id: "stream3".to_string(),
-            source_type: StreamType::ExternalSocket,
-            label: "Socket".to_string(),
-            created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: false,
-        };
+        let stream3 = StreamSource::Socket(crate::model::common::SocketSource {
+            connection_id: "socket1".to_string(),
+            socket_path: Some("/tmp/test.sock".to_string()),
+            client_info: "test_client".to_string(),
+            protocol_version: "1.0".to_string(),
+            connected_at: SystemTime::now(),
+            last_activity: SystemTime::now(),
+        });
         
         tab_system.add_stream(stream1);
         tab_system.add_stream(stream2);
@@ -222,14 +203,15 @@ mod multi_stream_tabs_tests {
         let mut tab_system = TabSystem::new();
         tab_system.max_tab_width = 8; // Short width for testing
         
-        let long_stream = StreamSource {
-            id: "long_stream".to_string(),
-            source_type: StreamType::ChoiceExecution("choice1".to_string()),
-            label: "Very Long Label That Should Be Truncated".to_string(),
-            created_at: SystemTime::now(),
-            last_update: SystemTime::now(),
-            active: true,
-        };
+        let long_stream = StreamSource::ChoiceExecution(crate::model::common::ChoiceExecutionSource {
+            choice_id: "choice1".to_string(),
+            muxbox_id: "test_box".to_string(),
+            thread_id: None,
+            process_id: None,
+            execution_type: "threaded".to_string(),
+            started_at: SystemTime::now(),
+            timeout_seconds: None,
+        });
         
         tab_system.add_stream(long_stream);
         
