@@ -3,7 +3,7 @@ app:
     - id: text_wrapping_demo
       title: Text Wrapping Demo
       bg_color: blue
-      boxes:
+      children:
         - id: wrapped_text_box
           title: "Text Wrapping Demo (wrap)"
           position:

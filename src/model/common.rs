@@ -1095,32 +1095,32 @@ impl Bounds {
                 let height = self.height();
                 self.x1 = x;
                 self.y1 = y;
-                self.x2 = x + width;
-                self.y2 = y + height;
+                self.x2 = x + width - 1; // Inclusive bounds
+                self.y2 = y + height - 1; // Inclusive bounds
             }
             Anchor::TopRight => {
                 let width = self.width();
                 let height = self.height();
                 self.x2 = x;
                 self.y1 = y;
-                self.x1 = x - width;
-                self.y2 = y + height;
+                self.x1 = x - width + 1; // Inclusive bounds
+                self.y2 = y + height - 1; // Inclusive bounds
             }
             Anchor::BottomLeft => {
                 let width = self.width();
                 let height = self.height();
                 self.x1 = x;
                 self.y2 = y;
-                self.x2 = x + width;
-                self.y1 = y - height;
+                self.x2 = x + width - 1; // Inclusive bounds
+                self.y1 = y - height + 1; // Inclusive bounds
             }
             Anchor::BottomRight => {
                 let width = self.width();
                 let height = self.height();
                 self.x2 = x;
                 self.y2 = y;
-                self.x1 = x - width;
-                self.y1 = y - height;
+                self.x1 = x - width + 1; // Inclusive bounds
+                self.y1 = y - height + 1; // Inclusive bounds
             }
             Anchor::Center => {
                 let width = self.width();
@@ -1129,44 +1129,44 @@ impl Bounds {
                 let half_height = height / 2;
                 self.x1 = x - half_width;
                 self.y1 = y - half_height;
-                self.x2 = x + half_width;
-                self.y2 = y + half_height;
+                self.x2 = x + width - half_width - 1; // Inclusive bounds
+                self.y2 = y + height - half_height - 1; // Inclusive bounds
             }
             Anchor::CenterTop => {
                 let width = self.width();
                 let height = self.height();
                 let half_width = width / 2;
                 self.x1 = x - half_width;
-                self.x2 = x + half_width;
+                self.x2 = x + width - half_width - 1; // Inclusive bounds
                 self.y1 = y;
-                self.y2 = y + height;
+                self.y2 = y + height - 1; // Inclusive bounds
             }
             Anchor::CenterBottom => {
                 let width = self.width();
                 let height = self.height();
                 let half_width = width / 2;
                 self.x1 = x - half_width;
-                self.x2 = x + half_width;
+                self.x2 = x + width - half_width - 1; // Inclusive bounds
                 self.y2 = y;
-                self.y1 = y - height;
+                self.y1 = y - height + 1; // Inclusive bounds
             }
             Anchor::CenterLeft => {
                 let width = self.width();
                 let height = self.height();
                 let half_height = height / 2;
                 self.x1 = x;
-                self.x2 = x + width;
+                self.x2 = x + width - 1; // Inclusive bounds
                 self.y1 = y - half_height;
-                self.y2 = y + half_height;
+                self.y2 = y + height - half_height - 1; // Inclusive bounds
             }
             Anchor::CenterRight => {
                 let width = self.width();
                 let height = self.height();
                 let half_height = height / 2;
                 self.x2 = x;
-                self.x1 = x - width;
+                self.x1 = x - width + 1; // Inclusive bounds
                 self.y1 = y - half_height;
-                self.y2 = y + half_height;
+                self.y2 = y + height - half_height - 1; // Inclusive bounds
             }
         }
         self.validate();
@@ -1539,7 +1539,7 @@ mod tests {
     #[test]
     fn test_bounds_width() {
         let bounds = Bounds::new(10, 20, 100, 200);
-        assert_eq!(bounds.width(), 90);
+        assert_eq!(bounds.width(), 91); // Inclusive bounds: 100-10+1 = 91
     }
 
     /// Tests that Bounds::height() calculates height correctly.
@@ -1547,7 +1547,7 @@ mod tests {
     #[test]
     fn test_bounds_height() {
         let bounds = Bounds::new(10, 20, 100, 200);
-        assert_eq!(bounds.height(), 180);
+        assert_eq!(bounds.height(), 181); // Inclusive bounds: 200-20+1 = 181
     }
 
     /// Tests that Bounds::width() handles edge case where x1 equals x2.
@@ -1555,7 +1555,7 @@ mod tests {
     #[test]
     fn test_bounds_width_zero() {
         let bounds = Bounds::new(50, 20, 50, 200);
-        assert_eq!(bounds.width(), 0);
+        assert_eq!(bounds.width(), 1); // Inclusive bounds: 50-50+1 = 1
     }
 
     /// Tests that Bounds::height() handles edge case where y1 equals y2.
@@ -1563,7 +1563,7 @@ mod tests {
     #[test]
     fn test_bounds_height_zero() {
         let bounds = Bounds::new(10, 50, 100, 50);
-        assert_eq!(bounds.height(), 0);
+        assert_eq!(bounds.height(), 1); // Inclusive bounds: 50-50+1 = 1
     }
 
     /// Tests that Bounds::contains() correctly identifies points within bounds.
@@ -1779,8 +1779,8 @@ mod tests {
 
         assert_eq!(bounds.x1, 25);
         assert_eq!(bounds.y1, 100);
-        assert_eq!(bounds.x2, 74); // 75% of 0-99 range = 74
-        assert_eq!(bounds.y2, 199); // 100% of 0-199 range = 199
+        assert_eq!(bounds.x2, 75); // 75% of (101-1) range = 75
+        assert_eq!(bounds.y2, 200); // 100% of (201-1) range = 200
     }
 
     // === Anchor Tests ===

@@ -1,101 +1,98 @@
-name: "Socket PTY Input Demo"
-description: "Demonstrates remote PTY input injection for interactive control"
+app:
+  layouts:
+    - id: "socket_pty_input_demo"
+      title: "Socket PTY Input Demo"
+      root: true
+      children:
+        - id: "instructions"
+          title: "Socket PTY Input Instructions"
+          position:
+            x1: "5%"
+            y1: "5%"
+            x2: "95%"
+            y2: "35%"
+          border_color: "blue"
+          content: |
+            Socket PTY Input Demo - F0139 Implementation
 
-global_hot_keys:
-  "?": help
+            First, spawn a PTY process that can accept input:
+            boxmux spawn_pty_process interactive_shell '["bash", "echo Ready for commands"]'
 
-layouts:
-  - id: "socket_pty_input_demo"
-    name: "Socket PTY Input Demo"
-    active: true
-    children:
-      - id: "instructions"
-        title: "Socket PTY Input Instructions"
-        x: "5%"
-        y: "5%"
-        width: "90%"
-        height: "30%"
-        border_color: "blue"
-        content: |
-          Socket PTY Input Demo - F0139 Implementation
+            Then send input to interact with the running process:
+            # Send simple commands
+            boxmux send_pty_input interactive_shell "ls -la"
+            boxmux send_pty_input interactive_shell "pwd"
 
-          First, spawn a PTY process that can accept input:
-          boxmux spawn_pty_process interactive_shell '["bash", "echo Ready for commands"]'
+            # Send commands with newlines for execution
+            boxmux send_pty_input interactive_shell "echo Hello PTY\n"
 
-          Then send input to interact with the running process:
-          # Send simple commands
-          boxmux send_pty_input interactive_shell "ls -la"
-          boxmux send_pty_input interactive_shell "pwd"
+            # Send interactive input
+            boxmux send_pty_input interactive_shell "cat > test.txt\n"
+            boxmux send_pty_input interactive_shell "Hello from remote input!\n"
+            boxmux send_pty_input interactive_shell "\x04"  # Ctrl+D to end input
 
-          # Send commands with newlines for execution
-          boxmux send_pty_input interactive_shell "echo Hello PTY\n"
+            # Complex commands with pipes and redirects
+            boxmux send_pty_input interactive_shell "ls -la | grep test\n"
 
-          # Send interactive input
-          boxmux send_pty_input interactive_shell "cat > test.txt\n"
-          boxmux send_pty_input interactive_shell "Hello from remote input!\n"
-          boxmux send_pty_input interactive_shell "\x04"  # Ctrl+D to end input
+            Query status and control:
+            boxmux query_pty_status interactive_shell
+            boxmux kill_pty_process interactive_shell
 
-          # Complex commands with pipes and redirects
-          boxmux send_pty_input interactive_shell "ls -la | grep test\n"
+        - id: "interactive_shell"
+          title: "Interactive Shell - PTY Target"
+          position:
+            x1: "5%"
+            y1: "40%"
+            x2: "65%"
+            y2: "75%"
+          border_color: "green"
+          pty: false  # Will be enabled when PTY process is spawned
+          content: "Waiting for PTY process to be spawned via socket..."
 
-          Query status and control:
-          boxmux query_pty_status interactive_shell
-          boxmux kill_pty_process interactive_shell
+        - id: "command_log"
+          title: "Command Log & Examples"
+          position:
+            x1: "70%"
+            y1: "40%"
+            x2: "95%"
+            y2: "75%"
+          border_color: "cyan"
+          content: |
+            Common PTY Input Examples:
 
-      - id: "interactive_shell"
-        title: "Interactive Shell - PTY Target"
-        x: "5%"
-        y: "40%"
-        width: "60%"
-        height: "35%"
-        border_color: "green"
-        pty: false  # Will be enabled when PTY process is spawned
-        content: "Waiting for PTY process to be spawned via socket..."
+            Basic Commands:
+            - "ls\n"
+            - "pwd\n" 
+            - "date\n"
 
-      - id: "command_log"
-        title: "Command Log & Examples"
-        x: "70%"
-        y: "40%"
-        width: "25%"
-        height: "35%"
-        border_color: "cyan"
-        content: |
-          Common PTY Input Examples:
+            Interactive Programs:
+            - "python3\n"
+            - "print('Hello')\n"
+            - "exit()\n"
 
-          Basic Commands:
-          - "ls\n"
-          - "pwd\n" 
-          - "date\n"
+            Text Editors:
+            - "vim test.txt\n"
+            - "iThis is text\x1b:wq\n"
 
-          Interactive Programs:
-          - "python3\n"
-          - "print('Hello')\n"
-          - "exit()\n"
+            Special Characters:
+            - "\n" = Enter
+            - "\t" = Tab
+            - "\x03" = Ctrl+C
+            - "\x04" = Ctrl+D
+            - "\x1b" = Escape
 
-          Text Editors:
-          - "vim test.txt\n"
-          - "iThis is text\x1b:wq\n"
+        - id: "status_display"
+          title: "Status & Control"
+          position:
+            x1: "5%"
+            y1: "80%"
+            x2: "95%"
+            y2: "95%"
+          border_color: "magenta"
+          content: |
+            Status Commands:
+            Query: boxmux query_pty_status interactive_shell
+            Kill: boxmux kill_pty_process interactive_shell
+            Restart: boxmux restart_pty_process interactive_shell
 
-          Special Characters:
-          - "\n" = Enter
-          - "\t" = Tab
-          - "\x03" = Ctrl+C
-          - "\x04" = Ctrl+D
-          - "\x1b" = Escape
-
-      - id: "status_display"
-        title: "Status & Control"
-        x: "5%"
-        y: "80%"
-        width: "90%"
-        height: "15%"
-        border_color: "magenta"
-        content: |
-          Status Commands:
-          Query: boxmux query_pty_status interactive_shell
-          Kill: boxmux kill_pty_process interactive_shell
-          Restart: boxmux restart_pty_process interactive_shell
-
-          The interactive_shell box above will show the output of your commands.
-
-frame_delay: 100
+            The interactive_shell box above will show the output of your commands.

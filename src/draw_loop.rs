@@ -2429,13 +2429,15 @@ pub fn update_muxbox_content_with_stream(
 /// Extract muxbox content for clipboard copy
 pub fn get_muxbox_content_for_clipboard(muxbox: &MuxBox) -> String {
     // F0215: Stream-Based Choice Navigation - Use stream content for clipboard
-    // Priority order: output > stream content > default message
+    // Priority order: output > stream content > static content > default message
     if !muxbox.output.is_empty() {
         muxbox.output.clone()
     } else {
         let stream_content = muxbox.get_active_stream_content();
         if !stream_content.is_empty() {
             stream_content.join("\n")
+        } else if let Some(ref content) = muxbox.content {
+            content.clone()
         } else {
             format!("MuxBox '{}': No content", muxbox.id)
         }

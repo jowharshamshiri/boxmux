@@ -50,10 +50,12 @@ pub fn bounds_to_input_bounds(abs_bounds: &Bounds, parent_bounds: &Bounds) -> In
     let width = parent_bounds.width();
     let height = parent_bounds.height();
 
-    let ix1 = (abs_bounds.x1 - parent_bounds.x1) as f64 / width as f64;
-    let iy1 = (abs_bounds.y1 - parent_bounds.y1) as f64 / height as f64;
-    let ix2 = (abs_bounds.x2 - parent_bounds.x1) as f64 / width as f64;
-    let iy2 = (abs_bounds.y2 - parent_bounds.y1) as f64 / height as f64;
+    // Account for coordinate system where percentages map to (total-1)
+    // So percentage = coordinate / (total-1) for the reverse conversion
+    let ix1 = if width <= 1 { 0.0 } else { (abs_bounds.x1 - parent_bounds.x1) as f64 / (width - 1) as f64 };
+    let iy1 = if height <= 1 { 0.0 } else { (abs_bounds.y1 - parent_bounds.y1) as f64 / (height - 1) as f64 };
+    let ix2 = if width <= 1 { 0.0 } else { (abs_bounds.x2 - parent_bounds.x1) as f64 / (width - 1) as f64 };
+    let iy2 = if height <= 1 { 0.0 } else { (abs_bounds.y2 - parent_bounds.y1) as f64 / (height - 1) as f64 };
 
     InputBounds {
         x1: format!("{}%", ix1 * 100.0),
@@ -762,10 +764,10 @@ mod tests {
         let input_bounds = create_test_input_bounds("50%", "25%", "75%", "50%");
         let result = input_bounds_to_bounds(&input_bounds, &parent_bounds);
 
-        assert_eq!(result.x1, 60); // 10 + 50% of 100 = 10 + 50 = 60
-        assert_eq!(result.y1, 45); // 20 + 25% of 100 = 20 + 25 = 45
-        assert_eq!(result.x2, 84); // 10 + 75% of 0-99 range = 10 + 74 = 84
-        assert_eq!(result.y2, 70); // 20 + 50% of 0-99 range = 20 + 50 = 70
+        assert_eq!(result.x1, 60); // 10 + 50% of (101-1) = 10 + 50 = 60
+        assert_eq!(result.y1, 45); // 20 + 25% of (101-1) = 20 + 25 = 45
+        assert_eq!(result.x2, 85); // 10 + 75% of (101-1) = 10 + 75 = 85
+        assert_eq!(result.y2, 70); // 20 + 50% of (101-1) = 20 + 50 = 70
     }
 
     /// Tests that input_bounds_to_bounds() correctly converts absolute bounds.
