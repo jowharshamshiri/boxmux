@@ -243,8 +243,8 @@ mod clickable_scrollbar_tests {
             percentage_delta
         );
 
-        // Test boundaries - drag to top
-        let top_drag = (muxbox_bounds.top() as isize) - (start_y as isize);
+        // Test boundaries - drag to top (above track)
+        let top_drag = -10; // Simulate drag 10 pixels above track start
         let top_percentage_delta = (top_drag as f64 / track_height as f64) * 100.0;
         let new_top_percentage = (25.0 + top_percentage_delta).min(100.0).max(0.0);
         assert_eq!(

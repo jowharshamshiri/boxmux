@@ -26,7 +26,7 @@ mod plugin_integration_tests {
         let app = App::default();
         let config = Config::default();
         let app_context = AppContext::new(app, config);
-        let bounds = Bounds::new(0, 0, 30, 10);
+        let bounds = Bounds::new(0, 0, 29, 9); // width=30, height=10 with inclusive bounds
 
         let plugin_content = muxbox.generate_plugin_content(&app_context, &bounds);
 
@@ -130,7 +130,7 @@ mod plugin_integration_tests {
         let app = App::default();
         let config = Config::default();
         let app_context = AppContext::new(app, config);
-        let bounds = Bounds::new(0, 0, 50, 15);
+        let bounds = Bounds::new(0, 0, 49, 14); // width=50, height=15 with inclusive bounds
 
         let plugin_content = muxbox.generate_plugin_content(&app_context, &bounds);
 
@@ -186,7 +186,7 @@ mod plugin_integration_tests {
         let app = App::default();
         let config = Config::default();
         let app_context = AppContext::new(app, config);
-        let bounds = Bounds::new(0, 0, 60, 20);
+        let bounds = Bounds::new(0, 0, 59, 19); // width=60, height=20 with inclusive bounds
 
         let plugin_content = muxbox.generate_plugin_content(&app_context, &bounds);
 

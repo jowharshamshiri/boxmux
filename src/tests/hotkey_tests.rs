@@ -59,10 +59,11 @@ mod hotkey_tests {
 
         let mut muxbox = TestDataFactory::create_test_muxbox("test_muxbox");
         muxbox.choices = Some(vec![choice]);
+        muxbox.initialize_streams(); // Initialize streams after setting choices field
 
         let mut layout = TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox]));
         layout.root = Some(true);
-
+        
         // Test finding existing choice
         let found_muxbox = layout.find_muxbox_with_choice("test_choice");
         assert!(found_muxbox.is_some());

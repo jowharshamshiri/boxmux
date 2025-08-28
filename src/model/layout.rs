@@ -353,9 +353,13 @@ impl Layout {
     pub fn find_muxbox_with_choice(&self, choice_id: &str) -> Option<&MuxBox> {
         fn find_in_muxboxes<'a>(muxboxes: &'a [MuxBox], choice_id: &str) -> Option<&'a MuxBox> {
             for muxbox in muxboxes {
-                if let Some(choices) = muxbox.get_active_stream_choices() {
-                    if choices.iter().any(|c| c.id == choice_id) {
-                        return Some(muxbox);
+                // Check all streams, not just active stream, since choice execution
+                // should be possible regardless of which stream/tab is currently active
+                for stream in muxbox.streams.values() {
+                    if let Some(choices) = &stream.choices {
+                        if choices.iter().any(|c| c.id == choice_id) {
+                            return Some(muxbox);
+                        }
                     }
                 }
                 if let Some(ref children) = muxbox.children {
