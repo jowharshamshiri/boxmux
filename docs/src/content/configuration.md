@@ -3,9 +3,6 @@ title: Configuration Reference
 description: Complete reference for BoxMux YAML configuration files - file structure, layouts, boxes, positioning, choices, and all configuration options
 ---
 
-# Configuration Reference
-
-This document provides a complete reference for BoxMux YAML configuration files.
 
 ## Table of Contents
 
@@ -147,6 +144,9 @@ Boxes are the building blocks of your interface. They can contain content, menus
 | `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
 | `scroll` | `boolean` | No | `false` | Enable scrolling for content |
 | `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
+| `streaming` | `boolean` | No | `false` | Enable live streaming output for scripts |
+| `auto_scroll` | `boolean` | No | `false` | Enable auto-scroll for streaming content |
+| `z_index` | `number` | No | `0` | Box layering order - higher values appear on top |
 | `clipboard_enabled` | `boolean` | No | `false` | Enable Ctrl+C clipboard copying |
 | `performance_monitoring` | `boolean` | No | `false` | Enable performance monitoring |
 | `scroll_config` | `object` | No | - | Enhanced scrolling configuration |
@@ -237,6 +237,8 @@ Choices create interactive menu items within boxes.
 | `content` | `string` | Yes | - | Text displayed in the menu |
 | `script` | `array[string]` | No | - | Commands to execute when selected |
 | `thread` | `boolean` | No | `false` | Whether to run script in background thread |
+| `streaming` | `boolean` | No | `false` | Enable live streaming output line-by-line |
+| `pty` | `boolean` | No | `false` | Run script in PTY for interactive programs |
 | `redirect_output` | `string` | No | - | Box ID to send output to |
 | `append_output` | `boolean` | No | `false` | Whether to append or replace output |
 
@@ -912,6 +914,94 @@ overflow_behavior: 'removed'     # Hide the box
 - All color values must be valid color names
 - Colors are case-sensitive
 - Invalid colors will fall back to defaults
+
+### New Features Examples
+
+#### Stream Architecture with Tab System
+```yaml
+# Multi-stream box with tab system
+- id: 'control_panel'
+  title: 'Operations'
+  content: 'Control panel ready'     # → Content tab
+  choices:                           # → Operations tab
+    - id: 'deploy'
+      script: ['./deploy.sh']
+      redirect_output: 'output'      # → Deploy tab in output box
+      streaming: true                # Live streaming output
+    - id: 'monitor'
+      script: ['./monitor.sh'] 
+      redirect_output: 'output'      # → Monitor tab in output box
+      streaming: true
+
+- id: 'output'
+  title: 'Results'
+  content: 'Command output appears here...'
+  auto_scroll: true                  # Auto-scroll for streaming content
+  # Tabs: [Content] + [Deploy] + [Monitor] as commands run
+```
+
+#### Interactive UI with Z-Index Layering
+```yaml
+# Background box
+- id: 'background'
+  title: 'Background Layer'
+  z_index: 1                         # Lower layer
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  content: 'Background content'
+  
+# Foreground box (appears on top, can be resized/moved)
+- id: 'floating_window'
+  title: 'Drag Title to Move →'
+  z_index: 5                         # Higher layer - appears on top
+  position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
+  content: |
+    Interactive window features:
+    
+    • Drag title bar to move
+    • Drag bottom-right corner to resize
+    • Changes auto-save to YAML file
+    • Z-index controls layering order
+```
+
+#### Advanced Overflow Handling
+```yaml
+# Text wrapping with choice scrolling
+- id: 'wrapped_content'
+  title: 'Text Wrapping Demo'
+  position: {x1: 10%, y1: 10%, x2: 50%, y2: 90%}
+  overflow_behavior: 'wrap'          # Wrap text at boundaries
+  content: |
+    This is a very long line of text that will automatically wrap at box boundaries instead of being truncated or requiring horizontal scrolling.
+    
+# Scrollable choices menu
+- id: 'scrollable_menu'
+  title: 'Large Menu'
+  position: {x1: 50%, y1: 10%, x2: 90%, y2: 90%}
+  overflow_behavior: 'scroll'        # Show scrollbars
+  choices:
+    - {id: 'opt1', content: 'Option 1'}
+    - {id: 'opt2', content: 'Option 2'}
+    # ... 20 more options that require scrolling
+```
+
+#### PTY Features with Socket Control
+```yaml
+# Interactive terminal with PTY
+- id: 'terminal'
+  title: 'Interactive Terminal'
+  position: {x1: 0%, y1: 0%, x2: 60%, y2: 100%}
+  pty: true
+  script: ['bash']
+  # Supports full terminal interaction, cursor movement, colors
+  
+# PTY-controlled system monitor
+- id: 'htop_monitor'
+  title: 'System Monitor'
+  position: {x1: 60%, y1: 0%, x2: 100%, y2: 100%}
+  pty: true
+  script: ['htop']
+  # Interactive htop with mouse and keyboard support
+```
 
 ## Examples
 

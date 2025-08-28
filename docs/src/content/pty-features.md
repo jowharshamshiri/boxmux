@@ -3,11 +3,6 @@ title: PTY Features
 description: Interactive terminal emulation in BoxMux boxes with keyboard interaction, ANSI processing, and process management.
 ---
 
-# PTY (Pseudo-Terminal) Features
-
-**Interactive terminal emulation in BoxMux boxes**
-
-PTY features enable running interactive terminal programs within BoxMux boxes, providing keyboard interaction, ANSI processing, and process management.
 
 ## Table of Contents
 

@@ -3,9 +3,6 @@ title: Customization Guide
 description: How to customize BoxMux applications through YAML configuration, styling, and features
 ---
 
-# BoxMux Customization Guide
-
-BoxMux supports customization through YAML configuration files for building terminal UIs. This guide covers customizing BoxMux applications.
 
 ## YAML Configuration Structure
 

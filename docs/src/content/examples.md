@@ -3,9 +3,6 @@ title: Configuration Examples
 description: BoxMux configuration examples for various use cases and application types
 ---
 
-# BoxMux Configuration Examples
-
-BoxMux configurations for different types of terminal applications. These examples show YAML configuration files for different use cases.
 
 ## System Monitoring Dashboard
 

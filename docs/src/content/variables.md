@@ -3,9 +3,6 @@ title: Variable System Guide
 description: Complete guide to BoxMux variable system - hierarchical variables, environment integration, template-driven configuration, and dynamic deployments
 ---
 
-# BoxMux Variable System Guide
-
-The BoxMux Variable System enables dynamic configuration, template-driven interfaces, environment-specific deployments, and script parameterization through hierarchical variable resolution.
 
 ## Table of Contents
 

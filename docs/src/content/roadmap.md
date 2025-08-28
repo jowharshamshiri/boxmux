@@ -3,7 +3,6 @@ title: Roadmap
 description: BoxMux development roadmap and project vision for future releases.
 ---
 
-# BoxMux Development Roadmap
 
 ## Project Vision
 

@@ -3,14 +3,13 @@ title: User Guide
 description: Complete guide for building terminal interfaces with BoxMux - from basic concepts to advanced techniques
 ---
 
-# BoxMux User Guide
-
-**Guide for building terminal interfaces with BoxMux**
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
+- [Stream Architecture](#stream-architecture)
+- [Interactive UI Features](#interactive-ui-features)
 - [Building Interfaces](#building-interfaces)
 - [Common Patterns](#common-patterns)
 - [PTY Features](#pty-features)
@@ -224,6 +223,144 @@ app:
 ```
 
 **Learn more**: See the complete [Variable System Guide](/docs/variables) for additional patterns and best practices.
+
+## Stream Architecture
+
+BoxMux uses a **stream-based architecture** where boxes can display content from multiple input streams, each appearing as a separate tab.
+
+### Understanding Streams
+
+Every box can have multiple content streams:
+
+```yaml
+- id: 'control_center'
+  title: 'Control Center'
+  content: 'System control panel ready'  # → Content tab
+  choices:                               # → Control Center tab  
+    - id: 'deploy'
+      script: ['./deploy.sh']
+      redirect_output: 'output_display'  # → Deploy tab in output_display
+    - id: 'monitor'  
+      script: ['./monitor.sh']
+      redirect_output: 'output_display'  # → Monitor tab in output_display
+
+- id: 'output_display'
+  title: 'Output'
+  content: 'Command output will appear here...'
+  # Tabs: [Content] + [Deploy] + [Monitor] as commands run
+```
+
+### Tab System Usage
+
+**Tab Navigation:**
+- **Click tabs** to switch between streams within a box
+- **Close buttons (×)** appear on closeable streams (redirected output, PTY sessions)  
+- **Background streams** continue updating while inactive
+
+**Example Workflow:**
+1. Click "Deploy" choice in control_center → Deploy tab appears in output_display
+2. Click "Monitor" choice → Monitor tab appears alongside Deploy tab
+3. Click between Deploy/Monitor tabs to view different command outputs  
+4. Click × on Deploy tab to terminate the deployment process
+
+### Multi-Stream Development Setup
+
+```yaml
+- id: 'dev_commands'
+  title: 'Development'
+  choices:
+    - id: 'build'
+      script: ['cargo build --release']
+      redirect_output: 'build_results'
+      streaming: true               # Live output streaming
+    - id: 'test'
+      script: ['cargo test']  
+      redirect_output: 'test_results'
+      streaming: true
+    - id: 'lint'
+      script: ['cargo clippy']
+      redirect_output: 'lint_results'
+
+# Each command creates dedicated tabs in result boxes
+- id: 'build_results'
+  title: 'Build Output'
+  auto_scroll: true
+  content: 'Build results appear here...'
+
+- id: 'test_results'  
+  title: 'Test Output'
+  auto_scroll: true
+  content: 'Test results appear here...'
+
+- id: 'lint_results'
+  title: 'Lint Output' 
+  auto_scroll: true
+  content: 'Lint results appear here...'
+```
+
+**Result:** Each box shows Content tab initially, then gains Build/Test/Lint tabs as commands execute. Users can monitor multiple processes simultaneously and close completed operations.
+
+### PTY Streams
+
+Interactive terminal sessions create dedicated streams:
+
+```yaml
+- id: 'terminal'
+  title: 'Terminal'
+  pty: true
+  script: ['bash']
+  # → Creates Terminal tab with interactive shell
+
+- id: 'monitor'
+  title: 'System Monitor'  
+  pty: true
+  script: ['htop']
+  # → Creates System Monitor tab with interactive htop
+```
+
+**Learn more**: See the complete [Stream Architecture Guide](/docs/stream-architecture) for advanced stream patterns.
+
+## Interactive UI Features
+
+BoxMux supports mouse-driven interface manipulation for dynamic layout editing:
+
+### Box Resizing
+- **Drag bottom-right corner** to resize boxes in real-time
+- **Auto-save to YAML** preserves changes across restarts
+- **Visual feedback** with cursor style changes
+
+### Box Movement  
+- **Drag title bar** to move boxes to new positions
+- **Snap-to-grid** alignment for precise placement
+- **Live persistence** to original configuration files
+
+### Dynamic Interactions
+```yaml
+- id: 'resizable_demo'
+  title: 'Drag Corner to Resize →'
+  position: {x1: 10%, y1: 10%, x2: 60%, y2: 60%}
+  content: |
+    This box demonstrates interactive features:
+    
+    • Drag bottom-right corner to resize
+    • Drag title bar to move  
+    • Changes auto-save to YAML file
+    • Try it now!
+    
+- id: 'movable_demo'
+  title: '← Drag Title to Move'  
+  position: {x1: 40%, y1: 40%, x2: 90%, y2: 90%}
+  z_index: 2  # Appears on top for clear interaction
+  content: |
+    Interactive UI features:
+    
+    ✓ Real-time visual feedback
+    ✓ Automatic YAML persistence  
+    ✓ Boundary constraint enforcement
+    ✓ Smooth 60 FPS performance optimization
+```
+
+**Learn more**: See the complete [Interactive UI Guide](/docs/interactive-ui) for advanced interaction patterns.
 
 ## Building Interfaces
 

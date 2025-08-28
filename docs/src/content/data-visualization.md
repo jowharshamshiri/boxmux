@@ -3,9 +3,6 @@ title: Data Visualization
 description: Data visualization through charts and tables with features for displaying, sorting, and filtering structured data, including real-time updates.
 ---
 
-# Data Visualization
-
-BoxMux provides data visualization through charts and tables with features for displaying, sorting, and filtering structured data, including real-time updates.
 
 ## Table of Contents
 

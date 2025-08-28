@@ -3,9 +3,6 @@ title: Advanced Features
 description: Mouse support, hot keys, clipboard integration, navigation, and performance monitoring.
 ---
 
-# Advanced Features
-
-BoxMux includes mouse support, hot keys, clipboard integration, navigation, and performance monitoring.
 
 ## Table of Contents
 

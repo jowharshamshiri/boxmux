@@ -3,9 +3,6 @@ title: BoxMux - YAML-driven Terminal UI Framework
 description: Terminal applications and dashboards with data visualization, plugin system, and socket API. Build rich, interactive CLI applications through simple YAML configuration files.
 ---
 
-# BoxMux
-
-**YAML-driven terminal UI framework** - Create terminal applications and dashboards with data visualization, plugin system, and socket API.
 
 ## Quick Installation
 

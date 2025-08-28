@@ -3,9 +3,6 @@ title: Features
 description: Overview of BoxMux capabilities for building terminal user interfaces
 ---
 
-# BoxMux Features
-
-BoxMux is a YAML-driven terminal UI framework for building interactive CLI applications and dashboards.
 
 ## Core Framework Features
 
@@ -61,11 +58,12 @@ BoxMux is a YAML-driven terminal UI framework for building interactive CLI appli
 - **Layout Management**: Switch layouts and manage box hierarchies via socket commands
 
 ### Socket API Operations
-- **Content Management**: `replace-muxbox-content`, `replace-muxbox-script` commands
-- **Box Management**: `add-muxbox`, `remove-muxbox`, `replace-muxbox` operations  
+- **Content Management**: `replace-box-content`, `replace-box-script` commands
+- **Box Management**: `add-box`, `remove-box`, `replace-box` operations  
 - **PTY Control**: `spawn-pty`, `kill-pty`, `restart-pty`, `send-pty-input` commands
 - **Process Monitoring**: `query-pty-status` for detailed process information
-- **Refresh Control**: `start-muxbox-refresh`, `stop-muxbox-refresh` commands
+- **Refresh Control**: `start-box-refresh`, `stop-box-refresh` commands
+- **Stream Control**: `close-stream`, `switch-stream`, `list-streams` commands
 
 ## User Interface & Interaction
 

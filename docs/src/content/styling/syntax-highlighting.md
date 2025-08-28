@@ -170,7 +170,7 @@ boxes:
 ### CLI Command Examples
 ```bash
 # Update box content via socket
-boxmux replace-muxbox-content "status_box" "New status: Online"
+boxmux replace-box-content "status_box" "New status: Online"
 
 # Execute PTY commands
 boxmux spawn-pty "terminal_box" --script="vim file.txt" --pty
@@ -189,7 +189,7 @@ boxes:
   remote_controlled:
     content: "This box can be updated via socket"
     # Content will be replaced via socket commands:
-    # boxmux replace-muxbox-content "remote_controlled" "New content"
+    # boxmux replace-box-content "remote_controlled" "New content"
 ```
 
 ## Color and Styling Syntax

@@ -3,9 +3,6 @@ title: Troubleshooting Guide
 description: Comprehensive troubleshooting guide for BoxMux - common issues, debugging techniques, performance problems, and recovery procedures
 ---
 
-# Troubleshooting Guide
-
-This guide helps you diagnose and resolve common issues with BoxMux.
 
 ## Common Issues
 

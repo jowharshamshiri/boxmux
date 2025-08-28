@@ -3,9 +3,6 @@ title: Plugin System
 description: Plugin system for extending functionality with dynamic component loading, security validation, custom UI components, and data sources.
 ---
 
-# Plugin System
-
-BoxMux includes a plugin system for extending functionality with dynamic component loading, security validation, custom UI components, and data sources.
 
 ## Table of Contents
 

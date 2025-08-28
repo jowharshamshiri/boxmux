@@ -3,9 +3,6 @@ title: API Reference
 description: Complete API reference for BoxMux socket messaging, external integrations, and programmatic control - commands, message formats, and integration examples
 ---
 
-# BoxMux API Reference
-
-This document describes the BoxMux API for programmatic control via socket messaging, external integrations, and box management.
 
 ## Table of Contents
 
