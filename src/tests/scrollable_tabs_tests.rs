@@ -101,12 +101,13 @@ mod tests {
             "Tab4".to_string(), "Tab5".to_string(), "Tab6".to_string()
         ];
         
-        // Test clicking with scroll offset 0 (should click first visible tabs)
-        let clicked_tab = calculate_tab_click_index(10, 0, 50, &tab_labels, 0, true);
-        assert!(clicked_tab.is_some(), "Should be able to click tabs with no scrolling");
+        // Test clicking with scroll offset 0 - click near center where tabs should be
+        // With centering, tabs will be positioned differently, so click more centrally
+        let clicked_tab = calculate_tab_click_index(25, 0, 50, &tab_labels, 0, true);
+        assert!(clicked_tab.is_some(), "Should be able to click centered tabs with no scrolling");
         
-        // Test clicking with scroll offset 2 (should click later tabs)
-        let clicked_tab = calculate_tab_click_index(10, 0, 50, &tab_labels, 2, true);
+        // Test clicking with scroll offset 2 - tabs should fill available space when scrolling
+        let clicked_tab = calculate_tab_click_index(25, 0, 50, &tab_labels, 2, true);
         assert!(clicked_tab.is_some(), "Should be able to click tabs with scrolling");
         
         if let Some(tab_index) = clicked_tab {
@@ -128,7 +129,7 @@ mod tests {
                "Should detect left arrow click with scroll offset > 0");
         
         // Should detect right arrow when more tabs are hidden
-        let nav_action = calculate_tab_navigation_click(55, 0, 60, &tab_labels, 0, true);
+        let nav_action = calculate_tab_navigation_click(57, 0, 60, &tab_labels, 0, true);
         assert!(matches!(nav_action, Some(TabNavigationAction::ScrollRight)), 
                "Should detect right arrow click when tabs are hidden on right");
         
