@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod text_wrapping_tests {
-    use crate::draw_utils::{wrap_text_to_width, WrappedChoice, wrap_choices_to_width};
+    use crate::draw_utils::{wrap_choices_to_width, wrap_text_to_width, WrappedChoice};
     use crate::model::muxbox::Choice;
 
     #[test]
@@ -21,36 +21,36 @@ mod text_wrapping_tests {
     fn test_wrap_text_word_boundary() {
         let text = "This is a long line that needs to be wrapped";
         let wrapped = wrap_text_to_width(text, 20);
-        assert_eq!(wrapped, vec![
-            "This is a long line",
-            "that needs to be",
-            "wrapped"
-        ]);
+        assert_eq!(
+            wrapped,
+            vec!["This is a long line", "that needs to be", "wrapped"]
+        );
     }
 
     #[test]
     fn test_wrap_text_long_word() {
         let text = "Supercalifragilisticexpialidocious word";
         let wrapped = wrap_text_to_width(text, 10);
-        assert_eq!(wrapped, vec![
-            "Supercalif",
-            "ragilistic",
-            "expialidoc",
-            "ious word"
-        ]);
+        assert_eq!(
+            wrapped,
+            vec!["Supercalif", "ragilistic", "expialidoc", "ious word"]
+        );
     }
 
     #[test]
     fn test_wrap_text_multiple_lines() {
         let text = "Line one\nLine two is very long and needs wrapping\nLine three";
         let wrapped = wrap_text_to_width(text, 15);
-        assert_eq!(wrapped, vec![
-            "Line one",
-            "Line two is",
-            "very long and",
-            "needs wrapping",
-            "Line three"
-        ]);
+        assert_eq!(
+            wrapped,
+            vec![
+                "Line one",
+                "Line two is",
+                "very long and",
+                "needs wrapping",
+                "Line three"
+            ]
+        );
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod text_wrapping_tests {
 
         let wrapped = wrap_choices_to_width(&choices, 20);
         assert_eq!(wrapped.len(), 4); // 1 line + 3 wrapped lines
-        
+
         // First choice - single line
         assert_eq!(wrapped[0].original_index, 0);
         assert_eq!(wrapped[0].line_index, 0);
@@ -115,23 +115,21 @@ mod text_wrapping_tests {
 
     #[test]
     fn test_wrap_choices_waiting() {
-        let choices = vec![
-            Choice {
-                id: "1".to_string(),
-                content: Some("Processing long task".to_string()),
-                script: None,
-                thread: None,
-                redirect_output: None,
-                append_output: None,
-                pty: None,
-                selected: false,
-                waiting: true,
-            },
-        ];
+        let choices = vec![Choice {
+            id: "1".to_string(),
+            content: Some("Processing long task".to_string()),
+            script: None,
+            thread: None,
+            redirect_output: None,
+            append_output: None,
+            pty: None,
+            selected: false,
+            waiting: true,
+        }];
 
         let wrapped = wrap_choices_to_width(&choices, 15);
         assert_eq!(wrapped.len(), 2); // Should wrap "Processing long task..."
-        
+
         assert_eq!(wrapped[0].original_index, 0);
         assert_eq!(wrapped[0].line_index, 0);
         assert_eq!(wrapped[0].content, "Processing long");

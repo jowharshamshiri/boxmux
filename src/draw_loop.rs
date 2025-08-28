@@ -1,5 +1,8 @@
 use crate::draw_utils::{draw_app, draw_muxbox};
-use crate::model::app::{save_muxbox_bounds_to_yaml, save_complete_state_to_yaml, save_active_layout_to_yaml, save_muxbox_content_to_yaml, save_muxbox_scroll_to_yaml};
+use crate::model::app::{
+    save_active_layout_to_yaml, save_complete_state_to_yaml, save_muxbox_bounds_to_yaml,
+    save_muxbox_content_to_yaml, save_muxbox_scroll_to_yaml,
+};
 use crate::model::common::{InputBounds, StreamSourceTrait};
 use crate::model::muxbox::Choice;
 use crate::thread_manager::Runnable;
@@ -210,7 +213,7 @@ fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
     // F0214: Stream-Based Scrollbar Calculations - Use active stream content
     let stream_content = muxbox.get_active_stream_content();
     let stream_choices = muxbox.get_active_stream_choices();
-    
+
     let max_content_height = if !stream_content.is_empty() {
         let mut total_height = stream_content.len();
         // Add choices height if active stream has choices
@@ -260,9 +263,13 @@ fn is_on_horizontal_knob(muxbox: &MuxBox, click_x: usize) -> bool {
     // F0214: Stream-Based Scrollbar Calculations - Use active stream content
     let stream_content = muxbox.get_active_stream_content();
     let stream_choices = muxbox.get_active_stream_choices();
-    
+
     let max_content_width = if !stream_content.is_empty() {
-        stream_content.iter().map(|line| line.len()).max().unwrap_or(0)
+        stream_content
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0)
     } else if let Some(choices) = stream_choices {
         choices
             .iter()
@@ -464,7 +471,8 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 // F0215: Stream-Based Choice Navigation - Use active stream choices
-                                if let Some(choices) = found_muxbox.get_active_stream_choices_mut() {
+                                if let Some(choices) = found_muxbox.get_active_stream_choices_mut()
+                                {
                                     //select first or next choice
                                     let selected_choice = choices.iter().position(|c| c.selected);
                                     let selected_choice_unwrapped =
@@ -480,7 +488,10 @@ create_runnable!(
                                     }
 
                                     // Auto-scroll to keep selected choice visible
-                                    auto_scroll_to_selected_choice(found_muxbox, new_selected_choice);
+                                    auto_scroll_to_selected_choice(
+                                        found_muxbox,
+                                        new_selected_choice,
+                                    );
                                 } else {
                                     found_muxbox.scroll_down(Some(1.0));
                                 }
@@ -501,8 +512,9 @@ create_runnable!(
                             let muxbox =
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
-                                // F0215: Stream-Based Choice Navigation - Use active stream choices  
-                                if let Some(choices) = found_muxbox.get_active_stream_choices_mut() {
+                                // F0215: Stream-Based Choice Navigation - Use active stream choices
+                                if let Some(choices) = found_muxbox.get_active_stream_choices_mut()
+                                {
                                     //select first or next choice
                                     let selected_choice = choices.iter().position(|c| c.selected);
                                     let selected_choice_unwrapped =
@@ -517,7 +529,10 @@ create_runnable!(
                                     }
 
                                     // Auto-scroll to keep selected choice visible
-                                    auto_scroll_to_selected_choice(found_muxbox, new_selected_choice);
+                                    auto_scroll_to_selected_choice(
+                                        found_muxbox,
+                                        new_selected_choice,
+                                    );
                                 } else {
                                     found_muxbox.scroll_up(Some(1.0));
                                 }
@@ -645,7 +660,7 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(0.0);
-                                
+
                                 // F0200: Save scroll position to YAML
                                 inner.send_message(Message::SaveMuxBoxScroll(
                                     found_muxbox.id.clone(),
@@ -670,7 +685,7 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.horizontal_scroll = Some(100.0);
-                                
+
                                 // F0200: Save scroll position to YAML
                                 inner.send_message(Message::SaveMuxBoxScroll(
                                     found_muxbox.id.clone(),
@@ -695,11 +710,12 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(0.0);
-                                
+
                                 // F0200: Save scroll position to YAML
                                 inner.send_message(Message::SaveMuxBoxScroll(
                                     found_muxbox.id.clone(),
-                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0)
+                                        as usize,
                                     0,
                                 ));
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -720,11 +736,12 @@ create_runnable!(
                                 app_context_unwrapped.app.get_muxbox_by_id_mut(&selected_id);
                             if let Some(found_muxbox) = muxbox {
                                 found_muxbox.vertical_scroll = Some(100.0);
-                                
+
                                 // F0200: Save scroll position to YAML
                                 inner.send_message(Message::SaveMuxBoxScroll(
                                     found_muxbox.id.clone(),
-                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0) as usize,
+                                    (found_muxbox.horizontal_scroll.unwrap_or(0.0) * 100.0)
+                                        as usize,
                                     100,
                                 ));
                                 inner.update_app_context(app_context_unwrapped.clone());
@@ -829,7 +846,7 @@ create_runnable!(
                             };
                             inner.update_app_context(app_context_unwrapped_cloned.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
-                            
+
                             // F0200: Save PTY streaming content to YAML
                             if let Some(updated_content) = content_for_save {
                                 inner.send_message(Message::SaveMuxBoxContent(
@@ -843,10 +860,10 @@ create_runnable!(
                                 .app
                                 .get_muxbox_by_id(muxbox_id)
                                 .unwrap();
-                            
+
                             // Store content before update for YAML persistence
                             let old_content = Some(muxbox.get_active_stream_content().join("\n"));
-                            
+
                             update_muxbox_content(
                                 inner,
                                 &mut app_context_unwrapped_cloned,
@@ -855,11 +872,16 @@ create_runnable!(
                                 muxbox.append_output.unwrap_or(false),
                                 output,
                             );
-                            
+
                             // F0200: Save updated content to YAML if it changed
-                            if let Some(updated_muxbox) = app_context_unwrapped_cloned.app.get_muxbox_by_id(muxbox_id) {
-                                if Some(updated_muxbox.get_active_stream_content().join("\n")) != old_content {
-                                    let new_content = updated_muxbox.get_active_stream_content().join("\n");
+                            if let Some(updated_muxbox) =
+                                app_context_unwrapped_cloned.app.get_muxbox_by_id(muxbox_id)
+                            {
+                                if Some(updated_muxbox.get_active_stream_content().join("\n"))
+                                    != old_content
+                                {
+                                    let new_content =
+                                        updated_muxbox.get_active_stream_content().join("\n");
                                     if !new_content.is_empty() {
                                         inner.send_message(Message::SaveMuxBoxContent(
                                             muxbox_id.clone(),
@@ -1021,7 +1043,9 @@ create_runnable!(
                                                 .app
                                                 .get_muxbox_by_id_mut(&muxbox_id)
                                             {
-                                                if let Some(choices) = muxbox_mut.get_active_stream_choices_mut() {
+                                                if let Some(choices) =
+                                                    muxbox_mut.get_active_stream_choices_mut()
+                                                {
                                                     if let Some(choice) = choices
                                                         .iter_mut()
                                                         .find(|c| c.id == choice_id)
@@ -1193,13 +1217,16 @@ create_runnable!(
                                             .get_muxbox_by_id_mut(&muxbox.id)
                                             .unwrap();
                                         muxbox_to_update.vertical_scroll = Some(scroll_percentage);
-                                        (muxbox_to_update.id.clone(), muxbox_to_update.horizontal_scroll.unwrap_or(0.0))
+                                        (
+                                            muxbox_to_update.id.clone(),
+                                            muxbox_to_update.horizontal_scroll.unwrap_or(0.0),
+                                        )
                                     };
 
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
-                                    
+
                                     // F0200: Save scroll position to YAML
                                     inner.send_message(Message::SaveMuxBoxScroll(
                                         muxbox_id,
@@ -1234,14 +1261,18 @@ create_runnable!(
                                             .app
                                             .get_muxbox_by_id_mut(&muxbox.id)
                                             .unwrap();
-                                        muxbox_to_update.horizontal_scroll = Some(scroll_percentage);
-                                        (muxbox_to_update.id.clone(), muxbox_to_update.vertical_scroll.unwrap_or(0.0))
+                                        muxbox_to_update.horizontal_scroll =
+                                            Some(scroll_percentage);
+                                        (
+                                            muxbox_to_update.id.clone(),
+                                            muxbox_to_update.vertical_scroll.unwrap_or(0.0),
+                                        )
                                     };
 
                                     inner.update_app_context(app_context_for_click.clone());
                                     inner.send_message(Message::RedrawAppDiff);
                                     handled_scrollbar_click = true;
-                                    
+
                                     // F0200: Save scroll position to YAML
                                     inner.send_message(Message::SaveMuxBoxScroll(
                                         muxbox_id,
@@ -1259,32 +1290,49 @@ create_runnable!(
                         } else {
                             // F0203: Check for tab clicks first using proper z-index ordering
                             let mut handled_tab_click = false;
-                            
+
                             // Find the top-most muxbox at the click coordinates (respects z-index)
-                            if let Some(clicked_muxbox) = active_layout.find_muxbox_at_coordinates(*x, *y) {
+                            if let Some(clicked_muxbox) =
+                                active_layout.find_muxbox_at_coordinates(*x, *y)
+                            {
                                 let muxbox_bounds = clicked_muxbox.bounds();
-                                
+
                                 // Check if click is in title bar area specifically
                                 if *y as usize == muxbox_bounds.top() {
                                     let tab_labels = clicked_muxbox.get_tab_labels();
                                     log::debug!("Title bar click at ({},{}) in top-most muxbox '{}' with {} tabs: {:?}", 
                                         *x, *y, clicked_muxbox.id, tab_labels.len(), tab_labels);
-                                    
-                                    let has_border = clicked_muxbox.calc_border(&app_context_unwrapped.clone(), &app_graph);
-                                    log::debug!("Muxbox bounds: left={}, right={}, top={}, border={}", 
-                                        muxbox_bounds.left(), muxbox_bounds.right(), muxbox_bounds.top(), has_border);
-                                    
-                                    // Check for navigation arrow clicks first
-                                    if let Some(nav_action) = crate::draw_utils::calculate_tab_navigation_click(
-                                        *x as usize,
+
+                                    let has_border = clicked_muxbox
+                                        .calc_border(&app_context_unwrapped.clone(), &app_graph);
+                                    log::debug!(
+                                        "Muxbox bounds: left={}, right={}, top={}, border={}",
                                         muxbox_bounds.left(),
                                         muxbox_bounds.right(),
-                                        &tab_labels,
-                                        clicked_muxbox.tab_scroll_offset,
+                                        muxbox_bounds.top(),
                                         has_border
-                                    ) {
-                                        log::info!("Tab navigation clicked: muxbox {} action {:?}", clicked_muxbox.id, nav_action);
-                                        if let Some(muxbox) = app_context_for_click.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
+                                    );
+
+                                    // Check for navigation arrow clicks first
+                                    if let Some(nav_action) =
+                                        crate::draw_utils::calculate_tab_navigation_click(
+                                            *x as usize,
+                                            muxbox_bounds.left(),
+                                            muxbox_bounds.right(),
+                                            &tab_labels,
+                                            clicked_muxbox.tab_scroll_offset,
+                                            has_border,
+                                        )
+                                    {
+                                        log::info!(
+                                            "Tab navigation clicked: muxbox {} action {:?}",
+                                            clicked_muxbox.id,
+                                            nav_action
+                                        );
+                                        if let Some(muxbox) = app_context_for_click
+                                            .app
+                                            .get_muxbox_by_id_mut(&clicked_muxbox.id)
+                                        {
                                             match nav_action {
                                                 crate::draw_utils::TabNavigationAction::ScrollLeft => {
                                                     muxbox.scroll_tabs_left();
@@ -1298,39 +1346,136 @@ create_runnable!(
                                             inner.update_app_context(app_context_for_click.clone());
                                         }
                                         handled_tab_click = true;
-                                    } else if let Some(close_tab_index) = crate::draw_utils::calculate_tab_close_click(
-                                        *x as usize,
-                                        muxbox_bounds.left(), 
-                                        muxbox_bounds.right(),
-                                        &tab_labels,
-                                        &clicked_muxbox.get_tab_close_buttons(),
-                                        clicked_muxbox.tab_scroll_offset,
-                                        has_border
-                                    ) {
-                                        // F0219: Handle close button click
+                                    } else if let Some(close_tab_index) =
+                                        crate::draw_utils::calculate_tab_close_click(
+                                            *x as usize,
+                                            muxbox_bounds.left(),
+                                            muxbox_bounds.right(),
+                                            &tab_labels,
+                                            &clicked_muxbox.get_tab_close_buttons(),
+                                            clicked_muxbox.tab_scroll_offset,
+                                            has_border,
+                                        )
+                                    {
+                                        // F0219: Handle close button click - direct stream removal
                                         let stream_ids = clicked_muxbox.get_tab_stream_ids();
                                         if let Some(stream_id) = stream_ids.get(close_tab_index) {
-                                            log::info!("Close button clicked for tab {} (stream: {})", close_tab_index, stream_id);
-                                            inner.send_message(Message::CloseTab(clicked_muxbox.id.clone(), stream_id.clone()));
+                                            log::info!(
+                                                "Close button clicked for tab {} (stream: {})",
+                                                close_tab_index,
+                                                stream_id
+                                            );
+                                            
+                                            // Handle stream removal directly since ThreadManager doesn't forward messages back
+                                            let mut app_context_for_close = app_context_unwrapped.clone();
+                                            if let Some(muxbox) = app_context_for_close.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
+                                                if let Some(stream) = muxbox.streams.get(stream_id) {
+                                                    if stream.is_closeable() {
+                                                        log::info!(
+                                                            "Processing close tab for closeable stream {} in muxbox {}",
+                                                            stream_id,
+                                                            clicked_muxbox.id
+                                                        );
+                                                        
+                                                        // Remove stream and handle source cleanup
+                                                        log::info!("Attempting to remove stream {} from muxbox {} (current streams: {})", 
+                                                            stream_id, clicked_muxbox.id, muxbox.streams.len());
+                                                        
+                                                        // First check if stream exists before removal
+                                                        if muxbox.streams.contains_key(stream_id) {
+                                                            let source_option = muxbox.remove_stream(stream_id);
+                                                            log::info!(
+                                                                "Stream {} removed from muxbox {}",
+                                                                stream_id,
+                                                                clicked_muxbox.id
+                                                            );
+
+                                                            // Handle source cleanup if stream had an active source
+                                                            if let Some(source) = source_option {
+                                                                log::info!("Attempting cleanup for stream source");
+                                                                match source {
+                                                                    crate::model::common::StreamSource::ChoiceExecution(choice_source) => {
+                                                                        if let Err(e) = choice_source.cleanup() {
+                                                                            log::info!(
+                                                                                "Choice execution source cleanup failed (likely already terminated): {}",
+                                                                                e
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                    crate::model::common::StreamSource::PTY(pty_source) => {
+                                                                        if let Err(e) = pty_source.cleanup() {
+                                                                            log::info!("PTY source cleanup failed (likely already terminated): {}", e);
+                                                                        }
+                                                                    }
+                                                                    crate::model::common::StreamSource::Redirect(redirect_source) => {
+                                                                        if let Err(e) = redirect_source.cleanup() {
+                                                                            log::info!("Redirect source cleanup failed (likely already terminated): {}", e);
+                                                                        }
+                                                                    }
+                                                                    crate::model::common::StreamSource::Socket(socket_source) => {
+                                                                        if let Err(e) = socket_source.cleanup() {
+                                                                            log::info!("Socket source cleanup failed (likely already terminated): {}", e);
+                                                                        }
+                                                                    }
+                                                                    _ => {
+                                                                        log::info!("Stream source type doesn't require cleanup");
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                log::info!("Stream {} had no active source (likely already terminated) - removal successful", stream_id);
+                                                            }
+                                                            
+                                                            // Update app context and trigger redraw
+                                                            inner.update_app_context(app_context_for_close.clone());
+                                                            inner.send_message(Message::RedrawAppDiff);
+                                                        } else {
+                                                            log::warn!("Stream {} not found in muxbox {} - cannot remove", 
+                                                                stream_id, clicked_muxbox.id);
+                                                        }
+                                                    } else {
+                                                        log::info!(
+                                                            "Stream {} in muxbox {} is not closeable",
+                                                            stream_id,
+                                                            clicked_muxbox.id
+                                                        );
+                                                    }
+                                                }
+                                            }
                                         }
                                         handled_tab_click = true;
-                                    } else if let Some(clicked_tab_index) = crate::draw_utils::calculate_tab_click_index(
-                                        *x as usize, 
-                                        muxbox_bounds.left(), 
-                                        muxbox_bounds.right(),
-                                        &tab_labels,
-                                        clicked_muxbox.tab_scroll_offset,
-                                        has_border
-                                    ) {
-                                        log::info!("Tab click detected: muxbox {} tab {} ({})", 
-                                            clicked_muxbox.id, clicked_tab_index, 
-                                            tab_labels.get(clicked_tab_index).unwrap_or(&"unknown".to_string()));
-                                        
+                                    } else if let Some(clicked_tab_index) =
+                                        crate::draw_utils::calculate_tab_click_index(
+                                            *x as usize,
+                                            muxbox_bounds.left(),
+                                            muxbox_bounds.right(),
+                                            &tab_labels,
+                                            clicked_muxbox.tab_scroll_offset,
+                                            has_border,
+                                        )
+                                    {
+                                        log::info!(
+                                            "Tab click detected: muxbox {} tab {} ({})",
+                                            clicked_muxbox.id,
+                                            clicked_tab_index,
+                                            tab_labels
+                                                .get(clicked_tab_index)
+                                                .unwrap_or(&"unknown".to_string())
+                                        );
+
                                         log::info!("Processing SwitchTab directly: muxbox={}, tab_index={}", clicked_muxbox.id, clicked_tab_index);
-                                        if let Some(muxbox) = app_context_for_click.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
+                                        if let Some(muxbox) = app_context_for_click
+                                            .app
+                                            .get_muxbox_by_id_mut(&clicked_muxbox.id)
+                                        {
                                             if muxbox.switch_to_tab(clicked_tab_index) {
-                                                log::info!("Successfully switched muxbox '{}' to tab {}", muxbox.id, clicked_tab_index);
-                                                inner.update_app_context(app_context_for_click.clone());
+                                                log::info!(
+                                                    "Successfully switched muxbox '{}' to tab {}",
+                                                    muxbox.id,
+                                                    clicked_tab_index
+                                                );
+                                                inner.update_app_context(
+                                                    app_context_for_click.clone(),
+                                                );
                                             } else {
                                                 log::warn!("Failed to switch muxbox '{}' to tab {} - switch_to_tab returned false", muxbox.id, clicked_tab_index);
                                             }
@@ -1341,91 +1486,124 @@ create_runnable!(
                                     }
                                 }
                             }
-                            
+
                             if !handled_tab_click {
-                            // F0091: Find which muxbox was clicked based on coordinates
-                            if let Some(clicked_muxbox) =
-                                active_layout.find_muxbox_at_coordinates(*x, *y)
-                            {
-                                log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
+                                // F0091: Find which muxbox was clicked based on coordinates
+                                if let Some(clicked_muxbox) =
+                                    active_layout.find_muxbox_at_coordinates(*x, *y)
+                                {
+                                    log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
 
-                                // Check if muxbox has choices (menu items)
-                                if let Some(choices) = clicked_muxbox.get_active_stream_choices() {
-                                    // Calculate which choice was clicked based on y and x offset within muxbox
-                                    if let Some(clicked_choice_idx) = calculate_clicked_choice_index(
-                                        clicked_muxbox,
-                                        *x,
-                                        *y,
-                                        choices,
-                                    ) {
-                                        if let Some(clicked_choice) =
-                                            choices.get(clicked_choice_idx)
+                                    // Check if muxbox has choices (menu items)
+                                    if let Some(choices) =
+                                        clicked_muxbox.get_active_stream_choices()
+                                    {
+                                        // Calculate which choice was clicked based on y and x offset within muxbox
+                                        if let Some(clicked_choice_idx) =
+                                            calculate_clicked_choice_index(
+                                                clicked_muxbox,
+                                                *x,
+                                                *y,
+                                                choices,
+                                            )
                                         {
-                                            log::trace!("Clicked on choice: {}", clicked_choice.id);
-
-                                            // First, select the parent muxbox if not already selected
-                                            let layout = app_context_for_click
-                                                .app
-                                                .get_active_layout_mut()
-                                                .unwrap();
-                                            layout.deselect_all_muxboxes();
-                                            layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                            // Then select the clicked choice visually
-                                            let muxbox_to_update = app_context_for_click
-                                                .app
-                                                .get_muxbox_by_id_mut(&clicked_muxbox.id)
-                                                .unwrap();
-                                            if let Some(muxbox_choices) =
-                                                muxbox_to_update.get_active_stream_choices_mut()
+                                            if let Some(clicked_choice) =
+                                                choices.get(clicked_choice_idx)
                                             {
-                                                // Deselect all choices first
-                                                for choice in muxbox_choices.iter_mut() {
-                                                    choice.selected = false;
-                                                }
-                                                // Select only the clicked choice
-                                                if let Some(selected_choice) =
-                                                    muxbox_choices.get_mut(clicked_choice_idx)
+                                                log::trace!(
+                                                    "Clicked on choice: {}",
+                                                    clicked_choice.id
+                                                );
+
+                                                // First, select the parent muxbox if not already selected
+                                                let layout = app_context_for_click
+                                                    .app
+                                                    .get_active_layout_mut()
+                                                    .unwrap();
+                                                layout.deselect_all_muxboxes();
+                                                layout.select_only_muxbox(&clicked_muxbox.id);
+
+                                                // Then select the clicked choice visually
+                                                let muxbox_to_update = app_context_for_click
+                                                    .app
+                                                    .get_muxbox_by_id_mut(&clicked_muxbox.id)
+                                                    .unwrap();
+                                                if let Some(muxbox_choices) =
+                                                    muxbox_to_update.get_active_stream_choices_mut()
                                                 {
-                                                    selected_choice.selected = true;
+                                                    // Deselect all choices first
+                                                    for choice in muxbox_choices.iter_mut() {
+                                                        choice.selected = false;
+                                                    }
+                                                    // Select only the clicked choice
+                                                    if let Some(selected_choice) =
+                                                        muxbox_choices.get_mut(clicked_choice_idx)
+                                                    {
+                                                        selected_choice.selected = true;
+                                                    }
+                                                }
+
+                                                // Update the app context and immediately trigger redraw for responsiveness
+                                                inner.update_app_context(
+                                                    app_context_for_click.clone(),
+                                                );
+                                                inner.send_message(Message::RedrawAppDiff);
+
+                                                // Then activate the clicked choice (same as pressing Enter)
+                                                // Force threaded execution for clicked choices to maintain UI responsiveness
+                                                if let Some(script) = &clicked_choice.script {
+                                                    let libs =
+                                                        app_context_unwrapped.app.libs.clone();
+
+                                                    // Always use threaded execution for mouse clicks to keep UI responsive
+                                                    let _script_clone = script.clone();
+                                                    let _choice_id_clone =
+                                                        clicked_choice.id.clone();
+                                                    let muxbox_id_clone = clicked_muxbox.id.clone();
+                                                    let libs_clone = libs.clone();
+
+                                                    // T312: Use unified ExecuteChoice message system
+                                                    inner.send_message(Message::ExecuteChoice(
+                                                        clicked_choice.clone(),
+                                                        muxbox_id_clone,
+                                                        libs_clone,
+                                                    ));
+
+                                                    // Spawn the choice execution in ThreadManager
+                                                    // TODO: Get ThreadManager reference to spawn the runnable
+                                                    log::trace!("Mouse click choice {} ready for ThreadManager execution", clicked_choice.id);
                                                 }
                                             }
+                                        } else {
+                                            // Click was on muxbox with choices but not on any specific choice
+                                            // Only select the muxbox, don't activate any choice
+                                            if clicked_muxbox.tab_order.is_some()
+                                                || clicked_muxbox.has_scrollable_content()
+                                            {
+                                                log::trace!(
+                                                    "Selecting muxbox (clicked on empty area): {}",
+                                                    clicked_muxbox.id
+                                                );
 
-                                            // Update the app context and immediately trigger redraw for responsiveness
-                                            inner.update_app_context(app_context_for_click.clone());
-                                            inner.send_message(Message::RedrawAppDiff);
+                                                // Deselect all muxboxes in the layout first
+                                                let layout = app_context_for_click
+                                                    .app
+                                                    .get_active_layout_mut()
+                                                    .unwrap();
+                                                layout.deselect_all_muxboxes();
+                                                layout.select_only_muxbox(&clicked_muxbox.id);
 
-                                            // Then activate the clicked choice (same as pressing Enter)
-                                            // Force threaded execution for clicked choices to maintain UI responsiveness
-                                            if let Some(script) = &clicked_choice.script {
-                                                let libs = app_context_unwrapped.app.libs.clone();
-
-                                                // Always use threaded execution for mouse clicks to keep UI responsive
-                                                let _script_clone = script.clone();
-                                                let _choice_id_clone = clicked_choice.id.clone();
-                                                let muxbox_id_clone = clicked_muxbox.id.clone();
-                                                let libs_clone = libs.clone();
-
-                                                // T312: Use unified ExecuteChoice message system
-                                                inner.send_message(Message::ExecuteChoice(
-                                                    clicked_choice.clone(),
-                                                    muxbox_id_clone,
-                                                    libs_clone,
-                                                ));
-
-                                                // Spawn the choice execution in ThreadManager
-                                                // TODO: Get ThreadManager reference to spawn the runnable
-                                                log::trace!("Mouse click choice {} ready for ThreadManager execution", clicked_choice.id);
+                                                inner.update_app_context(app_context_for_click);
+                                                inner.send_message(Message::RedrawAppDiff);
                                             }
                                         }
                                     } else {
-                                        // Click was on muxbox with choices but not on any specific choice
-                                        // Only select the muxbox, don't activate any choice
+                                        // MuxBox has no choices - just select it if it's selectable
                                         if clicked_muxbox.tab_order.is_some()
                                             || clicked_muxbox.has_scrollable_content()
                                         {
                                             log::trace!(
-                                                "Selecting muxbox (clicked on empty area): {}",
+                                                "Selecting muxbox (no choices): {}",
                                                 clicked_muxbox.id
                                             );
 
@@ -1441,29 +1619,7 @@ create_runnable!(
                                             inner.send_message(Message::RedrawAppDiff);
                                         }
                                     }
-                                } else {
-                                    // MuxBox has no choices - just select it if it's selectable
-                                    if clicked_muxbox.tab_order.is_some()
-                                        || clicked_muxbox.has_scrollable_content()
-                                    {
-                                        log::trace!(
-                                            "Selecting muxbox (no choices): {}",
-                                            clicked_muxbox.id
-                                        );
-
-                                        // Deselect all muxboxes in the layout first
-                                        let layout = app_context_for_click
-                                            .app
-                                            .get_active_layout_mut()
-                                            .unwrap();
-                                        layout.deselect_all_muxboxes();
-                                        layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                        inner.update_app_context(app_context_for_click);
-                                        inner.send_message(Message::RedrawAppDiff);
-                                    }
                                 }
-                            }
                             } // End of !handled_tab_click
                         }
                     }
@@ -1501,7 +1657,7 @@ create_runnable!(
                             }
 
                             // F0191: If not a resize, check if drag started on muxbox title/top border for movement
-                            let mut handled_move = false;
+                            let mut _handled_move = false;
                             if !handled_resize {
                                 let mut move_state = MUXBOX_MOVE_STATE.lock().unwrap();
                                 *move_state = None; // Clear any previous move state
@@ -1511,19 +1667,24 @@ create_runnable!(
                                         // Check if the drag started on a tab area - if so, don't start move
                                         let tab_labels = muxbox.get_tab_labels();
                                         let muxbox_bounds = muxbox.bounds();
-                                        if let Some(_tab_index) = crate::draw_utils::calculate_tab_click_index(
-                                            *x as usize, 
-                                            muxbox_bounds.left(), 
-                                            muxbox_bounds.right(),
-                                            &tab_labels,
-                                            muxbox.tab_scroll_offset,
-                                            muxbox.calc_border(&app_context_unwrapped.clone(), &app_graph)
-                                        ) {
+                                        if let Some(_tab_index) =
+                                            crate::draw_utils::calculate_tab_click_index(
+                                                *x as usize,
+                                                muxbox_bounds.left(),
+                                                muxbox_bounds.right(),
+                                                &tab_labels,
+                                                muxbox.tab_scroll_offset,
+                                                muxbox.calc_border(
+                                                    &app_context_unwrapped.clone(),
+                                                    &app_graph,
+                                                ),
+                                            )
+                                        {
                                             log::trace!("Drag started on tab area for muxbox {} - skipping move operation", muxbox.id);
                                             // Skip move operation for tab area drags
                                             continue;
                                         }
-                                        
+
                                         *move_state = Some(MuxBoxMoveState {
                                             muxbox_id: muxbox.id.clone(),
                                             start_x: *x,
@@ -1534,7 +1695,7 @@ create_runnable!(
                                             "Started moving muxbox {} via title/top border",
                                             muxbox.id
                                         );
-                                        handled_move = true;
+                                        _handled_move = true;
                                         break;
                                     }
                                 }
@@ -1879,36 +2040,55 @@ create_runnable!(
                             target_muxbox_id,
                             is_redirect
                         );
-                        
+
                         // Get choice details first (immutable borrow)
-                        let choice_details = if let Some(source_muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                        let choice_details = if let Some(source_muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
+                        {
                             if let Some(choices) = source_muxbox.get_active_stream_choices() {
                                 choices.iter().find(|c| c.id == *choice_id).map(|choice| {
-                                    (choice.id.clone(), choice.content.as_deref().unwrap_or(&choice.id).to_string())
+                                    (
+                                        choice.id.clone(),
+                                        choice.content.as_deref().unwrap_or(&choice.id).to_string(),
+                                    )
                                 })
-                            } else { None }
-                        } else { None };
-                        
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
                         // Create stream in target muxbox (mutable borrow) - works for both redirect and local
-                        let actual_stream_id = if let Some((choice_id_clone, stream_label)) = choice_details {
-                            if let Some(target_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&target_muxbox_id) {
-                                // Initialize default stream if tab system is empty
-                                target_muxbox.ensure_tabs_initialized();
-                                
-                                // Create choice execution stream
-                                let stream_id = target_muxbox.add_input_stream(
-                                    crate::model::common::StreamType::RedirectedOutput(choice_id_clone.clone()),
-                                    stream_label
-                                );
-                                
-                                log::info!(
+                        let actual_stream_id =
+                            if let Some((choice_id_clone, stream_label)) = choice_details {
+                                if let Some(target_muxbox) = app_context_unwrapped
+                                    .app
+                                    .get_muxbox_by_id_mut(&target_muxbox_id)
+                                {
+                                    // Initialize default stream if tab system is empty
+                                    target_muxbox.ensure_tabs_initialized();
+
+                                    // Create choice execution stream
+                                    let stream_id = target_muxbox.add_input_stream(
+                                        crate::model::common::StreamType::RedirectedOutput(
+                                            choice_id_clone.clone(),
+                                        ),
+                                        stream_label,
+                                    );
+
+                                    log::info!(
                                     "Created stream {} in target muxbox {} for choice execution",
                                     stream_id,
                                     target_muxbox_id
                                 );
-                                Some(stream_id)
-                            } else { None }
-                        } else { None };
+                                    Some(stream_id)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
 
                         match result {
                             Ok(output) => {
@@ -1919,7 +2099,8 @@ create_runnable!(
                                     target_muxbox_id
                                 );
                                 // Use the actual stream ID returned from creation, or fall back to choice_id
-                                let stream_identifier = actual_stream_id.unwrap_or_else(|| choice_id.clone());
+                                let stream_identifier =
+                                    actual_stream_id.unwrap_or_else(|| choice_id.clone());
                                 update_muxbox_content_with_stream(
                                     inner,
                                     &mut app_context_unwrapped,
@@ -1933,7 +2114,8 @@ create_runnable!(
                             Err(error) => {
                                 log::error!("Error running choice script: {}", error);
                                 // Use the actual stream ID returned from creation, or fall back to choice_id
-                                let stream_identifier = actual_stream_id.unwrap_or_else(|| choice_id.clone());
+                                let stream_identifier =
+                                    actual_stream_id.unwrap_or_else(|| choice_id.clone());
                                 update_muxbox_content_with_stream(
                                     inner,
                                     &mut app_context_unwrapped,
@@ -2049,7 +2231,9 @@ create_runnable!(
                                 }
                             }
                         } else {
-                            log::error!("CRITICAL: No YAML file path available for saving complete state!");
+                            log::error!(
+                                "CRITICAL: No YAML file path available for saving complete state!"
+                            );
                         }
                     }
                     Message::SaveActiveLayout(layout_id) => {
@@ -2066,7 +2250,9 @@ create_runnable!(
                                 }
                             }
                         } else {
-                            log::error!("CRITICAL: No YAML file path available for saving active layout!");
+                            log::error!(
+                                "CRITICAL: No YAML file path available for saving active layout!"
+                            );
                         }
                     }
                     Message::SaveMuxBoxContent(muxbox_id, content) => {
@@ -2076,10 +2262,17 @@ create_runnable!(
                         if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
                             match save_muxbox_content_to_yaml(yaml_path, muxbox_id, content) {
                                 Ok(()) => {
-                                    log::debug!("Successfully saved muxbox {} content to YAML", muxbox_id);
+                                    log::debug!(
+                                        "Successfully saved muxbox {} content to YAML",
+                                        muxbox_id
+                                    );
                                 }
                                 Err(e) => {
-                                    log::error!("Failed to save muxbox {} content to YAML: {}", muxbox_id, e);
+                                    log::error!(
+                                        "Failed to save muxbox {} content to YAML: {}",
+                                        muxbox_id,
+                                        e
+                                    );
                                 }
                             }
                         } else {
@@ -2088,35 +2281,54 @@ create_runnable!(
                     }
                     Message::SaveMuxBoxScroll(muxbox_id, scroll_x, scroll_y) => {
                         // F0200: Save muxbox scroll position to YAML
-                        log::debug!("Saving scroll position to YAML for muxbox: {} ({}, {})", muxbox_id, scroll_x, scroll_y);
+                        log::debug!(
+                            "Saving scroll position to YAML for muxbox: {} ({}, {})",
+                            muxbox_id,
+                            scroll_x,
+                            scroll_y
+                        );
 
                         if let Some(yaml_path) = &app_context_unwrapped.yaml_file_path {
-                            match save_muxbox_scroll_to_yaml(yaml_path, muxbox_id, *scroll_x, *scroll_y) {
+                            match save_muxbox_scroll_to_yaml(
+                                yaml_path, muxbox_id, *scroll_x, *scroll_y,
+                            ) {
                                 Ok(()) => {
-                                    log::debug!("Successfully saved muxbox {} scroll position to YAML", muxbox_id);
+                                    log::debug!(
+                                        "Successfully saved muxbox {} scroll position to YAML",
+                                        muxbox_id
+                                    );
                                 }
                                 Err(e) => {
-                                    log::error!("Failed to save muxbox {} scroll position to YAML: {}", muxbox_id, e);
+                                    log::error!(
+                                        "Failed to save muxbox {} scroll position to YAML: {}",
+                                        muxbox_id,
+                                        e
+                                    );
                                 }
                             }
                         } else {
-                            log::warn!("No YAML file path available for saving muxbox scroll position");
+                            log::warn!(
+                                "No YAML file path available for saving muxbox scroll position"
+                            );
                         }
                     }
                     Message::SwitchActiveLayout(layout_id) => {
                         // F0200: Switch active layout with YAML persistence
                         log::info!("Switching to active layout: {}", layout_id);
-                        
+
                         // Update the active layout in app context
                         let mut app_context_cloned = app_context_unwrapped.clone();
                         match app_context_cloned.app.set_active_layout_with_yaml_save(
                             layout_id,
-                            app_context_cloned.yaml_file_path.as_deref()
+                            app_context_cloned.yaml_file_path.as_deref(),
                         ) {
                             Ok(()) => {
                                 inner.update_app_context(app_context_cloned);
                                 inner.send_message(Message::RedrawApp);
-                                log::info!("Successfully switched to layout '{}' with YAML persistence", layout_id);
+                                log::info!(
+                                    "Successfully switched to layout '{}' with YAML persistence",
+                                    layout_id
+                                );
                             }
                             Err(e) => {
                                 log::error!("Failed to switch layout with YAML persistence: {}", e);
@@ -2129,11 +2341,25 @@ create_runnable!(
                     }
                     // F0203: Multi-Stream Input Tabs message handling
                     Message::SwitchTab(muxbox_id, tab_index) => {
-                        log::debug!("Processing SwitchTab message: muxbox={}, tab_index={}", muxbox_id, tab_index);
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
-                            log::debug!("Found muxbox '{}', attempting to switch to tab {}", muxbox_id, tab_index);
+                        log::debug!(
+                            "Processing SwitchTab message: muxbox={}, tab_index={}",
+                            muxbox_id,
+                            tab_index
+                        );
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
+                            log::debug!(
+                                "Found muxbox '{}', attempting to switch to tab {}",
+                                muxbox_id,
+                                tab_index
+                            );
                             if muxbox.switch_to_tab(*tab_index) {
-                                log::info!("Successfully switched muxbox '{}' to tab {}", muxbox_id, tab_index);
+                                log::info!(
+                                    "Successfully switched muxbox '{}' to tab {}",
+                                    muxbox_id,
+                                    tab_index
+                                );
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                             } else {
@@ -2145,28 +2371,48 @@ create_runnable!(
                     }
                     Message::ScrollTabsLeft(muxbox_id) => {
                         log::debug!("Processing ScrollTabsLeft message: muxbox={}", muxbox_id);
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             muxbox.scroll_tabs_left();
-                            log::info!("Scrolled tabs left for muxbox '{}', new offset: {}", muxbox_id, muxbox.tab_scroll_offset);
+                            log::info!(
+                                "Scrolled tabs left for muxbox '{}', new offset: {}",
+                                muxbox_id,
+                                muxbox.tab_scroll_offset
+                            );
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                         } else {
-                            log::error!("ScrollTabsLeft message for non-existent muxbox: {}", muxbox_id);
+                            log::error!(
+                                "ScrollTabsLeft message for non-existent muxbox: {}",
+                                muxbox_id
+                            );
                         }
                     }
                     Message::ScrollTabsRight(muxbox_id) => {
                         log::debug!("Processing ScrollTabsRight message: muxbox={}", muxbox_id);
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             muxbox.scroll_tabs_right();
-                            log::info!("Scrolled tabs right for muxbox '{}', new offset: {}", muxbox_id, muxbox.tab_scroll_offset);
+                            log::info!(
+                                "Scrolled tabs right for muxbox '{}', new offset: {}",
+                                muxbox_id,
+                                muxbox.tab_scroll_offset
+                            );
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                         } else {
-                            log::error!("ScrollTabsRight message for non-existent muxbox: {}", muxbox_id);
+                            log::error!(
+                                "ScrollTabsRight message for non-existent muxbox: {}",
+                                muxbox_id
+                            );
                         }
                     }
                     Message::SwitchToStream(muxbox_id, stream_id) => {
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             if muxbox.switch_to_stream(stream_id) {
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
@@ -2174,7 +2420,9 @@ create_runnable!(
                         }
                     }
                     Message::AddStream(muxbox_id, _stream) => {
-                        if let Some(_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(_muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             // AddStream is deprecated - use add_input_stream() method directly on muxbox instead
                             log::warn!("AddStream message is deprecated - use muxbox.add_input_stream() instead");
                             inner.update_app_context(app_context_unwrapped.clone());
@@ -2182,74 +2430,170 @@ create_runnable!(
                         }
                     }
                     Message::RemoveStream(muxbox_id, stream_id) => {
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             // F0213: Stream Lifecycle Management - cleanup stream sources before removal
                             if let Some(source) = muxbox.remove_stream(stream_id) {
-                                log::info!("Cleaning up stream source for stream {}: {:?}", stream_id, source);
-                                
+                                log::info!(
+                                    "Cleaning up stream source for stream {}: {:?}",
+                                    stream_id,
+                                    source
+                                );
+
                                 // Perform source cleanup based on source type
                                 match source {
-                                    crate::model::common::StreamSource::ChoiceExecution(choice_source) => {
+                                    crate::model::common::StreamSource::ChoiceExecution(
+                                        choice_source,
+                                    ) => {
                                         if let Err(e) = choice_source.cleanup() {
-                                            log::warn!("Failed to cleanup choice execution source: {}", e);
+                                            log::warn!(
+                                                "Failed to cleanup choice execution source: {}",
+                                                e
+                                            );
                                         }
-                                    },
+                                    }
                                     crate::model::common::StreamSource::PTY(pty_source) => {
                                         if let Err(e) = pty_source.cleanup() {
                                             log::warn!("Failed to cleanup PTY source: {}", e);
                                         }
-                                    },
-                                    crate::model::common::StreamSource::Redirect(redirect_source) => {
+                                    }
+                                    crate::model::common::StreamSource::Redirect(
+                                        redirect_source,
+                                    ) => {
                                         if let Err(e) = redirect_source.cleanup() {
                                             log::warn!("Failed to cleanup redirect source: {}", e);
                                         }
-                                    },
+                                    }
                                     crate::model::common::StreamSource::Socket(socket_source) => {
                                         if let Err(e) = socket_source.cleanup() {
                                             log::warn!("Failed to cleanup socket source: {}", e);
                                         }
-                                    },
+                                    }
                                     crate::model::common::StreamSource::StaticContent(_) => {
                                         // Static content sources don't need cleanup
-                                        log::debug!("Static content source removed - no cleanup needed");
+                                        log::debug!(
+                                            "Static content source removed - no cleanup needed"
+                                        );
                                     }
                                 }
-                                
+
                                 // Stream already removed by muxbox.remove_stream() call above
                                 inner.update_app_context(app_context_unwrapped.clone());
                                 inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
                             } else {
-                                log::warn!("Stream {} not found in muxbox {} for cleanup", stream_id, muxbox_id);
+                                log::warn!(
+                                    "Stream {} not found in muxbox {} for cleanup",
+                                    stream_id,
+                                    muxbox_id
+                                );
                             }
                         }
                     }
                     Message::CloseTab(muxbox_id, stream_id) => {
-                        // F0219: Handle close tab request - same as RemoveStream but with user confirmation
-                        log::info!("Close tab requested for stream {} in muxbox {}", stream_id, muxbox_id);
-                        
+                        // F0219: Handle close tab request - handle terminated sources gracefully
+                        log::info!(
+                            "Close tab requested for stream {} in muxbox {}",
+                            stream_id,
+                            muxbox_id
+                        );
+
                         // Check if stream is closeable before closing
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(&muxbox_id) {
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&muxbox_id)
+                        {
                             if let Some(stream) = muxbox.streams.get(stream_id) {
                                 if stream.is_closeable() {
-                                    // Use existing RemoveStream handler logic
-                                    inner.send_message(Message::RemoveStream(muxbox_id.clone(), stream_id.clone()));
+                                    // Handle stream removal directly - source threads may be terminated
+                                    log::info!(
+                                        "Processing close tab for closeable stream {} in muxbox {}",
+                                        stream_id,
+                                        muxbox_id
+                                    );
+                                    
+                                    // Remove stream and handle source cleanup
+                                    if let Some(source) = muxbox.remove_stream(stream_id) {
+                                        log::info!(
+                                            "Stream {} removed from muxbox {}, attempting source cleanup",
+                                            stream_id,
+                                            muxbox_id
+                                        );
+
+                                        // Attempt source cleanup - ignore failures for terminated threads
+                                        match source {
+                                            crate::model::common::StreamSource::ChoiceExecution(
+                                                choice_source,
+                                            ) => {
+                                                if let Err(e) = choice_source.cleanup() {
+                                                    log::info!(
+                                                        "Choice execution source cleanup failed (likely already terminated): {}",
+                                                        e
+                                                    );
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::PTY(pty_source) => {
+                                                if let Err(e) = pty_source.cleanup() {
+                                                    log::info!("PTY source cleanup failed (likely already terminated): {}", e);
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::Redirect(
+                                                redirect_source,
+                                            ) => {
+                                                if let Err(e) = redirect_source.cleanup() {
+                                                    log::info!("Redirect source cleanup failed (likely already terminated): {}", e);
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::Socket(socket_source) => {
+                                                if let Err(e) = socket_source.cleanup() {
+                                                    log::info!("Socket source cleanup failed (likely already terminated): {}", e);
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::StaticContent(_) => {
+                                                log::debug!("Static content source removed - no cleanup needed");
+                                            }
+                                        }
+
+                                        // Update app context and trigger redraw
+                                        inner.update_app_context(app_context_unwrapped.clone());
+                                        inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
+                                        log::info!("Stream {} successfully closed and removed from muxbox {}", stream_id, muxbox_id);
+                                    } else {
+                                        log::warn!(
+                                            "Stream {} not found in muxbox {} during removal",
+                                            stream_id,
+                                            muxbox_id
+                                        );
+                                    }
                                 } else {
-                                    log::warn!("Attempted to close non-closeable stream {} in muxbox {}", stream_id, muxbox_id);
+                                    log::warn!(
+                                        "Attempted to close non-closeable stream {} in muxbox {}",
+                                        stream_id,
+                                        muxbox_id
+                                    );
                                 }
                             } else {
-                                log::warn!("Stream {} not found in muxbox {} for close operation", stream_id, muxbox_id);
+                                log::warn!(
+                                    "Stream {} not found in muxbox {} for close operation",
+                                    stream_id,
+                                    muxbox_id
+                                );
                             }
                         } else {
                             log::warn!("MuxBox {} not found for close tab operation", muxbox_id);
                         }
                     }
                     Message::UpdateStreamContent(muxbox_id, stream_id, content) => {
-                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                        if let Some(muxbox) =
+                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
+                        {
                             // Update stream content directly using new stream system
                             if let Some(stream) = muxbox.streams.get_mut(stream_id) {
                                 stream.content = content.lines().map(|s| s.to_string()).collect();
                             } else {
-                                log::warn!("Stream {} not found in muxbox {} for content update", stream_id, muxbox_id);
+                                log::warn!(
+                                    "Stream {} not found in muxbox {} for content update",
+                                    stream_id,
+                                    muxbox_id
+                                );
                             }
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
@@ -2415,7 +2759,7 @@ pub fn update_muxbox_content_with_stream(
 
         // Update the specific stream content - find stream by actual stream ID
         let mut stream_updated = false;
-        
+
         // Check if stream exists and update content
         if found_muxbox.streams.contains_key(stream_id) {
             // Update the stream content
@@ -2427,23 +2771,30 @@ pub fn update_muxbox_content_with_stream(
                 }
                 stream_updated = true;
             }
-            
+
             // Check if we need to activate this stream (separate borrow)
-            let has_active_streams = found_muxbox.streams.values().any(|s| s.active && s.id != stream_id);
+            let has_active_streams = found_muxbox
+                .streams
+                .values()
+                .any(|s| s.active && s.id != stream_id);
             let should_activate = !has_active_streams || found_muxbox.streams.len() == 1;
-            
+
             if should_activate {
                 // Deactivate all other streams first
                 for (_, other_stream) in found_muxbox.streams.iter_mut() {
                     other_stream.active = other_stream.id == stream_id;
                 }
             }
-            
+
             log::info!("Updated stream {} with new content", stream_id);
         }
 
         if !stream_updated {
-            log::warn!("Stream {} not found in muxbox {}, fallback to updating content", stream_id, muxbox_id);
+            log::warn!(
+                "Stream {} not found in muxbox {}, fallback to updating content",
+                stream_id,
+                muxbox_id
+            );
             // Fallback to updating the muxbox content directly
             found_muxbox.update_content(&formatted_output, append_output, success);
         }
@@ -2453,12 +2804,15 @@ pub fn update_muxbox_content_with_stream(
             stream_id,
             muxbox_id
         );
-        
+
         inner.update_app_context(app_context_unwrapped.clone());
         inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
         log::info!("Sent RedrawMuxBox message for muxbox: {}", muxbox_id);
     } else {
-        log::error!("Could not find muxbox {} for stream content update.", muxbox_id);
+        log::error!(
+            "Could not find muxbox {} for stream content update.",
+            muxbox_id
+        );
     }
 }
 
@@ -2658,7 +3012,7 @@ fn calculate_wrapped_choice_click(
 
     // Create wrapped choice lines (same logic as in draw_utils.rs)
     let mut wrapped_choices = Vec::new();
-    
+
     for (choice_idx, choice) in choices.iter().enumerate() {
         if let Some(content) = &choice.content {
             let formatted_content = if choice.waiting {
@@ -2666,9 +3020,9 @@ fn calculate_wrapped_choice_click(
             } else {
                 content.clone()
             };
-            
+
             let wrapped_lines = wrap_text_to_width_simple(&formatted_content, viewable_width);
-            
+
             for wrapped_line in wrapped_lines {
                 wrapped_choices.push((choice_idx, wrapped_line));
             }
@@ -2681,7 +3035,7 @@ fn calculate_wrapped_choice_click(
 
     // Calculate which wrapped line was clicked
     let clicked_line_index = (click_y - choices_start_y) as usize;
-    
+
     if clicked_line_index >= wrapped_choices.len() {
         return None;
     }
@@ -2704,7 +3058,7 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
     }
 
     let mut wrapped_lines = Vec::new();
-    
+
     for line in text.lines() {
         if line.len() <= width {
             wrapped_lines.push(line.to_string());
@@ -2717,7 +3071,7 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
 
         for word in line.split_whitespace() {
             let word_len = word.len();
-            
+
             // If word itself is longer than width, break it
             if word_len > width {
                 // Finish current line if it has content
@@ -2726,7 +3080,7 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
                     current_line.clear();
                     current_width = 0;
                 }
-                
+
                 // Break the long word across multiple lines
                 let mut remaining_word = word;
                 while remaining_word.len() > width {
@@ -2734,7 +3088,7 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
                     wrapped_lines.push(chunk.to_string());
                     remaining_word = rest;
                 }
-                
+
                 if !remaining_word.is_empty() {
                     current_line = remaining_word.to_string();
                     current_width = remaining_word.len();
@@ -2776,12 +3130,15 @@ fn wrap_text_to_width_simple(text: &str, width: usize) -> Vec<String> {
 }
 
 /// Auto-scroll to ensure selected choice is visible
-fn auto_scroll_to_selected_choice(muxbox: &mut crate::model::muxbox::MuxBox, selected_choice_index: usize) {
+fn auto_scroll_to_selected_choice(
+    muxbox: &mut crate::model::muxbox::MuxBox,
+    selected_choice_index: usize,
+) {
     use crate::draw_utils::wrap_text_to_width;
-    
+
     let bounds = muxbox.bounds();
     let viewable_height = bounds.height().saturating_sub(2); // Account for borders
-    
+
     // Handle different overflow behaviors
     if let Some(overflow_behavior) = &muxbox.overflow_behavior {
         match overflow_behavior.as_str() {
@@ -2792,7 +3149,7 @@ fn auto_scroll_to_selected_choice(muxbox: &mut crate::model::muxbox::MuxBox, sel
                     let mut total_lines = 0;
                     let mut selected_line_start = 0;
                     let mut selected_line_end = 0;
-                    
+
                     for (i, choice) in choices.iter().enumerate() {
                         if let Some(content) = &choice.content {
                             let formatted_content = if choice.waiting {
@@ -2800,90 +3157,111 @@ fn auto_scroll_to_selected_choice(muxbox: &mut crate::model::muxbox::MuxBox, sel
                             } else {
                                 content.clone()
                             };
-                            
-                            let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
+
+                            let wrapped_lines =
+                                wrap_text_to_width(&formatted_content, viewable_width);
                             let line_count = wrapped_lines.len();
-                            
+
                             if i == selected_choice_index {
                                 selected_line_start = total_lines;
                                 selected_line_end = total_lines + line_count - 1;
                             }
-                            
+
                             total_lines += line_count;
                         }
                     }
-                    
+
                     // Adjust scroll to keep selected wrapped lines visible
                     if total_lines > viewable_height {
                         let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
-                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_lines - viewable_height) as f64).floor() as usize;
+                        let current_scroll_offset = ((current_scroll_percent / 100.0)
+                            * (total_lines - viewable_height) as f64)
+                            .floor() as usize;
                         let visible_start = current_scroll_offset;
                         let visible_end = visible_start + viewable_height - 1;
-                        
+
                         let mut new_scroll_percent = current_scroll_percent;
-                        
+
                         // Scroll down if selected choice is below visible area
                         if selected_line_end > visible_end {
                             let new_offset = selected_line_end.saturating_sub(viewable_height - 1);
-                            new_scroll_percent = (new_offset as f64 / (total_lines - viewable_height) as f64) * 100.0;
+                            new_scroll_percent = (new_offset as f64
+                                / (total_lines - viewable_height) as f64)
+                                * 100.0;
                         }
                         // Scroll up if selected choice is above visible area
                         else if selected_line_start < visible_start {
                             let new_offset = selected_line_start;
-                            new_scroll_percent = (new_offset as f64 / (total_lines - viewable_height) as f64) * 100.0;
+                            new_scroll_percent = (new_offset as f64
+                                / (total_lines - viewable_height) as f64)
+                                * 100.0;
                         }
-                        
+
                         muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
                     }
                 }
-            },
+            }
             "scroll" => {
                 // For scroll mode, use choice index directly
                 if let Some(choices) = muxbox.get_active_stream_choices() {
                     let total_choices = choices.len();
                     if total_choices > viewable_height {
                         let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
-                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_choices - viewable_height) as f64).floor() as usize;
+                        let current_scroll_offset = ((current_scroll_percent / 100.0)
+                            * (total_choices - viewable_height) as f64)
+                            .floor() as usize;
                         let visible_start = current_scroll_offset;
                         let visible_end = visible_start + viewable_height - 1;
-                        
+
                         let mut new_scroll_percent = current_scroll_percent;
-                        
+
                         // Scroll down if selected choice is below visible area
                         if selected_choice_index > visible_end {
-                            let new_offset = selected_choice_index.saturating_sub(viewable_height - 1);
-                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                            let new_offset =
+                                selected_choice_index.saturating_sub(viewable_height - 1);
+                            new_scroll_percent = (new_offset as f64
+                                / (total_choices - viewable_height) as f64)
+                                * 100.0;
                         }
                         // Scroll up if selected choice is above visible area
                         else if selected_choice_index < visible_start {
                             let new_offset = selected_choice_index;
-                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                            new_scroll_percent = (new_offset as f64
+                                / (total_choices - viewable_height) as f64)
+                                * 100.0;
                         }
-                        
+
                         muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
                     }
                 }
-            },
+            }
             _ => {
                 // For other overflow behaviors (fill, cross_out, etc.), use simple choice index
                 if let Some(choices) = muxbox.get_active_stream_choices() {
                     let total_choices = choices.len();
                     if total_choices > viewable_height {
                         let current_scroll_percent = muxbox.vertical_scroll.unwrap_or(0.0);
-                        let current_scroll_offset = ((current_scroll_percent / 100.0) * (total_choices - viewable_height) as f64).floor() as usize;
+                        let current_scroll_offset = ((current_scroll_percent / 100.0)
+                            * (total_choices - viewable_height) as f64)
+                            .floor() as usize;
                         let visible_start = current_scroll_offset;
                         let visible_end = visible_start + viewable_height - 1;
-                        
+
                         let mut new_scroll_percent = current_scroll_percent;
-                        
+
                         if selected_choice_index > visible_end {
-                            let new_offset = selected_choice_index.saturating_sub(viewable_height - 1);
-                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                            let new_offset =
+                                selected_choice_index.saturating_sub(viewable_height - 1);
+                            new_scroll_percent = (new_offset as f64
+                                / (total_choices - viewable_height) as f64)
+                                * 100.0;
                         } else if selected_choice_index < visible_start {
                             let new_offset = selected_choice_index;
-                            new_scroll_percent = (new_offset as f64 / (total_choices - viewable_height) as f64) * 100.0;
+                            new_scroll_percent = (new_offset as f64
+                                / (total_choices - viewable_height) as f64)
+                                * 100.0;
                         }
-                        
+
                         muxbox.vertical_scroll = Some(new_scroll_percent.clamp(0.0, 100.0));
                     }
                 }

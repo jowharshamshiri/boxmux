@@ -78,8 +78,6 @@ pub mod special_key_tests;
 #[cfg(test)]
 pub mod pty_scrollback_tests;
 
-
-
 #[cfg(test)]
 pub mod z_index_tests;
 
@@ -126,8 +124,10 @@ pub mod conditional_stream_creation_tests;
 mod tab_close_button_tests;
 
 #[cfg(test)]
-pub mod scrollable_tabs_tests;
+mod close_button_integration_test;
 
+#[cfg(test)]
+pub mod scrollable_tabs_tests;
 
 // Commented out due to test framework complexity - functionality tested via demo YAML
 //#[cfg(test)]

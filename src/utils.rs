@@ -52,10 +52,26 @@ pub fn bounds_to_input_bounds(abs_bounds: &Bounds, parent_bounds: &Bounds) -> In
 
     // Account for coordinate system where percentages map to (total-1)
     // So percentage = coordinate / (total-1) for the reverse conversion
-    let ix1 = if width <= 1 { 0.0 } else { (abs_bounds.x1 - parent_bounds.x1) as f64 / (width - 1) as f64 };
-    let iy1 = if height <= 1 { 0.0 } else { (abs_bounds.y1 - parent_bounds.y1) as f64 / (height - 1) as f64 };
-    let ix2 = if width <= 1 { 0.0 } else { (abs_bounds.x2 - parent_bounds.x1) as f64 / (width - 1) as f64 };
-    let iy2 = if height <= 1 { 0.0 } else { (abs_bounds.y2 - parent_bounds.y1) as f64 / (height - 1) as f64 };
+    let ix1 = if width <= 1 {
+        0.0
+    } else {
+        (abs_bounds.x1 - parent_bounds.x1) as f64 / (width - 1) as f64
+    };
+    let iy1 = if height <= 1 {
+        0.0
+    } else {
+        (abs_bounds.y1 - parent_bounds.y1) as f64 / (height - 1) as f64
+    };
+    let ix2 = if width <= 1 {
+        0.0
+    } else {
+        (abs_bounds.x2 - parent_bounds.x1) as f64 / (width - 1) as f64
+    };
+    let iy2 = if height <= 1 {
+        0.0
+    } else {
+        (abs_bounds.y2 - parent_bounds.y1) as f64 / (height - 1) as f64
+    };
 
     InputBounds {
         x1: format!("{}%", ix1 * 100.0),

@@ -1,6 +1,6 @@
+use crate::model::common::{run_socket_function, SocketFunction};
 use crate::thread_manager::Runnable;
 use crate::{AppContext, FieldUpdate};
-use crate::model::common::{run_socket_function, SocketFunction};
 use std::fs;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
@@ -47,43 +47,65 @@ create_runnable!(
                             if !trimmed_message.is_empty() {
                                 match serde_json::from_str::<SocketFunction>(trimmed_message) {
                                     Ok(socket_function) => {
-                                        log::debug!("Parsed socket function: {:?}", socket_function);
-                                        
+                                        log::debug!(
+                                            "Parsed socket function: {:?}",
+                                            socket_function
+                                        );
+
                                         // Execute socket function and send resulting messages
                                         match run_socket_function(socket_function, &app_context) {
-                                            Ok((updated_context, messages)) => {
+                                            Ok((_updated_context, messages)) => {
                                                 // Update app_context if it was modified
                                                 // Note: app_context is typically not modified by socket functions
                                                 // but we maintain the pattern for consistency
-                                                
+
                                                 // Send all resulting messages to the thread manager
                                                 for message in messages {
                                                     inner.send_message(message);
                                                 }
-                                                
+
                                                 // Send success acknowledgment
-                                                if let Err(err) = stream.write_all(b"Socket function executed successfully.") {
-                                                    log::error!("Error sending success response: {}", err);
+                                                if let Err(err) = stream.write_all(
+                                                    b"Socket function executed successfully.",
+                                                ) {
+                                                    log::error!(
+                                                        "Error sending success response: {}",
+                                                        err
+                                                    );
                                                 }
                                             }
                                             Err(err) => {
-                                                let error_msg = format!("Socket function execution failed: {}", err);
+                                                let error_msg = format!(
+                                                    "Socket function execution failed: {}",
+                                                    err
+                                                );
                                                 log::error!("{}", error_msg);
-                                                
+
                                                 // Send error response to client
-                                                if let Err(write_err) = stream.write_all(error_msg.as_bytes()) {
-                                                    log::error!("Error sending error response: {}", write_err);
+                                                if let Err(write_err) =
+                                                    stream.write_all(error_msg.as_bytes())
+                                                {
+                                                    log::error!(
+                                                        "Error sending error response: {}",
+                                                        write_err
+                                                    );
                                                 }
                                             }
                                         }
                                     }
                                     Err(parse_err) => {
-                                        let error_msg = format!("Invalid socket function JSON: {}", parse_err);
+                                        let error_msg =
+                                            format!("Invalid socket function JSON: {}", parse_err);
                                         log::error!("{}", error_msg);
-                                        
+
                                         // Send parse error response to client
-                                        if let Err(write_err) = stream.write_all(error_msg.as_bytes()) {
-                                            log::error!("Error sending parse error response: {}", write_err);
+                                        if let Err(write_err) =
+                                            stream.write_all(error_msg.as_bytes())
+                                        {
+                                            log::error!(
+                                                "Error sending parse error response: {}",
+                                                write_err
+                                            );
                                         }
                                     }
                                 }

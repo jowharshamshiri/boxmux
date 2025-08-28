@@ -1,6 +1,4 @@
-use crate::model::{
-    common::{Stream, StreamType, StreamSource, ChoiceExecutionSource},
-};
+use crate::model::common::{ChoiceExecutionSource, Stream, StreamSource, StreamType};
 use crate::tests::test_utils::TestDataFactory;
 use indexmap::IndexMap;
 use std::time::SystemTime;
@@ -51,46 +49,49 @@ mod tests {
     #[test]
     fn test_stream_is_closeable() {
         let closeable_stream = create_test_stream(
-            "test1", 
-            StreamType::RedirectedOutput("output".to_string()), 
-            true
+            "test1",
+            StreamType::RedirectedOutput("output".to_string()),
+            true,
         );
-        assert!(closeable_stream.is_closeable(), "RedirectedOutput stream should be closeable");
+        assert!(
+            closeable_stream.is_closeable(),
+            "RedirectedOutput stream should be closeable"
+        );
 
         let choice_stream = create_test_stream(
             "test2",
             StreamType::ChoiceExecution("choice123".to_string()),
-            true
+            true,
         );
-        assert!(choice_stream.is_closeable(), "ChoiceExecution stream should be closeable");
+        assert!(
+            choice_stream.is_closeable(),
+            "ChoiceExecution stream should be closeable"
+        );
 
-        let pty_stream = create_test_stream(
-            "test3",
-            StreamType::PtySession("bash".to_string()),
-            true
+        let pty_stream =
+            create_test_stream("test3", StreamType::PtySession("bash".to_string()), true);
+        assert!(
+            pty_stream.is_closeable(),
+            "PtySession stream should be closeable"
         );
-        assert!(pty_stream.is_closeable(), "PtySession stream should be closeable");
 
-        let socket_stream = create_test_stream(
-            "test4",
-            StreamType::ExternalSocket,
-            true
+        let socket_stream = create_test_stream("test4", StreamType::ExternalSocket, true);
+        assert!(
+            socket_stream.is_closeable(),
+            "ExternalSocket stream should be closeable"
         );
-        assert!(socket_stream.is_closeable(), "ExternalSocket stream should be closeable");
 
-        let content_stream = create_test_stream(
-            "test5",
-            StreamType::Content,
-            false
+        let content_stream = create_test_stream("test5", StreamType::Content, false);
+        assert!(
+            !content_stream.is_closeable(),
+            "Content stream should not be closeable"
         );
-        assert!(!content_stream.is_closeable(), "Content stream should not be closeable");
 
-        let choices_stream = create_test_stream(
-            "test6",
-            StreamType::Choices,
-            false
+        let choices_stream = create_test_stream("test6", StreamType::Choices, false);
+        assert!(
+            !choices_stream.is_closeable(),
+            "Choices stream should not be closeable"
         );
-        assert!(!choices_stream.is_closeable(), "Choices stream should not be closeable");
     }
 
     #[test]
@@ -101,19 +102,27 @@ mod tests {
         // Add content stream (not closeable)
         streams.insert(
             "content".to_string(),
-            create_test_stream("content", StreamType::Content, false)
+            create_test_stream("content", StreamType::Content, false),
         );
 
         // Add redirected output stream (closeable)
         streams.insert(
             "redirect".to_string(),
-            create_test_stream("redirect", StreamType::RedirectedOutput("target".to_string()), true)
+            create_test_stream(
+                "redirect",
+                StreamType::RedirectedOutput("target".to_string()),
+                true,
+            ),
         );
 
         // Add choice execution stream (closeable)
         streams.insert(
             "choice".to_string(),
-            create_test_stream("choice", StreamType::ChoiceExecution("choice123".to_string()), true)
+            create_test_stream(
+                "choice",
+                StreamType::ChoiceExecution("choice123".to_string()),
+                true,
+            ),
         );
 
         muxbox.streams = streams;
@@ -122,7 +131,10 @@ mod tests {
         let expected = vec![false, true, true]; // content=false, redirect=true, choice=true
 
         assert_eq!(close_buttons.len(), 3, "Should have 3 close button entries");
-        assert_eq!(close_buttons, expected, "Close buttons should match expected pattern");
+        assert_eq!(
+            close_buttons, expected,
+            "Close buttons should match expected pattern"
+        );
     }
 
     #[test]
@@ -130,23 +142,51 @@ mod tests {
         let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
         let mut streams = IndexMap::new();
 
-        streams.insert("stream1".to_string(), create_test_stream("stream1", StreamType::Content, false));
-        streams.insert("stream2".to_string(), create_test_stream("stream2", StreamType::RedirectedOutput("output".to_string()), true));
-        streams.insert("stream3".to_string(), create_test_stream("stream3", StreamType::ChoiceExecution("choice".to_string()), true));
+        streams.insert(
+            "stream1".to_string(),
+            create_test_stream("stream1", StreamType::Content, false),
+        );
+        streams.insert(
+            "stream2".to_string(),
+            create_test_stream(
+                "stream2",
+                StreamType::RedirectedOutput("output".to_string()),
+                true,
+            ),
+        );
+        streams.insert(
+            "stream3".to_string(),
+            create_test_stream(
+                "stream3",
+                StreamType::ChoiceExecution("choice".to_string()),
+                true,
+            ),
+        );
 
         muxbox.streams = streams;
 
         let stream_ids = muxbox.get_tab_stream_ids();
-        let expected = vec!["stream1".to_string(), "stream2".to_string(), "stream3".to_string()];
+        let expected = vec![
+            "stream1".to_string(),
+            "stream2".to_string(),
+            "stream3".to_string(),
+        ];
 
-        assert_eq!(stream_ids, expected, "Stream IDs should match insertion order");
+        assert_eq!(
+            stream_ids, expected,
+            "Stream IDs should match insertion order"
+        );
     }
 
     #[test]
     fn test_tab_close_click_detection() {
         use crate::draw_utils::calculate_tab_close_click;
 
-        let tab_labels = vec!["Content".to_string(), "→Output".to_string(), "Choice:test".to_string()];
+        let tab_labels = vec![
+            "Content".to_string(),
+            "→Output".to_string(),
+            "Choice:test".to_string(),
+        ];
         let tab_close_buttons = vec![false, true, true]; // Only last two tabs have close buttons
 
         // Test close button click detection
@@ -155,27 +195,36 @@ mod tests {
         let close_result = calculate_tab_close_click(
             22, // Click at position 22 (right edge of second tab)
             0,  // x1
-            40, // x2 
+            40, // x2
             &tab_labels,
             &tab_close_buttons,
-            0,  // tab_scroll_offset
-            true // draw_border
+            0,    // tab_scroll_offset
+            true, // draw_border
         );
 
         // The exact click detection depends on the tab width calculation
         // This test validates the function works without specific position testing
-        assert!(close_result.is_some() || close_result.is_none(), "Function should return valid Option");
+        assert!(
+            close_result.is_some() || close_result.is_none(),
+            "Function should return valid Option"
+        );
     }
 
     #[test]
     fn test_empty_streams_close_buttons() {
         let muxbox = TestDataFactory::create_test_muxbox("empty_box");
-        
+
         let close_buttons = muxbox.get_tab_close_buttons();
-        assert!(close_buttons.is_empty(), "Empty streams should return empty close buttons");
+        assert!(
+            close_buttons.is_empty(),
+            "Empty streams should return empty close buttons"
+        );
 
         let stream_ids = muxbox.get_tab_stream_ids();
-        assert!(stream_ids.is_empty(), "Empty streams should return empty stream IDs");
+        assert!(
+            stream_ids.is_empty(),
+            "Empty streams should return empty stream IDs"
+        );
     }
 
     #[test]
@@ -184,18 +233,48 @@ mod tests {
         let mut streams = IndexMap::new();
 
         // Mix of closeable and non-closeable streams
-        streams.insert("content".to_string(), create_test_stream("content", StreamType::Content, false));
-        streams.insert("choices".to_string(), create_test_stream("choices", StreamType::Choices, false));
-        streams.insert("redirect1".to_string(), create_test_stream("redirect1", StreamType::RedirectedOutput("out1".to_string()), true));
-        streams.insert("pty".to_string(), create_test_stream("pty", StreamType::PtySession("bash".to_string()), true));
-        streams.insert("redirect2".to_string(), create_test_stream("redirect2", StreamType::RedirectedOutput("out2".to_string()), true));
+        streams.insert(
+            "content".to_string(),
+            create_test_stream("content", StreamType::Content, false),
+        );
+        streams.insert(
+            "choices".to_string(),
+            create_test_stream("choices", StreamType::Choices, false),
+        );
+        streams.insert(
+            "redirect1".to_string(),
+            create_test_stream(
+                "redirect1",
+                StreamType::RedirectedOutput("out1".to_string()),
+                true,
+            ),
+        );
+        streams.insert(
+            "pty".to_string(),
+            create_test_stream("pty", StreamType::PtySession("bash".to_string()), true),
+        );
+        streams.insert(
+            "redirect2".to_string(),
+            create_test_stream(
+                "redirect2",
+                StreamType::RedirectedOutput("out2".to_string()),
+                true,
+            ),
+        );
 
         muxbox.streams = streams;
 
         let close_buttons = muxbox.get_tab_close_buttons();
         let expected = vec![false, false, true, true, true]; // Only redirected and PTY streams are closeable
 
-        assert_eq!(close_buttons, expected, "Mixed streams should have correct close button pattern");
-        assert_eq!(close_buttons.len(), 5, "Should have close button info for all 5 streams");
+        assert_eq!(
+            close_buttons, expected,
+            "Mixed streams should have correct close button pattern"
+        );
+        assert_eq!(
+            close_buttons.len(),
+            5,
+            "Should have close button info for all 5 streams"
+        );
     }
 }

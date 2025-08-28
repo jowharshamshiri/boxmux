@@ -1,8 +1,6 @@
 use crossterm::style::{Color, SetBackgroundColor, SetForegroundColor};
 
-use crate::{
-    set_terminal_title, AppContext, AppGraph, Bounds, Layout, MuxBox, ScreenBuffer,
-};
+use crate::{set_terminal_title, AppContext, AppGraph, Bounds, Layout, MuxBox, ScreenBuffer};
 use std::collections::HashMap;
 
 use crate::model::common::Cell;
@@ -108,7 +106,7 @@ pub fn draw_layout(
         // Sort children by z_index (lower z_index first, higher z_index on top)
         let mut sorted_children: Vec<&MuxBox> = children.iter().collect();
         sorted_children.sort_by_key(|muxbox| muxbox.effective_z_index());
-        
+
         for muxbox in sorted_children.iter() {
             draw_muxbox(
                 app_context,
@@ -183,30 +181,30 @@ pub fn draw_muxbox(
             fill_muxbox(value, border, &bg_color, fill_char, buffer);
 
             // F0217: New unified stream approach - use traits based on stream type
-            let mut content = None;
+            let mut _content = None;
             let mut content_string = None;
-            
+
             if let Some(active_stream) = muxbox.get_active_stream() {
                 match active_stream.stream_type {
-                    crate::model::common::StreamType::Content | 
-                    crate::model::common::StreamType::RedirectedOutput(_) |
-                    crate::model::common::StreamType::PTY |
-                    crate::model::common::StreamType::Plugin(_) |
-                    crate::model::common::StreamType::ChoiceExecution(_) |
-                    crate::model::common::StreamType::PtySession(_) |
-                    crate::model::common::StreamType::OwnScript => {
+                    crate::model::common::StreamType::Content
+                    | crate::model::common::StreamType::RedirectedOutput(_)
+                    | crate::model::common::StreamType::PTY
+                    | crate::model::common::StreamType::Plugin(_)
+                    | crate::model::common::StreamType::ChoiceExecution(_)
+                    | crate::model::common::StreamType::PtySession(_)
+                    | crate::model::common::StreamType::OwnScript => {
                         // Stream has content - access via ContentStreamTrait
                         use crate::model::common::ContentStreamTrait;
                         let content_lines = active_stream.get_content_lines();
                         if !content_lines.is_empty() {
                             content_string = Some(content_lines.join("\n"));
-                            content = content_string.as_deref();
+                            _content = content_string.as_deref();
                         }
-                    },
+                    }
                     crate::model::common::StreamType::Choices => {
                         // Stream has choices - will be handled separately
                         // Content rendering doesn't apply to choices streams
-                    },
+                    }
                     _ => {
                         // Other stream types don't render content
                     }
@@ -214,12 +212,12 @@ pub fn draw_muxbox(
             }
 
             // F0120: PTY Scrollback - Use scrollback content for PTY muxboxes
-            let mut pty_scrollback_content = None;
+            let mut _pty_scrollback_content = None;
             if muxbox.pty.unwrap_or(false) {
                 if let Some(pty_manager) = &app_context.pty_manager {
                     if let Some(scrollback) = muxbox.get_scrollback_content(pty_manager) {
-                        pty_scrollback_content = Some(scrollback);
-                        content = pty_scrollback_content.as_deref();
+                        _pty_scrollback_content = Some(scrollback);
+                        _content = _pty_scrollback_content.as_deref();
                     }
                 }
             }
@@ -236,7 +234,7 @@ pub fn draw_muxbox(
             }
 
             // Add PTY indicator and process info to title if muxbox has PTY enabled
-            let title_with_pty_indicator = if muxbox.pty.unwrap_or(false) {
+            let _title_with_pty_indicator = if muxbox.pty.unwrap_or(false) {
                 // F0135: PTY Error States - Use different indicators for error states
                 let indicator = if let Some(pty_manager) = &app_context.pty_manager {
                     if pty_manager.is_pty_dead(&muxbox.id) {
@@ -300,7 +298,7 @@ pub fn draw_muxbox(
             if let Some(children) = &muxbox.children {
                 let mut sorted_children: Vec<&MuxBox> = children.iter().collect();
                 sorted_children.sort_by_key(|child| child.effective_z_index());
-                
+
                 for child in sorted_children.iter() {
                     draw_muxbox(
                         app_context,
@@ -424,7 +422,7 @@ pub fn draw_horizontal_line_with_title(
     x2: usize,
     fg_color: &str,
     bg_color: &str,
-    title: Option<&str>,
+    _title: Option<&str>,
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
@@ -434,7 +432,7 @@ pub fn draw_horizontal_line_with_title(
     let width = x2.saturating_sub(x1);
     let title_padding = 2; // Adjust padding if needed
 
-    if let Some(title) = title {
+    if let Some(title) = _title {
         let formatted_title = format!(" {} ", title);
         let title_length = formatted_title.len();
 
@@ -539,7 +537,7 @@ pub fn draw_horizontal_line_with_tabs(
     x2: usize,
     fg_color: &str,
     bg_color: &str,
-    title: Option<&str>,
+    _title: Option<&str>,
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
@@ -550,19 +548,39 @@ pub fn draw_horizontal_line_with_tabs(
     tab_scroll_offset: usize,
     buffer: &mut ScreenBuffer,
 ) {
-    let width = x2.saturating_sub(x1);
-    
+    let _width = x2.saturating_sub(x1);
+
     // All boxes show tabs - render tab bar if tabs exist, otherwise empty bar
     if tab_labels.len() > 0 {
         draw_tab_bar(
-            y, x1, x2, fg_color, bg_color, title_fg_color, title_bg_color,
-            tab_labels, tab_close_buttons, active_tab_index, tab_scroll_offset, draw_border, buffer
+            y,
+            x1,
+            x2,
+            fg_color,
+            bg_color,
+            title_fg_color,
+            title_bg_color,
+            tab_labels,
+            tab_close_buttons,
+            active_tab_index,
+            tab_scroll_offset,
+            draw_border,
+            buffer,
         );
     } else {
         // No tabs initialized - fall back to empty border line
         draw_horizontal_line_with_title(
-            y, x1, x2, fg_color, bg_color, None, title_fg_color,
-            title_bg_color, title_position, draw_border, buffer
+            y,
+            x1,
+            x2,
+            fg_color,
+            bg_color,
+            None,
+            title_fg_color,
+            title_bg_color,
+            title_position,
+            draw_border,
+            buffer,
         );
     }
 }
@@ -583,64 +601,83 @@ fn draw_tab_bar(
     buffer: &mut ScreenBuffer,
 ) {
     let total_width = x2.saturating_sub(x1);
-    
+
     // FIXED SPACE RESERVATION ARCHITECTURE
     // Always reserve 2 chars on left + 2 chars on right for scroll arrows
     // Space always reserved regardless of whether arrows are shown
     let left_arrow_space = 2;
     let right_arrow_space = 2;
     let border_space = if draw_border { 4 } else { 0 }; // Leading + trailing borders
-    
+
     // Calculate tab area boundaries with fixed reservations
     let reserved_space = left_arrow_space + right_arrow_space + border_space;
     let tab_area_width = total_width.saturating_sub(reserved_space);
-    
+
     // Position calculations with fixed layout
     let left_arrow_x = x1 + (if draw_border { 2 } else { 0 });
     let tab_area_start = left_arrow_x + left_arrow_space;
     let tab_area_end = tab_area_start + tab_area_width;
     let right_arrow_x = tab_area_end;
     let trailing_border_x = right_arrow_x + right_arrow_space;
-    
+
     // Determine if scrolling is needed (85% threshold for smooth transitions)
     let max_tab_width = 16;
     let min_tab_width = 6;
-    let ideal_tab_width = if tab_labels.len() > 0 { tab_area_width / tab_labels.len() } else { max_tab_width };
+    let ideal_tab_width = if tab_labels.len() > 0 {
+        tab_area_width / tab_labels.len()
+    } else {
+        max_tab_width
+    };
     let tab_width = ideal_tab_width.clamp(min_tab_width, max_tab_width);
     let total_tabs_width = tab_labels.len() * tab_width;
     let needs_scrolling = (total_tabs_width as f32) > (tab_area_width as f32 * 0.85);
-    
+
     // Draw leading border if needed
     if draw_border && x1 < x2 {
         draw_horizontal_line(y, x1, x1 + 2, fg_color, bg_color, buffer);
     }
-    
+
     // Draw left scroll arrow or border fill in reserved space
     if needs_scrolling && tab_scroll_offset > 0 {
         // Show left arrow when can scroll left
         print_with_color_and_background_at(y, left_arrow_x, title_fg_color, bg_color, "◀", buffer);
-        print_with_color_and_background_at(y, left_arrow_x + 1, title_fg_color, bg_color, " ", buffer);
+        print_with_color_and_background_at(
+            y,
+            left_arrow_x + 1,
+            title_fg_color,
+            bg_color,
+            " ",
+            buffer,
+        );
     } else {
         // Fill reserved space with border when arrow not needed
-        draw_horizontal_line(y, left_arrow_x, left_arrow_x + left_arrow_space, fg_color, bg_color, buffer);
+        draw_horizontal_line(
+            y,
+            left_arrow_x,
+            left_arrow_x + left_arrow_space,
+            fg_color,
+            bg_color,
+            buffer,
+        );
     }
-    
+
     // Calculate tab dimensions with mandatory separators
     let separator_width = 1; // Always 1 character between tabs
     let visible_tabs;
     let mut adjusted_tab_width;
-    
+
     if needs_scrolling {
         // When scrolling, calculate maximum tabs that fit with minimum width
         let min_tab_with_separator = min_tab_width + separator_width;
         let max_visible_tabs = tab_area_width / min_tab_with_separator.max(1);
         let remaining_tabs = tab_labels.len().saturating_sub(tab_scroll_offset);
         visible_tabs = max_visible_tabs.min(remaining_tabs).max(1);
-        
+
         // Use ALL available space - expand tabs to fill completely
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
             // Ensure minimum width is respected even when expanding
             adjusted_tab_width = adjusted_tab_width.max(min_tab_width);
         } else {
@@ -648,47 +685,61 @@ fn draw_tab_bar(
         }
     } else {
         visible_tabs = tab_labels.len();
-        
+
         // Calculate tab width to fit all tabs with separators
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
         } else {
             adjusted_tab_width = tab_width;
         }
     }
-    
+
     // Calculate total width needed for visible tabs
     let total_tabs_width = if visible_tabs > 0 {
         visible_tabs * adjusted_tab_width + (visible_tabs.saturating_sub(1)) * separator_width
     } else {
         0
     };
-    
+
     // Calculate centering offset for tab group
     let centering_offset = if needs_scrolling {
         0 // No centering when scrolling - fill available space
     } else {
         (tab_area_width.saturating_sub(total_tabs_width)) / 2
     };
-    
+
     // Draw tabs with proper spacing and centering
     if visible_tabs > 0 {
-        let start_offset = if needs_scrolling { tab_scroll_offset } else { 0 };
+        let start_offset = if needs_scrolling {
+            tab_scroll_offset
+        } else {
+            0
+        };
         let mut tab_x = tab_area_start + centering_offset;
-        
+
         for i in 0..visible_tabs {
             let tab_index = start_offset + i;
             if tab_index >= tab_labels.len() {
                 break;
             }
-            
+
             // Draw the tab
             let has_close_button = tab_close_buttons.get(tab_index).copied().unwrap_or(false);
-            draw_single_tab(y, tab_x, adjusted_tab_width, &tab_labels[tab_index], 
-                           tab_index == active_tab_index, has_close_button, title_fg_color, title_bg_color, buffer);
+            draw_single_tab(
+                y,
+                tab_x,
+                adjusted_tab_width,
+                &tab_labels[tab_index],
+                tab_index == active_tab_index,
+                has_close_button,
+                title_fg_color,
+                title_bg_color,
+                buffer,
+            );
             tab_x += adjusted_tab_width;
-            
+
             // Draw separator after tab (except for last tab)
             if i < visible_tabs.saturating_sub(1) {
                 print_with_color_and_background_at(y, tab_x, fg_color, bg_color, "│", buffer);
@@ -696,31 +747,56 @@ fn draw_tab_bar(
             }
         }
     }
-    
+
     // Fill remaining tab area with border (before and after tab group)
     if tab_area_start < tab_area_start + centering_offset {
-        draw_horizontal_line(y, tab_area_start, tab_area_start + centering_offset, fg_color, bg_color, buffer);
+        draw_horizontal_line(
+            y,
+            tab_area_start,
+            tab_area_start + centering_offset,
+            fg_color,
+            bg_color,
+            buffer,
+        );
     }
-    
+
     let tabs_end = tab_area_start + centering_offset + total_tabs_width;
     if tabs_end < tab_area_end {
         draw_horizontal_line(y, tabs_end, tab_area_end, fg_color, bg_color, buffer);
     }
-    
+
     // Draw right scroll arrow or border fill in reserved space
-    let max_scroll_offset = if tab_labels.len() > 0 { 
-        tab_labels.len().saturating_sub(tab_area_width / tab_width.max(1)) 
-    } else { 0 };
-    
+    let max_scroll_offset = if tab_labels.len() > 0 {
+        tab_labels
+            .len()
+            .saturating_sub(tab_area_width / tab_width.max(1))
+    } else {
+        0
+    };
+
     if needs_scrolling && tab_scroll_offset < max_scroll_offset {
         // Show right arrow when can scroll right
         print_with_color_and_background_at(y, right_arrow_x, title_fg_color, bg_color, " ", buffer);
-        print_with_color_and_background_at(y, right_arrow_x + 1, title_fg_color, bg_color, "▶", buffer);
+        print_with_color_and_background_at(
+            y,
+            right_arrow_x + 1,
+            title_fg_color,
+            bg_color,
+            "▶",
+            buffer,
+        );
     } else {
         // Fill reserved space with border when arrow not needed
-        draw_horizontal_line(y, right_arrow_x, right_arrow_x + right_arrow_space, fg_color, bg_color, buffer);
+        draw_horizontal_line(
+            y,
+            right_arrow_x,
+            right_arrow_x + right_arrow_space,
+            fg_color,
+            bg_color,
+            buffer,
+        );
     }
-    
+
     // Draw trailing border if needed
     if draw_border && trailing_border_x < x2 {
         draw_horizontal_line(y, trailing_border_x, x2, fg_color, bg_color, buffer);
@@ -744,34 +820,37 @@ fn draw_single_tab(
     } else {
         (title_fg_color, title_bg_color)
     };
-    
+
     // F0219: Reserve space for close button if needed
     let close_button_space = if has_close_button { 2 } else { 0 }; // "×" + space
     let available_label_width = width.saturating_sub(close_button_space + 2); // 2 for padding
-    
+
     // Truncate label to fit available space (character-aware)
     let mut display_label = label.to_string();
     let max_label_chars = available_label_width;
-    
+
     if display_label.chars().count() > max_label_chars {
         let truncate_chars = max_label_chars.saturating_sub(1);
-        display_label = display_label.chars().take(truncate_chars).collect::<String>();
+        display_label = display_label
+            .chars()
+            .take(truncate_chars)
+            .collect::<String>();
         display_label.push('…');
     }
-    
+
     // Draw tab background first
     fill_horizontal_background(y, x, x + width - 1, tab_fg, tab_bg, buffer);
-    
+
     if has_close_button {
         // F0219: Position close button with aesthetic spacing when possible
         // Reserve 2 chars minimum for "×" (with space if room), more if width allows
         let min_close_area = 2; // Minimum: "×" + space
         let preferred_close_area = if width >= 8 { 3 } else { min_close_area }; // Preferred: " ×" + space
-        
+
         let close_area_width = preferred_close_area.min(width.saturating_sub(2)); // Don't take all width
         let close_button_x = x + width - close_area_width;
         let label_space = width.saturating_sub(close_area_width + 1); // 1 for left padding
-        
+
         // Truncate label if needed to leave room for close button area
         let mut final_label = display_label.clone();
         if final_label.chars().count() > label_space {
@@ -783,17 +862,17 @@ fn draw_single_tab(
                 final_label = "…".to_string();
             }
         }
-        
+
         // Draw label with left padding
         let label_content = format!(" {}", final_label);
         print_with_color_and_background_at(y, x, tab_fg, tab_bg, &label_content, buffer);
-        
+
         // Draw close button with aesthetic spacing
         if close_area_width >= 3 {
             // Enough room for " ×" pattern
             print_with_color_and_background_at(y, close_button_x, tab_fg, tab_bg, " ×", buffer);
         } else {
-            // Minimal space - just "×" at edge-1 position  
+            // Minimal space - just "×" at edge-1 position
             print_with_color_and_background_at(y, x + width - 2, tab_fg, tab_bg, "×", buffer);
         }
     } else {
@@ -801,13 +880,13 @@ fn draw_single_tab(
         let tab_content = format!(" {} ", display_label);
         let tab_char_count = tab_content.chars().count();
         let display_chars = tab_char_count.min(width);
-        
+
         let display_text = if display_chars < tab_char_count {
             tab_content.chars().take(display_chars).collect::<String>()
         } else {
             tab_content
         };
-        
+
         // Draw tab text
         print_with_color_and_background_at(y, x, tab_fg, tab_bg, &display_text, buffer);
     }
@@ -824,63 +903,78 @@ pub fn calculate_tab_click_index(
     if tab_labels.len() == 0 {
         return None;
     }
-    
+
     let total_width = x2.saturating_sub(x1);
-    
+
     // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
     let left_arrow_space = 2;
     let right_arrow_space = 2;
     let border_space = if draw_border { 4 } else { 0 };
     let reserved_space = left_arrow_space + right_arrow_space + border_space;
     let tab_area_width = total_width.saturating_sub(reserved_space);
-    
+
     // Position calculations matching draw_tab_bar
     let left_arrow_x = x1 + (if draw_border { 2 } else { 0 });
     let tab_area_start = left_arrow_x + left_arrow_space;
     let tab_area_end = tab_area_start + tab_area_width;
     let right_arrow_x = tab_area_end;
-    
+
     // Determine if scrolling is needed (85% threshold)
     let max_tab_width = 16;
     let min_tab_width = 6;
-    let ideal_tab_width = if tab_labels.len() > 0 { tab_area_width / tab_labels.len() } else { max_tab_width };
+    let ideal_tab_width = if tab_labels.len() > 0 {
+        tab_area_width / tab_labels.len()
+    } else {
+        max_tab_width
+    };
     let tab_width = ideal_tab_width.clamp(min_tab_width, max_tab_width);
     let total_tabs_width = tab_labels.len() * tab_width;
     let needs_scrolling = (total_tabs_width as f32) > (tab_area_width as f32 * 0.85);
-    
+
     // Check for navigation arrow clicks first
     if needs_scrolling {
         // Left arrow click check
-        if tab_scroll_offset > 0 && click_x >= left_arrow_x && click_x < left_arrow_x + left_arrow_space {
+        if tab_scroll_offset > 0
+            && click_x >= left_arrow_x
+            && click_x < left_arrow_x + left_arrow_space
+        {
             return None; // Signal scroll left
         }
-        
-        // Right arrow click check  
-        let max_scroll_offset = if tab_labels.len() > 0 { 
-            tab_labels.len().saturating_sub(tab_area_width / tab_width.max(1)) 
-        } else { 0 };
-        
-        if tab_scroll_offset < max_scroll_offset && click_x >= right_arrow_x && click_x < right_arrow_x + right_arrow_space {
+
+        // Right arrow click check
+        let max_scroll_offset = if tab_labels.len() > 0 {
+            tab_labels
+                .len()
+                .saturating_sub(tab_area_width / tab_width.max(1))
+        } else {
+            0
+        };
+
+        if tab_scroll_offset < max_scroll_offset
+            && click_x >= right_arrow_x
+            && click_x < right_arrow_x + right_arrow_space
+        {
             return None; // Signal scroll right
         }
     }
-    
+
     // Calculate tab dimensions with separators (matching draw_tab_bar logic)
     let separator_width = 1;
     let visible_tabs;
     let mut adjusted_tab_width;
-    
+
     if needs_scrolling {
-        // When scrolling, calculate maximum tabs that fit with minimum width  
+        // When scrolling, calculate maximum tabs that fit with minimum width
         let min_tab_with_separator = min_tab_width + separator_width;
         let max_visible_tabs = tab_area_width / min_tab_with_separator.max(1);
         let remaining_tabs = tab_labels.len().saturating_sub(tab_scroll_offset);
         visible_tabs = max_visible_tabs.min(remaining_tabs).max(1);
-        
+
         // Use ALL available space - expand tabs to fill completely
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
             // Ensure minimum width is respected even when expanding
             adjusted_tab_width = adjusted_tab_width.max(min_tab_width);
         } else {
@@ -888,52 +982,57 @@ pub fn calculate_tab_click_index(
         }
     } else {
         visible_tabs = tab_labels.len();
-        
+
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
         } else {
             adjusted_tab_width = tab_width;
         }
     }
-    
+
     let total_tabs_width = if visible_tabs > 0 {
         visible_tabs * adjusted_tab_width + (visible_tabs.saturating_sub(1)) * separator_width
     } else {
         0
     };
-    
+
     let centering_offset = if needs_scrolling {
         0
     } else {
         (tab_area_width.saturating_sub(total_tabs_width)) / 2
     };
-    
+
     // Check for tab clicks in tab area
     if click_x >= tab_area_start && click_x < tab_area_end && visible_tabs > 0 {
-        let start_offset = if needs_scrolling { tab_scroll_offset } else { 0 };
+        let start_offset = if needs_scrolling {
+            tab_scroll_offset
+        } else {
+            0
+        };
         let mut tab_x = tab_area_start + centering_offset;
-        
+
         for i in 0..visible_tabs {
             let tab_index = start_offset + i;
             if tab_index >= tab_labels.len() {
                 break;
             }
-            
+
             // Check if click is within this tab
             if click_x >= tab_x && click_x < tab_x + adjusted_tab_width {
                 return Some(tab_index);
             }
-            
+
             tab_x += adjusted_tab_width;
-            
+
             // Skip separator space (don't register clicks on separators)
             if i < visible_tabs.saturating_sub(1) {
                 tab_x += separator_width;
             }
         }
     }
-    
+
     None
 }
 
@@ -948,49 +1047,60 @@ pub fn calculate_tab_navigation_click(
     if tab_labels.len() == 0 {
         return None;
     }
-    
+
     let total_width = x2.saturating_sub(x1);
-    
+
     // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
     let left_arrow_space = 2;
     let right_arrow_space = 2;
     let border_space = if draw_border { 4 } else { 0 };
     let reserved_space = left_arrow_space + right_arrow_space + border_space;
     let tab_area_width = total_width.saturating_sub(reserved_space);
-    
+
     // Position calculations matching draw_tab_bar
     let left_arrow_x = x1 + (if draw_border { 2 } else { 0 });
     let tab_area_start = left_arrow_x + left_arrow_space;
     let tab_area_end = tab_area_start + tab_area_width;
     let right_arrow_x = tab_area_end;
-    
+
     // Determine if scrolling is needed (85% threshold)
     let max_tab_width = 16;
     let min_tab_width = 6;
-    let ideal_tab_width = if tab_labels.len() > 0 { tab_area_width / tab_labels.len() } else { max_tab_width };
+    let ideal_tab_width = if tab_labels.len() > 0 {
+        tab_area_width / tab_labels.len()
+    } else {
+        max_tab_width
+    };
     let tab_width = ideal_tab_width.clamp(min_tab_width, max_tab_width);
     let total_tabs_width = tab_labels.len() * tab_width;
     let needs_scrolling = (total_tabs_width as f32) > (tab_area_width as f32 * 0.85);
-    
+
     if !needs_scrolling {
         return None; // No navigation needed
     }
-    
+
     // Check left arrow click
-    if tab_scroll_offset > 0 && click_x >= left_arrow_x && click_x < left_arrow_x + left_arrow_space {
+    if tab_scroll_offset > 0 && click_x >= left_arrow_x && click_x < left_arrow_x + left_arrow_space
+    {
         return Some(TabNavigationAction::ScrollLeft);
     }
-    
+
     // Check right arrow click
-    let max_scroll_offset = if tab_labels.len() > 0 { 
-        tab_labels.len().saturating_sub(tab_area_width / tab_width.max(1)) 
-    } else { 0 };
-    
-    
-    if tab_scroll_offset < max_scroll_offset && click_x >= right_arrow_x && click_x < right_arrow_x + right_arrow_space {
+    let max_scroll_offset = if tab_labels.len() > 0 {
+        tab_labels
+            .len()
+            .saturating_sub(tab_area_width / tab_width.max(1))
+    } else {
+        0
+    };
+
+    if tab_scroll_offset < max_scroll_offset
+        && click_x >= right_arrow_x
+        && click_x < right_arrow_x + right_arrow_space
+    {
         return Some(TabNavigationAction::ScrollRight);
     }
-    
+
     None
 }
 
@@ -1007,38 +1117,44 @@ pub fn calculate_tab_close_click(
     if tab_labels.is_empty() || tab_close_buttons.is_empty() {
         return None;
     }
-    
+
     let total_width = x2.saturating_sub(x1);
-    
+
     // Same space calculations as draw_tab_bar and calculate_tab_click_index
     let left_arrow_space = 2;
     let right_arrow_space = 2;
     let border_space = if draw_border { 4 } else { 0 };
-    let tab_area_width = total_width.saturating_sub(left_arrow_space + right_arrow_space + border_space);
-    
+    let tab_area_width =
+        total_width.saturating_sub(left_arrow_space + right_arrow_space + border_space);
+
     let tab_area_start = x1 + if draw_border { 2 } else { 0 } + left_arrow_space;
-    
+
     // Calculate tab dimensions
     let max_tab_width = 16;
     let min_tab_width = 6;
-    let ideal_tab_width = if tab_labels.len() > 0 { tab_area_width / tab_labels.len() } else { max_tab_width };
+    let ideal_tab_width = if tab_labels.len() > 0 {
+        tab_area_width / tab_labels.len()
+    } else {
+        max_tab_width
+    };
     let tab_width = ideal_tab_width.clamp(min_tab_width, max_tab_width);
     let total_tabs_width = tab_labels.len() * tab_width;
     let needs_scrolling = total_tabs_width > tab_area_width;
-    
+
     let separator_width = 1;
     let visible_tabs;
     let mut adjusted_tab_width;
-    
+
     if needs_scrolling {
         let min_tab_with_separator = min_tab_width + separator_width;
         let max_visible_tabs = tab_area_width / min_tab_with_separator.max(1);
         let remaining_tabs = tab_labels.len().saturating_sub(tab_scroll_offset);
         visible_tabs = max_visible_tabs.min(remaining_tabs).max(1);
-        
+
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
             adjusted_tab_width = adjusted_tab_width.max(min_tab_width);
         } else {
             adjusted_tab_width = min_tab_width;
@@ -1047,41 +1163,46 @@ pub fn calculate_tab_close_click(
         visible_tabs = tab_labels.len();
         if visible_tabs > 0 {
             let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
-            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width =
+                (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
         } else {
             adjusted_tab_width = tab_width;
         }
     }
-    
+
     // Add centering offset to match the tab drawing positioning
     let total_tabs_width = if visible_tabs > 0 {
         visible_tabs * adjusted_tab_width + (visible_tabs.saturating_sub(1)) * separator_width
     } else {
         0
     };
-    
+
     let centering_offset = if needs_scrolling {
         0
     } else {
         (tab_area_width.saturating_sub(total_tabs_width)) / 2
     };
-    
+
     // Check each visible tab for close button clicks
     let mut tab_x = tab_area_start + centering_offset;
-    
+
     for i in 0..visible_tabs {
         let tab_index = tab_scroll_offset + i;
         if tab_index >= tab_labels.len() || tab_index >= tab_close_buttons.len() {
             break;
         }
-        
+
         // Check if this tab has a close button
         if tab_close_buttons[tab_index] {
             // Close button click detection - account for aesthetic spacing
             let min_close_area = 2;
-            let preferred_close_area = if adjusted_tab_width >= 8 { 3 } else { min_close_area };
+            let preferred_close_area = if adjusted_tab_width >= 8 {
+                3
+            } else {
+                min_close_area
+            };
             let close_area_width = preferred_close_area.min(adjusted_tab_width.saturating_sub(2));
-            
+
             if close_area_width >= 3 {
                 // " ×" pattern - check both space and × positions
                 let close_start_x = tab_x + adjusted_tab_width - close_area_width;
@@ -1097,13 +1218,13 @@ pub fn calculate_tab_close_click(
                 }
             }
         }
-        
+
         tab_x += adjusted_tab_width;
         if i < visible_tabs.saturating_sub(1) {
             tab_x += separator_width;
         }
     }
-    
+
     None
 }
 
@@ -1119,7 +1240,7 @@ pub fn render_muxbox(
     bg_color: &str,
     parent_bg_color: &str,
     streams: &indexmap::IndexMap<String, crate::model::common::Stream>, // F0209: Stream-based rendering
-    active_tab_index: usize, // F0208: Active tab index from muxbox
+    active_tab_index: usize,  // F0208: Active tab index from muxbox
     tab_scroll_offset: usize, // Scrollable tabs offset
     title_fg_color: &str,
     title_bg_color: &str,
@@ -1137,55 +1258,60 @@ pub fn render_muxbox(
     buffer: &mut ScreenBuffer,
 ) {
     // F0217: Extract content and tabs from streams using trait-based approach
-    let (should_render_choices, content_str, tab_labels, tab_close_buttons) = if !streams.is_empty() {
+    let (should_render_choices, content_str, tab_labels, tab_close_buttons) = if !streams.is_empty()
+    {
         // Get active stream
         let active_stream = streams.values().find(|s| s.active);
         let should_render_choices = if let Some(stream) = active_stream {
-            matches!(stream.stream_type, crate::model::common::StreamType::Choices)
+            matches!(
+                stream.stream_type,
+                crate::model::common::StreamType::Choices
+            )
         } else {
             false
         };
-        
+
         let content_str = if should_render_choices {
             None // Choices streams don't render content
         } else if let Some(stream) = active_stream {
             // Use ContentStreamTrait to get content from content-type streams
             match stream.stream_type {
-                crate::model::common::StreamType::Content | 
-                crate::model::common::StreamType::RedirectedOutput(_) |
-                crate::model::common::StreamType::PTY |
-                crate::model::common::StreamType::Plugin(_) |
-                crate::model::common::StreamType::ChoiceExecution(_) |
-                crate::model::common::StreamType::PtySession(_) |
-                crate::model::common::StreamType::OwnScript => {
+                crate::model::common::StreamType::Content
+                | crate::model::common::StreamType::RedirectedOutput(_)
+                | crate::model::common::StreamType::PTY
+                | crate::model::common::StreamType::Plugin(_)
+                | crate::model::common::StreamType::ChoiceExecution(_)
+                | crate::model::common::StreamType::PtySession(_)
+                | crate::model::common::StreamType::OwnScript => {
                     use crate::model::common::ContentStreamTrait;
                     Some(stream.get_content_lines().join("\n"))
-                },
-                _ => None
+                }
+                _ => None,
             }
         } else {
             None
         };
-        
+
         // Generate tab labels from streams using IndexMap insertion order (same as muxbox.get_tab_labels())
         let tabs: Vec<String> = streams.iter().map(|(_, s)| s.label.clone()).collect();
-        
+
         // F0219: Generate close button info for each tab
         let close_buttons: Vec<bool> = streams.iter().map(|(_, s)| s.is_closeable()).collect();
-        
+
         (should_render_choices, content_str, tabs, close_buttons)
     } else {
         // No streams - empty content
         (false, None, vec![], vec![])
     };
-    
+
     let content = content_str.as_deref();
     // active_tab_index passed as parameter from muxbox
-    
+
     // Extract choices from streams for legacy rendering logic compatibility
     let choices = if should_render_choices {
         // Use ChoicesStreamTrait to get choices from choices-type stream
-        streams.values()
+        streams
+            .values()
             .find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices))
             .map(|stream| {
                 use crate::model::common::ChoicesStreamTrait;
@@ -1194,7 +1320,7 @@ pub fn render_muxbox(
     } else {
         None
     };
-    
+
     let draw_border = border.unwrap_or(&true);
     let border_color_code = get_fg_color(border_color);
     // let fg_color_code = get_fg_color(fg_color);
@@ -1213,7 +1339,7 @@ pub fn render_muxbox(
         .unwrap_or_else(|| bounds.clone());
 
     // F0208: Draw top border with tabs (no separate title - streams determine content)
-    let top_border_length = bounds.width();
+    let _top_border_length = bounds.width();
     if !tab_labels.is_empty() {
         // Draw tabs when streams exist
         draw_horizontal_line_with_tabs(
@@ -1248,7 +1374,9 @@ pub fn render_muxbox(
     // F0206: Render choices from streams if active stream is choices
     if should_render_choices {
         // Get choices from the choices stream using ChoicesStreamTrait
-        let choices_stream = streams.values().find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices));
+        let choices_stream = streams
+            .values()
+            .find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices));
         if let Some(stream) = choices_stream {
             use crate::model::common::ChoicesStreamTrait;
             let choices = stream.get_choices();
@@ -1257,193 +1385,228 @@ pub fn render_muxbox(
                 let viewable_height = bounds.height().saturating_sub(2); // Account for borders
                 let total_choices = choices.len();
                 let choice_overflows = total_choices > viewable_height;
-        
-        // Calculate scroll offset for choices
-        let vertical_offset = if choice_overflows {
-            ((vertical_scroll / 100.0) * (total_choices - viewable_height) as f64).floor() as usize
-        } else {
-            0
-        };
-        
-        // Respect overflow_behavior for choices
-        if choice_overflows && overflow_behavior == "scroll" {
-            // Render visible choices with scrolling
-            let visible_choices = choices.iter().skip(vertical_offset).take(viewable_height);
-            let mut y_position = bounds.top() + 1;
-            
-            for choice in visible_choices {
-                let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
-                let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
 
-                let formatted_content = if choice.waiting {
-                    format!("{}...", choice.content.as_ref().unwrap())
-                } else {
-                    choice.content.as_ref().unwrap().to_string()
-                };
-
-                print_with_color_and_background_at(
-                    y_position,
-                    bounds.left() + 2,
-                    fg_color,
-                    bg_color,
-                    &formatted_content,
-                    buffer,
-                );
-                y_position += 1;
-            }
-            
-            // Draw vertical scrollbar for choices
-            if *draw_border {
-                draw_vertical_scrollbar(
-                    &bounds,
-                    total_choices,
-                    viewable_height,
-                    vertical_scroll,
-                    border_color,
-                    bg_color,
-                    buffer,
-                );
-                scrollbars_drawn = true;
-            }
-        } else {
-            // Handle other overflow behaviors (wrap, fill, cross_out, removed) and clipping
-            let mut y_position = bounds.top() + 1;
-            let viewable_width = bounds.width().saturating_sub(4);
-            let viewable_height = bounds.height().saturating_sub(2);
-            
-            if overflow_behavior == "wrap" {
-                // Create all wrapped lines first
-                let mut all_wrapped_lines = Vec::new();
-                for choice in choices {
-                    let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
-                    let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
-
-                    let formatted_content = if choice.waiting {
-                        format!("{}...", choice.content.as_ref().unwrap())
-                    } else {
-                        choice.content.as_ref().unwrap().to_string()
-                    };
-
-                    // Wrap the choice text
-                    let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
-                    
-                    for wrapped_line in wrapped_lines {
-                        all_wrapped_lines.push((wrapped_line, fg_color, bg_color));
-                    }
-                }
-                
-                // Calculate scroll offset for wrapped lines
-                let total_wrapped_lines = all_wrapped_lines.len();
-                let vertical_offset = if total_wrapped_lines > viewable_height {
-                    ((vertical_scroll / 100.0) * (total_wrapped_lines - viewable_height) as f64).floor() as usize
+                // Calculate scroll offset for choices
+                let vertical_offset = if choice_overflows {
+                    ((vertical_scroll / 100.0) * (total_choices - viewable_height) as f64).floor()
+                        as usize
                 } else {
                     0
                 };
-                
-                // Render visible wrapped lines with scroll offset
-                let visible_lines = all_wrapped_lines.iter().skip(vertical_offset).take(viewable_height);
-                for (wrapped_line, fg_color, bg_color) in visible_lines {
-                    if y_position > bounds.bottom() - 1 {
-                        break; // Don't draw outside the bounds
-                    }
-                    
-                    print_with_color_and_background_at(
-                        y_position,
-                        bounds.left() + 2,
-                        *fg_color,
-                        *bg_color,
-                        wrapped_line,
-                        buffer,
-                    );
-                    y_position += 1;
-                }
-                
-                // Check if wrapped choices overflow vertically and need scrollbar
-                let total_wrapped_lines: usize = choices.iter().map(|choice| {
-                    let formatted_content = if choice.waiting {
-                        format!("{}...", choice.content.as_ref().unwrap())
-                    } else {
-                        choice.content.as_ref().unwrap().to_string()
-                    };
-                    wrap_text_to_width(&formatted_content, viewable_width).len()
-                }).sum();
-                
-                if total_wrapped_lines > viewable_height && *draw_border {
-                    draw_vertical_scrollbar(
-                        &bounds,
-                        total_wrapped_lines,
-                        viewable_height,
-                        vertical_scroll,
-                        border_color,
-                        bg_color,
-                        buffer,
-                    );
-                    scrollbars_drawn = true;
-                }
-            } else {
-                // Original choice rendering (simple clipping for other overflow behaviors)
-                for choice in choices {
-                    if y_position > bounds.bottom() - 1 {
-                        break; // Don't draw outside the bounds
+
+                // Respect overflow_behavior for choices
+                if choice_overflows && overflow_behavior == "scroll" {
+                    // Render visible choices with scrolling
+                    let visible_choices =
+                        choices.iter().skip(vertical_offset).take(viewable_height);
+                    let mut y_position = bounds.top() + 1;
+
+                    for choice in visible_choices {
+                        let fg_color = if choice.selected {
+                            selected_menu_fg_color
+                        } else {
+                            menu_fg_color
+                        };
+                        let bg_color = if choice.selected {
+                            selected_menu_bg_color
+                        } else {
+                            menu_bg_color
+                        };
+
+                        let formatted_content = if choice.waiting {
+                            format!("{}...", choice.content.as_ref().unwrap())
+                        } else {
+                            choice.content.as_ref().unwrap().to_string()
+                        };
+
+                        print_with_color_and_background_at(
+                            y_position,
+                            bounds.left() + 2,
+                            fg_color,
+                            bg_color,
+                            &formatted_content,
+                            buffer,
+                        );
+                        y_position += 1;
                     }
 
-                    let fg_color = if choice.selected { selected_menu_fg_color } else { menu_fg_color };
-                    let bg_color = if choice.selected { selected_menu_bg_color } else { menu_bg_color };
+                    // Draw vertical scrollbar for choices
+                    if *draw_border {
+                        draw_vertical_scrollbar(
+                            &bounds,
+                            total_choices,
+                            viewable_height,
+                            vertical_scroll,
+                            border_color,
+                            bg_color,
+                            buffer,
+                        );
+                        scrollbars_drawn = true;
+                    }
+                } else {
+                    // Handle other overflow behaviors (wrap, fill, cross_out, removed) and clipping
+                    let mut y_position = bounds.top() + 1;
+                    let viewable_width = bounds.width().saturating_sub(4);
+                    let viewable_height = bounds.height().saturating_sub(2);
 
-                    let formatted_content = if choice.waiting {
-                        format!("{}...", choice.content.as_ref().unwrap())
-                    } else {
-                        choice.content.as_ref().unwrap().to_string()
-                    };
-
-                    // Apply overflow behavior to choice text
-                    let processed_content = match overflow_behavior {
-                        "fill" => {
-                            let mut filled = formatted_content.clone();
-                            while filled.len() < viewable_width {
-                                filled.push(' ');
-                            }
-                            filled.truncate(viewable_width);
-                            filled
-                        },
-                        "cross_out" => {
-                            let mut crossed = String::new();
-                            for ch in formatted_content.chars().take(viewable_width) {
-                                if ch == ' ' {
-                                    crossed.push(' ');
-                                } else {
-                                    crossed.push('X');
-                                }
-                            }
-                            crossed
-                        },
-                        "removed" => {
-                            continue; // Don't draw removed choices
-                        },
-                        _ => {
-                            // Default clipping behavior
-                            if formatted_content.len() > viewable_width {
-                                formatted_content.chars().take(viewable_width).collect()
+                    if overflow_behavior == "wrap" {
+                        // Create all wrapped lines first
+                        let mut all_wrapped_lines = Vec::new();
+                        for choice in choices {
+                            let fg_color = if choice.selected {
+                                selected_menu_fg_color
                             } else {
-                                formatted_content
+                                menu_fg_color
+                            };
+                            let bg_color = if choice.selected {
+                                selected_menu_bg_color
+                            } else {
+                                menu_bg_color
+                            };
+
+                            let formatted_content = if choice.waiting {
+                                format!("{}...", choice.content.as_ref().unwrap())
+                            } else {
+                                choice.content.as_ref().unwrap().to_string()
+                            };
+
+                            // Wrap the choice text
+                            let wrapped_lines =
+                                wrap_text_to_width(&formatted_content, viewable_width);
+
+                            for wrapped_line in wrapped_lines {
+                                all_wrapped_lines.push((wrapped_line, fg_color, bg_color));
                             }
                         }
-                    };
 
-                    print_with_color_and_background_at(
-                        y_position,
-                        bounds.left() + 2,
-                        fg_color,
-                        bg_color,
-                        &processed_content,
-                        buffer,
-                    );
-                    y_position += 1;
+                        // Calculate scroll offset for wrapped lines
+                        let total_wrapped_lines = all_wrapped_lines.len();
+                        let vertical_offset = if total_wrapped_lines > viewable_height {
+                            ((vertical_scroll / 100.0)
+                                * (total_wrapped_lines - viewable_height) as f64)
+                                .floor() as usize
+                        } else {
+                            0
+                        };
+
+                        // Render visible wrapped lines with scroll offset
+                        let visible_lines = all_wrapped_lines
+                            .iter()
+                            .skip(vertical_offset)
+                            .take(viewable_height);
+                        for (wrapped_line, fg_color, bg_color) in visible_lines {
+                            if y_position > bounds.bottom() - 1 {
+                                break; // Don't draw outside the bounds
+                            }
+
+                            print_with_color_and_background_at(
+                                y_position,
+                                bounds.left() + 2,
+                                *fg_color,
+                                *bg_color,
+                                wrapped_line,
+                                buffer,
+                            );
+                            y_position += 1;
+                        }
+
+                        // Check if wrapped choices overflow vertically and need scrollbar
+                        let total_wrapped_lines: usize = choices
+                            .iter()
+                            .map(|choice| {
+                                let formatted_content = if choice.waiting {
+                                    format!("{}...", choice.content.as_ref().unwrap())
+                                } else {
+                                    choice.content.as_ref().unwrap().to_string()
+                                };
+                                wrap_text_to_width(&formatted_content, viewable_width).len()
+                            })
+                            .sum();
+
+                        if total_wrapped_lines > viewable_height && *draw_border {
+                            draw_vertical_scrollbar(
+                                &bounds,
+                                total_wrapped_lines,
+                                viewable_height,
+                                vertical_scroll,
+                                border_color,
+                                bg_color,
+                                buffer,
+                            );
+                            scrollbars_drawn = true;
+                        }
+                    } else {
+                        // Original choice rendering (simple clipping for other overflow behaviors)
+                        for choice in choices {
+                            if y_position > bounds.bottom() - 1 {
+                                break; // Don't draw outside the bounds
+                            }
+
+                            let fg_color = if choice.selected {
+                                selected_menu_fg_color
+                            } else {
+                                menu_fg_color
+                            };
+                            let bg_color = if choice.selected {
+                                selected_menu_bg_color
+                            } else {
+                                menu_bg_color
+                            };
+
+                            let formatted_content = if choice.waiting {
+                                format!("{}...", choice.content.as_ref().unwrap())
+                            } else {
+                                choice.content.as_ref().unwrap().to_string()
+                            };
+
+                            // Apply overflow behavior to choice text
+                            let processed_content = match overflow_behavior {
+                                "fill" => {
+                                    let mut filled = formatted_content.clone();
+                                    while filled.len() < viewable_width {
+                                        filled.push(' ');
+                                    }
+                                    filled.truncate(viewable_width);
+                                    filled
+                                }
+                                "cross_out" => {
+                                    let mut crossed = String::new();
+                                    for ch in formatted_content.chars().take(viewable_width) {
+                                        if ch == ' ' {
+                                            crossed.push(' ');
+                                        } else {
+                                            crossed.push('X');
+                                        }
+                                    }
+                                    crossed
+                                }
+                                "removed" => {
+                                    continue; // Don't draw removed choices
+                                }
+                                _ => {
+                                    // Default clipping behavior
+                                    if formatted_content.len() > viewable_width {
+                                        formatted_content.chars().take(viewable_width).collect()
+                                    } else {
+                                        formatted_content
+                                    }
+                                }
+                            };
+
+                            print_with_color_and_background_at(
+                                y_position,
+                                bounds.left() + 2,
+                                fg_color,
+                                bg_color,
+                                &processed_content,
+                                buffer,
+                            );
+                            y_position += 1;
+                        }
+                    }
                 }
             }
-            }
         }
-    }
     } else if let Some(content) = content {
         let (content_width, content_height) = content_size(content);
         let viewable_width = bounds.width().saturating_sub(4);
@@ -1672,17 +1835,17 @@ pub fn render_muxbox(
         }
         return; // These behaviors completely replace the muxbox, no borders needed
     }
-    
+
     // Handle text wrapping - render wrapped content but still draw borders and scrollbars
     if _overflowing && overflow_behavior == "wrap" {
         if let Some(content) = content {
             let viewable_width = bounds.width().saturating_sub(4);
             let wrapped_content = wrap_text_to_width(content, viewable_width);
-            
+
             // Check if wrapped content still overflows vertically
             let viewable_height = bounds.height().saturating_sub(4);
             let wrapped_overflows_vertically = wrapped_content.len() > viewable_height;
-            
+
             render_wrapped_content(
                 &wrapped_content,
                 &bounds,
@@ -1691,7 +1854,7 @@ pub fn render_muxbox(
                 bg_color,
                 buffer,
             );
-            
+
             // Draw vertical scrollbar if wrapped content overflows
             if wrapped_overflows_vertically && *draw_border {
                 draw_vertical_scrollbar(
@@ -1708,11 +1871,11 @@ pub fn render_muxbox(
         } else if let Some(ref choices) = choices {
             let viewable_width = bounds.width().saturating_sub(4);
             let wrapped_choices = wrap_choices_to_width(choices, viewable_width);
-            
+
             // Check if wrapped choices overflow vertically
             let viewable_height = bounds.height().saturating_sub(4);
             let wrapped_overflows_vertically = wrapped_choices.len() > viewable_height;
-            
+
             render_wrapped_choices(
                 &choices,
                 &bounds,
@@ -1723,7 +1886,7 @@ pub fn render_muxbox(
                 selected_menu_bg_color,
                 buffer,
             );
-            
+
             // Draw vertical scrollbar if wrapped choices overflow
             if wrapped_overflows_vertically && *draw_border {
                 draw_vertical_scrollbar(
@@ -1826,7 +1989,7 @@ fn draw_vertical_scrollbar(
     buffer: &mut ScreenBuffer,
 ) {
     let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
-    
+
     // Draw vertical scroll track
     for y in (bounds.top() + 1)..bounds.bottom() {
         print_with_color_and_background_at(
@@ -1838,19 +2001,19 @@ fn draw_vertical_scrollbar(
             buffer,
         );
     }
-    
+
     if track_height > 0 {
         // Calculate proportional knob size and position
         let content_ratio = viewable_height as f64 / content_height as f64;
         let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
         let available_track = track_height.saturating_sub(knob_size);
-        
+
         let knob_position = if available_track > 0 {
             ((vertical_scroll / 100.0) * available_track as f64).round() as usize
         } else {
             0
         };
-        
+
         // Draw proportional vertical scroll knob
         for i in 0..knob_size {
             let knob_y = bounds.top() + 1 + knob_position + i;
@@ -1909,7 +2072,7 @@ pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
     }
 
     let mut wrapped_lines = Vec::new();
-    
+
     for line in text.lines() {
         if line.len() <= width {
             wrapped_lines.push(line.to_string());
@@ -1922,7 +2085,7 @@ pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
 
         for word in line.split_whitespace() {
             let word_len = word.len();
-            
+
             // If word itself is longer than width, break it
             if word_len > width {
                 // Finish current line if it has content
@@ -1931,7 +2094,7 @@ pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
                     current_line.clear();
                     current_width = 0;
                 }
-                
+
                 // Break the long word across multiple lines
                 let mut remaining_word = word;
                 while remaining_word.len() > width {
@@ -1939,7 +2102,7 @@ pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
                     wrapped_lines.push(chunk.to_string());
                     remaining_word = rest;
                 }
-                
+
                 if !remaining_word.is_empty() {
                     current_line = remaining_word.to_string();
                     current_width = remaining_word.len();
@@ -1992,11 +2155,11 @@ fn render_wrapped_content(
     let viewable_height = bounds.height().saturating_sub(4);
     let content_start_x = bounds.left() + 2;
     let content_start_y = bounds.top() + 2;
-    
+
     // Calculate scroll offset
     let max_vertical_offset = wrapped_lines.len().saturating_sub(viewable_height);
     let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
-    
+
     // Render visible lines
     let visible_lines = wrapped_lines
         .iter()
@@ -2008,7 +2171,7 @@ fn render_wrapped_content(
         if render_y >= bounds.bottom() {
             break;
         }
-        
+
         print_with_color_and_background_at(
             render_y,
             content_start_x,
@@ -2024,16 +2187,19 @@ fn render_wrapped_content(
 #[derive(Clone)]
 pub struct WrappedChoice {
     pub original_index: usize,
-    pub line_index: usize,  // Which line of the wrapped choice this is (0-based)
+    pub line_index: usize, // Which line of the wrapped choice this is (0-based)
     pub content: String,
     pub is_selected: bool,
     pub is_waiting: bool,
 }
 
 /// Wrap choices to fit within specified width, handling multi-line choices
-pub fn wrap_choices_to_width(choices: &[crate::model::muxbox::Choice], width: usize) -> Vec<WrappedChoice> {
+pub fn wrap_choices_to_width(
+    choices: &[crate::model::muxbox::Choice],
+    width: usize,
+) -> Vec<WrappedChoice> {
     let mut wrapped_choices = Vec::new();
-    
+
     for (choice_idx, choice) in choices.iter().enumerate() {
         if let Some(content) = &choice.content {
             let formatted_content = if choice.waiting {
@@ -2041,9 +2207,9 @@ pub fn wrap_choices_to_width(choices: &[crate::model::muxbox::Choice], width: us
             } else {
                 content.clone()
             };
-            
+
             let wrapped_lines = wrap_text_to_width(&formatted_content, width);
-            
+
             for (line_idx, wrapped_line) in wrapped_lines.iter().enumerate() {
                 wrapped_choices.push(WrappedChoice {
                     original_index: choice_idx,
@@ -2055,7 +2221,7 @@ pub fn wrap_choices_to_width(choices: &[crate::model::muxbox::Choice], width: us
             }
         }
     }
-    
+
     wrapped_choices
 }
 
@@ -2073,15 +2239,15 @@ fn render_wrapped_choices(
     let viewable_width = bounds.width().saturating_sub(4);
     let viewable_height = bounds.height().saturating_sub(4);
     let wrapped_choices = wrap_choices_to_width(choices, viewable_width);
-    
+
     if wrapped_choices.is_empty() {
         return;
     }
-    
+
     // Calculate scroll offset
     let max_vertical_offset = wrapped_choices.len().saturating_sub(viewable_height);
     let vertical_offset = ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize;
-    
+
     // Render visible wrapped choice lines
     let visible_wrapped_choices = wrapped_choices
         .iter()

@@ -63,13 +63,13 @@ pub enum Message {
     AddBox(String, MuxBox),
     RemoveBox(String),
     // F0203: Multi-Stream Input Tabs messages
-    SwitchTab(String, usize),           // muxbox_id, tab_index
-    ScrollTabsLeft(String),             // muxbox_id - scroll tabs left
-    ScrollTabsRight(String),            // muxbox_id - scroll tabs right
-    SwitchToStream(String, String),     // muxbox_id, stream_id
+    SwitchTab(String, usize),       // muxbox_id, tab_index
+    ScrollTabsLeft(String),         // muxbox_id - scroll tabs left
+    ScrollTabsRight(String),        // muxbox_id - scroll tabs right
+    SwitchToStream(String, String), // muxbox_id, stream_id
     AddStream(String, crate::model::common::StreamSource), // muxbox_id, stream
-    RemoveStream(String, String),       // muxbox_id, stream_id
-    CloseTab(String, String),           // muxbox_id, stream_id - F0219: Close button for redirected tabs
+    RemoveStream(String, String),   // muxbox_id, stream_id
+    CloseTab(String, String), // muxbox_id, stream_id - F0219: Close button for redirected tabs
     UpdateStreamContent(String, String, String), // muxbox_id, stream_id, content
 }
 

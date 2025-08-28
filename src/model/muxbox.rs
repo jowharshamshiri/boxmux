@@ -8,16 +8,16 @@ use indexmap::IndexMap;
 pub fn stream_type_priority(stream_type: &crate::model::common::StreamType) -> u8 {
     use crate::model::common::StreamType;
     match stream_type {
-        StreamType::Content => 0,           // Main content first
-        StreamType::Choices => 1,           // Choices second  
-        StreamType::OwnScript => 2,         // Own script execution
-        StreamType::PTY => 3,               // PTY sessions
-        StreamType::PtySession(_) => 3,     // PTY with command info
+        StreamType::Content => 0,             // Main content first
+        StreamType::Choices => 1,             // Choices second
+        StreamType::OwnScript => 2,           // Own script execution
+        StreamType::PTY => 3,                 // PTY sessions
+        StreamType::PtySession(_) => 3,       // PTY with command info
         StreamType::RedirectedOutput(_) => 4, // Redirected outputs
-        StreamType::ChoiceExecution(_) => 5,   // Choice executions
-        StreamType::Plugin(_) => 6,         // Plugin outputs
-        StreamType::RedirectSource(_) => 7, // Redirect sources
-        StreamType::ExternalSocket => 8,    // Socket connections
+        StreamType::ChoiceExecution(_) => 5,  // Choice executions
+        StreamType::Plugin(_) => 6,           // Plugin outputs
+        StreamType::RedirectSource(_) => 7,   // Redirect sources
+        StreamType::ExternalSocket => 8,      // Socket connections
     }
 }
 
@@ -1424,7 +1424,7 @@ impl MuxBox {
             self.error_state = !success;
             return;
         }
-        
+
         // Fallback to regular content update if no streams
         // Preserve current scroll position
         let preserved_horizontal_scroll = self.horizontal_scroll;
@@ -1833,7 +1833,11 @@ impl MuxBox {
     }
 
     /// Add a new input stream
-    pub fn add_input_stream(&mut self, source_type: crate::model::common::StreamType, label: String) -> String {
+    pub fn add_input_stream(
+        &mut self,
+        source_type: crate::model::common::StreamType,
+        label: String,
+    ) -> String {
         // F0212: Stream Source Tracking - Add stream to streams HashMap
         let stream_id = format!("{}_{}", self.id, uuid::Uuid::new_v4());
         let stream = Stream::new(
@@ -1844,43 +1848,55 @@ impl MuxBox {
             None,
             None, // F0212: No source tracking for manually added streams
         );
-        
+
         self.streams.insert(stream_id.clone(), stream);
         stream_id
     }
-
 
     pub fn switch_to_tab(&mut self, tab_index: usize) -> bool {
         // F0218: Stream Tab Integration - tabs control active stream
         // Get stream IDs in natural insertion order (same as tab drawing)
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
-        
+
         if tab_index < stream_ids.len() {
             let target_stream_id = &stream_ids[tab_index];
-            
+
             // Deactivate all streams
             for stream in self.streams.values_mut() {
                 stream.active = false;
             }
-            
+
             // Activate target stream
             if let Some(target_stream) = self.streams.get_mut(target_stream_id) {
                 target_stream.active = true;
-                log::info!("Successfully switched to tab {} (stream {})", tab_index, target_stream_id);
+                log::info!(
+                    "Successfully switched to tab {} (stream {})",
+                    tab_index,
+                    target_stream_id
+                );
                 return true;
             }
         }
-        log::warn!("Failed to switch to tab {} - index out of range or stream not found", tab_index);
+        log::warn!(
+            "Failed to switch to tab {} - index out of range or stream not found",
+            tab_index
+        );
         false
     }
 
     /// Initialize streams for a muxbox - replaces tab system
     pub fn initialize_streams(&mut self) {
         self.streams.clear();
-        
-        let has_content = self.content.as_ref().map_or(false, |c| !c.trim().is_empty());
-        let has_choices = self.choices.as_ref().map_or(false, |choices| !choices.is_empty());
-        
+
+        let has_content = self
+            .content
+            .as_ref()
+            .map_or(false, |c| !c.trim().is_empty());
+        let has_choices = self
+            .choices
+            .as_ref()
+            .map_or(false, |choices| !choices.is_empty());
+
         // Create content stream only if content field is present and non-empty
         if has_content {
             let content_title = if has_choices {
@@ -1890,24 +1906,30 @@ impl MuxBox {
                 // Content is the only stream, use default "Content" title
                 "Content".to_string()
             };
-            
+
             let mut content_stream = Stream::new(
                 format!("{}_content", self.id),
                 StreamType::Content,
                 content_title,
-                self.content.as_ref().unwrap().lines().map(|s| s.to_string()).collect(),
+                self.content
+                    .as_ref()
+                    .unwrap()
+                    .lines()
+                    .map(|s| s.to_string())
+                    .collect(),
                 None,
                 Some(crate::model::common::StreamSource::StaticContent(
                     crate::model::common::StaticContentSource {
                         content_type: "default".to_string(),
                         created_at: std::time::SystemTime::now(),
-                    }
+                    },
                 )),
             );
             content_stream.active = true;
-            self.streams.insert(content_stream.id.clone(), content_stream);
+            self.streams
+                .insert(content_stream.id.clone(), content_stream);
         }
-        
+
         // Create choices stream only if choices exist and are non-empty
         if has_choices {
             let choices_title = if has_content {
@@ -1917,7 +1939,7 @@ impl MuxBox {
                 // Choices is the only stream, use box title or box ID
                 self.title.clone().unwrap_or_else(|| self.id.clone())
             };
-            
+
             let mut choices_stream = Stream::new(
                 format!("{}_choices", self.id),
                 StreamType::Choices,
@@ -1928,19 +1950,20 @@ impl MuxBox {
                     crate::model::common::StaticContentSource {
                         content_type: "choices".to_string(),
                         created_at: std::time::SystemTime::now(),
-                    }
+                    },
                 )),
             );
-            
+
             // If no content stream exists, choices stream becomes active
             if !has_content {
                 choices_stream.active = true;
             }
-            
-            self.streams.insert(choices_stream.id.clone(), choices_stream);
+
+            self.streams
+                .insert(choices_stream.id.clone(), choices_stream);
         }
     }
-    
+
     /// Add a redirected output stream
     pub fn add_redirected_stream(&mut self, source_name: String, content: Vec<String>) {
         let stream_id = format!("{}_{}", self.id, source_name);
@@ -1958,15 +1981,24 @@ impl MuxBox {
                     redirect_type: "external".to_string(),
                     created_at: std::time::SystemTime::now(),
                     source_process_id: None,
-                }
+                },
             )),
         );
         self.streams.insert(stream_id, stream);
     }
-    
+
     /// F0212: Add stream with source tracking
-    pub fn add_stream_with_source(&mut self, stream_type: StreamType, label: String, source: crate::model::common::StreamSource) -> String {
-        let stream_id = format!("{}_{}", self.id, uuid::Uuid::new_v4().to_string()[..8].to_string());
+    pub fn add_stream_with_source(
+        &mut self,
+        stream_type: StreamType,
+        label: String,
+        source: crate::model::common::StreamSource,
+    ) -> String {
+        let stream_id = format!(
+            "{}_{}",
+            self.id,
+            uuid::Uuid::new_v4().to_string()[..8].to_string()
+        );
         let stream = Stream::new(
             stream_id.clone(),
             stream_type,
@@ -1978,49 +2010,76 @@ impl MuxBox {
         self.streams.insert(stream_id.clone(), stream);
         stream_id
     }
-    
+
     /// F0212: Get streams that need cleanup (have sources)
-    pub fn get_streams_requiring_cleanup(&self) -> Vec<(&String, &crate::model::common::StreamSource)> {
-        self.streams.iter()
+    pub fn get_streams_requiring_cleanup(
+        &self,
+    ) -> Vec<(&String, &crate::model::common::StreamSource)> {
+        self.streams
+            .iter()
             .filter_map(|(stream_id, stream)| {
                 stream.source.as_ref().map(|source| (stream_id, source))
             })
             .collect()
     }
-    
+
     /// F0212: Remove stream and return its source for cleanup
     pub fn remove_stream(&mut self, stream_id: &str) -> Option<crate::model::common::StreamSource> {
-        self.streams.shift_remove(stream_id)
-            .and_then(|stream| stream.source)
+        // Check if the stream being removed is currently active
+        let was_active = self.streams
+            .get(stream_id)
+            .map(|stream| stream.active)
+            .unwrap_or(false);
+        
+        // Remove the stream and get its source
+        let removed_source = self.streams
+            .shift_remove(stream_id)
+            .and_then(|stream| stream.source);
+        
+        // If the removed stream was active, switch to the first remaining stream
+        if was_active && !self.streams.is_empty() {
+            // Set the first remaining stream as active
+            if let Some((_, first_stream)) = self.streams.get_index_mut(0) {
+                first_stream.active = true;
+                log::info!(
+                    "Stream '{}' was active and removed, switched to first remaining stream: '{}'",
+                    stream_id,
+                    first_stream.id
+                );
+            }
+        }
+        
+        removed_source
     }
-    
+
     /// F0212: Find streams by source type
     pub fn find_streams_by_source(&self, source_pattern: &str) -> Vec<String> {
-        self.streams.iter()
+        self.streams
+            .iter()
             .filter_map(|(stream_id, stream)| {
                 if let Some(ref source) = stream.source {
                     match source {
                         crate::model::common::StreamSource::ChoiceExecution(choice_source) => {
-                            if choice_source.choice_id.contains(source_pattern) { 
-                                Some(stream_id.clone()) 
-                            } else { 
-                                None 
+                            if choice_source.choice_id.contains(source_pattern) {
+                                Some(stream_id.clone())
+                            } else {
+                                None
                             }
-                        },
+                        }
                         crate::model::common::StreamSource::PTY(pty_source) => {
-                            if pty_source.process_id.to_string() == source_pattern { 
-                                Some(stream_id.clone()) 
-                            } else { 
-                                None 
+                            if pty_source.process_id.to_string() == source_pattern {
+                                Some(stream_id.clone())
+                            } else {
+                                None
                             }
-                        },
+                        }
                         crate::model::common::StreamSource::Redirect(redirect_source) => {
-                            if redirect_source.source_muxbox_id.contains(source_pattern) { 
-                                Some(stream_id.clone()) 
-                            } else { 
-                                None 
+                            if redirect_source.source_muxbox_id.contains(source_pattern) {
+                                Some(stream_id.clone())
+                            } else {
+                                None
                             }
-                        },
+                        }
                         _ => None,
                     }
                 } else {
@@ -2029,85 +2088,88 @@ impl MuxBox {
             })
             .collect()
     }
-    
+
     /// Get all streams as tab labels
     pub fn get_stream_tabs(&self) -> Vec<String> {
         // Use exact same ordering as get_tab_labels() - IndexMap insertion order
         self.streams.iter().map(|(_, s)| s.label.clone()).collect()
     }
-    
+
     /// Get the active stream (unified approach)
     pub fn get_active_stream(&self) -> Option<&crate::model::common::Stream> {
         self.streams.values().find(|s| s.active)
     }
-    
-    /// Get mutable active stream (unified approach) 
+
+    /// Get mutable active stream (unified approach)
     pub fn get_active_stream_mut(&mut self) -> Option<&mut crate::model::common::Stream> {
         self.streams.values_mut().find(|s| s.active)
     }
-    
+
     /// Get active stream content (deprecated - use get_active_stream + ContentStreamTrait)
     pub fn get_active_stream_content(&self) -> Vec<String> {
-        self.streams.values()
+        self.streams
+            .values()
             .find(|s| s.active)
             .map(|s| s.content.clone())
             .unwrap_or_else(|| vec![])
     }
-    
+
     /// Get active stream choices (deprecated - use get_active_stream + ChoicesStreamTrait)
     pub fn get_active_stream_choices(&self) -> Option<&Vec<Choice>> {
-        self.streams.values()
+        self.streams
+            .values()
             .find(|s| s.active)
             .and_then(|s| s.choices.as_ref())
     }
-    
+
     /// Get mutable active stream choices (deprecated - use get_active_stream_mut + ChoicesStreamTrait)
     pub fn get_active_stream_choices_mut(&mut self) -> Option<&mut Vec<Choice>> {
-        self.streams.values_mut()
+        self.streams
+            .values_mut()
             .find(|s| s.active)
             .and_then(|s| s.choices.as_mut())
     }
-    
+
     /// Switch to a specific stream by index
     pub fn switch_to_stream_by_index(&mut self, stream_index: usize) -> bool {
         // Use exact same ordering as all other tab functions - IndexMap insertion order
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
-        
+
         if stream_index >= stream_ids.len() {
             return false;
         }
-        
+
         // Set all streams to inactive
         for stream in self.streams.values_mut() {
             stream.active = false;
         }
-        
+
         // Activate the selected stream
         let target_id = &stream_ids[stream_index];
         if let Some(stream) = self.streams.get_mut(target_id) {
             stream.active = true;
             return true;
         }
-        
+
         false
     }
-    
+
     /// Update content for a specific stream
     pub fn update_stream_content(&mut self, stream_id: &str, content: Vec<String>) {
         if let Some(stream) = self.streams.get_mut(stream_id) {
             stream.content = content;
         }
     }
-    
+
     /// Get active tab index for rendering
     pub fn get_active_tab_index(&self) -> usize {
         if self.streams.is_empty() {
             return 0;
         }
-        
+
         // Use exact same ordering as get_tab_labels() and switch_to_tab() - IndexMap insertion order
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
-        
+
         // Find the index of the active stream
         for (index, stream_id) in stream_ids.iter().enumerate() {
             if let Some(stream) = self.streams.get(stream_id) {
@@ -2116,7 +2178,7 @@ impl MuxBox {
                 }
             }
         }
-        
+
         0 // Fallback to first tab
     }
 
@@ -2126,29 +2188,29 @@ impl MuxBox {
         if !self.streams.contains_key(stream_id) {
             return false;
         }
-        
+
         // Set all streams to inactive
         for stream in self.streams.values_mut() {
             stream.active = false;
         }
-        
+
         // Activate the specified stream
         if let Some(stream) = self.streams.get_mut(stream_id) {
             stream.active = true;
             return true;
         }
-        
+
         false
     }
 
     /// Get current active stream ID
     pub fn get_current_stream_id(&self) -> Option<String> {
         // F0218: Stream Tab Integration - Get from streams architecture
-        self.streams.values()
+        self.streams
+            .values()
             .find(|s| s.active)
             .map(|s| s.id.clone())
     }
-
 
     /// All boxes need streams - check if they're missing
     pub fn needs_tab_initialization(&self) -> bool {
@@ -2158,28 +2220,32 @@ impl MuxBox {
     pub fn get_tab_labels(&self) -> Vec<String> {
         // F0218: Stream Tab Integration - generate tabs from streams
         let mut labels = Vec::new();
-        
+
         // Use exact same ordering as switch_to_tab() - natural IndexMap insertion order
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
-        
+
         for stream_id in stream_ids {
             let stream = &self.streams[&stream_id];
             // Use the stream's actual label instead of hardcoded titles
             let label = match &stream.stream_type {
-                crate::model::common::StreamType::Content |
-                crate::model::common::StreamType::Choices => stream.label.clone(),
+                crate::model::common::StreamType::Content
+                | crate::model::common::StreamType::Choices => stream.label.clone(),
                 crate::model::common::StreamType::RedirectedOutput(name) => format!("→{}", name),
                 crate::model::common::StreamType::PTY => "PTY".to_string(),
                 crate::model::common::StreamType::Plugin(name) => format!("Plugin:{}", name),
-                crate::model::common::StreamType::ChoiceExecution(choice_id) => format!("Choice:{}", choice_id),
-                crate::model::common::StreamType::RedirectSource(source) => format!("From:{}", source),
+                crate::model::common::StreamType::ChoiceExecution(choice_id) => {
+                    format!("Choice:{}", choice_id)
+                }
+                crate::model::common::StreamType::RedirectSource(source) => {
+                    format!("From:{}", source)
+                }
                 crate::model::common::StreamType::ExternalSocket => "Socket".to_string(),
                 crate::model::common::StreamType::PtySession(name) => format!("PTY:{}", name),
                 crate::model::common::StreamType::OwnScript => "Script".to_string(),
             };
             labels.push(label);
         }
-        
+
         // No default tab - empty boxes have no tabs
         labels
     }
@@ -2187,15 +2253,15 @@ impl MuxBox {
     /// F0219: Get close button information for each tab (same order as get_tab_labels)
     pub fn get_tab_close_buttons(&self) -> Vec<bool> {
         let mut close_buttons = Vec::new();
-        
+
         // Use exact same ordering as get_tab_labels() - natural IndexMap insertion order
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
-        
+
         for stream_id in stream_ids {
             let stream = &self.streams[&stream_id];
             close_buttons.push(stream.is_closeable());
         }
-        
+
         close_buttons
     }
 
@@ -2211,13 +2277,13 @@ impl MuxBox {
         if tab_labels.is_empty() {
             return false;
         }
-        
+
         // Calculate required width for all tabs
         let max_tab_width = 16;
         let min_tab_width = 6;
         let calculated_tab_width = available_width / tab_labels.len().max(1);
         let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
-        
+
         let required_width = tab_labels.len() * tab_width + 4; // 4 for border/separators
         required_width > available_width
     }
@@ -2229,7 +2295,7 @@ impl MuxBox {
         }
     }
 
-    /// Scroll tabs right (increase offset) 
+    /// Scroll tabs right (increase offset)
     pub fn scroll_tabs_right(&mut self) {
         let tab_count = self.get_tab_labels().len();
         if self.tab_scroll_offset < tab_count.saturating_sub(1) {
@@ -2248,15 +2314,14 @@ impl MuxBox {
         let min_tab_width = 6;
         let calculated_tab_width = available_width / tab_labels.len().max(1);
         let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
-        
+
         // Calculate how many tabs fit in available width (reserve 6 chars for nav arrows)
         let nav_arrow_width = 6; // "< " and " >"
         let usable_width = available_width.saturating_sub(nav_arrow_width);
         let tabs_that_fit = usable_width / tab_width.max(1);
-        
+
         tab_labels.len().saturating_sub(tabs_that_fit)
     }
-
 }
 
 impl Updatable for MuxBox {

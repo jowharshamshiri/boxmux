@@ -23,7 +23,7 @@ struct ChartLayout {
     /// Total available width
     pub total_width: usize,
     /// Total available height
-    pub total_height: usize,
+    pub _total_height: usize,
     /// Width for chart content (excluding labels)
     pub chart_width: usize,
     /// Height for chart content (excluding title/axes)
@@ -97,7 +97,7 @@ fn calculate_chart_layout(
 
             ChartLayout {
                 total_width,
-                total_height,
+                _total_height: total_height,
                 chart_width: total_width.saturating_sub(y_label_width + 4), // +4 for separator and padding
                 chart_height: total_height.saturating_sub(title_height),
                 y_label_width,
@@ -112,7 +112,7 @@ fn calculate_chart_layout(
 
             ChartLayout {
                 total_width,
-                total_height,
+                _total_height: total_height,
                 chart_width: total_width.saturating_sub(y_label_width + 2),
                 chart_height: total_height.saturating_sub(title_height + x_label_height + 1),
                 y_label_width,
@@ -126,7 +126,7 @@ fn calculate_chart_layout(
 
             ChartLayout {
                 total_width,
-                total_height,
+                _total_height: total_height,
                 chart_width: total_width,
                 chart_height: total_height.saturating_sub(title_height + x_label_height),
                 y_label_width: 0,

@@ -386,7 +386,7 @@ impl Layout {
         ) -> Option<&'a MuxBox> {
             // Collect matching boxes and their children, then sort by z_index (highest first)
             let mut candidates: Vec<&MuxBox> = Vec::new();
-            
+
             // Find all boxes that contain the click coordinates
             for muxbox in muxboxes {
                 let bounds = muxbox.bounds();
@@ -398,10 +398,10 @@ impl Layout {
                     candidates.push(muxbox);
                 }
             }
-            
+
             // Sort candidates by z_index (highest first for click priority)
             candidates.sort_by_key(|muxbox| std::cmp::Reverse(muxbox.effective_z_index()));
-            
+
             // Check candidates in z_index order (highest z_index first)
             for muxbox in candidates {
                 // Check children first (they take priority over parent)

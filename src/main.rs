@@ -781,12 +781,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map_err(|e| format!("Invalid script JSON: {}", e))?;
 
                 // Parse optional libs JSON array
-                let libs: Option<Vec<String>> = if let Some(libs_json) = matches.get_one::<String>("libs") {
-                    Some(serde_json::from_str(libs_json)
-                        .map_err(|e| format!("Invalid libs JSON: {}", e))?)
-                } else {
-                    None
-                };
+                let libs: Option<Vec<String>> =
+                    if let Some(libs_json) = matches.get_one::<String>("libs") {
+                        Some(
+                            serde_json::from_str(libs_json)
+                                .map_err(|e| format!("Invalid libs JSON: {}", e))?,
+                        )
+                    } else {
+                        None
+                    };
 
                 let redirect_output = matches.get_one::<String>("redirect_output").cloned();
 
@@ -883,7 +886,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             locked,
         )
     } else {
-        AppContext::new_with_yaml_path_and_lock(app, config, yaml_path.to_str().unwrap().to_string(), locked)
+        AppContext::new_with_yaml_path_and_lock(
+            app,
+            config,
+            yaml_path.to_str().unwrap().to_string(),
+            locked,
+        )
     };
 
     //create alternate screen in terminal and clear it

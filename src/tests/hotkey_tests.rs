@@ -63,7 +63,7 @@ mod hotkey_tests {
 
         let mut layout = TestDataFactory::create_test_layout("test_layout", Some(vec![muxbox]));
         layout.root = Some(true);
-        
+
         // Test finding existing choice
         let found_muxbox = layout.find_muxbox_with_choice("test_choice");
         assert!(found_muxbox.is_some());

@@ -208,7 +208,7 @@ impl PtyManager {
             let mut buffer = [0u8; 4096];
             let mut ansi_processor = AnsiProcessor::new();
             let mut bytes_processed = 0u64;
-            let mut messages_sent = 0u32;
+            let mut _messages_sent = 0u32;
 
             // Create reader once outside the loop using cloned master PTY handle
             let mut pty_reader = match master_pty_clone.lock().unwrap().try_clone_reader() {
@@ -341,7 +341,7 @@ impl PtyManager {
                                 } else {
                                     debug!("PTY message sent successfully via channel");
                                 }
-                                messages_sent += 1;
+                                _messages_sent += 1;
                             }
                         }
                     }
@@ -392,52 +392,71 @@ impl PtyManager {
                     if let Some(master_pty_handle) = &pty_process.master_pty {
                         // Real PTY - write to actual PTY by getting a writer
                         let master_pty = master_pty_handle.lock().unwrap();
-                        
-                        // Get writer from master PTY  
-                        let mut writer = master_pty.take_writer().map_err(|e| {
-                            anyhow::anyhow!("Failed to get PTY writer: {}", e)
-                        })?;
-                        
+
+                        // Get writer from master PTY
+                        let mut writer = master_pty
+                            .take_writer()
+                            .map_err(|e| anyhow::anyhow!("Failed to get PTY writer: {}", e))?;
+
                         // Write input to PTY
                         use std::io::Write;
-                        writer.write_all(input.as_bytes()).map_err(|e| {
-                            anyhow::anyhow!("Failed to write to PTY: {}", e)
-                        })?;
-                        
-                        writer.flush().map_err(|e| {
-                            anyhow::anyhow!("Failed to flush PTY writer: {}", e)
-                        })?;
-                        
-                        debug!("Successfully sent {} bytes to real PTY {}", input.len(), muxbox_id);
+                        writer
+                            .write_all(input.as_bytes())
+                            .map_err(|e| anyhow::anyhow!("Failed to write to PTY: {}", e))?;
+
+                        writer
+                            .flush()
+                            .map_err(|e| anyhow::anyhow!("Failed to flush PTY writer: {}", e))?;
+
+                        debug!(
+                            "Successfully sent {} bytes to real PTY {}",
+                            input.len(),
+                            muxbox_id
+                        );
                         Ok(())
                     } else {
                         // Test PTY or PTY without master handle - simulate successful input
                         #[cfg(test)]
                         {
-                            debug!("Test PTY - simulating successful input send for {}", muxbox_id);
+                            debug!(
+                                "Test PTY - simulating successful input send for {}",
+                                muxbox_id
+                            );
                             Ok(())
                         }
                         #[cfg(not(test))]
                         {
-                            Err(anyhow::anyhow!("No master PTY handle available for muxbox: {}", muxbox_id))
+                            Err(anyhow::anyhow!(
+                                "No master PTY handle available for muxbox: {}",
+                                muxbox_id
+                            ))
                         }
                     }
                 }
-                PtyStatus::Finished(_) => {
-                    Err(anyhow::anyhow!("PTY process {} has finished and cannot accept input", muxbox_id))
-                }
-                PtyStatus::Error(ref err) => {
-                    Err(anyhow::anyhow!("PTY process {} is in error state: {}", muxbox_id, err))
-                }
-                PtyStatus::FailedFallback => {
-                    Err(anyhow::anyhow!("PTY process {} failed and fell back to regular execution", muxbox_id))
-                }
-                PtyStatus::Dead(ref reason) => {
-                    Err(anyhow::anyhow!("PTY process {} is dead: {}", muxbox_id, reason))
-                }
+                PtyStatus::Finished(_) => Err(anyhow::anyhow!(
+                    "PTY process {} has finished and cannot accept input",
+                    muxbox_id
+                )),
+                PtyStatus::Error(ref err) => Err(anyhow::anyhow!(
+                    "PTY process {} is in error state: {}",
+                    muxbox_id,
+                    err
+                )),
+                PtyStatus::FailedFallback => Err(anyhow::anyhow!(
+                    "PTY process {} failed and fell back to regular execution",
+                    muxbox_id
+                )),
+                PtyStatus::Dead(ref reason) => Err(anyhow::anyhow!(
+                    "PTY process {} is dead: {}",
+                    muxbox_id,
+                    reason
+                )),
             }
         } else {
-            Err(anyhow::anyhow!("No PTY process found for muxbox: {}", muxbox_id))
+            Err(anyhow::anyhow!(
+                "No PTY process found for muxbox: {}",
+                muxbox_id
+            ))
         }
     }
 

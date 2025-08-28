@@ -139,7 +139,7 @@ struct PluginSecurityManager {
     allowed_paths: Vec<String>,
     allowed_hosts: Vec<String>,
     allowed_commands: Vec<String>,
-    sandbox_enabled: bool,
+    _sandbox_enabled: bool,
 }
 
 impl PluginRegistry {
@@ -369,7 +369,7 @@ impl PluginSecurityManager {
             allowed_paths: vec!["/tmp".to_string(), "/var/log".to_string()],
             allowed_hosts: vec!["localhost".to_string()],
             allowed_commands: vec!["echo".to_string(), "date".to_string()],
-            sandbox_enabled: true,
+            _sandbox_enabled: true,
         }
     }
 

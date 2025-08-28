@@ -1,6 +1,6 @@
+use crate::live_yaml_sync::LiveYamlSync;
 use crate::model::muxbox::*;
 use crate::{model::layout::Layout, Bounds};
-use crate::live_yaml_sync::LiveYamlSync;
 
 use std::fs::File;
 use std::io::Read;
@@ -300,14 +300,18 @@ impl App {
     }
 
     // F0200: Set active layout with YAML persistence
-    pub fn set_active_layout_with_yaml_save(&mut self, layout_id: &str, yaml_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_active_layout_with_yaml_save(
+        &mut self,
+        layout_id: &str,
+        yaml_path: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.set_active_layout(layout_id);
-        
+
         // Save to YAML if path provided
         if let Some(path) = yaml_path {
             save_active_layout_to_yaml(path, layout_id)?;
         }
-        
+
         Ok(())
     }
 
@@ -734,8 +738,13 @@ impl AppContext {
     pub fn new_with_yaml_path(app: App, config: Config, yaml_path: String) -> Self {
         Self::new_with_yaml_path_and_lock(app, config, yaml_path, false)
     }
-    
-    pub fn new_with_yaml_path_and_lock(app: App, config: Config, yaml_path: String, locked: bool) -> Self {
+
+    pub fn new_with_yaml_path_and_lock(
+        app: App,
+        config: Config,
+        yaml_path: String,
+        locked: bool,
+    ) -> Self {
         let live_yaml_sync = if !locked {
             match LiveYamlSync::new(yaml_path.clone(), true) {
                 Ok(sync) => {
@@ -750,7 +759,7 @@ impl AppContext {
         } else {
             None
         };
-        
+
         AppContext {
             app,
             config,
@@ -771,7 +780,7 @@ impl AppContext {
     ) -> Self {
         Self::new_with_pty_and_yaml_and_lock(app, config, pty_manager, yaml_path, false)
     }
-    
+
     pub fn new_with_pty_and_yaml_and_lock(
         app: App,
         config: Config,
@@ -793,7 +802,7 @@ impl AppContext {
         } else {
             None
         };
-        
+
         AppContext {
             app,
             config,
@@ -861,7 +870,10 @@ pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Er
     load_app_from_yaml_with_lock(file_path, false)
 }
 
-pub fn load_app_from_yaml_with_lock(file_path: &str, _locked: bool) -> Result<App, Box<dyn std::error::Error>> {
+pub fn load_app_from_yaml_with_lock(
+    file_path: &str,
+    _locked: bool,
+) -> Result<App, Box<dyn std::error::Error>> {
     let mut file = File::open(file_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -1172,10 +1184,10 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
                     choices[0].selected = true;
                 }
             }
-            
+
             // F0204-F0209: Initialize stream architecture for each muxbox
             muxbox.initialize_streams();
-            
+
             // Initialize streams for children recursively
             fn initialize_child_streams(muxbox: &mut MuxBox) {
                 muxbox.initialize_streams();
@@ -1185,7 +1197,7 @@ fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
                     }
                 }
             }
-            
+
             if let Some(children) = &mut muxbox.children {
                 for child in children {
                     initialize_child_streams(child);
@@ -2281,12 +2293,12 @@ pub fn save_complete_state_to_yaml(
 
     // Convert to YAML with proper formatting (skip wrapper)
     let yaml_content = serializable_app.to_yaml_string()?;
-    
+
     // Atomic write - write to temp file then rename
     let temp_path = format!("{}.tmp", yaml_path);
     fs::write(&temp_path, yaml_content)?;
     fs::rename(&temp_path, yaml_path)?;
-    
+
     log::debug!("Saved complete application state to YAML: {}", yaml_path);
     Ok(())
 }
@@ -2311,11 +2323,13 @@ pub fn save_active_layout_to_yaml(
                     if let Value::Sequence(layouts_seq) = layouts_seq {
                         for layout_value in layouts_seq.iter_mut() {
                             if let Value::Mapping(layout_map) = layout_value {
-                                if let Some(Value::String(layout_id)) = layout_map.get(&Value::String("id".to_string())) {
+                                if let Some(Value::String(layout_id)) =
+                                    layout_map.get(&Value::String("id".to_string()))
+                                {
                                     let is_active = layout_id == active_layout_id;
                                     layout_map.insert(
                                         Value::String("active".to_string()),
-                                        Value::Bool(is_active)
+                                        Value::Bool(is_active),
                                     );
                                 }
                             }
@@ -2332,7 +2346,11 @@ pub fn save_active_layout_to_yaml(
     fs::write(&temp_path, updated_yaml)?;
     fs::rename(&temp_path, yaml_path)?;
 
-    log::info!("Updated active layout to '{}' in YAML: {}", active_layout_id, yaml_path);
+    log::info!(
+        "Updated active layout to '{}' in YAML: {}",
+        active_layout_id,
+        yaml_path
+    );
     Ok(())
 }
 
@@ -2374,14 +2392,23 @@ pub fn save_muxbox_content_to_yaml(
     let yaml_content = fs::read_to_string(yaml_path)?;
     let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
 
-    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "content", &Value::String(new_content.to_string()))?;
+    update_muxbox_field_recursive(
+        &mut yaml_value,
+        muxbox_id,
+        "content",
+        &Value::String(new_content.to_string()),
+    )?;
 
     let temp_path = format!("{}.tmp", yaml_path);
     let updated_yaml = serde_yaml::to_string(&yaml_value)?;
     fs::write(&temp_path, updated_yaml)?;
     fs::rename(&temp_path, yaml_path)?;
 
-    log::debug!("Updated muxbox {} content in YAML: {}", muxbox_id, yaml_path);
+    log::debug!(
+        "Updated muxbox {} content in YAML: {}",
+        muxbox_id,
+        yaml_path
+    );
     Ok(())
 }
 
@@ -2398,15 +2425,29 @@ pub fn save_muxbox_scroll_to_yaml(
     let yaml_content = fs::read_to_string(yaml_path)?;
     let mut yaml_value: Value = serde_yaml::from_str(&yaml_content)?;
 
-    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "scroll_x", &Value::Number(serde_yaml::Number::from(scroll_x)))?;
-    update_muxbox_field_recursive(&mut yaml_value, muxbox_id, "scroll_y", &Value::Number(serde_yaml::Number::from(scroll_y)))?;
+    update_muxbox_field_recursive(
+        &mut yaml_value,
+        muxbox_id,
+        "scroll_x",
+        &Value::Number(serde_yaml::Number::from(scroll_x)),
+    )?;
+    update_muxbox_field_recursive(
+        &mut yaml_value,
+        muxbox_id,
+        "scroll_y",
+        &Value::Number(serde_yaml::Number::from(scroll_y)),
+    )?;
 
     let temp_path = format!("{}.tmp", yaml_path);
     let updated_yaml = serde_yaml::to_string(&yaml_value)?;
     fs::write(&temp_path, updated_yaml)?;
     fs::rename(&temp_path, yaml_path)?;
 
-    log::debug!("Updated muxbox {} scroll position in YAML: {}", muxbox_id, yaml_path);
+    log::debug!(
+        "Updated muxbox {} scroll position in YAML: {}",
+        muxbox_id,
+        yaml_path
+    );
     Ok(())
 }
 
@@ -2430,14 +2471,24 @@ fn update_muxbox_field_recursive(
 
             // Recursively search in all fields
             for (_, child_value) in map.iter_mut() {
-                if update_muxbox_field_recursive(child_value, target_muxbox_id, field_name, new_value)? {
+                if update_muxbox_field_recursive(
+                    child_value,
+                    target_muxbox_id,
+                    field_name,
+                    new_value,
+                )? {
                     return Ok(true);
                 }
             }
         }
         Value::Sequence(seq) => {
             for child_value in seq.iter_mut() {
-                if update_muxbox_field_recursive(child_value, target_muxbox_id, field_name, new_value)? {
+                if update_muxbox_field_recursive(
+                    child_value,
+                    target_muxbox_id,
+                    field_name,
+                    new_value,
+                )? {
                     return Ok(true);
                 }
             }

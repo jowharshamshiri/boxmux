@@ -1,6 +1,5 @@
 use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
-use indexmap::IndexMap;
 
 use crate::{
     draw_utils::{get_bg_color, get_fg_color},
@@ -27,10 +26,10 @@ pub enum StreamType {
     Plugin(String),
     // F0210: Complete StreamType Enum - Add missing variants for source tracking
     ChoiceExecution(String), // Track choice executions as streams
-    RedirectSource(String),  // Track redirect output sources 
+    RedirectSource(String),  // Track redirect output sources
     ExternalSocket,          // External socket connections
     PtySession(String),      // PTY session with command info
-    OwnScript,              // Box's own script execution stream
+    OwnScript,               // Box's own script execution stream
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
@@ -53,8 +52,12 @@ pub struct Stream {
 }
 
 // Helper functions for default values
-fn default_content_hash() -> u64 { 0 }
-fn default_system_time() -> std::time::SystemTime { std::time::SystemTime::now() }
+fn default_content_hash() -> u64 {
+    0
+}
+fn default_system_time() -> std::time::SystemTime {
+    std::time::SystemTime::now()
+}
 
 // F0217: Stream rendering behavior traits - exclusive content OR choices
 pub trait ContentStreamTrait {
@@ -80,15 +83,23 @@ pub trait StreamSourceTrait {
 // F0212: Static content sources (no lifecycle management needed)
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct StaticContentSource {
-    pub content_type: String,  // "default", "choices", "manual"
+    pub content_type: String, // "default", "choices", "manual"
     pub created_at: std::time::SystemTime,
 }
 
 impl StreamSourceTrait for StaticContentSource {
-    fn source_type(&self) -> &'static str { "static_content" }
-    fn source_id(&self) -> String { format!("static_{}", self.content_type) }
-    fn can_terminate(&self) -> bool { false }
-    fn cleanup(&self) -> Result<(), String> { Ok(()) }
+    fn source_type(&self) -> &'static str {
+        "static_content"
+    }
+    fn source_id(&self) -> String {
+        format!("static_{}", self.content_type)
+    }
+    fn can_terminate(&self) -> bool {
+        false
+    }
+    fn cleanup(&self) -> Result<(), String> {
+        Ok(())
+    }
     fn get_metadata(&self) -> std::collections::HashMap<String, String> {
         let mut meta = std::collections::HashMap::new();
         meta.insert("content_type".to_string(), self.content_type.clone());
@@ -102,17 +113,23 @@ impl StreamSourceTrait for StaticContentSource {
 pub struct ChoiceExecutionSource {
     pub choice_id: String,
     pub muxbox_id: String,
-    pub thread_id: Option<String>,    // For thread tracking
-    pub process_id: Option<u32>,      // For process-based choices
-    pub execution_type: String,       // "threaded", "process", "pty"
+    pub thread_id: Option<String>, // For thread tracking
+    pub process_id: Option<u32>,   // For process-based choices
+    pub execution_type: String,    // "threaded", "process", "pty"
     pub started_at: std::time::SystemTime,
     pub timeout_seconds: Option<u32>,
 }
 
 impl StreamSourceTrait for ChoiceExecutionSource {
-    fn source_type(&self) -> &'static str { "choice_execution" }
-    fn source_id(&self) -> String { self.choice_id.clone() }
-    fn can_terminate(&self) -> bool { true }
+    fn source_type(&self) -> &'static str {
+        "choice_execution"
+    }
+    fn source_id(&self) -> String {
+        self.choice_id.clone()
+    }
+    fn can_terminate(&self) -> bool {
+        true
+    }
     fn cleanup(&self) -> Result<(), String> {
         match self.execution_type.as_str() {
             "process" => {
@@ -124,12 +141,12 @@ impl StreamSourceTrait for ChoiceExecutionSource {
                         .output();
                 }
                 Ok(())
-            },
+            }
             "threaded" => {
                 // Thread cleanup would be handled by ThreadManager
                 Ok(())
-            },
-            _ => Ok(())
+            }
+            _ => Ok(()),
         }
     }
     fn get_metadata(&self) -> std::collections::HashMap<String, String> {
@@ -157,13 +174,19 @@ pub struct PTYSource {
     pub working_dir: Option<String>,
     pub reader_thread_id: Option<String>,
     pub started_at: std::time::SystemTime,
-    pub terminal_size: (u16, u16),    // (rows, cols)
+    pub terminal_size: (u16, u16), // (rows, cols)
 }
 
 impl StreamSourceTrait for PTYSource {
-    fn source_type(&self) -> &'static str { "pty" }
-    fn source_id(&self) -> String { self.pty_id.clone() }
-    fn can_terminate(&self) -> bool { true }
+    fn source_type(&self) -> &'static str {
+        "pty"
+    }
+    fn source_id(&self) -> String {
+        self.pty_id.clone()
+    }
+    fn can_terminate(&self) -> bool {
+        true
+    }
     fn cleanup(&self) -> Result<(), String> {
         // Terminate PTY process
         let result = std::process::Command::new("kill")
@@ -172,7 +195,10 @@ impl StreamSourceTrait for PTYSource {
             .output();
         match result {
             Ok(_) => Ok(()),
-            Err(e) => Err(format!("Failed to terminate PTY process {}: {}", self.process_id, e))
+            Err(e) => Err(format!(
+                "Failed to terminate PTY process {}: {}",
+                self.process_id, e
+            )),
         }
     }
     fn get_metadata(&self) -> std::collections::HashMap<String, String> {
@@ -181,7 +207,10 @@ impl StreamSourceTrait for PTYSource {
         meta.insert("process_id".to_string(), self.process_id.to_string());
         meta.insert("command".to_string(), self.command.clone());
         meta.insert("args".to_string(), self.args.join(" "));
-        meta.insert("terminal_size".to_string(), format!("{}x{}", self.terminal_size.0, self.terminal_size.1));
+        meta.insert(
+            "terminal_size".to_string(),
+            format!("{}x{}", self.terminal_size.0, self.terminal_size.1),
+        );
         if let Some(ref thread_id) = self.reader_thread_id {
             meta.insert("reader_thread_id".to_string(), thread_id.clone());
         }
@@ -195,15 +224,21 @@ pub struct RedirectSource {
     pub source_muxbox_id: String,
     pub source_choice_id: Option<String>,
     pub redirect_name: String,
-    pub redirect_type: String,        // "choice", "script", "pty", "external"
+    pub redirect_type: String, // "choice", "script", "pty", "external"
     pub created_at: std::time::SystemTime,
-    pub source_process_id: Option<u32>,  // For process-based redirects
+    pub source_process_id: Option<u32>, // For process-based redirects
 }
 
 impl StreamSourceTrait for RedirectSource {
-    fn source_type(&self) -> &'static str { "redirect" }
-    fn source_id(&self) -> String { format!("{}_{}", self.source_muxbox_id, self.redirect_name) }
-    fn can_terminate(&self) -> bool { self.source_process_id.is_some() }
+    fn source_type(&self) -> &'static str {
+        "redirect"
+    }
+    fn source_id(&self) -> String {
+        format!("{}_{}", self.source_muxbox_id, self.redirect_name)
+    }
+    fn can_terminate(&self) -> bool {
+        self.source_process_id.is_some()
+    }
     fn cleanup(&self) -> Result<(), String> {
         if let Some(pid) = self.source_process_id {
             let result = std::process::Command::new("kill")
@@ -212,7 +247,10 @@ impl StreamSourceTrait for RedirectSource {
                 .output();
             match result {
                 Ok(_) => Ok(()),
-                Err(e) => Err(format!("Failed to terminate redirect source process {}: {}", pid, e))
+                Err(e) => Err(format!(
+                    "Failed to terminate redirect source process {}: {}",
+                    pid, e
+                )),
             }
         } else {
             Ok(())
@@ -220,7 +258,10 @@ impl StreamSourceTrait for RedirectSource {
     }
     fn get_metadata(&self) -> std::collections::HashMap<String, String> {
         let mut meta = std::collections::HashMap::new();
-        meta.insert("source_muxbox_id".to_string(), self.source_muxbox_id.clone());
+        meta.insert(
+            "source_muxbox_id".to_string(),
+            self.source_muxbox_id.clone(),
+        );
         meta.insert("redirect_name".to_string(), self.redirect_name.clone());
         meta.insert("redirect_type".to_string(), self.redirect_type.clone());
         if let Some(ref choice_id) = self.source_choice_id {
@@ -245,9 +286,15 @@ pub struct SocketSource {
 }
 
 impl StreamSourceTrait for SocketSource {
-    fn source_type(&self) -> &'static str { "socket" }
-    fn source_id(&self) -> String { self.connection_id.clone() }
-    fn can_terminate(&self) -> bool { true }
+    fn source_type(&self) -> &'static str {
+        "socket"
+    }
+    fn source_id(&self) -> String {
+        self.connection_id.clone()
+    }
+    fn can_terminate(&self) -> bool {
+        true
+    }
     fn cleanup(&self) -> Result<(), String> {
         // Socket cleanup would be handled by socket manager
         Ok(())
@@ -256,7 +303,10 @@ impl StreamSourceTrait for SocketSource {
         let mut meta = std::collections::HashMap::new();
         meta.insert("connection_id".to_string(), self.connection_id.clone());
         meta.insert("client_info".to_string(), self.client_info.clone());
-        meta.insert("protocol_version".to_string(), self.protocol_version.clone());
+        meta.insert(
+            "protocol_version".to_string(),
+            self.protocol_version.clone(),
+        );
         if let Some(ref socket_path) = self.socket_path {
             meta.insert("socket_path".to_string(), socket_path.clone());
         }
@@ -359,7 +409,7 @@ impl Stream {
     pub fn update_content_hash(&mut self) {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         self.content.hash(&mut hasher);
         if let Some(ref choices) = self.choices {
@@ -373,7 +423,7 @@ impl Stream {
     pub fn has_content_changed(&self) -> bool {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         self.content.hash(&mut hasher);
         if let Some(ref choices) = self.choices {
@@ -396,17 +446,19 @@ impl Stream {
     }
 
     /// Get time since last update for staleness detection
-    pub fn time_since_last_update(&self) -> Result<std::time::Duration, std::time::SystemTimeError> {
+    pub fn time_since_last_update(
+        &self,
+    ) -> Result<std::time::Duration, std::time::SystemTimeError> {
         std::time::SystemTime::now().duration_since(self.last_updated)
     }
 
     /// F0219: Check if stream can be closed (has close button)
     pub fn is_closeable(&self) -> bool {
         match &self.stream_type {
-            StreamType::RedirectedOutput(_) |
-            StreamType::ChoiceExecution(_) |
-            StreamType::PtySession(_) |
-            StreamType::ExternalSocket => true,
+            StreamType::RedirectedOutput(_)
+            | StreamType::ChoiceExecution(_)
+            | StreamType::PtySession(_)
+            | StreamType::ExternalSocket => true,
             _ => false,
         }
     }
@@ -416,30 +468,36 @@ impl Stream {
 impl ContentStreamTrait for Stream {
     fn get_content_lines(&self) -> &Vec<String> {
         match self.stream_type {
-            StreamType::Content | 
-            StreamType::RedirectedOutput(_) |
-            StreamType::PTY |
-            StreamType::Plugin(_) |
-            StreamType::ChoiceExecution(_) |
-            StreamType::PtySession(_) |
-            StreamType::OwnScript => &self.content,
-            _ => panic!("ContentStreamTrait called on non-content stream: {:?}", self.stream_type),
+            StreamType::Content
+            | StreamType::RedirectedOutput(_)
+            | StreamType::PTY
+            | StreamType::Plugin(_)
+            | StreamType::ChoiceExecution(_)
+            | StreamType::PtySession(_)
+            | StreamType::OwnScript => &self.content,
+            _ => panic!(
+                "ContentStreamTrait called on non-content stream: {:?}",
+                self.stream_type
+            ),
         }
     }
-    
+
     fn set_content_lines(&mut self, content: Vec<String>) {
         match self.stream_type {
-            StreamType::Content | 
-            StreamType::RedirectedOutput(_) |
-            StreamType::PTY |
-            StreamType::Plugin(_) |
-            StreamType::ChoiceExecution(_) |
-            StreamType::PtySession(_) |
-            StreamType::OwnScript => {
+            StreamType::Content
+            | StreamType::RedirectedOutput(_)
+            | StreamType::PTY
+            | StreamType::Plugin(_)
+            | StreamType::ChoiceExecution(_)
+            | StreamType::PtySession(_)
+            | StreamType::OwnScript => {
                 self.content = content;
                 self.update_content_hash();
-            },
-            _ => panic!("ContentStreamTrait called on non-content stream: {:?}", self.stream_type),
+            }
+            _ => panic!(
+                "ContentStreamTrait called on non-content stream: {:?}",
+                self.stream_type
+            ),
         }
     }
 }
@@ -448,29 +506,40 @@ impl ContentStreamTrait for Stream {
 impl ChoicesStreamTrait for Stream {
     fn get_choices(&self) -> &Vec<crate::model::muxbox::Choice> {
         match self.stream_type {
-            StreamType::Choices => {
-                self.choices.as_ref().expect("Choices stream must have choices")
-            },
-            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+            StreamType::Choices => self
+                .choices
+                .as_ref()
+                .expect("Choices stream must have choices"),
+            _ => panic!(
+                "ChoicesStreamTrait called on non-choices stream: {:?}",
+                self.stream_type
+            ),
         }
     }
-    
+
     fn get_choices_mut(&mut self) -> &mut Vec<crate::model::muxbox::Choice> {
         match self.stream_type {
-            StreamType::Choices => {
-                self.choices.as_mut().expect("Choices stream must have choices")
-            },
-            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+            StreamType::Choices => self
+                .choices
+                .as_mut()
+                .expect("Choices stream must have choices"),
+            _ => panic!(
+                "ChoicesStreamTrait called on non-choices stream: {:?}",
+                self.stream_type
+            ),
         }
     }
-    
+
     fn set_choices(&mut self, choices: Vec<crate::model::muxbox::Choice>) {
         match self.stream_type {
             StreamType::Choices => {
                 self.choices = Some(choices);
                 self.update_content_hash();
-            },
-            _ => panic!("ChoicesStreamTrait called on non-choices stream: {:?}", self.stream_type),
+            }
+            _ => panic!(
+                "ChoicesStreamTrait called on non-choices stream: {:?}",
+                self.stream_type
+            ),
         }
     }
 }
@@ -724,7 +793,7 @@ pub fn run_socket_function(
                 // This is a limitation of the socket API - it doesn't have access to the main ThreadManager
                 let (temp_sender, _temp_receiver) = std::sync::mpsc::channel();
                 let temp_uuid = uuid::Uuid::new_v4();
-                
+
                 let spawn_result = if redirect_output.is_some() {
                     pty_manager.spawn_pty_script_with_redirect(
                         box_id.clone(),
@@ -743,7 +812,7 @@ pub fn run_socket_function(
                         temp_uuid,
                     )
                 };
-                
+
                 match spawn_result {
                     Ok(_) => {
                         messages.push(Message::MuxBoxOutputUpdate(
@@ -2053,4 +2122,3 @@ mod tests {
 // F0203: Multi-Stream Input Tabs - Tab system data structures (uses StreamType defined above)
 
 // Duplicate StreamSource removed - using new trait-based system above
-
