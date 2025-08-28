@@ -234,6 +234,8 @@ pub struct MuxBox {
     pub scroll_x: usize,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub scroll_y: usize,
+    #[serde(skip, default)]
+    pub tab_scroll_offset: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -413,6 +415,7 @@ impl Default for MuxBox {
             selected: Some(false),
             scroll_x: 0,
             scroll_y: 0,
+            tab_scroll_offset: 0,
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
@@ -551,6 +554,7 @@ impl Clone for MuxBox {
             output: self.output.clone(),
             scroll_x: self.scroll_x,
             scroll_y: self.scroll_y,
+            tab_scroll_offset: self.tab_scroll_offset,
             save_in_file: self.save_in_file.clone(),
             chart_type: self.chart_type.clone(),
             chart_data: self.chart_data.clone(),
@@ -2178,6 +2182,58 @@ impl MuxBox {
         
         // No default tab - empty boxes have no tabs
         labels
+    }
+
+    /// Check if tabs need scrolling (overflow available width)
+    pub fn tabs_need_scrolling(&self, available_width: usize) -> bool {
+        let tab_labels = self.get_tab_labels();
+        if tab_labels.is_empty() {
+            return false;
+        }
+        
+        // Calculate required width for all tabs
+        let max_tab_width = 16;
+        let min_tab_width = 6;
+        let calculated_tab_width = available_width / tab_labels.len().max(1);
+        let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+        
+        let required_width = tab_labels.len() * tab_width + 4; // 4 for border/separators
+        required_width > available_width
+    }
+
+    /// Scroll tabs left (decrease offset)
+    pub fn scroll_tabs_left(&mut self) {
+        if self.tab_scroll_offset > 0 {
+            self.tab_scroll_offset -= 1;
+        }
+    }
+
+    /// Scroll tabs right (increase offset) 
+    pub fn scroll_tabs_right(&mut self) {
+        let tab_count = self.get_tab_labels().len();
+        if self.tab_scroll_offset < tab_count.saturating_sub(1) {
+            self.tab_scroll_offset += 1;
+        }
+    }
+
+    /// Get maximum valid tab scroll offset
+    pub fn max_tab_scroll_offset(&self, available_width: usize) -> usize {
+        let tab_labels = self.get_tab_labels();
+        if tab_labels.is_empty() || !self.tabs_need_scrolling(available_width) {
+            return 0;
+        }
+
+        let max_tab_width = 16;
+        let min_tab_width = 6;
+        let calculated_tab_width = available_width / tab_labels.len().max(1);
+        let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+        
+        // Calculate how many tabs fit in available width (reserve 6 chars for nav arrows)
+        let nav_arrow_width = 6; // "< " and " >"
+        let usable_width = available_width.saturating_sub(nav_arrow_width);
+        let tabs_that_fit = usable_width / tab_width.max(1);
+        
+        tab_labels.len().saturating_sub(tabs_that_fit)
     }
 
 }

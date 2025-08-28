@@ -64,6 +64,8 @@ pub enum Message {
     RemoveBox(String),
     // F0203: Multi-Stream Input Tabs messages
     SwitchTab(String, usize),           // muxbox_id, tab_index
+    ScrollTabsLeft(String),             // muxbox_id - scroll tabs left
+    ScrollTabsRight(String),            // muxbox_id - scroll tabs right
     SwitchToStream(String, String),     // muxbox_id, stream_id
     AddStream(String, crate::model::common::StreamSource), // muxbox_id, stream
     RemoveStream(String, String),       // muxbox_id, stream_id
@@ -239,6 +241,14 @@ impl Hash for Message {
                 "switch_tab".hash(state);
                 muxbox_id.hash(state);
                 tab_index.hash(state);
+            }
+            Message::ScrollTabsLeft(muxbox_id) => {
+                "scroll_tabs_left".hash(state);
+                muxbox_id.hash(state);
+            }
+            Message::ScrollTabsRight(muxbox_id) => {
+                "scroll_tabs_right".hash(state);
+                muxbox_id.hash(state);
             }
             Message::SwitchToStream(muxbox_id, stream_id) => {
                 "switch_to_stream".hash(state);

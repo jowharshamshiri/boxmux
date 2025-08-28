@@ -122,6 +122,9 @@ pub mod muxbox_bounds_clipping_tests;
 #[cfg(test)]
 pub mod conditional_stream_creation_tests;
 
+#[cfg(test)]
+pub mod scrollable_tabs_tests;
+
 
 // Commented out due to test framework complexity - functionality tested via demo YAML
 //#[cfg(test)]

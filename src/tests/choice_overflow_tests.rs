@@ -39,30 +39,39 @@ mod choice_overflow_tests {
             create_test_choice("c10", "Choice 10", false),
         ];
         
+        // Create streams for test
+        let mut streams = indexmap::IndexMap::new();
+        let choices_stream = crate::model::common::Stream {
+            id: "choices".to_string(),
+            label: "Test Menu".to_string(),
+            stream_type: crate::model::common::StreamType::Choices,
+            active: true,
+            data: crate::model::common::StreamData::Choices(choices),
+            source: None,
+        };
+        streams.insert("choices".to_string(), choices_stream);
+
         render_muxbox(
             &bounds,
             "white",
-            "black", 
             "black",
-            Some("Test Menu"),
+            "black",
+            &streams,
+            0, // active_tab_index
+            0, // tab_scroll_offset
             "white",
             "black",
             "center",
-            Some(choices),
             "white",
             "black",
             "black",
             "white",
-            None,
             "white",
-            "scroll", // This should enable scrolling for choices
+            "scroll",
             Some(&true),
             0.0, // horizontal_scroll
             0.0, // vertical_scroll (top)
-            false,
-            // F0203: Multi-Stream Input Tabs parameters
-            &Vec::<String>::new(), // No tabs for test
-            0, // active_tab_index
+            false, // locked
             &mut buffer,
         );
         
@@ -104,23 +113,39 @@ mod choice_overflow_tests {
             create_test_choice("c8", "Choice 8", false),
         ];
         
+        // Create streams for test
+        let mut streams = indexmap::IndexMap::new();
+        let choices_stream = crate::model::common::Stream {
+            id: "choices".to_string(),
+            label: "Scrolled Menu".to_string(),
+            stream_type: crate::model::common::StreamType::Choices,
+            active: true,
+            data: crate::model::common::StreamData::Choices(choices),
+            source: None,
+        };
+        streams.insert("choices".to_string(), choices_stream);
+
         render_muxbox(
             &bounds,
-            "white", "black", "black",
-            Some("Scrolled Menu"),
-            "white", "black", "center",
-            Some(choices),
-            "white", "black", "black", "white",
-            None,
+            "white",
+            "black",
+            "black",
+            &streams,
+            0, // active_tab_index
+            0, // tab_scroll_offset
+            "white",
+            "black",
+            "center",
+            "white",
+            "black",
+            "black",
+            "white",
             "white",
             "scroll",
             Some(&true),
-            0.0,
+            0.0, // horizontal_scroll
             100.0, // vertical_scroll (bottom) - should show later choices
-            false,
-            // F0203: Multi-Stream Input Tabs parameters
-            &Vec::<String>::new(), // No tabs for test
-            0, // active_tab_index
+            false, // locked
             &mut buffer,
         );
         
@@ -143,22 +168,39 @@ mod choice_overflow_tests {
             create_test_choice("c2", "Choice 2", true),
         ];
         
+        // Create streams for test
+        let mut streams = indexmap::IndexMap::new();
+        let choices_stream = crate::model::common::Stream {
+            id: "choices".to_string(),
+            label: "Small Menu".to_string(),
+            stream_type: crate::model::common::StreamType::Choices,
+            active: true,
+            data: crate::model::common::StreamData::Choices(choices),
+            source: None,
+        };
+        streams.insert("choices".to_string(), choices_stream);
+
         render_muxbox(
             &bounds,
-            "white", "black", "black",
-            Some("Small Menu"),
-            "white", "black", "center",
-            Some(choices),
-            "white", "black", "black", "white", 
-            None,
+            "white",
+            "black",
+            "black",
+            &streams,
+            0, // active_tab_index
+            0, // tab_scroll_offset
+            "white",
+            "black",
+            "center",
+            "white",
+            "black",
+            "black",
+            "white",
             "white",
             "scroll",
             Some(&true),
-            0.0, 0.0,
-            false,
-            // F0203: Multi-Stream Input Tabs parameters
-            &Vec::<String>::new(), // No tabs for test
-            0, // active_tab_index
+            0.0, // horizontal_scroll
+            0.0, // vertical_scroll
+            false, // locked
             &mut buffer,
         );
         
@@ -190,22 +232,39 @@ mod choice_overflow_tests {
             create_test_choice(&format!("c{}", i), &format!("Choice {}", i), false)
         }).collect();
         
+        // Create streams for test
+        let mut streams = indexmap::IndexMap::new();
+        let choices_stream = crate::model::common::Stream {
+            id: "choices".to_string(),
+            label: "Overflow Test".to_string(),
+            stream_type: crate::model::common::StreamType::Choices,
+            active: true,
+            data: crate::model::common::StreamData::Choices(many_choices),
+            source: None,
+        };
+        streams.insert("choices".to_string(), choices_stream);
+
         render_muxbox(
             &bounds,
-            "white", "black", "black",
-            Some("Overflow Test"),
-            "white", "black", "center",
-            Some(many_choices),
-            "white", "black", "black", "white",
-            None, 
+            "white",
+            "black",
+            "black",
+            &streams,
+            0, // active_tab_index
+            0, // tab_scroll_offset
+            "white",
+            "black",
+            "center",
+            "white",
+            "black",
+            "black",
+            "white",
             "white",
             "scroll",
             Some(&true),
-            0.0, 50.0, // Middle scroll position
-            false,
-            // F0203: Multi-Stream Input Tabs parameters
-            &Vec::<String>::new(), // No tabs for test
-            0, // active_tab_index
+            0.0, // horizontal_scroll
+            50.0, // Middle scroll position
+            false, // locked
             &mut buffer,
         );
         

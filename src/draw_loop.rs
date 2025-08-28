@@ -1274,11 +1274,36 @@ create_runnable!(
                                     log::debug!("Muxbox bounds: left={}, right={}, top={}, border={}", 
                                         muxbox_bounds.left(), muxbox_bounds.right(), muxbox_bounds.top(), has_border);
                                     
-                                    if let Some(clicked_tab_index) = crate::draw_utils::calculate_tab_click_index(
+                                    // Check for navigation arrow clicks first
+                                    if let Some(nav_action) = crate::draw_utils::calculate_tab_navigation_click(
+                                        *x as usize,
+                                        muxbox_bounds.left(),
+                                        muxbox_bounds.right(),
+                                        &tab_labels,
+                                        clicked_muxbox.tab_scroll_offset,
+                                        has_border
+                                    ) {
+                                        log::info!("Tab navigation clicked: muxbox {} action {:?}", clicked_muxbox.id, nav_action);
+                                        if let Some(muxbox) = app_context_for_click.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
+                                            match nav_action {
+                                                crate::draw_utils::TabNavigationAction::ScrollLeft => {
+                                                    muxbox.scroll_tabs_left();
+                                                    log::info!("Scrolled tabs left for muxbox '{}', new offset: {}", muxbox.id, muxbox.tab_scroll_offset);
+                                                },
+                                                crate::draw_utils::TabNavigationAction::ScrollRight => {
+                                                    muxbox.scroll_tabs_right();
+                                                    log::info!("Scrolled tabs right for muxbox '{}', new offset: {}", muxbox.id, muxbox.tab_scroll_offset);
+                                                },
+                                            }
+                                            inner.update_app_context(app_context_for_click.clone());
+                                        }
+                                        handled_tab_click = true;
+                                    } else if let Some(clicked_tab_index) = crate::draw_utils::calculate_tab_click_index(
                                         *x as usize, 
                                         muxbox_bounds.left(), 
                                         muxbox_bounds.right(),
                                         &tab_labels,
+                                        clicked_muxbox.tab_scroll_offset,
                                         has_border
                                     ) {
                                         log::info!("Tab click detected: muxbox {} tab {} ({})", 
@@ -1475,6 +1500,7 @@ create_runnable!(
                                             muxbox_bounds.left(), 
                                             muxbox_bounds.right(),
                                             &tab_labels,
+                                            muxbox.tab_scroll_offset,
                                             muxbox.calc_border(&app_context_unwrapped.clone(), &app_graph)
                                         ) {
                                             log::trace!("Drag started on tab area for muxbox {} - skipping move operation", muxbox.id);
@@ -2099,6 +2125,28 @@ create_runnable!(
                             }
                         } else {
                             log::error!("SwitchTab message for non-existent muxbox: {}", muxbox_id);
+                        }
+                    }
+                    Message::ScrollTabsLeft(muxbox_id) => {
+                        log::debug!("Processing ScrollTabsLeft message: muxbox={}", muxbox_id);
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                            muxbox.scroll_tabs_left();
+                            log::info!("Scrolled tabs left for muxbox '{}', new offset: {}", muxbox_id, muxbox.tab_scroll_offset);
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
+                        } else {
+                            log::error!("ScrollTabsLeft message for non-existent muxbox: {}", muxbox_id);
+                        }
+                    }
+                    Message::ScrollTabsRight(muxbox_id) => {
+                        log::debug!("Processing ScrollTabsRight message: muxbox={}", muxbox_id);
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id) {
+                            muxbox.scroll_tabs_right();
+                            log::info!("Scrolled tabs right for muxbox '{}', new offset: {}", muxbox_id, muxbox.tab_scroll_offset);
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
+                        } else {
+                            log::error!("ScrollTabsRight message for non-existent muxbox: {}", muxbox_id);
                         }
                     }
                     Message::SwitchToStream(muxbox_id, stream_id) => {

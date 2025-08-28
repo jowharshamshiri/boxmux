@@ -279,6 +279,7 @@ pub fn draw_muxbox(
                 &parent_bg_color,
                 &muxbox.streams, // F0209: Pass streams HashMap - contains all content, choices, redirects
                 muxbox.get_active_tab_index(), // F0208: Pass active tab index from muxbox
+                muxbox.tab_scroll_offset, // Pass tab scroll offset for scrollable tabs
                 &title_fg_color,
                 &title_bg_color,
                 &muxbox.calc_title_position(app_context, app_graph),
@@ -545,6 +546,7 @@ pub fn draw_horizontal_line_with_tabs(
     draw_border: bool,
     tab_labels: &[String],
     active_tab_index: usize,
+    tab_scroll_offset: usize,
     buffer: &mut ScreenBuffer,
 ) {
     let width = x2.saturating_sub(x1);
@@ -553,7 +555,7 @@ pub fn draw_horizontal_line_with_tabs(
     if tab_labels.len() > 0 {
         draw_tab_bar(
             y, x1, x2, fg_color, bg_color, title_fg_color, title_bg_color,
-            tab_labels, active_tab_index, draw_border, buffer
+            tab_labels, active_tab_index, tab_scroll_offset, draw_border, buffer
         );
     } else {
         // No tabs initialized - fall back to empty border line
@@ -574,6 +576,7 @@ fn draw_tab_bar(
     title_bg_color: &str,
     tab_labels: &[String],
     active_tab_index: usize,
+    tab_scroll_offset: usize,
     draw_border: bool,
     buffer: &mut ScreenBuffer,
 ) {
@@ -587,11 +590,13 @@ fn draw_tab_bar(
         width
     };
     
-    // Calculate tab width - distribute evenly but cap at reasonable size
-    let max_tab_width = 16; // Maximum width per tab
-    let min_tab_width = 6;  // Minimum width per tab
+    // Check if tabs need scrolling
+    let max_tab_width = 16;
+    let min_tab_width = 6;
     let calculated_tab_width = available_width / tab_labels.len().max(1);
     let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+    let required_width = tab_labels.len() * tab_width + 4;
+    let needs_scrolling = required_width > available_width;
     
     // Draw leading border if needed
     if draw_border && current_x < x2 {
@@ -599,58 +604,132 @@ fn draw_tab_bar(
         current_x += 2;
     }
     
-    // Draw each tab
-    for (i, label) in tab_labels.iter().enumerate() {
-        if current_x >= x2 {
-            break; // No more space
+    if needs_scrolling {
+        // Draw scrollable tabs with navigation arrows
+        
+        // Draw left arrow if we can scroll left
+        if tab_scroll_offset > 0 && current_x + 2 <= x2 {
+            print_with_color_and_background_at(y, current_x, title_fg_color, bg_color, "◀", buffer);
+            current_x += 2;
         }
         
-        let is_active = i == active_tab_index;
-        let (tab_fg, tab_bg) = if is_active {
-            (title_bg_color, title_fg_color) // Inverted colors for active tab
-        } else {
-            (title_fg_color, title_bg_color)
-        };
+        // Calculate visible tab range
+        let nav_arrow_space = if tab_scroll_offset > 0 { 2 } else { 0 }
+                            + if tab_scroll_offset + 1 < tab_labels.len() { 2 } else { 0 };
+        let usable_width = available_width.saturating_sub(nav_arrow_space);
+        let tabs_that_fit = usable_width / tab_width.max(1);
+        let visible_start = tab_scroll_offset;
+        let visible_end = (visible_start + tabs_that_fit).min(tab_labels.len());
         
-        // Truncate label to fit tab width (character-aware)
-        let mut display_label = label.clone();
-        let max_label_chars = tab_width.saturating_sub(2); // Account for padding spaces
-        
-        if display_label.chars().count() > max_label_chars {
-            let truncate_chars = max_label_chars.saturating_sub(1); // Account for ellipsis
-            display_label = display_label.chars().take(truncate_chars).collect::<String>();
-            display_label.push('…');
+        // Draw visible tabs
+        for i in visible_start..visible_end {
+            if current_x >= x2 {
+                break;
+            }
+            
+            let label = &tab_labels[i];
+            let is_active = i == active_tab_index;
+            let (tab_fg, tab_bg) = if is_active {
+                (title_bg_color, title_fg_color) // Inverted colors for active tab
+            } else {
+                (title_fg_color, title_bg_color)
+            };
+            
+            // Truncate label to fit tab width (character-aware)
+            let mut display_label = label.clone();
+            let max_label_chars = tab_width.saturating_sub(2);
+            
+            if display_label.chars().count() > max_label_chars {
+                let truncate_chars = max_label_chars.saturating_sub(1);
+                display_label = display_label.chars().take(truncate_chars).collect::<String>();
+                display_label.push('…');
+            }
+            
+            // Pad label to center it in tab
+            let padded_label = format!(" {} ", display_label);
+            let padded_char_count = padded_label.chars().count();
+            let display_chars = padded_char_count.min(tab_width);
+            
+            let display_text = if display_chars < padded_char_count {
+                padded_label.chars().take(display_chars).collect::<String>()
+            } else {
+                padded_label
+            };
+            
+            // Draw tab background
+            let tab_end = (current_x + tab_width).min(x2);
+            fill_horizontal_background(y, current_x, tab_end - 1, tab_fg, tab_bg, buffer);
+            
+            // Draw tab text
+            if current_x + display_text.len() <= x2 {
+                print_with_color_and_background_at(
+                    y, current_x, tab_fg, tab_bg, &display_text, buffer
+                );
+            }
+            
+            current_x = tab_end;
         }
         
-        // Pad label to center it in tab
-        let padded_label = format!(" {} ", display_label);
-        let padded_char_count = padded_label.chars().count();
-        let display_chars = padded_char_count.min(tab_width);
-        
-        // Create display string with proper character boundaries
-        let display_text = if display_chars < padded_char_count {
-            padded_label.chars().take(display_chars).collect::<String>()
-        } else {
-            padded_label
-        };
-        
-        // Draw tab background
-        let tab_end = (current_x + tab_width).min(x2);
-        fill_horizontal_background(y, current_x, tab_end - 1, tab_fg, tab_bg, buffer);
-        
-        // Draw tab text
-        if current_x + display_text.len() <= x2 {
-            print_with_color_and_background_at(
-                y, current_x, tab_fg, tab_bg, &display_text, buffer
-            );
+        // Draw right arrow if we can scroll right
+        if visible_end < tab_labels.len() && current_x + 2 <= x2 {
+            current_x += 1; // Small space before arrow
+            print_with_color_and_background_at(y, current_x, title_fg_color, bg_color, "▶", buffer);
+            current_x += 2;
         }
         
-        current_x = tab_end;
-        
-        // Add separator between tabs (but not after last tab)
-        if i < tab_labels.len() - 1 && current_x < x2 && draw_border {
-            print_with_color_and_background_at(y, current_x, fg_color, bg_color, "│", buffer);
-            current_x += 1;
+    } else {
+        // Draw all tabs normally (no scrolling needed)
+        for (i, label) in tab_labels.iter().enumerate() {
+            if current_x >= x2 {
+                break;
+            }
+            
+            let is_active = i == active_tab_index;
+            let (tab_fg, tab_bg) = if is_active {
+                (title_bg_color, title_fg_color)
+            } else {
+                (title_fg_color, title_bg_color)
+            };
+            
+            // Truncate label to fit tab width (character-aware)
+            let mut display_label = label.clone();
+            let max_label_chars = tab_width.saturating_sub(2);
+            
+            if display_label.chars().count() > max_label_chars {
+                let truncate_chars = max_label_chars.saturating_sub(1);
+                display_label = display_label.chars().take(truncate_chars).collect::<String>();
+                display_label.push('…');
+            }
+            
+            // Pad label to center it in tab
+            let padded_label = format!(" {} ", display_label);
+            let padded_char_count = padded_label.chars().count();
+            let display_chars = padded_char_count.min(tab_width);
+            
+            let display_text = if display_chars < padded_char_count {
+                padded_label.chars().take(display_chars).collect::<String>()
+            } else {
+                padded_label
+            };
+            
+            // Draw tab background
+            let tab_end = (current_x + tab_width).min(x2);
+            fill_horizontal_background(y, current_x, tab_end - 1, tab_fg, tab_bg, buffer);
+            
+            // Draw tab text
+            if current_x + display_text.len() <= x2 {
+                print_with_color_and_background_at(
+                    y, current_x, tab_fg, tab_bg, &display_text, buffer
+                );
+            }
+            
+            current_x = tab_end;
+            
+            // Add separator between tabs (but not after last tab)
+            if i < tab_labels.len() - 1 && current_x < x2 && draw_border {
+                print_with_color_and_background_at(y, current_x, fg_color, bg_color, "│", buffer);
+                current_x += 1;
+            }
         }
     }
     
@@ -665,10 +744,11 @@ pub fn calculate_tab_click_index(
     x1: usize,
     x2: usize,
     tab_labels: &[String],
+    tab_scroll_offset: usize,
     draw_border: bool,
 ) -> Option<usize> {
-    log::trace!("calculate_tab_click_index: click_x={}, x1={}, x2={}, tabs={:?}, border={}", 
-        click_x, x1, x2, tab_labels, draw_border);
+    log::trace!("calculate_tab_click_index: click_x={}, x1={}, x2={}, tabs={:?}, scroll_offset={}, border={}", 
+        click_x, x1, x2, tab_labels, tab_scroll_offset, draw_border);
     
     if tab_labels.len() == 0 {
         log::trace!("No tabs to click");
@@ -686,33 +766,137 @@ pub fn calculate_tab_click_index(
     let min_tab_width = 6;
     let calculated_tab_width = available_width / tab_labels.len().max(1);
     let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+    let required_width = tab_labels.len() * tab_width + 4;
+    let needs_scrolling = required_width > available_width;
     
-    let start_x = if draw_border { x1 + 2 } else { x1 };
+    let mut current_x = if draw_border { x1 + 2 } else { x1 };
     
-    // Calculate the total width occupied by all tabs
-    let total_tabs_width = tab_labels.len() * tab_width + (tab_labels.len().saturating_sub(1)) * (if draw_border { 1 } else { 0 });
-    let tab_area_end = start_x + total_tabs_width;
+    if needs_scrolling {
+        // Check for navigation arrow clicks
+        
+        // Check left arrow click
+        if tab_scroll_offset > 0 && click_x >= current_x && click_x < current_x + 2 {
+            log::trace!("Left arrow clicked - return None to trigger scroll left");
+            return None; // Special case: will trigger scroll left in caller
+        }
+        
+        if tab_scroll_offset > 0 {
+            current_x += 2; // Move past left arrow
+        }
+        
+        // Calculate visible tab range
+        let nav_arrow_space = if tab_scroll_offset > 0 { 2 } else { 0 }
+                            + if tab_scroll_offset + 1 < tab_labels.len() { 2 } else { 0 };
+        let usable_width = available_width.saturating_sub(nav_arrow_space);
+        let tabs_that_fit = usable_width / tab_width.max(1);
+        let visible_start = tab_scroll_offset;
+        let visible_end = (visible_start + tabs_that_fit).min(tab_labels.len());
+        
+        // Check visible tabs
+        for i in visible_start..visible_end {
+            if click_x >= current_x && click_x < current_x + tab_width {
+                log::trace!("Tab {} clicked (visible index {}, absolute index {})", i, i - visible_start, i);
+                return Some(i); // Return absolute tab index
+            }
+            current_x += tab_width;
+        }
+        
+        // Check right arrow click
+        if visible_end < tab_labels.len() {
+            current_x += 1; // Small space before arrow
+            if click_x >= current_x && click_x < current_x + 2 {
+                log::trace!("Right arrow clicked - return None to trigger scroll right");
+                return None; // Special case: will trigger scroll right in caller
+            }
+        }
+        
+    } else {
+        // No scrolling - check all tabs normally
+        for (i, _label) in tab_labels.iter().enumerate() {
+            if click_x >= current_x && click_x < current_x + tab_width {
+                log::trace!("Tab {} clicked (no scrolling)", i);
+                return Some(i);
+            }
+            current_x += tab_width;
+            
+            // Account for separators
+            if i < tab_labels.len() - 1 && draw_border {
+                current_x += 1;
+            }
+        }
+    }
     
-    log::trace!("Tab calculation: width={}, available_width={}, tab_width={}, start_x={}, tab_area_end={}", 
-        width, available_width, tab_width, start_x, tab_area_end);
-    
-    // Only process clicks within the actual tab area, not the entire title bar
-    if click_x < start_x || click_x >= tab_area_end.min(x2) {
-        log::trace!("Click outside tab area: click_x={}, start_x={}, tab_area_end={}", 
-            click_x, start_x, tab_area_end.min(x2));
+    log::trace!("Click outside all tabs");
+    None
+}
+
+pub fn calculate_tab_navigation_click(
+    click_x: usize,
+    x1: usize,
+    x2: usize,
+    tab_labels: &[String],
+    tab_scroll_offset: usize,
+    draw_border: bool,
+) -> Option<TabNavigationAction> {
+    if tab_labels.len() == 0 {
         return None;
     }
     
-    let relative_x = click_x - start_x;
-    let tab_index = relative_x / (tab_width + if draw_border { 1 } else { 0 }); // Account for separators
-    
-    log::trace!("Tab hit calculation: relative_x={}, tab_index={}", relative_x, tab_index);
-    
-    if tab_index < tab_labels.len() {
-        Some(tab_index)
+    let width = x2.saturating_sub(x1);
+    let available_width = if draw_border {
+        width.saturating_sub(4)
     } else {
-        None
+        width
+    };
+    
+    let max_tab_width = 16;
+    let min_tab_width = 6;
+    let calculated_tab_width = available_width / tab_labels.len().max(1);
+    let tab_width = calculated_tab_width.clamp(min_tab_width, max_tab_width);
+    let required_width = tab_labels.len() * tab_width + 4;
+    let needs_scrolling = required_width > available_width;
+    
+    if !needs_scrolling {
+        return None; // No navigation needed
     }
+    
+    let mut current_x = if draw_border { x1 + 2 } else { x1 };
+    
+    // Check left arrow click
+    if tab_scroll_offset > 0 && click_x >= current_x && click_x < current_x + 2 {
+        return Some(TabNavigationAction::ScrollLeft);
+    }
+    
+    if tab_scroll_offset > 0 {
+        current_x += 2;
+    }
+    
+    // Calculate visible tab range
+    let nav_arrow_space = if tab_scroll_offset > 0 { 2 } else { 0 }
+                        + if tab_scroll_offset + 1 < tab_labels.len() { 2 } else { 0 };
+    let usable_width = available_width.saturating_sub(nav_arrow_space);
+    let tabs_that_fit = usable_width / tab_width.max(1);
+    let visible_start = tab_scroll_offset;
+    let visible_end = (visible_start + tabs_that_fit).min(tab_labels.len());
+    
+    // Skip over visible tabs
+    current_x += (visible_end - visible_start) * tab_width;
+    
+    // Check right arrow click
+    if visible_end < tab_labels.len() {
+        current_x += 1; // Small space before arrow
+        if click_x >= current_x && click_x < current_x + 2 {
+            return Some(TabNavigationAction::ScrollRight);
+        }
+    }
+    
+    None
+}
+
+#[derive(Debug, Clone)]
+pub enum TabNavigationAction {
+    ScrollLeft,
+    ScrollRight,
 }
 
 pub fn render_muxbox(
@@ -722,6 +906,7 @@ pub fn render_muxbox(
     parent_bg_color: &str,
     streams: &indexmap::IndexMap<String, crate::model::common::Stream>, // F0209: Stream-based rendering
     active_tab_index: usize, // F0208: Active tab index from muxbox
+    tab_scroll_offset: usize, // Scrollable tabs offset
     title_fg_color: &str,
     title_bg_color: &str,
     title_position: &str,
@@ -827,6 +1012,7 @@ pub fn render_muxbox(
             *draw_border,
             &tab_labels,
             active_tab_index,
+            tab_scroll_offset,
             buffer,
         );
     } else if *draw_border {

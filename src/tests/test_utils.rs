@@ -93,6 +93,7 @@ impl TestDataFactory {
             error_state: false,
             scroll_x: 0,
             scroll_y: 0,
+            tab_scroll_offset: 0,
             streams: indexmap::IndexMap::new(),
         }
     }
