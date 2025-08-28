@@ -451,7 +451,7 @@ fn mock_update_function(
 fn mock_event_handler(_context: &PluginContext, event: &PluginEvent) -> Result<(), PluginError> {
     match event {
         PluginEvent::KeyPress(key) => {
-            println!("Plugin received key press: {}", key);
+            log::debug!("Plugin received key press: {}", key);
         }
         _ => {}
     }

@@ -370,13 +370,13 @@ impl RunnableImpl {
             self.app_context = updated_app_context;
         }
 
-        log::info!(
+        log::trace!(
             "RunnableImpl _run: state={:?}, messages={}",
             self.running_state,
             new_messages.len()
         );
         if self.running_state == RunnableState::Running {
-            log::info!(
+            log::trace!(
                 "RunnableImpl calling process function with {} messages",
                 new_messages.len()
             );
@@ -387,12 +387,12 @@ impl RunnableImpl {
                 self.send_app_context_update(original_app_context);
             }
             should_continue = process_should_continue;
-            log::info!(
+            log::trace!(
                 "RunnableImpl process function returned should_continue={}",
                 should_continue
             );
         } else {
-            log::info!(
+            log::debug!(
                 "RunnableImpl NOT calling process function - state is {:?}",
                 self.running_state
             );
@@ -629,7 +629,7 @@ impl ThreadManager {
                         let choice_uuid = self.spawn_thread(choice_runnable);
 
                         // Send ExecuteChoice message to the spawned runnable via unified message system
-                        log::info!(
+                        log::debug!(
                             "ThreadManager sending ExecuteChoice message to runnable thread: {}",
                             choice_uuid
                         );
@@ -743,11 +743,11 @@ impl ThreadManager {
 
     pub fn send_message_to_thread(&self, msg: (Uuid, Message), uuid: Uuid) {
         if let Some(sender) = self.message_senders.get(&uuid) {
-            log::info!("ThreadManager found message sender for thread: {}", uuid);
+            log::debug!("ThreadManager found message sender for thread: {}", uuid);
             if let Err(e) = sender.send(msg) {
                 log::error!("Failed to send message to thread {}: {}", uuid, e);
             } else {
-                log::info!(
+                log::debug!(
                     "ThreadManager successfully sent message to thread: {}",
                     uuid
                 );
@@ -899,12 +899,12 @@ create_runnable!(
     ChoiceExecutionRunnable,
     |inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool {
         // Initialize - no setup needed for choice execution
-        log::info!(
+        log::debug!(
             "ChoiceExecutionRunnable initialization: state={:?}",
             inner.running_state
         );
         inner.running_state = RunnableState::Running;
-        log::info!("ChoiceExecutionRunnable set state to Running");
+        log::debug!("ChoiceExecutionRunnable set state to Running");
         true
     },
     |inner: &mut RunnableImpl,
@@ -913,7 +913,7 @@ create_runnable!(
      -> (bool, AppContext) {
         // Debug: Always log to see if processing function is called
         let message_count = messages.len();
-        log::info!(
+        log::debug!(
             "ChoiceExecutionRunnable processing function called with {} messages",
             message_count
         );
@@ -993,7 +993,7 @@ create_runnable!(
                     Err("No script defined for choice".to_string())
                 };
 
-                log::info!(
+                log::debug!(
                     "ChoiceExecutionRunnable sending completion message for choice: {}",
                     choice_id
                 );
@@ -1006,7 +1006,7 @@ create_runnable!(
 
         // Continue if no messages received yet, terminate after processing ExecuteChoice
         let should_continue = !has_executed_choice; // Continue until we process an ExecuteChoice
-        log::info!(
+        log::debug!(
             "ChoiceExecutionRunnable: messages={}, has_executed_choice={}, should_continue={}",
             message_count,
             has_executed_choice,

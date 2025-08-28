@@ -135,7 +135,7 @@ pub fn draw_muxbox(
     let mut muxbox_adjusted_bounds = None;
     match layout_adjusted_bounds {
         Some(value) => muxbox_adjusted_bounds = value.get(&muxbox.id),
-        None => println!("Calculated bounds for layout {} not found", &layout.id),
+        None => log::error!("Calculated bounds for layout {} not found", &layout.id),
     }
 
     match muxbox_adjusted_bounds {
@@ -311,7 +311,7 @@ pub fn draw_muxbox(
                 }
             }
         }
-        None => println!("Calculated bounds for muxbox {} not found", &muxbox.id),
+        None => log::error!("Calculated bounds for muxbox {} not found", &muxbox.id),
     }
 }
 
