@@ -2184,6 +2184,27 @@ impl MuxBox {
         labels
     }
 
+    /// F0219: Get close button information for each tab (same order as get_tab_labels)
+    pub fn get_tab_close_buttons(&self) -> Vec<bool> {
+        let mut close_buttons = Vec::new();
+        
+        // Use exact same ordering as get_tab_labels() - natural IndexMap insertion order
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
+        
+        for stream_id in stream_ids {
+            let stream = &self.streams[&stream_id];
+            close_buttons.push(stream.is_closeable());
+        }
+        
+        close_buttons
+    }
+
+    /// F0219: Get stream IDs in tab order (for close button click handling)
+    pub fn get_tab_stream_ids(&self) -> Vec<String> {
+        // Use exact same ordering as get_tab_labels() - natural IndexMap insertion order
+        self.streams.keys().cloned().collect()
+    }
+
     /// Check if tabs need scrolling (overflow available width)
     pub fn tabs_need_scrolling(&self, available_width: usize) -> bool {
         let tab_labels = self.get_tab_labels();

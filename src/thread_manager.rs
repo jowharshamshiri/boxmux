@@ -69,6 +69,7 @@ pub enum Message {
     SwitchToStream(String, String),     // muxbox_id, stream_id
     AddStream(String, crate::model::common::StreamSource), // muxbox_id, stream
     RemoveStream(String, String),       // muxbox_id, stream_id
+    CloseTab(String, String),           // muxbox_id, stream_id - F0219: Close button for redirected tabs
     UpdateStreamContent(String, String, String), // muxbox_id, stream_id, content
 }
 
@@ -262,6 +263,11 @@ impl Hash for Message {
             }
             Message::RemoveStream(muxbox_id, stream_id) => {
                 "remove_stream".hash(state);
+                muxbox_id.hash(state);
+                stream_id.hash(state);
+            }
+            Message::CloseTab(muxbox_id, stream_id) => {
+                "close_tab".hash(state);
                 muxbox_id.hash(state);
                 stream_id.hash(state);
             }

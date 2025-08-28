@@ -399,6 +399,17 @@ impl Stream {
     pub fn time_since_last_update(&self) -> Result<std::time::Duration, std::time::SystemTimeError> {
         std::time::SystemTime::now().duration_since(self.last_updated)
     }
+
+    /// F0219: Check if stream can be closed (has close button)
+    pub fn is_closeable(&self) -> bool {
+        match &self.stream_type {
+            StreamType::RedirectedOutput(_) |
+            StreamType::ChoiceExecution(_) |
+            StreamType::PtySession(_) |
+            StreamType::ExternalSocket => true,
+            _ => false,
+        }
+    }
 }
 
 // F0217: Implement ContentStreamTrait for content-type streams

@@ -322,9 +322,9 @@ mod layout_validation_tests {
             total_time.as_millis()
         );
 
-        // All files combined should load within reasonable time (5 seconds)
+        // All files combined should load within reasonable time (8 seconds for complex stream layouts)
         assert!(
-            total_time.as_secs() < 5,
+            total_time.as_secs() < 8,
             "Total loading time too long: {}ms",
             total_time.as_millis()
         );

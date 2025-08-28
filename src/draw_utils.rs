@@ -545,6 +545,7 @@ pub fn draw_horizontal_line_with_tabs(
     title_position: &str,
     draw_border: bool,
     tab_labels: &[String],
+    tab_close_buttons: &[bool], // F0219: Close button info for each tab
     active_tab_index: usize,
     tab_scroll_offset: usize,
     buffer: &mut ScreenBuffer,
@@ -555,7 +556,7 @@ pub fn draw_horizontal_line_with_tabs(
     if tab_labels.len() > 0 {
         draw_tab_bar(
             y, x1, x2, fg_color, bg_color, title_fg_color, title_bg_color,
-            tab_labels, active_tab_index, tab_scroll_offset, draw_border, buffer
+            tab_labels, tab_close_buttons, active_tab_index, tab_scroll_offset, draw_border, buffer
         );
     } else {
         // No tabs initialized - fall back to empty border line
@@ -575,6 +576,7 @@ fn draw_tab_bar(
     title_fg_color: &str,
     title_bg_color: &str,
     tab_labels: &[String],
+    tab_close_buttons: &[bool], // F0219: Close button info for each tab
     active_tab_index: usize,
     tab_scroll_offset: usize,
     draw_border: bool,
@@ -682,8 +684,9 @@ fn draw_tab_bar(
             }
             
             // Draw the tab
+            let has_close_button = tab_close_buttons.get(tab_index).copied().unwrap_or(false);
             draw_single_tab(y, tab_x, adjusted_tab_width, &tab_labels[tab_index], 
-                           tab_index == active_tab_index, title_fg_color, title_bg_color, buffer);
+                           tab_index == active_tab_index, has_close_button, title_fg_color, title_bg_color, buffer);
             tab_x += adjusted_tab_width;
             
             // Draw separator after tab (except for last tab)
@@ -731,6 +734,7 @@ fn draw_single_tab(
     width: usize,
     label: &str,
     is_active: bool,
+    has_close_button: bool,
     title_fg_color: &str,
     title_bg_color: &str,
     buffer: &mut ScreenBuffer,
@@ -741,9 +745,13 @@ fn draw_single_tab(
         (title_fg_color, title_bg_color)
     };
     
-    // Truncate label to fit tab width (character-aware)
+    // F0219: Reserve space for close button if needed
+    let close_button_space = if has_close_button { 2 } else { 0 }; // "×" + space
+    let available_label_width = width.saturating_sub(close_button_space + 2); // 2 for padding
+    
+    // Truncate label to fit available space (character-aware)
     let mut display_label = label.to_string();
-    let max_label_chars = width.saturating_sub(2);
+    let max_label_chars = available_label_width;
     
     if display_label.chars().count() > max_label_chars {
         let truncate_chars = max_label_chars.saturating_sub(1);
@@ -751,22 +759,58 @@ fn draw_single_tab(
         display_label.push('…');
     }
     
-    // Pad label to center it in tab
-    let padded_label = format!(" {} ", display_label);
-    let padded_char_count = padded_label.chars().count();
-    let display_chars = padded_char_count.min(width);
-    
-    let display_text = if display_chars < padded_char_count {
-        padded_label.chars().take(display_chars).collect::<String>()
-    } else {
-        padded_label
-    };
-    
-    // Draw tab background
+    // Draw tab background first
     fill_horizontal_background(y, x, x + width - 1, tab_fg, tab_bg, buffer);
     
-    // Draw tab text
-    print_with_color_and_background_at(y, x, tab_fg, tab_bg, &display_text, buffer);
+    if has_close_button {
+        // F0219: Position close button with aesthetic spacing when possible
+        // Reserve 2 chars minimum for "×" (with space if room), more if width allows
+        let min_close_area = 2; // Minimum: "×" + space
+        let preferred_close_area = if width >= 8 { 3 } else { min_close_area }; // Preferred: " ×" + space
+        
+        let close_area_width = preferred_close_area.min(width.saturating_sub(2)); // Don't take all width
+        let close_button_x = x + width - close_area_width;
+        let label_space = width.saturating_sub(close_area_width + 1); // 1 for left padding
+        
+        // Truncate label if needed to leave room for close button area
+        let mut final_label = display_label.clone();
+        if final_label.chars().count() > label_space {
+            let truncate_chars = label_space.saturating_sub(1); // Leave room for "…"
+            if truncate_chars > 0 {
+                final_label = final_label.chars().take(truncate_chars).collect::<String>();
+                final_label.push('…');
+            } else {
+                final_label = "…".to_string();
+            }
+        }
+        
+        // Draw label with left padding
+        let label_content = format!(" {}", final_label);
+        print_with_color_and_background_at(y, x, tab_fg, tab_bg, &label_content, buffer);
+        
+        // Draw close button with aesthetic spacing
+        if close_area_width >= 3 {
+            // Enough room for " ×" pattern
+            print_with_color_and_background_at(y, close_button_x, tab_fg, tab_bg, " ×", buffer);
+        } else {
+            // Minimal space - just "×" at edge-1 position  
+            print_with_color_and_background_at(y, x + width - 2, tab_fg, tab_bg, "×", buffer);
+        }
+    } else {
+        // Regular tab without close button - center the label
+        let tab_content = format!(" {} ", display_label);
+        let tab_char_count = tab_content.chars().count();
+        let display_chars = tab_char_count.min(width);
+        
+        let display_text = if display_chars < tab_char_count {
+            tab_content.chars().take(display_chars).collect::<String>()
+        } else {
+            tab_content
+        };
+        
+        // Draw tab text
+        print_with_color_and_background_at(y, x, tab_fg, tab_bg, &display_text, buffer);
+    }
 }
 
 pub fn calculate_tab_click_index(
@@ -950,6 +994,119 @@ pub fn calculate_tab_navigation_click(
     None
 }
 
+/// F0219: Calculate if click was on a close button within a tab
+pub fn calculate_tab_close_click(
+    click_x: usize,
+    x1: usize,
+    x2: usize,
+    tab_labels: &[String],
+    tab_close_buttons: &[bool],
+    tab_scroll_offset: usize,
+    draw_border: bool,
+) -> Option<usize> {
+    if tab_labels.is_empty() || tab_close_buttons.is_empty() {
+        return None;
+    }
+    
+    let total_width = x2.saturating_sub(x1);
+    
+    // Same space calculations as draw_tab_bar and calculate_tab_click_index
+    let left_arrow_space = 2;
+    let right_arrow_space = 2;
+    let border_space = if draw_border { 4 } else { 0 };
+    let tab_area_width = total_width.saturating_sub(left_arrow_space + right_arrow_space + border_space);
+    
+    let tab_area_start = x1 + if draw_border { 2 } else { 0 } + left_arrow_space;
+    
+    // Calculate tab dimensions
+    let max_tab_width = 16;
+    let min_tab_width = 6;
+    let ideal_tab_width = if tab_labels.len() > 0 { tab_area_width / tab_labels.len() } else { max_tab_width };
+    let tab_width = ideal_tab_width.clamp(min_tab_width, max_tab_width);
+    let total_tabs_width = tab_labels.len() * tab_width;
+    let needs_scrolling = total_tabs_width > tab_area_width;
+    
+    let separator_width = 1;
+    let visible_tabs;
+    let mut adjusted_tab_width;
+    
+    if needs_scrolling {
+        let min_tab_with_separator = min_tab_width + separator_width;
+        let max_visible_tabs = tab_area_width / min_tab_with_separator.max(1);
+        let remaining_tabs = tab_labels.len().saturating_sub(tab_scroll_offset);
+        visible_tabs = max_visible_tabs.min(remaining_tabs).max(1);
+        
+        if visible_tabs > 0 {
+            let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
+            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+            adjusted_tab_width = adjusted_tab_width.max(min_tab_width);
+        } else {
+            adjusted_tab_width = min_tab_width;
+        }
+    } else {
+        visible_tabs = tab_labels.len();
+        if visible_tabs > 0 {
+            let total_separator_space = (visible_tabs.saturating_sub(1)) * separator_width;
+            adjusted_tab_width = (tab_area_width.saturating_sub(total_separator_space)) / visible_tabs;
+        } else {
+            adjusted_tab_width = tab_width;
+        }
+    }
+    
+    // Add centering offset to match the tab drawing positioning
+    let total_tabs_width = if visible_tabs > 0 {
+        visible_tabs * adjusted_tab_width + (visible_tabs.saturating_sub(1)) * separator_width
+    } else {
+        0
+    };
+    
+    let centering_offset = if needs_scrolling {
+        0
+    } else {
+        (tab_area_width.saturating_sub(total_tabs_width)) / 2
+    };
+    
+    // Check each visible tab for close button clicks
+    let mut tab_x = tab_area_start + centering_offset;
+    
+    for i in 0..visible_tabs {
+        let tab_index = tab_scroll_offset + i;
+        if tab_index >= tab_labels.len() || tab_index >= tab_close_buttons.len() {
+            break;
+        }
+        
+        // Check if this tab has a close button
+        if tab_close_buttons[tab_index] {
+            // Close button click detection - account for aesthetic spacing
+            let min_close_area = 2;
+            let preferred_close_area = if adjusted_tab_width >= 8 { 3 } else { min_close_area };
+            let close_area_width = preferred_close_area.min(adjusted_tab_width.saturating_sub(2));
+            
+            if close_area_width >= 3 {
+                // " ×" pattern - check both space and × positions
+                let close_start_x = tab_x + adjusted_tab_width - close_area_width;
+                let close_end_x = tab_x + adjusted_tab_width - 1;
+                if click_x >= close_start_x && click_x <= close_end_x {
+                    return Some(tab_index);
+                }
+            } else {
+                // Minimal "×" at edge-1 position
+                let close_button_x = tab_x + adjusted_tab_width - 2;
+                if click_x == close_button_x {
+                    return Some(tab_index);
+                }
+            }
+        }
+        
+        tab_x += adjusted_tab_width;
+        if i < visible_tabs.saturating_sub(1) {
+            tab_x += separator_width;
+        }
+    }
+    
+    None
+}
+
 #[derive(Debug, Clone)]
 pub enum TabNavigationAction {
     ScrollLeft,
@@ -980,7 +1137,7 @@ pub fn render_muxbox(
     buffer: &mut ScreenBuffer,
 ) {
     // F0217: Extract content and tabs from streams using trait-based approach
-    let (should_render_choices, content_str, tab_labels) = if !streams.is_empty() {
+    let (should_render_choices, content_str, tab_labels, tab_close_buttons) = if !streams.is_empty() {
         // Get active stream
         let active_stream = streams.values().find(|s| s.active);
         let should_render_choices = if let Some(stream) = active_stream {
@@ -1013,10 +1170,13 @@ pub fn render_muxbox(
         // Generate tab labels from streams using IndexMap insertion order (same as muxbox.get_tab_labels())
         let tabs: Vec<String> = streams.iter().map(|(_, s)| s.label.clone()).collect();
         
-        (should_render_choices, content_str, tabs)
+        // F0219: Generate close button info for each tab
+        let close_buttons: Vec<bool> = streams.iter().map(|(_, s)| s.is_closeable()).collect();
+        
+        (should_render_choices, content_str, tabs, close_buttons)
     } else {
         // No streams - empty content
-        (false, None, vec![])
+        (false, None, vec![], vec![])
     };
     
     let content = content_str.as_deref();
@@ -1068,6 +1228,7 @@ pub fn render_muxbox(
             title_position,
             *draw_border,
             &tab_labels,
+            &tab_close_buttons,
             active_tab_index,
             tab_scroll_offset,
             buffer,

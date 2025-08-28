@@ -123,6 +123,9 @@ pub mod muxbox_bounds_clipping_tests;
 pub mod conditional_stream_creation_tests;
 
 #[cfg(test)]
+mod tab_close_button_tests;
+
+#[cfg(test)]
 pub mod scrollable_tabs_tests;
 
 

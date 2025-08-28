@@ -1298,6 +1298,22 @@ create_runnable!(
                                             inner.update_app_context(app_context_for_click.clone());
                                         }
                                         handled_tab_click = true;
+                                    } else if let Some(close_tab_index) = crate::draw_utils::calculate_tab_close_click(
+                                        *x as usize,
+                                        muxbox_bounds.left(), 
+                                        muxbox_bounds.right(),
+                                        &tab_labels,
+                                        &clicked_muxbox.get_tab_close_buttons(),
+                                        clicked_muxbox.tab_scroll_offset,
+                                        has_border
+                                    ) {
+                                        // F0219: Handle close button click
+                                        let stream_ids = clicked_muxbox.get_tab_stream_ids();
+                                        if let Some(stream_id) = stream_ids.get(close_tab_index) {
+                                            log::info!("Close button clicked for tab {} (stream: {})", close_tab_index, stream_id);
+                                            inner.send_message(Message::CloseTab(clicked_muxbox.id.clone(), stream_id.clone()));
+                                        }
+                                        handled_tab_click = true;
                                     } else if let Some(clicked_tab_index) = crate::draw_utils::calculate_tab_click_index(
                                         *x as usize, 
                                         muxbox_bounds.left(), 
@@ -2205,6 +2221,26 @@ create_runnable!(
                             } else {
                                 log::warn!("Stream {} not found in muxbox {} for cleanup", stream_id, muxbox_id);
                             }
+                        }
+                    }
+                    Message::CloseTab(muxbox_id, stream_id) => {
+                        // F0219: Handle close tab request - same as RemoveStream but with user confirmation
+                        log::info!("Close tab requested for stream {} in muxbox {}", stream_id, muxbox_id);
+                        
+                        // Check if stream is closeable before closing
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(&muxbox_id) {
+                            if let Some(stream) = muxbox.streams.get(stream_id) {
+                                if stream.is_closeable() {
+                                    // Use existing RemoveStream handler logic
+                                    inner.send_message(Message::RemoveStream(muxbox_id.clone(), stream_id.clone()));
+                                } else {
+                                    log::warn!("Attempted to close non-closeable stream {} in muxbox {}", stream_id, muxbox_id);
+                                }
+                            } else {
+                                log::warn!("Stream {} not found in muxbox {} for close operation", stream_id, muxbox_id);
+                            }
+                        } else {
+                            log::warn!("MuxBox {} not found for close tab operation", muxbox_id);
                         }
                     }
                     Message::UpdateStreamContent(muxbox_id, stream_id, content) => {
