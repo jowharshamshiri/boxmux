@@ -81,6 +81,7 @@ mod mouse_click_tests {
             redirect_output: Some("output_muxbox".to_string()),
             append_output: Some(false),
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
         };
@@ -113,6 +114,7 @@ mod mouse_click_tests {
             redirect_output: None,
             append_output: None,
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
         };
@@ -125,6 +127,7 @@ mod mouse_click_tests {
             redirect_output: Some("output".to_string()),
             append_output: Some(true),
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
         };

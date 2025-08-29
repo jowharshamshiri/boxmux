@@ -11,33 +11,36 @@ mod pty_input_tests {
     #[test]
     fn test_should_use_pty_enabled() {
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_muxbox");
-        muxbox.pty = Some(true);
+        muxbox.pty = Some(true); // F0226: Legacy field - should be overridden by execution_mode
+        muxbox.execution_mode = crate::model::common::ExecutionMode::Pty; // F0226: ExecutionMode determines PTY usage
 
         assert!(
             should_use_pty(&muxbox),
-            "MuxBox with pty: true should use PTY"
+            "MuxBox with ExecutionMode::Pty should use PTY"
         );
     }
 
     #[test]
     fn test_should_use_pty_disabled() {
         let mut muxbox = TestDataFactory::create_test_muxbox("regular_muxbox");
-        muxbox.pty = Some(false);
+        muxbox.pty = Some(true); // F0226: Legacy field should be ignored
+        muxbox.execution_mode = crate::model::common::ExecutionMode::Thread; // F0226: ExecutionMode overrides legacy pty field
 
         assert!(
             !should_use_pty(&muxbox),
-            "MuxBox with pty: false should not use PTY"
+            "MuxBox with ExecutionMode::Thread should not use PTY even if legacy pty=true"
         );
     }
 
     #[test]
     fn test_should_use_pty_default() {
         let muxbox = TestDataFactory::create_test_muxbox("default_muxbox");
-        // pty field is None by default
+        // F0226: ExecutionMode defaults to Immediate, pty field is None by default
 
+        assert_eq!(muxbox.execution_mode, crate::model::common::ExecutionMode::Immediate);
         assert!(
             !should_use_pty(&muxbox),
-            "MuxBox with no pty field should default to false"
+            "MuxBox with default ExecutionMode::Immediate should not use PTY"
         );
     }
 
@@ -53,7 +56,8 @@ mod pty_input_tests {
                 y2: "100%".to_string(),
             },
             border: Some(true),
-            pty: Some(true),
+            pty: Some(true), // F0226: Legacy field - should be overridden by execution_mode
+            execution_mode: crate::model::common::ExecutionMode::Pty, // F0226: ExecutionMode determines PTY usage
             script: Some(vec!["echo 'PTY test'".to_string()]),
             ..Default::default()
         };

@@ -159,7 +159,7 @@ pub fn draw_muxbox(
                 .to_string();
             let border = muxbox.calc_border(app_context, app_graph);
             // F0135: PTY Error States - Use different colors based on PTY status
-            let border_color = if muxbox.pty.unwrap_or(false) {
+            let border_color = if muxbox.execution_mode.is_pty() {
                 // Check for error states and use appropriate colors
                 if let Some(pty_manager) = &app_context.pty_manager {
                     if pty_manager.is_pty_dead(&muxbox.id) {
@@ -213,7 +213,7 @@ pub fn draw_muxbox(
 
             // F0120: PTY Scrollback - Use scrollback content for PTY muxboxes
             let mut _pty_scrollback_content = None;
-            if muxbox.pty.unwrap_or(false) {
+            if muxbox.execution_mode.is_pty() {
                 if let Some(pty_manager) = &app_context.pty_manager {
                     if let Some(scrollback) = muxbox.get_scrollback_content(pty_manager) {
                         _pty_scrollback_content = Some(scrollback);
@@ -234,7 +234,7 @@ pub fn draw_muxbox(
             }
 
             // Add PTY indicator and process info to title if muxbox has PTY enabled
-            let _title_with_pty_indicator = if muxbox.pty.unwrap_or(false) {
+            let _title_with_pty_indicator = if muxbox.execution_mode.is_pty() {
                 // F0135: PTY Error States - Use different indicators for error states
                 let indicator = if let Some(pty_manager) = &app_context.pty_manager {
                     if pty_manager.is_pty_dead(&muxbox.id) {

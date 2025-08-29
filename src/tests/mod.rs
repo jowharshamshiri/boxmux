@@ -12,6 +12,43 @@ pub mod integration_tests;
 pub mod edge_case_tests;
 
 #[cfg(test)]
+pub mod execution_mode_tests;
+
+#[cfg(test)]
+pub mod execution_mode_migration_tests;
+pub mod stream_only_execution_tests;
+
+#[cfg(test)]
+pub mod execution_mode_schema_validation_tests; // F0230: ExecutionMode YAML Schema tests
+
+#[cfg(test)]
+pub mod execution_mode_migration_logic_tests; // F0229: ExecutionMode Migration Logic Tests
+
+#[cfg(test)]
+pub mod execution_mode_stream_source_traits_tests; // F0227: ExecutionMode Stream Source Traits Tests
+
+#[cfg(test)]
+pub mod execution_mode_message_system_tests; // F0228: ExecutionMode Message System Tests
+
+#[cfg(test)]
+pub mod unified_execution_mode_tests; // F0229: Unified ExecutionMode System Tests
+
+#[cfg(test)]
+pub mod thread_mode_execution_tests;
+
+#[cfg(test)]
+pub mod immediate_mode_execution_tests; // F0224: Immediate Mode Execution Tests
+
+#[cfg(test)]
+pub mod pty_mode_execution_tests; // F0226: PTY Mode Execution Tests
+
+#[cfg(test)]
+pub mod pty_mode_execution_integration_tests; // F0226: PTY Mode Execution Integration Tests
+
+#[cfg(test)]
+pub mod execution_mode_stream_integration_tests; // F0223: ExecutionMode Stream Integration tests
+
+#[cfg(test)]
 pub mod socket_tests;
 
 #[cfg(test)]
@@ -128,6 +165,9 @@ mod close_button_integration_test;
 
 #[cfg(test)]
 pub mod scrollable_tabs_tests;
+
+#[cfg(test)]
+pub mod unified_execution_architecture_tests;
 
 // Commented out due to test framework complexity - functionality tested via demo YAML
 //#[cfg(test)]

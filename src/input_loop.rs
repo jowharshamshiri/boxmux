@@ -344,16 +344,55 @@ create_runnable!(
                     }
                 }
 
+                // T0317: UNIFIED ARCHITECTURE - Replace direct run_script calls with ExecuteScript messages
                 if let Some(app_key_mappings) = &app_context.app.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, app_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        let _result = run_script(libs, &actions);
+                        
+                        // Create ExecuteScript message for app-level keypress handlers
+                        use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference, ExecutionMode};
+                        
+                        let execute_script = ExecuteScript {
+                            script: actions,
+                            source: ExecutionSource {
+                                source_type: SourceType::SocketUpdate,
+                                source_id: format!("app_keypress_{}", key_str),
+                                source_reference: SourceReference::SocketCommand(format!("app keypress: {}", key_str)),
+                            },
+                            execution_mode: ExecutionMode::Immediate, // App-level handlers use immediate execution
+                            target_box_id: "app_level".to_string(), // App level doesn't target a specific box
+                            libs: libs.unwrap_or_default(),
+                            redirect_output: None,
+                            append_output: false,
+                        };
+                        
+                        inner.send_message(Message::ExecuteScriptMessage(execute_script));
+                        log::info!("T0317: ExecuteScript message sent for app keypress handler ({})", key_str);
                     }
                 }
                 if let Some(layout_key_mappings) = &active_layout.on_keypress {
                     if let Some(actions) = handle_keypress(&key_str, layout_key_mappings) {
                         let libs = app_context.app.libs.clone();
-                        let _ = run_script(libs, &actions);
+                        
+                        // Create ExecuteScript message for layout-level keypress handlers
+                        use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference, ExecutionMode};
+                        
+                        let execute_script = ExecuteScript {
+                            script: actions,
+                            source: ExecutionSource {
+                                source_type: SourceType::SocketUpdate,
+                                source_id: format!("layout_keypress_{}", key_str),
+                                source_reference: SourceReference::SocketCommand(format!("layout keypress: {}", key_str)),
+                            },
+                            execution_mode: ExecutionMode::Immediate, // Layout-level handlers use immediate execution
+                            target_box_id: format!("layout_{}", active_layout.id),
+                            libs: libs.unwrap_or_default(),
+                            redirect_output: None,
+                            append_output: false,
+                        };
+                        
+                        inner.send_message(Message::ExecuteScriptMessage(execute_script));
+                        log::info!("T0317: ExecuteScript message sent for layout keypress handler ({})", key_str);
                     }
                 }
 

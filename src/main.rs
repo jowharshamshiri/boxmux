@@ -38,7 +38,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
             if muxbox.script.is_some() {
                 let muxbox_id = muxbox.id.clone();
 
-                if muxbox.thread.unwrap_or(false) {
+                if muxbox.execution_mode.is_background() {
                     let vec_fn = move || vec![muxbox_id.clone()];
 
                     create_runnable_with_dynamic_input!(
@@ -62,25 +62,25 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 .get_muxbox_by_id_mut(&vec[0])
                                 .unwrap();
 
-                            // Check if muxbox should use PTY
-                            let use_pty = muxbox.pty.unwrap_or(false);
+                            // F0228: ExecutionMode Message System - Use ExecutionMode instead of legacy pty field
+                            let execution_mode = &muxbox.execution_mode;
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
                             match boxmux_lib::utils::run_script_with_pty(
                                 libs,
                                 muxbox.script.clone().unwrap().as_ref(),
-                                use_pty,
+                                execution_mode, // F0228: Use ExecutionMode
                                 app_context_unwrapped
                                     .pty_manager
                                     .as_ref()
                                     .map(|arc| arc.as_ref()),
-                                if use_pty {
+                                if execution_mode.is_pty() {
                                     Some(muxbox.id.clone())
                                 } else {
                                     None
                                 },
-                                if use_pty && sender_for_pty.is_some() {
+                                if execution_mode.is_pty() && sender_for_pty.is_some() {
                                     Some((sender_for_pty.unwrap().clone(), thread_uuid))
                                 } else {
                                     None
@@ -146,41 +146,38 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            // Check if muxbox should use PTY
-                            let use_pty = muxbox.pty.unwrap_or(false);
+                            // F0228: ExecutionMode Message System - Use ExecutionMode instead of legacy pty field
+                            let execution_mode = &muxbox.execution_mode;
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
-                            match boxmux_lib::utils::run_script_with_pty(
-                                libs,
-                                muxbox.script.clone().unwrap().as_ref(),
-                                use_pty,
-                                app_context_unwrapped
-                                    .pty_manager
-                                    .as_ref()
-                                    .map(|arc| arc.as_ref()),
-                                if use_pty {
-                                    Some(muxbox.id.clone())
-                                } else {
-                                    None
+                            // T0319: UNIFIED ARCHITECTURE - Replace legacy static script execution with ExecuteScript message
+                            log::info!("T0319: Static YAML script creating ExecuteScript for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
+                            
+                            // Create ExecuteScript message for static script execution
+                            use boxmux_lib::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
+                            
+                            let execute_script = ExecuteScript {
+                                script: muxbox.script.clone().unwrap(),
+                                source: ExecutionSource {
+                                    source_type: SourceType::StaticScript,
+                                    source_id: format!("static_script_{}", muxbox_id),
+                                    source_reference: SourceReference::StaticConfig(format!("muxbox {} refresh interval script", muxbox_id)),
                                 },
-                                if use_pty && sender_for_pty.is_some() {
-                                    Some((sender_for_pty.unwrap().clone(), thread_uuid))
-                                } else {
-                                    None
-                                },
-                            ) {
-                                Ok(output) => inner.send_message(Message::MuxBoxOutputUpdate(
-                                    muxbox_id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
-                                    muxbox_id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
-                            }
+                                execution_mode: execution_mode.clone(),
+                                target_box_id: muxbox_id.clone(),
+                                libs: libs.unwrap_or_default(),
+                                redirect_output: muxbox.redirect_output.clone(),
+                                append_output: muxbox.append_output.unwrap_or(false),
+                            };
+
+                            // Send ExecuteScript message instead of direct execution
+                            inner.send_message(Message::ExecuteScriptMessage(execute_script));
+
+                            log::info!(
+                                "T0319: ExecuteScript message sent for static muxbox {} script (unified architecture)",
+                                muxbox_id
+                            );
 
                             *last_execution_time = Instant::now();
                         }

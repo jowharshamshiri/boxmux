@@ -3,10 +3,12 @@ use crate::model::app::{
     save_active_layout_to_yaml, save_complete_state_to_yaml, save_muxbox_bounds_to_yaml,
     save_muxbox_content_to_yaml, save_muxbox_scroll_to_yaml,
 };
-use crate::model::common::{InputBounds, StreamSourceTrait};
+use crate::model::common::{
+    ExecutionMode, InputBounds, StreamSourceTrait, StreamType, StreamSource
+};
 use crate::model::muxbox::Choice;
 use crate::thread_manager::Runnable;
-use crate::utils::{run_script_with_pty_and_redirect, should_use_pty_for_choice};
+// use crate::utils::run_script_with_pty_and_redirect; // F0229: No longer used in unified system
 use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, run_script, AppContext, MuxBox,
     ScreenBuffer,
@@ -392,6 +394,340 @@ create_runnable!(
                 match message {
                     Message::MuxBoxEventRefresh(_) => {
                         log::trace!("MuxBoxEventRefresh");
+                    }
+                    // T0305-T0308: UNIFIED EXECUTION ARCHITECTURE - Phase 2 handlers
+                    Message::ExecuteScriptMessage(execute_script) => {
+                        log::info!("Processing ExecuteScript for target_box_id: {}, execution_mode: {:?}", 
+                                   execute_script.target_box_id, execute_script.execution_mode);
+                        
+                        // T0306: Stream-first creation logic - create stream BEFORE execution begins
+                        let stream_id = Uuid::new_v4().to_string();
+                        let source_id = execute_script.source.source_id.clone();
+                        
+                        // Create stream in target box first
+                        if let Some(target_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&execute_script.target_box_id) {
+                            // Create stream label based on source type
+                            let stream_label = match &execute_script.source.source_type {
+                                crate::model::common::SourceType::Choice(choice_id) => choice_id.clone(),
+                                crate::model::common::SourceType::StaticScript => "Script".to_string(),
+                                crate::model::common::SourceType::SocketUpdate => "Socket".to_string(),
+                                crate::model::common::SourceType::RedirectedScript => "Redirect".to_string(),
+                                crate::model::common::SourceType::HotkeyScript => "Hotkey".to_string(),
+                                crate::model::common::SourceType::ScheduledScript => "Scheduled".to_string(),
+                            };
+                            
+                            // Create execution stream with appropriate type
+                            let stream_type = match execute_script.execution_mode {
+                                crate::model::common::ExecutionMode::Immediate => StreamType::ChoiceExecution(source_id.clone()),
+                                crate::model::common::ExecutionMode::Thread => StreamType::ChoiceExecution(source_id.clone()),
+                                crate::model::common::ExecutionMode::Pty => StreamType::PtySession(format!("PTY-{}", source_id)),
+                            };
+                            
+                            let new_stream = crate::model::common::Stream::new(
+                                stream_id.clone(),
+                                stream_type,
+                                stream_label,
+                                Vec::new(),
+                                None,
+                                None, // TODO: Add proper StreamSource in future phase
+                            );
+                            
+                            // Add stream to target muxbox streams HashMap directly
+                            target_muxbox.streams.insert(stream_id.clone(), new_stream);
+                            
+                            log::info!("Created stream {} in box {} for execution", stream_id, execute_script.target_box_id);
+                        } else {
+                            log::error!("Target box {} not found for ExecuteScript", execute_script.target_box_id);
+                            continue;
+                        }
+                        
+                        // T0307: Execution mode dispatch - delegate to appropriate execution handler
+                        match execute_script.execution_mode {
+                            crate::model::common::ExecutionMode::Immediate => {
+                                // Batch mode - queue for dedicated batch thread (future implementation)
+                                log::info!("Batch execution not yet implemented - using immediate execution");
+                                // For now, execute immediately (will be moved to batch queue in later phase)
+                                let execution_result = crate::run_script(Some(execute_script.libs.clone()), &execute_script.script);
+                                
+                                // Create StreamUpdate message with result
+                                let source_state = crate::model::common::SourceState::Batch(crate::model::common::BatchSourceState {
+                                    task_id: source_id.clone(),
+                                    queue_wait_time: std::time::Duration::from_millis(0),
+                                    execution_time: std::time::Duration::from_millis(100), // Placeholder
+                                    exit_code: None,
+                                    status: match execution_result {
+                                        Ok(_) => crate::model::common::BatchStatus::Completed,
+                                        Err(ref e) => crate::model::common::BatchStatus::Failed(e.to_string()),
+                                    },
+                                });
+                                
+                                let content_update = match execution_result {
+                                    Ok(output) => output,
+                                    Err(e) => format!("Error: {}", e),
+                                };
+                                
+                                let stream_update = crate::model::common::StreamUpdate {
+                                    stream_id: stream_id.clone(),
+                                    content_update,
+                                    source_state,
+                                    execution_mode: execute_script.execution_mode.clone(),
+                                };
+                                
+                                // Send StreamUpdate message back to self
+                                inner.send_message(Message::StreamUpdateMessage(stream_update));
+                            }
+                            crate::model::common::ExecutionMode::Thread => {
+                                // Thread mode - dispatch to general thread pool (future implementation)
+                                log::info!("Thread execution dispatch not yet implemented - using immediate execution");
+                                // Placeholder - will dispatch to ThreadManager in later phase
+                            }
+                            crate::model::common::ExecutionMode::Pty => {
+                                // PTY mode - spawn PTY process (future implementation)
+                                log::info!("PTY execution dispatch not yet implemented");
+                                // Placeholder - will spawn PTY process in later phase
+                            }
+                        }
+                    }
+                    Message::StreamUpdateMessage(stream_update) => {
+                        log::info!("Processing StreamUpdate for stream_id: {}, execution_mode: {:?}", 
+                                   stream_update.stream_id, stream_update.execution_mode);
+                        
+                        // T0308: StreamUpdate handler - append content to target stream
+                        // Find the target stream across all muxboxes
+                        let mut stream_found = false;
+                        for layout in &mut app_context_unwrapped.app.layouts {
+                            if let Some(children) = &mut layout.children {
+                                for muxbox in children {
+                                    if let Some(stream) = muxbox.streams.get_mut(&stream_update.stream_id) {
+                                        // Append content to stream
+                                        if !stream_update.content_update.is_empty() {
+                                            stream.content.push(stream_update.content_update.clone());
+                                            log::debug!("Appended content to stream {}: {} characters", 
+                                                        stream_update.stream_id, stream_update.content_update.len());
+                                        }
+                                        
+                                        // Update source state tracking (future implementation)
+                                        // TODO: Store source_state in stream for lifecycle management
+                                        
+                                        stream_found = true;
+                                        
+                                        // Trigger redraw of the containing muxbox
+                                        inner.send_message(Message::RedrawMuxBox(muxbox.id.clone()));
+                                        break;
+                                    }
+                                }
+                                if stream_found {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if !stream_found {
+                            log::warn!("Stream {} not found for update", stream_update.stream_id);
+                        }
+                    }
+                    Message::SourceActionMessage(source_action) => {
+                        log::info!("Processing SourceAction: {:?} for source_id: {}, execution_mode: {:?}", 
+                                   source_action.action, source_action.source_id, source_action.execution_mode);
+                        
+                        // T0320: SourceAction handler - Phase 4 source lifecycle management implementation
+                        match source_action.action {
+                            crate::model::common::ActionType::Kill => {
+                                log::info!("Kill action for source {} (mode: {:?})", source_action.source_id, source_action.execution_mode);
+                                
+                                // Find and terminate the source based on execution mode
+                                let mut source_terminated = false;
+                                let mut stream_to_update: Option<(String, String)> = None; // (stream_id, muxbox_id)
+                                
+                                // Search all muxboxes for streams with this source_id (read-only first)
+                                for layout in &app_context_unwrapped.app.layouts {
+                                    for muxbox in layout.get_all_muxboxes() {
+                                        for (stream_id, stream) in &muxbox.streams {
+                                            // Check if this stream matches the source_id
+                                            let stream_source_id = match &stream.stream_type {
+                                                StreamType::ChoiceExecution(id) => Some(id.clone()),
+                                                StreamType::PtySession(id) => {
+                                                    // Extract source_id from PTY session format "PTY-{source_id}"
+                                                    if id.starts_with("PTY-") {
+                                                        Some(id[4..].to_string())
+                                                    } else {
+                                                        Some(id.clone())
+                                                    }
+                                                },
+                                                _ => None,
+                                            };
+                                            
+                                            if let Some(stream_src_id) = stream_source_id {
+                                                if stream_src_id == source_action.source_id {
+                                                    log::info!("Found stream {} with source_id {} for termination", stream_id, source_action.source_id);
+                                                    stream_to_update = Some((stream_id.clone(), muxbox.id.clone()));
+                                                    source_terminated = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if source_terminated { break; }
+                                    }
+                                    if source_terminated { break; }
+                                }
+                                
+                                // Now perform the actual cleanup if we found the stream
+                                if let Some((stream_id, muxbox_id)) = stream_to_update {
+                                    // Get mutable access to perform cleanup
+                                    if let Some(target_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&muxbox_id) {
+                                        if let Some(stream) = target_muxbox.streams.get(&stream_id) {
+                                            // Attempt source cleanup based on execution mode
+                                            if let Some(ref stream_source) = stream.source {
+                                                match source_action.execution_mode {
+                                                    crate::model::common::ExecutionMode::Immediate => {
+                                                        // Batch mode - attempt to cancel queued task
+                                                        if let Err(e) = stream_source.cleanup() {
+                                                            log::warn!("Failed to cleanup batch source {}: {}", source_action.source_id, e);
+                                                        } else {
+                                                            log::info!("Successfully terminated batch source {}", source_action.source_id);
+                                                        }
+                                                    }
+                                                    crate::model::common::ExecutionMode::Thread => {
+                                                        // Thread mode - interrupt thread execution
+                                                        if let Err(e) = stream_source.cleanup() {
+                                                            log::warn!("Failed to cleanup thread source {}: {}", source_action.source_id, e);
+                                                        } else {
+                                                            log::info!("Successfully terminated thread source {}", source_action.source_id);
+                                                        }
+                                                    }
+                                                    crate::model::common::ExecutionMode::Pty => {
+                                                        // PTY mode - kill PTY process
+                                                        if let Err(e) = stream_source.cleanup() {
+                                                            log::warn!("Failed to cleanup PTY source {}: {}", source_action.source_id, e);
+                                                        } else {
+                                                            log::info!("Successfully terminated PTY source {}", source_action.source_id);
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                log::info!("Stream {} source already terminated or inactive", stream_id);
+                                            }
+                                            
+                                            // Send StreamUpdate with terminated status
+                                            let terminated_state = match source_action.execution_mode {
+                                                crate::model::common::ExecutionMode::Immediate => {
+                                                    crate::model::common::SourceState::Batch(
+                                                        crate::model::common::BatchSourceState {
+                                                            task_id: source_action.source_id.clone(),
+                                                            queue_wait_time: std::time::Duration::from_secs(0),
+                                                            execution_time: std::time::Duration::from_secs(0),
+                                                            exit_code: Some(1),
+                                                            status: crate::model::common::BatchStatus::Failed("Killed by user".to_string())
+                                                        }
+                                                    )
+                                                }
+                                                crate::model::common::ExecutionMode::Thread => {
+                                                    crate::model::common::SourceState::Thread(
+                                                        crate::model::common::ThreadSourceState {
+                                                            thread_id: source_action.source_id.clone(),
+                                                            execution_time: std::time::Duration::from_secs(0),
+                                                            exit_code: Some(1),
+                                                            status: crate::model::common::ExecutionThreadStatus::Failed("Killed by user".to_string())
+                                                        }
+                                                    )
+                                                }
+                                                crate::model::common::ExecutionMode::Pty => {
+                                                    crate::model::common::SourceState::Pty(
+                                                        crate::model::common::PtySourceState {
+                                                            process_id: 0, // Will be updated by actual PTY termination
+                                                            runtime: std::time::Duration::from_secs(0),
+                                                            exit_code: Some(1),
+                                                            status: crate::model::common::ExecutionPtyStatus::Terminated
+                                                        }
+                                                    )
+                                                }
+                                            };
+                                            
+                                            let termination_update = crate::model::common::StreamUpdate {
+                                                stream_id: stream_id.clone(),
+                                                content_update: "\n[Process terminated by user]".to_string(),
+                                                source_state: terminated_state,
+                                                execution_mode: source_action.execution_mode.clone(),
+                                            };
+                                            
+                                            inner.send_message(Message::StreamUpdateMessage(termination_update));
+                                        }
+                                    }
+                                } else {
+                                    log::warn!("Source {} not found for kill action", source_action.source_id);
+                                }
+                            }
+                            crate::model::common::ActionType::Query => {
+                                log::info!("Query action for source {} (mode: {:?})", source_action.source_id, source_action.execution_mode);
+                                
+                                // Find source and return status information
+                                let mut found_source = false;
+                                for layout in &app_context_unwrapped.app.layouts {
+                                    for muxbox in layout.get_all_muxboxes() {
+                                        for (stream_id, stream) in &muxbox.streams {
+                                            let stream_source_id = match &stream.stream_type {
+                                                StreamType::ChoiceExecution(id) => Some(id.clone()),
+                                                StreamType::PtySession(id) => {
+                                                    if id.starts_with("PTY-") {
+                                                        Some(id[4..].to_string())
+                                                    } else {
+                                                        Some(id.clone())
+                                                    }
+                                                },
+                                                _ => None,
+                                            };
+                                            
+                                            if let Some(stream_src_id) = stream_source_id {
+                                                if stream_src_id == source_action.source_id {
+                                                    log::info!("Source {} status: stream_id={}, active={}", 
+                                                              source_action.source_id, 
+                                                              stream_id, 
+                                                              stream.source.is_some());
+                                                    found_source = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if found_source { break; }
+                                    }
+                                    if found_source { break; }
+                                }
+                                
+                                if !found_source {
+                                    log::info!("Source {} not found for query", source_action.source_id);
+                                }
+                            }
+                            crate::model::common::ActionType::Pause => {
+                                log::info!("Pause action for source {} (mode: {:?}) - not supported in current implementation", 
+                                          source_action.source_id, source_action.execution_mode);
+                                // Pause/Resume not implemented in Phase 4 - future enhancement
+                            }
+                            crate::model::common::ActionType::Resume => {
+                                log::info!("Resume action for source {} (mode: {:?}) - not supported in current implementation", 
+                                          source_action.source_id, source_action.execution_mode);
+                                // Pause/Resume not implemented in Phase 4 - future enhancement
+                            }
+                        }
+                    }
+                    // F0229: CreateChoiceExecutionStream message - unified stream creation for all execution paths
+                    Message::CreateChoiceExecutionStream(stream_id, target_muxbox_id, execution_mode, _stream_label) => {
+                        // Only create streams for non-PTY modes - PTY creates its own via MuxBoxOutputUpdate
+                        if *execution_mode != ExecutionMode::Pty {
+                            let choice_id = if let Some(last_underscore) = stream_id.rfind('_') {
+                                &stream_id[..last_underscore]
+                            } else {
+                                &stream_id
+                            };
+                            
+                            create_execution_stream_only(
+                                inner,
+                                &mut app_context_unwrapped,
+                                &target_muxbox_id,
+                                &stream_id,
+                                choice_id,
+                                execution_mode.clone(),
+                            );
+                        }
                     }
                     Message::Exit => should_continue = false,
                     Message::Terminate => should_continue = false,
@@ -825,72 +1161,75 @@ create_runnable!(
                         apply_buffer_if_changed(buffer, &new_buffer, screen);
                         *buffer = new_buffer;
                     }
-                    Message::MuxBoxOutputUpdate(muxbox_id, success, output) => {
-                        log::info!("RECEIVED MuxBoxOutputUpdate for muxbox: {}, success: {}, output_len: {}, preview: {}", 
-                                   muxbox_id, success, output.len(), output.chars().take(50).collect::<String>());
-                        let mut app_context_unwrapped_cloned = app_context_unwrapped.clone();
-                        // For PTY streaming output, we need to use a special update method
-                        // that doesn't add timestamp formatting. The presence of a newline
-                        // at the end of the output indicates it's PTY streaming data.
-                        let is_pty_streaming = output.ends_with('\n');
-
-                        if is_pty_streaming {
-                            // Use streaming update for PTY output
-                            let content_for_save = {
-                                let target_muxbox = app_context_unwrapped_cloned
-                                    .app
-                                    .get_muxbox_by_id_mut(muxbox_id)
-                                    .unwrap();
-                                target_muxbox.update_streaming_content(output, *success);
-                                Some(target_muxbox.get_active_stream_content().join("\n"))
-                            };
-                            inner.update_app_context(app_context_unwrapped_cloned.clone());
-                            inner.send_message(Message::RedrawMuxBox(muxbox_id.to_string()));
-
-                            // F0200: Save PTY streaming content to YAML
-                            if let Some(updated_content) = content_for_save {
-                                inner.send_message(Message::SaveMuxBoxContent(
-                                    muxbox_id.clone(),
-                                    updated_content,
-                                ));
-                            }
+                    Message::MuxBoxOutputUpdate(stream_id, success, output) => {
+                        log::info!("F0229: RECEIVED MuxBoxOutputUpdate for stream: {}, success: {}, output_len: {}, preview: {}", 
+                                   stream_id, success, output.len(), output.chars().take(50).collect::<String>());
+                        
+                        // Extract choice_id from stream_id (format: choice_id_suffix)
+                        let choice_id = if let Some(last_underscore) = stream_id.rfind('_') {
+                            &stream_id[..last_underscore]
                         } else {
-                            // Use regular update for non-PTY output
-                            let muxbox = app_context_unwrapped
-                                .app
-                                .get_muxbox_by_id(muxbox_id)
-                                .unwrap();
-
-                            // Store content before update for YAML persistence
-                            let old_content = Some(muxbox.get_active_stream_content().join("\n"));
-
-                            update_muxbox_content(
-                                inner,
-                                &mut app_context_unwrapped_cloned,
-                                muxbox_id,
-                                *success,
-                                muxbox.append_output.unwrap_or(false),
-                                output,
-                            );
-
-                            // F0200: Save updated content to YAML if it changed
-                            if let Some(updated_muxbox) =
-                                app_context_unwrapped_cloned.app.get_muxbox_by_id(muxbox_id)
-                            {
-                                if Some(updated_muxbox.get_active_stream_content().join("\n"))
-                                    != old_content
-                                {
-                                    let new_content =
-                                        updated_muxbox.get_active_stream_content().join("\n");
-                                    if !new_content.is_empty() {
-                                        inner.send_message(Message::SaveMuxBoxContent(
-                                            muxbox_id.clone(),
-                                            new_content,
-                                        ));
+                            &stream_id
+                        };
+                        
+                        // Find target muxbox by searching all muxboxes for this stream
+                        let mut target_muxbox_id = None;
+                        for layout in &app_context_unwrapped.app.layouts {
+                            if let Some(children) = &layout.children {
+                                for muxbox in children {
+                                    if muxbox.streams.contains_key(stream_id) {
+                                        target_muxbox_id = Some(muxbox.id.clone());
+                                        break;
                                     }
                                 }
                             }
+                            if target_muxbox_id.is_some() { break; }
                         }
+                        
+                        if let Some(muxbox_id) = target_muxbox_id {
+                            if let Some(target_muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&muxbox_id) {
+                                // Create PTY stream if not exists (should be created by ThreadManager)
+                                if !target_muxbox.streams.contains_key(stream_id) {
+                                    let stream_label = format!("{} (pty)", choice_id);
+                                    let stream = crate::model::common::Stream::new(
+                                        stream_id.clone(),
+                                        crate::model::common::StreamType::PtySession(choice_id.to_string()),
+                                        stream_label,
+                                        Vec::new(),
+                                        None,
+                                        Some(crate::model::common::StreamSource::create_pty_session_execution_source(
+                                            choice_id.to_string(),
+                                            muxbox_id.clone(),
+                                            "sh".to_string(),
+                                            Vec::new(),
+                                            None,
+                                            (80, 24)
+                                        ))
+                                    );
+                                    target_muxbox.streams.insert(stream_id.clone(), stream);
+                                }
+                            
+                                // Update stream content only
+                                if let Some(stream) = target_muxbox.streams.get_mut(stream_id) {
+                                    let formatted_output = if *success {
+                                        output.clone()
+                                    } else {
+                                        format!("ERROR: {}", output)
+                                    };
+                                    
+                                    // PTY output - append lines
+                                    stream.content.push(formatted_output);
+                                    stream.active = true;
+                                    
+                                    log::info!("F0229: Updated stream {} with {} chars of content",
+                                              stream_id, output.len());
+                                }
+                            }
+                        } else {
+                            log::warn!("F0229: Could not find target muxbox for stream {}", stream_id);
+                        }
+                        
+                        inner.update_app_context(app_context_unwrapped.clone());
                     }
                     // ExternalMessage handling is now done by RSJanusComms library
                     // Messages are converted to appropriate internal messages by the socket handler
@@ -901,63 +1240,73 @@ create_runnable!(
                     Message::ExecuteHotKeyChoice(choice_id) => {
                         log::info!("=== EXECUTING HOT KEY CHOICE: {} ===", choice_id);
 
-                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        // F0229: Unified ExecutionMode System - all execution paths use same unified stream approach
+                        // First extract the data we need without borrowing app_context_unwrapped
+                        let (choice_data, muxbox_id, libs) = {
+                            let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                            let libs = app_context_unwrapped.app.libs.clone();
 
-                        // Find the choice by ID in any muxbox
-                        log::info!("Searching for choice {} in active layout", choice_id);
-                        if let Some(choice_muxbox) =
-                            active_layout.find_muxbox_with_choice(&choice_id)
-                        {
-                            log::info!("Found choice in muxbox: {}", choice_muxbox.id);
+                            // Find the choice by ID in any muxbox
+                            log::info!("Searching for choice {} in active layout", choice_id);
+                            if let Some(choice_muxbox) = active_layout.find_muxbox_with_choice(&choice_id) {
+                                log::info!("Found choice in muxbox: {}", choice_muxbox.id);
 
-                            if let Some(choices) = choice_muxbox.get_active_stream_choices() {
-                                if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
-                                    // T315: Unified choice execution - thread field no longer affects execution path
-                                    log::info!("Executing choice config - pty: {}, redirect: {:?}, script_lines: {}", 
-                                        choice.pty.unwrap_or(false),
-                                        choice.redirect_output,
-                                        choice.script.as_ref().map(|s| s.len()).unwrap_or(0)
-                                    );
-
-                                    if let Some(script) = &choice.script {
-                                        let libs = app_context_unwrapped.app.libs.clone();
-                                        let use_pty = should_use_pty_for_choice(choice);
-                                        let pty_manager =
-                                            app_context_unwrapped.pty_manager.as_ref();
-                                        let message_sender = Some((
-                                            inner.get_message_sender().as_ref().unwrap().clone(),
-                                            inner.get_uuid(),
-                                        ));
-
-                                        log::info!("Unified execution - use_pty: {}, has_manager: {}, redirect: {:?}", 
-                                            use_pty, pty_manager.is_some(), choice.redirect_output);
-
-                                        let result = run_script_with_pty_and_redirect(
-                                            libs,
-                                            script,
-                                            use_pty,
-                                            pty_manager.map(|arc| arc.as_ref()),
-                                            Some(choice.id.clone()),
-                                            message_sender,
-                                            choice.redirect_output.clone(),
+                                if let Some(choices) = choice_muxbox.get_active_stream_choices() {
+                                    if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
+                                        log::info!("Hotkey choice config - execution_mode: {:?}, redirect: {:?}, script_lines: {}", 
+                                            choice.execution_mode,
+                                            choice.redirect_output,
+                                            choice.script.as_ref().map(|s| s.len()).unwrap_or(0)
                                         );
 
-                                        // Send completion message via unified system
-                                        inner.send_message(Message::ChoiceExecutionComplete(
-                                            choice_id.clone(),
-                                            choice_muxbox.id.clone(),
-                                            result.map_err(|e| e.to_string()),
-                                        ));
+                                        if let Some(script) = &choice.script {
+                                            (Some((choice.clone(), script.clone())), choice_muxbox.id.clone(), libs)
+                                        } else {
+                                            (None, choice_muxbox.id.clone(), libs)
+                                        }
+                                    } else {
+                                        log::warn!("Choice {} found in muxbox {} but no matching choice in choices list", choice_id, choice_muxbox.id);
+                                        (None, choice_muxbox.id.clone(), libs)
                                     }
                                 } else {
-                                    log::warn!("Choice {} found in muxbox {} but no matching choice in choices list", choice_id, choice_muxbox.id);
+                                    log::warn!("MuxBox {} has no choices list", choice_muxbox.id);
+                                    (None, choice_muxbox.id.clone(), libs)
                                 }
                             } else {
-                                log::warn!("MuxBox {} has no choices list", choice_muxbox.id);
+                                log::error!(
+                                    "Choice {} not found in any muxbox of active layout",
+                                    choice_id
+                                );
+                                (None, String::new(), libs)
                             }
-                        } else {
-                            log::error!(
-                                "Choice {} not found in any muxbox of active layout",
+                        };
+
+                        // T0316: UNIFIED ARCHITECTURE - Replace legacy hotkey execution with ExecuteScript message
+                        if let Some((choice, script)) = choice_data {
+                            log::info!("T0316: Hotkey creating ExecuteScript for choice {} (mode: {:?})", choice_id, choice.execution_mode);
+                            
+                            // Create ExecuteScript message instead of direct execution
+                            use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
+                            
+                            let execute_script = ExecuteScript {
+                                script: script.clone(),
+                                source: ExecutionSource {
+                                    source_type: SourceType::HotkeyScript,
+                                    source_id: format!("hotkey_choice_{}", choice_id),
+                                    source_reference: SourceReference::Choice(choice.clone()),
+                                },
+                                execution_mode: choice.execution_mode.clone(),
+                                target_box_id: muxbox_id.clone(),
+                                libs: libs.unwrap_or_default(),
+                                redirect_output: choice.redirect_output.clone(),
+                                append_output: choice.append_output.unwrap_or(false),
+                            };
+
+                            // Send ExecuteScript message instead of calling legacy execute_choice_stream_only
+                            inner.send_message(Message::ExecuteScriptMessage(execute_script));
+
+                            log::info!(
+                                "T0316: ExecuteScript message sent for hotkey choice {} (unified architecture)",
                                 choice_id
                             );
                         }
@@ -997,8 +1346,7 @@ create_runnable!(
                                             let choice_data = (
                                                 selected_choice.id.clone(),
                                                 selected_choice.script.clone(),
-                                                selected_choice.pty.unwrap_or(false),
-                                                selected_choice.thread.unwrap_or(false),
+                                                selected_choice.execution_mode.clone(), // Use ExecutionMode directly instead of boolean flags
                                                 selected_choice.redirect_output.clone(),
                                                 selected_choice.append_output.unwrap_or(false),
                                                 muxbox.id.clone(),
@@ -1015,8 +1363,7 @@ create_runnable!(
                                 if let Some((
                                     choice_id,
                                     script_opt,
-                                    use_pty,
-                                    use_thread,
+                                    execution_mode,
                                     redirect_output,
                                     append_output,
                                     muxbox_id,
@@ -1028,15 +1375,12 @@ create_runnable!(
                                             choice_id,
                                             muxbox_id
                                         );
-                                        log::info!("Enter choice config - pty: {}, thread: {}, redirect: {:?}", 
-                                            use_pty, use_thread, redirect_output
+                                        log::info!("Enter choice config - execution_mode: {:?}, redirect: {:?}", 
+                                            execution_mode, redirect_output
                                         );
 
                                         if let Some(script) = script_opt {
                                             let libs_clone = libs.clone();
-
-                                            // T312: Execute choice using unified threading system - proper architecture
-                                            log::info!("Enter key requesting ThreadManager to execute choice {} (pty: {})", choice_id, use_pty);
 
                                             // Set choice to waiting state before execution
                                             if let Some(muxbox_mut) = app_context_for_keypress
@@ -1055,35 +1399,50 @@ create_runnable!(
                                                 }
                                             }
 
-                                            // Create the choice object for execution
-                                            let choice_for_execution = Choice {
+                                            // T0314: UNIFIED ARCHITECTURE - Replace legacy execution with ExecuteScript message
+                                            log::info!("T0314: Enter key creating ExecuteScript for choice {} (mode: {:?})", choice_id, execution_mode);
+                                            
+                                            // Create ExecuteScript message instead of direct execution
+                                            use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
+                                            
+                                            // Create choice object for SourceReference
+                                            let choice_for_reference = Choice {
                                                 id: choice_id.clone(),
-                                                content: Some("".to_string()), // Not needed for execution
-                                                selected: false, // Not needed for execution
+                                                content: Some("".to_string()),
+                                                selected: false,
                                                 script: Some(script.clone()),
-                                                pty: Some(use_pty),
-                                                thread: Some(use_thread),
+                                                pty: None,
+                                                thread: None,
+                                                execution_mode: execution_mode.clone(),
                                                 redirect_output: redirect_output.clone(),
                                                 append_output: Some(append_output),
                                                 waiting: true,
                                             };
 
-                                            // Send ExecuteChoice message to ThreadManager (proper architecture)
-                                            log::info!("Sending ExecuteChoice message for choice {} (pty: {}, thread: {})", 
-                                            choice_id, use_pty, use_thread);
-                                            inner.send_message(Message::ExecuteChoice(
-                                                choice_for_execution,
-                                                muxbox_id.clone(),
-                                                libs_clone,
-                                            ));
+                                            let execute_script = ExecuteScript {
+                                                script: script.clone(),
+                                                source: ExecutionSource {
+                                                    source_type: SourceType::Choice(choice_id.clone()),
+                                                    source_id: format!("choice_{}", choice_id),
+                                                    source_reference: SourceReference::Choice(choice_for_reference),
+                                                },
+                                                execution_mode: execution_mode.clone(),
+                                                target_box_id: muxbox_id.clone(),
+                                                libs: libs_clone.unwrap_or_default(),
+                                                redirect_output: redirect_output.clone(),
+                                                append_output,
+                                            };
+
+                                            // Send ExecuteScript message instead of calling legacy execute_choice_stream_only
+                                            inner.send_message(Message::ExecuteScriptMessage(execute_script));
 
                                             // Update the app context to persist the waiting state change
                                             inner.update_app_context(
                                                 app_context_for_keypress.clone(),
                                             );
 
-                                            log::trace!(
-                                                "ExecuteChoice message sent for choice {}",
+                                            log::info!(
+                                                "T0314: ExecuteScript message sent for choice {} (unified architecture)",
                                                 choice_id
                                             );
                                         }
@@ -1092,58 +1451,34 @@ create_runnable!(
                             }
                         }
 
+                        // T0317: UNIFIED ARCHITECTURE - Replace muxbox keypress run_script with ExecuteScript messages
                         for muxbox in selected_muxboxes_with_keypress_events {
                             let actions =
                                 handle_keypress(pressed_key, &muxbox.on_keypress.clone().unwrap());
-                            if actions.is_none() {
-                                if let Some(actions_unwrapped) = actions {
-                                    let libs = app_context_unwrapped.app.libs.clone();
+                            if let Some(actions_unwrapped) = actions {
+                                let libs = app_context_unwrapped.app.libs.clone();
 
-                                    match run_script(libs, &actions_unwrapped) {
-                                        Ok(output) => {
-                                            if muxbox.redirect_output.is_some() {
-                                                update_muxbox_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    muxbox.redirect_output.as_ref().unwrap(),
-                                                    true,
-                                                    muxbox.append_output.unwrap_or(false),
-                                                    &output,
-                                                )
-                                            } else {
-                                                update_muxbox_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    &muxbox.id,
-                                                    true,
-                                                    muxbox.append_output.unwrap_or(false),
-                                                    &output,
-                                                )
-                                            }
-                                        }
-                                        Err(e) => {
-                                            if muxbox.redirect_output.is_some() {
-                                                update_muxbox_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    muxbox.redirect_output.as_ref().unwrap(),
-                                                    false,
-                                                    muxbox.append_output.unwrap_or(false),
-                                                    e.to_string().as_str(),
-                                                )
-                                            } else {
-                                                update_muxbox_content(
-                                                    inner,
-                                                    &mut app_context_for_keypress,
-                                                    &muxbox.id,
-                                                    false,
-                                                    muxbox.append_output.unwrap_or(false),
-                                                    e.to_string().as_str(),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                                log::info!("T0317: Creating ExecuteScript for muxbox keypress handler {} ({})", muxbox.id, pressed_key);
+                                
+                                // Create ExecuteScript message for muxbox-level keypress handlers
+                                use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference, ExecutionMode};
+                                
+                                let execute_script = ExecuteScript {
+                                    script: actions_unwrapped,
+                                    source: ExecutionSource {
+                                        source_type: SourceType::SocketUpdate,
+                                        source_id: format!("muxbox_keypress_{}_{}", muxbox.id, pressed_key),
+                                        source_reference: SourceReference::SocketCommand(format!("muxbox {} keypress: {}", muxbox.id, pressed_key)),
+                                    },
+                                    execution_mode: ExecutionMode::Immediate, // Muxbox-level handlers use immediate execution
+                                    target_box_id: muxbox.redirect_output.as_ref().unwrap_or(&muxbox.id).clone(),
+                                    libs: libs.unwrap_or_default(),
+                                    redirect_output: muxbox.redirect_output.clone(),
+                                    append_output: muxbox.append_output.unwrap_or(false),
+                                };
+                                
+                                inner.send_message(Message::ExecuteScriptMessage(execute_script));
+                                log::info!("T0317: ExecuteScript message sent for muxbox {} keypress handler ({})", muxbox.id, pressed_key);
                             }
                         }
                     }
@@ -1153,7 +1488,8 @@ create_runnable!(
                         // Find the target muxbox to verify it exists and has PTY enabled
                         if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
                         {
-                            if muxbox.pty.unwrap_or(false) {
+                            // F0229: Use ExecutionMode instead of legacy pty field
+                            if muxbox.execution_mode == crate::model::common::ExecutionMode::Pty {
                                 log::debug!(
                                     "Routing input to PTY muxbox {}: {:?}",
                                     muxbox_id,
@@ -1357,7 +1693,7 @@ create_runnable!(
                                             has_border,
                                         )
                                     {
-                                        // F0219: Handle close button click - direct stream removal
+                                        // T0323: Tab close integration with unified execution architecture
                                         let stream_ids = clicked_muxbox.get_tab_stream_ids();
                                         if let Some(stream_id) = stream_ids.get(close_tab_index) {
                                             log::info!(
@@ -1366,79 +1702,78 @@ create_runnable!(
                                                 stream_id
                                             );
                                             
-                                            // Handle stream removal directly since ThreadManager doesn't forward messages back
-                                            let mut app_context_for_close = app_context_unwrapped.clone();
-                                            if let Some(muxbox) = app_context_for_close.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
-                                                if let Some(stream) = muxbox.streams.get(stream_id) {
-                                                    if stream.is_closeable() {
-                                                        log::info!(
-                                                            "Processing close tab for closeable stream {} in muxbox {}",
-                                                            stream_id,
-                                                            clicked_muxbox.id
-                                                        );
-                                                        
-                                                        // Remove stream and handle source cleanup
-                                                        log::info!("Attempting to remove stream {} from muxbox {} (current streams: {})", 
-                                                            stream_id, clicked_muxbox.id, muxbox.streams.len());
-                                                        
-                                                        // First check if stream exists before removal
-                                                        if muxbox.streams.contains_key(stream_id) {
-                                                            let source_option = muxbox.remove_stream(stream_id);
-                                                            log::info!(
-                                                                "Stream {} removed from muxbox {}",
-                                                                stream_id,
-                                                                clicked_muxbox.id
-                                                            );
-
-                                                            // Handle source cleanup if stream had an active source
-                                                            if let Some(source) = source_option {
-                                                                log::info!("Attempting cleanup for stream source");
-                                                                match source {
-                                                                    crate::model::common::StreamSource::ChoiceExecution(choice_source) => {
-                                                                        if let Err(e) = choice_source.cleanup() {
-                                                                            log::info!(
-                                                                                "Choice execution source cleanup failed (likely already terminated): {}",
-                                                                                e
-                                                                            );
-                                                                        }
-                                                                    }
-                                                                    crate::model::common::StreamSource::PTY(pty_source) => {
-                                                                        if let Err(e) = pty_source.cleanup() {
-                                                                            log::info!("PTY source cleanup failed (likely already terminated): {}", e);
-                                                                        }
-                                                                    }
-                                                                    crate::model::common::StreamSource::Redirect(redirect_source) => {
-                                                                        if let Err(e) = redirect_source.cleanup() {
-                                                                            log::info!("Redirect source cleanup failed (likely already terminated): {}", e);
-                                                                        }
-                                                                    }
-                                                                    crate::model::common::StreamSource::Socket(socket_source) => {
-                                                                        if let Err(e) = socket_source.cleanup() {
-                                                                            log::info!("Socket source cleanup failed (likely already terminated): {}", e);
-                                                                        }
-                                                                    }
-                                                                    _ => {
-                                                                        log::info!("Stream source type doesn't require cleanup");
-                                                                    }
-                                                                }
+                                            // Get stream info to determine source_id and execution_mode
+                                            if let Some(stream) = clicked_muxbox.streams.get(stream_id) {
+                                                if stream.is_closeable() {
+                                                    log::info!(
+                                                        "Processing close tab for closeable stream {} in muxbox {}",
+                                                        stream_id,
+                                                        clicked_muxbox.id
+                                                    );
+                                                    
+                                                    // Extract source_id and execution_mode from stream type
+                                                    let (source_id, execution_mode) = match &stream.stream_type {
+                                                        StreamType::ChoiceExecution(id) => {
+                                                            // Choice execution streams - determine execution mode from stream context
+                                                            // For now, default to Thread mode for choice executions
+                                                            (id.clone(), crate::model::common::ExecutionMode::Thread)
+                                                        }
+                                                        StreamType::PtySession(id) => {
+                                                            // PTY session streams - extract source_id from "PTY-{source_id}" format
+                                                            let actual_source_id = if id.starts_with("PTY-") {
+                                                                id[4..].to_string()
                                                             } else {
-                                                                log::info!("Stream {} had no active source (likely already terminated) - removal successful", stream_id);
-                                                            }
+                                                                id.clone()
+                                                            };
+                                                            (actual_source_id, crate::model::common::ExecutionMode::Pty)
+                                                        }
+                                                        StreamType::RedirectedOutput(_) => {
+                                                            // Redirected output streams - use stream_id as source_id
+                                                            (stream_id.clone(), crate::model::common::ExecutionMode::Thread)
+                                                        }
+                                                        StreamType::ExternalSocket => {
+                                                            // External socket streams - use stream_id as source_id
+                                                            (stream_id.clone(), crate::model::common::ExecutionMode::Thread)
+                                                        }
+                                                        _ => {
+                                                            // Content/Choices streams are not closeable - this shouldn't happen
+                                                            log::warn!("Unexpected closeable stream type: {:?}", stream.stream_type);
+                                                            (stream_id.clone(), crate::model::common::ExecutionMode::Thread)
+                                                        }
+                                                    };
+                                                    
+                                                    // Create SourceAction Kill message to terminate the source
+                                                    let kill_action = crate::model::common::SourceAction {
+                                                        action: crate::model::common::ActionType::Kill,
+                                                        source_id,
+                                                        execution_mode,
+                                                    };
+                                                    
+                                                    log::info!("Sending SourceAction Kill for source {} (mode: {:?})", 
+                                                              kill_action.source_id, kill_action.execution_mode);
+                                                    
+                                                    // Send SourceAction message - this will be handled by the unified architecture
+                                                    inner.send_message(Message::SourceActionMessage(kill_action));
+                                                    
+                                                    // Also directly remove the stream for immediate UI feedback
+                                                    // The SourceAction will handle process termination
+                                                    let mut app_context_for_close = app_context_unwrapped.clone();
+                                                    if let Some(muxbox) = app_context_for_close.app.get_muxbox_by_id_mut(&clicked_muxbox.id) {
+                                                        if muxbox.streams.contains_key(stream_id) {
+                                                            let _removed_source = muxbox.remove_stream(stream_id);
+                                                            log::info!("Stream {} removed from UI (source termination handled by SourceAction)", stream_id);
                                                             
-                                                            // Update app context and trigger redraw
+                                                            // Update app context and trigger redraw for immediate UI response
                                                             inner.update_app_context(app_context_for_close.clone());
                                                             inner.send_message(Message::RedrawAppDiff);
-                                                        } else {
-                                                            log::warn!("Stream {} not found in muxbox {} - cannot remove", 
-                                                                stream_id, clicked_muxbox.id);
                                                         }
-                                                    } else {
-                                                        log::info!(
-                                                            "Stream {} in muxbox {} is not closeable",
-                                                            stream_id,
-                                                            clicked_muxbox.id
-                                                        );
                                                     }
+                                                } else {
+                                                    log::info!(
+                                                        "Stream {} in muxbox {} is not closeable",
+                                                        stream_id,
+                                                        clicked_muxbox.id
+                                                    );
                                                 }
                                             }
                                         }
@@ -1550,28 +1885,60 @@ create_runnable!(
                                                 inner.send_message(Message::RedrawAppDiff);
 
                                                 // Then activate the clicked choice (same as pressing Enter)
-                                                // Force threaded execution for clicked choices to maintain UI responsiveness
+                                                // F0224: Use ExecutionMode to determine execution path for mouse clicks too
                                                 if let Some(script) = &clicked_choice.script {
                                                     let libs =
                                                         app_context_unwrapped.app.libs.clone();
 
-                                                    // Always use threaded execution for mouse clicks to keep UI responsive
-                                                    let _script_clone = script.clone();
-                                                    let _choice_id_clone =
-                                                        clicked_choice.id.clone();
+                                                    let script_clone = script.clone();
+                                                    let choice_id_clone = clicked_choice.id.clone();
                                                     let muxbox_id_clone = clicked_muxbox.id.clone();
                                                     let libs_clone = libs.clone();
+                                                    let execution_mode = clicked_choice.execution_mode.clone();
+                                                    let redirect_output = clicked_choice.redirect_output.clone();
+                                                    let _append_output = clicked_choice.append_output.unwrap_or(false);
 
-                                                    // T312: Use unified ExecuteChoice message system
-                                                    inner.send_message(Message::ExecuteChoice(
-                                                        clicked_choice.clone(),
-                                                        muxbox_id_clone,
-                                                        libs_clone,
-                                                    ));
+                                                    // T0315: UNIFIED ARCHITECTURE - Replace legacy mouse click execution with ExecuteScript message
+                                                    log::info!("T0315: Mouse click creating ExecuteScript for choice {} (mode: {:?})", choice_id_clone, execution_mode);
 
-                                                    // Spawn the choice execution in ThreadManager
-                                                    // TODO: Get ThreadManager reference to spawn the runnable
-                                                    log::trace!("Mouse click choice {} ready for ThreadManager execution", clicked_choice.id);
+                                                    // Create ExecuteScript message instead of direct execution or legacy message routing
+                                                    use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
+                                                    
+                                                    // Create choice object for SourceReference
+                                                    let choice_for_reference = Choice {
+                                                        id: choice_id_clone.clone(),
+                                                        content: Some("".to_string()),
+                                                        selected: false,
+                                                        script: Some(script_clone.clone()),
+                                                        pty: None,
+                                                        thread: None,
+                                                        execution_mode: execution_mode.clone(),
+                                                        redirect_output: redirect_output.clone(),
+                                                        append_output: Some(_append_output),
+                                                        waiting: true,
+                                                    };
+
+                                                    let execute_script = ExecuteScript {
+                                                        script: script_clone.clone(),
+                                                        source: ExecutionSource {
+                                                            source_type: SourceType::Choice(choice_id_clone.clone()),
+                                                            source_id: format!("mouse_choice_{}", choice_id_clone),
+                                                            source_reference: SourceReference::Choice(choice_for_reference),
+                                                        },
+                                                        execution_mode: execution_mode.clone(),
+                                                        target_box_id: muxbox_id_clone.clone(),
+                                                        libs: libs_clone.unwrap_or_default(),
+                                                        redirect_output: redirect_output.clone(),
+                                                        append_output: _append_output,
+                                                    };
+
+                                                    // Send ExecuteScript message instead of legacy execution paths
+                                                    inner.send_message(Message::ExecuteScriptMessage(execute_script));
+
+                                                    log::info!(
+                                                        "T0315: ExecuteScript message sent for mouse-clicked choice {} (unified architecture)",
+                                                        choice_id_clone
+                                                    );
                                                 }
                                             }
                                         } else {
@@ -1946,187 +2313,51 @@ create_runnable!(
                     }
                     Message::ChoiceExecutionComplete(choice_id, muxbox_id, result) => {
                         log::info!(
-                            "=== DRAWLOOP RECEIVED CHOICE EXECUTION COMPLETE: {} on muxbox {} ===",
+                            "=== F0229: CHOICE EXECUTION COMPLETE: {} on muxbox {} ===",
                             choice_id,
                             muxbox_id
                         );
                         match result {
                             Ok(ref output) => log::info!(
-                                "DrawLoop processing choice success: {} chars of output",
-                                output.len()
+                                "F0229: Choice {} success: {} chars",
+                                choice_id, output.len()
                             ),
                             Err(ref error) => {
-                                log::error!("DrawLoop processing choice error: {}", error)
+                                log::error!("F0229: Choice {} error: {}", choice_id, error)
                             }
                         }
 
-                        // First update the choice waiting state
-                        if let Some(muxbox) =
-                            app_context_unwrapped.app.get_muxbox_by_id_mut(muxbox_id)
-                        {
-                            if let Some(choices) = muxbox.get_active_stream_choices_mut() {
-                                if let Some(choice) =
-                                    choices.iter_mut().find(|c| c.id == *choice_id)
-                                {
-                                    choice.waiting = false;
-                                }
-                            }
-                        }
-
-                        // Then handle the output in a separate scope to avoid borrow conflicts
-                        let target_muxbox_id = {
-                            if let Some(muxbox) =
-                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
-                            {
-                                if let Some(choices) = muxbox.get_active_stream_choices() {
-                                    if let Some(choice) =
-                                        choices.iter().find(|c| c.id == *choice_id)
-                                    {
-                                        let redirect_target = choice
-                                            .redirect_output
-                                            .as_ref()
-                                            .unwrap_or(muxbox_id)
-                                            .clone();
-                                        log::info!(
-                                            "Choice {} redirect_output: {:?} -> target muxbox: {}",
-                                            choice_id,
-                                            choice.redirect_output,
-                                            redirect_target
-                                        );
-                                        redirect_target
+                        // F0229: Get execution parameters from the choice
+                        let (execution_mode, target_muxbox_id, append_output) = {
+                            if let Some(source_muxbox) = app_context_unwrapped.app.get_muxbox_by_id(muxbox_id) {
+                                if let Some(choices) = source_muxbox.get_active_stream_choices() {
+                                    if let Some(choice) = choices.iter().find(|c| c.id == *choice_id) {
+                                        let target = choice.redirect_output.as_ref().unwrap_or(muxbox_id).clone();
+                                        (choice.execution_mode.clone(), target, choice.append_output.unwrap_or(false))
                                     } else {
-                                        log::warn!(
-                                            "Choice {} not found in muxbox {}",
-                                            choice_id,
-                                            muxbox_id
-                                        );
-                                        muxbox_id.clone()
+                                        (ExecutionMode::Immediate, muxbox_id.clone(), false)
                                     }
                                 } else {
-                                    log::warn!("MuxBox {} has no choices", muxbox_id);
-                                    muxbox_id.clone()
+                                    (ExecutionMode::Immediate, muxbox_id.clone(), false)
                                 }
                             } else {
-                                log::error!("MuxBox {} not found", muxbox_id);
-                                muxbox_id.clone()
+                                (ExecutionMode::Immediate, muxbox_id.clone(), false)
                             }
                         };
 
-                        let append = {
-                            if let Some(muxbox) =
-                                app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
-                            {
-                                if let Some(choices) = muxbox.get_active_stream_choices() {
-                                    if let Some(choice) =
-                                        choices.iter().find(|c| c.id == *choice_id)
-                                    {
-                                        choice.append_output.unwrap_or(false)
-                                    } else {
-                                        false
-                                    }
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }
-                        };
-
-                        // F0203: Create stream in target muxbox's tab system for ALL choice executions
-                        let is_redirect = &target_muxbox_id != muxbox_id;
-                        log::info!(
-                            "Creating stream for choice {} in muxbox {} (redirect: {})",
+                        // F0229: Use unified stream update approach
+                        let stream_id = format!("{}_{}", choice_id, execution_mode.as_stream_suffix());
+                        
+                        update_execution_stream_directly(
+                            inner,
+                            &mut app_context_unwrapped,
+                            &target_muxbox_id,
+                            &stream_id,
                             choice_id,
-                            target_muxbox_id,
-                            is_redirect
+                            muxbox_id,
+                            result.clone().map_err(|e| e.into()),
+                            append_output,
                         );
-
-                        // Get choice details first (immutable borrow)
-                        let choice_details = if let Some(source_muxbox) =
-                            app_context_unwrapped.app.get_muxbox_by_id(muxbox_id)
-                        {
-                            if let Some(choices) = source_muxbox.get_active_stream_choices() {
-                                choices.iter().find(|c| c.id == *choice_id).map(|choice| {
-                                    (
-                                        choice.id.clone(),
-                                        choice.content.as_deref().unwrap_or(&choice.id).to_string(),
-                                    )
-                                })
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        };
-
-                        // Create stream in target muxbox (mutable borrow) - works for both redirect and local
-                        let actual_stream_id =
-                            if let Some((choice_id_clone, stream_label)) = choice_details {
-                                if let Some(target_muxbox) = app_context_unwrapped
-                                    .app
-                                    .get_muxbox_by_id_mut(&target_muxbox_id)
-                                {
-                                    // Initialize default stream if tab system is empty
-                                    target_muxbox.ensure_tabs_initialized();
-
-                                    // Create choice execution stream
-                                    let stream_id = target_muxbox.add_input_stream(
-                                        crate::model::common::StreamType::RedirectedOutput(
-                                            choice_id_clone.clone(),
-                                        ),
-                                        stream_label,
-                                    );
-
-                                    log::info!(
-                                    "Created stream {} in target muxbox {} for choice execution",
-                                    stream_id,
-                                    target_muxbox_id
-                                );
-                                    Some(stream_id)
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            };
-
-                        match result {
-                            Ok(output) => {
-                                log::info!(
-                                    "Choice {} output length: {} chars, updating stream in muxbox: {}",
-                                    choice_id,
-                                    output.len(),
-                                    target_muxbox_id
-                                );
-                                // Use the actual stream ID returned from creation, or fall back to choice_id
-                                let stream_identifier =
-                                    actual_stream_id.unwrap_or_else(|| choice_id.clone());
-                                update_muxbox_content_with_stream(
-                                    inner,
-                                    &mut app_context_unwrapped,
-                                    &target_muxbox_id,
-                                    &stream_identifier, // Use the actual stream ID
-                                    true,
-                                    append,
-                                    output,
-                                );
-                            }
-                            Err(error) => {
-                                log::error!("Error running choice script: {}", error);
-                                // Use the actual stream ID returned from creation, or fall back to choice_id
-                                let stream_identifier =
-                                    actual_stream_id.unwrap_or_else(|| choice_id.clone());
-                                update_muxbox_content_with_stream(
-                                    inner,
-                                    &mut app_context_unwrapped,
-                                    &target_muxbox_id,
-                                    &stream_identifier, // Use the actual stream ID
-                                    false,
-                                    append,
-                                    error,
-                                );
-                            }
-                        }
                     }
                     Message::MuxBoxResizeComplete(muxbox_id) => {
                         // F0190: Save muxbox bounds changes to YAML file
@@ -2453,6 +2684,22 @@ create_runnable!(
                                             );
                                         }
                                     }
+                                    // F0227: ExecutionMode-specific source cleanup
+                                    crate::model::common::StreamSource::ImmediateExecution(source) => {
+                                        if let Err(e) = source.cleanup() {
+                                            log::warn!("Failed to cleanup immediate execution source: {}", e);
+                                        }
+                                    }
+                                    crate::model::common::StreamSource::ThreadPoolExecution(source) => {
+                                        if let Err(e) = source.cleanup() {
+                                            log::warn!("Failed to cleanup thread pool execution source: {}", e);
+                                        }
+                                    }
+                                    crate::model::common::StreamSource::PtySessionExecution(source) => {
+                                        if let Err(e) = source.cleanup() {
+                                            log::warn!("Failed to cleanup PTY session execution source: {}", e);
+                                        }
+                                    }
                                     crate::model::common::StreamSource::PTY(pty_source) => {
                                         if let Err(e) = pty_source.cleanup() {
                                             log::warn!("Failed to cleanup PTY source: {}", e);
@@ -2530,6 +2777,22 @@ create_runnable!(
                                                     );
                                                 }
                                             }
+                                            // F0227: ExecutionMode-specific source cleanup
+                                            crate::model::common::StreamSource::ImmediateExecution(source) => {
+                                                if let Err(e) = source.cleanup() {
+                                                    log::info!("Immediate execution source cleanup failed: {}", e);
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::ThreadPoolExecution(source) => {
+                                                if let Err(e) = source.cleanup() {
+                                                    log::info!("Thread pool execution source cleanup failed: {}", e);
+                                                }
+                                            }
+                                            crate::model::common::StreamSource::PtySessionExecution(source) => {
+                                                if let Err(e) = source.cleanup() {
+                                                    log::info!("PTY session execution source cleanup failed: {}", e);
+                                                }
+                                            }
                                             crate::model::common::StreamSource::PTY(pty_source) => {
                                                 if let Err(e) = pty_source.cleanup() {
                                                     log::info!("PTY source cleanup failed (likely already terminated): {}", e);
@@ -2597,6 +2860,47 @@ create_runnable!(
                             }
                             inner.update_app_context(app_context_unwrapped.clone());
                             inner.send_message(Message::RedrawMuxBox(muxbox_id.clone()));
+                        }
+                    }
+                    // T0318: UNIFIED ARCHITECTURE - Replace legacy socket script execution with ExecuteScript message
+                    Message::MuxBoxScriptUpdate(muxbox_id, new_script) => {
+                        log::info!("T0318: Socket script update creating ExecuteScript for muxbox {} ({} commands)", muxbox_id, new_script.len());
+                        
+                        // Clone libs before mutable borrow to avoid borrowing conflict
+                        let libs = app_context_unwrapped.app.libs.clone().unwrap_or_default();
+                        
+                        // First update the muxbox script field
+                        if let Some(muxbox) = app_context_unwrapped.app.get_muxbox_by_id_mut(&muxbox_id) {
+                            muxbox.script = Some(new_script.clone());
+                            
+                            // Create ExecuteScript message for socket-triggered script execution
+                            use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
+                            
+                            let execute_script = ExecuteScript {
+                                script: new_script.clone(),
+                                source: ExecutionSource {
+                                    source_type: SourceType::SocketUpdate,
+                                    source_id: format!("socket_script_{}", muxbox_id),
+                                    source_reference: SourceReference::SocketCommand(format!("replace-box-script command for {}", muxbox_id)),
+                                },
+                                execution_mode: muxbox.execution_mode.clone(),
+                                target_box_id: muxbox_id.clone(),
+                                libs: libs,
+                                redirect_output: muxbox.redirect_output.clone(),
+                                append_output: muxbox.append_output.unwrap_or(false),
+                            };
+
+                            // Send ExecuteScript message instead of direct execution
+                            inner.send_message(Message::ExecuteScriptMessage(execute_script));
+
+                            log::info!(
+                                "T0318: ExecuteScript message sent for socket-updated muxbox {} script (unified architecture)",
+                                muxbox_id
+                            );
+                            
+                            inner.update_app_context(app_context_unwrapped.clone());
+                        } else {
+                            log::error!("MuxBox {} not found for script update", muxbox_id);
                         }
                     }
                     _ => {}
@@ -2711,7 +3015,277 @@ pub fn update_muxbox_content(
     }
 }
 
+// F0229: Stream-Only Architecture - Unified execution functions that only create/update streams
+// Never update content fields directly - eliminates architectural inconsistency
+
+/// Create execution stream only - never update content fields
+fn create_execution_stream_only(
+    inner: &mut RunnableImpl,
+    app_context: &mut AppContext,
+    target_muxbox_id: &str,
+    stream_id: &str,
+    choice_id: &str,
+    execution_mode: ExecutionMode,
+) {
+    log::info!(
+        "F0229: Creating execution stream {} for choice {} in muxbox {} (mode: {:?})",
+        stream_id, choice_id, target_muxbox_id, execution_mode
+    );
+
+    if let Some(target_muxbox) = app_context.app.get_muxbox_by_id_mut(target_muxbox_id) {
+        // Create execution stream
+        let stream_type = match execution_mode {
+            ExecutionMode::Immediate => crate::model::common::StreamType::ChoiceExecution(choice_id.to_string()),
+            ExecutionMode::Thread => crate::model::common::StreamType::ChoiceExecution(choice_id.to_string()),
+            ExecutionMode::Pty => crate::model::common::StreamType::PtySession(choice_id.to_string()),
+        };
+
+        let stream_label = format!("{} ({})", choice_id, execution_mode.as_stream_suffix());
+        
+        let mut stream = crate::model::common::Stream::new(
+            stream_id.to_string(),
+            stream_type,
+            stream_label,
+            vec!["Executing...".to_string()],
+            None,
+            Some(crate::model::common::StreamSource::from_execution_mode(
+                &execution_mode,
+                choice_id.to_string(),
+                target_muxbox_id.to_string(),
+                vec!["execution".to_string()],
+                None
+            ))
+        );
+        
+        stream.active = true;
+        target_muxbox.streams.insert(stream_id.to_string(), stream);
+        
+        log::info!(
+            "F0229: Created execution stream {} in muxbox {}",
+            stream_id, target_muxbox_id
+        );
+    } else {
+        log::error!(
+            "F0229: Target muxbox {} not found for stream creation",
+            target_muxbox_id
+        );
+    }
+}
+
+/// Update execution stream content only - never touch muxbox content fields
+fn update_execution_stream(
+    inner: &mut RunnableImpl,
+    app_context: &mut AppContext,
+    target_muxbox_id: &str,
+    stream_id: &str,
+    execution_result: Result<String, Box<dyn std::error::Error + Send + Sync>>,
+    append_output: bool,
+) {
+    log::info!(
+        "F0229: Updating execution stream {} in muxbox {}",
+        stream_id, target_muxbox_id
+    );
+
+    if let Some(target_muxbox) = app_context.app.get_muxbox_by_id_mut(target_muxbox_id) {
+        if let Some(stream) = target_muxbox.streams.get_mut(stream_id) {
+            match execution_result {
+                Ok(output) => {
+                    log::info!("F0229: Stream {} completed successfully ({} chars)", stream_id, output.len());
+                    
+                    if append_output && !stream.content.is_empty() {
+                        stream.content.push(output);
+                    } else {
+                        stream.content = vec![output];
+                    }
+                }
+                Err(error) => {
+                    log::error!("F0229: Stream {} failed: {}", stream_id, error);
+                    
+                    let error_message = format!("ERROR: {}", error);
+                    if append_output && !stream.content.is_empty() {
+                        stream.content.push(error_message);
+                    } else {
+                        stream.content = vec![error_message];
+                    }
+                }
+            }
+            
+            // Ensure stream remains active after update
+            stream.active = true;
+        } else {
+            log::error!("F0229: Execution stream {} not found in muxbox {}", stream_id, target_muxbox_id);
+        }
+    } else {
+        log::error!("F0229: Target muxbox {} not found for stream update", target_muxbox_id);
+    }
+
+    // Update app context and redraw
+    inner.update_app_context(app_context.clone());
+    inner.send_message(Message::RedrawMuxBox(target_muxbox_id.to_string()));
+}
+
+/// Clear choice waiting state helper
+fn clear_choice_waiting_state(
+    app_context: &mut AppContext,
+    source_muxbox_id: &str,
+    choice_id: &str,
+) {
+    if let Some(muxbox_mut) = app_context.app.get_muxbox_by_id_mut(source_muxbox_id) {
+        if let Some(choices) = muxbox_mut.get_active_stream_choices_mut() {
+            if let Some(choice_mut) = choices.iter_mut().find(|c| c.id == choice_id) {
+                choice_mut.waiting = false;
+            }
+        }
+    }
+}
+
 /// Update muxbox content routing to specific stream in tab system
+// F0229: Stream-Only ExecutionMode System - creates execution streams for all modes  
+fn execute_choice_stream_only(
+    inner: &mut RunnableImpl,
+    app_context: &mut AppContext,
+    choice: &Choice,
+    source_muxbox_id: &str,
+    script: &[String],
+    libs: &Option<Vec<String>>,
+    execution_mode: ExecutionMode,
+) {
+    log::info!(
+        "F0229: Stream-only execution for choice {} (mode: {:?}, redirect: {:?})",
+        choice.id, execution_mode, choice.redirect_output
+    );
+
+    // Set choice to waiting state before execution
+    if let Some(muxbox_mut) = app_context.app.get_muxbox_by_id_mut(source_muxbox_id) {
+        if let Some(choices) = muxbox_mut.get_active_stream_choices_mut() {
+            if let Some(choice_mut) = choices.iter_mut().find(|c| c.id == choice.id) {
+                choice_mut.waiting = true;
+            }
+        }
+    }
+
+    // F0229: All execution modes now use unified ThreadManager path
+    // ThreadManager handles stream creation and execution consistently for all modes
+    let target_muxbox_id = choice.redirect_output.as_ref().unwrap_or(&source_muxbox_id.to_string()).clone();
+    
+    log::info!("F0229: Executing choice {} (mode: {:?}) - delegating to unified ThreadManager", choice.id, execution_mode);
+    
+    // Use unified ThreadManager execution path to avoid split-brain architecture
+    inner.send_message(Message::ExecuteChoice(
+        choice.clone(),
+        target_muxbox_id.clone(),
+        libs.clone(),
+    ));
+
+    // Update app context and redraw
+    inner.update_app_context(app_context.clone());
+}
+
+// F0229: Create or update execution stream without complex message routing
+fn create_or_update_execution_stream(
+    inner: &mut RunnableImpl,
+    app_context: &mut AppContext,
+    choice_id: &str,
+    target_muxbox_id: &str,
+    execution_mode: &ExecutionMode,
+    stream_id: &str,
+) {
+    log::info!(
+        "F0229: Creating/updating execution stream {} for choice {} in muxbox {}",
+        stream_id, choice_id, target_muxbox_id
+    );
+
+    if let Some(target_muxbox) = app_context.app.get_muxbox_by_id_mut(target_muxbox_id) {
+        // Initialize streams if needed
+        target_muxbox.ensure_tabs_initialized();
+
+        // Check if stream already exists
+        if !target_muxbox.streams.contains_key(stream_id) {
+            // Create new execution stream
+            let (stream_type, stream_source) = create_execution_mode_stream_components(
+                choice_id,
+                target_muxbox_id,
+                execution_mode,
+            );
+
+            let stream = crate::model::common::Stream::new(
+                stream_id.to_string(),
+                stream_type,
+                choice_id.to_string(), // Use choice_id as label - clean and simple
+                vec!["Executing...".to_string()], // Initial execution status
+                None,
+                Some(stream_source),
+            );
+
+            target_muxbox.streams.insert(stream_id.to_string(), stream);
+        }
+
+        // Switch to this stream and redraw
+        target_muxbox.switch_to_stream(stream_id);
+        inner.send_message(Message::RedrawMuxBox(target_muxbox_id.to_string()));
+    } else {
+        log::error!("F0229: Target muxbox {} not found for execution stream", target_muxbox_id);
+    }
+}
+
+// F0229: Direct stream update without message routing complexity
+fn update_execution_stream_directly(
+    inner: &mut RunnableImpl,
+    app_context: &mut AppContext,
+    target_muxbox_id: &str,
+    stream_id: &str,
+    choice_id: &str,
+    source_muxbox_id: &str,
+    execution_result: Result<String, Box<dyn std::error::Error + Send + Sync>>,
+    append_output: bool,
+) {
+    // Clear waiting state first
+    if let Some(muxbox_mut) = app_context.app.get_muxbox_by_id_mut(source_muxbox_id) {
+        if let Some(choices) = muxbox_mut.get_active_stream_choices_mut() {
+            if let Some(choice_mut) = choices.iter_mut().find(|c| c.id == choice_id) {
+                choice_mut.waiting = false;
+            }
+        }
+    }
+
+    // Update the stream directly
+    if let Some(target_muxbox) = app_context.app.get_muxbox_by_id_mut(target_muxbox_id) {
+        if let Some(stream) = target_muxbox.streams.get_mut(stream_id) {
+            match execution_result {
+                Ok(output) => {
+                    log::info!("F0229: Choice {} completed successfully ({} chars)", choice_id, output.len());
+                    
+                    // F0229: Clean output without timestamps or formatting complexity
+                    if append_output {
+                        stream.content.push(output);
+                    } else {
+                        stream.content = vec![output];
+                    }
+                }
+                Err(error) => {
+                    log::error!("F0229: Choice {} failed: {}", choice_id, error);
+                    
+                    let error_message = format!("ERROR: {}", error);
+                    if append_output {
+                        stream.content.push(error_message);
+                    } else {
+                        stream.content = vec![error_message];
+                    }
+                }
+            }
+
+            // Ensure the stream is active
+            stream.active = true;
+        } else {
+            log::error!("F0229: Execution stream {} not found in muxbox {}", stream_id, target_muxbox_id);
+        }
+    }
+
+    // Update app context and redraw
+    inner.update_app_context(app_context.clone());
+    inner.send_message(Message::RedrawMuxBox(target_muxbox_id.to_string()));
+}
+
 pub fn update_muxbox_content_with_stream(
     inner: &mut RunnableImpl,
     app_context_unwrapped: &mut AppContext,
@@ -2739,20 +3313,9 @@ pub fn update_muxbox_content_with_stream(
             found_muxbox.streams.len()
         );
 
-        // Format output with timestamp if success (non-PTY format)
+        // F0229: Clean output formatting without unwanted timestamps
         let formatted_output = if success {
-            if output.ends_with('\n') {
-                // PTY output - don't add timestamp
-                output.to_string()
-            } else {
-                // Regular output - add timestamp
-                let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-                if append_output {
-                    format!("{}", output)
-                } else {
-                    format!("[{}] {}", timestamp, output)
-                }
-            }
+            output.to_string()
         } else {
             format!("ERROR: {}", output)
         };
@@ -3276,3 +3839,54 @@ fn trigger_muxbox_flash(_muxbox_id: &str) {
     // This would require storing flash state and modifying muxbox rendering
     // For now, the redraw provides visual feedback
 }
+
+// F0223: ExecutionMode Stream Integration helper functions
+
+/// F0227: Create execution-mode-specific stream components using specialized source traits
+fn create_execution_mode_stream_components(
+    choice_id: &str,
+    target_muxbox_id: &str,
+    execution_mode: &ExecutionMode,
+) -> (StreamType, StreamSource) {
+    match execution_mode {
+        ExecutionMode::Immediate => {
+            // F0227: Immediate execution - use ImmediateExecutionSource for specialized lifecycle management
+            (
+                StreamType::ChoiceExecution(choice_id.to_string()),
+                StreamSource::create_immediate_execution_source(
+                    choice_id.to_string(),
+                    target_muxbox_id.to_string(),
+                    vec![], // Script will be provided during execution
+                ),
+            )
+        }
+        ExecutionMode::Thread => {
+            // F0227: Thread execution - use ThreadPoolExecutionSource for background execution
+            (
+                StreamType::ChoiceExecution(choice_id.to_string()),
+                StreamSource::create_thread_pool_execution_source(
+                    choice_id.to_string(),
+                    target_muxbox_id.to_string(),
+                    vec![], // Script will be provided during execution
+                    Some(uuid::Uuid::new_v4().to_string()), // Generate unique thread ID
+                    None, // No timeout by default - can be set later
+                ),
+            )
+        }
+        ExecutionMode::Pty => {
+            // F0227: PTY execution - use PtySessionExecutionSource for real-time process execution
+            (
+                StreamType::PtySession(choice_id.to_string()),
+                StreamSource::create_pty_session_execution_source(
+                    choice_id.to_string(),
+                    target_muxbox_id.to_string(),
+                    "sh".to_string(), // Default command - will be updated during execution
+                    vec![], // Args will be provided during execution
+                    None, // Working directory will be set during execution
+                    (24, 80), // Default terminal size - can be resized later
+                ),
+            )
+        }
+    }
+}
+

@@ -71,6 +71,7 @@ mod text_wrapping_tests {
                 redirect_output: None,
                 append_output: None,
                 pty: None,
+                execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
                 waiting: false,
             },
@@ -82,6 +83,7 @@ mod text_wrapping_tests {
                 redirect_output: None,
                 append_output: None,
                 pty: None,
+                execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: true,
                 waiting: false,
             },
@@ -123,6 +125,7 @@ mod text_wrapping_tests {
             redirect_output: None,
             append_output: None,
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: true,
         }];

@@ -37,6 +37,10 @@ pub enum ValidationError {
         field: String,
         message: String,
     },
+    DeprecationWarning {
+        field: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ValidationError {
@@ -91,6 +95,13 @@ impl std::fmt::Display for ValidationError {
                     field, message
                 )
             }
+            ValidationError::DeprecationWarning { field, message } => {
+                write!(
+                    f,
+                    "Deprecation warning for '{}': {}",
+                    field, message
+                )
+            }
         }
     }
 }
@@ -103,6 +114,7 @@ pub type ValidationResult = Result<(), Vec<ValidationError>>;
 /// Central schema validator for BoxMux configurations
 pub struct SchemaValidator {
     errors: Vec<ValidationError>,
+    warnings: Vec<ValidationError>,
     muxbox_ids: HashSet<String>,
     layout_ids: HashSet<String>,
 }
@@ -111,6 +123,7 @@ impl SchemaValidator {
     pub fn new() -> Self {
         Self {
             errors: Vec::new(),
+            warnings: Vec::new(),
             muxbox_ids: HashSet::new(),
             layout_ids: HashSet::new(),
         }
@@ -200,10 +213,24 @@ impl SchemaValidator {
             }
         }
 
-        if self.errors.is_empty() {
+        // Validate ExecutionMode integration and deprecation warnings
+        self.validate_execution_mode_fields(&muxbox.execution_mode, muxbox.thread, muxbox.pty, &format!("{}.execution_mode", path));
+
+        // Validate choices if present
+        if let Some(choices) = &muxbox.choices {
+            for (idx, choice) in choices.iter().enumerate() {
+                let _ = self.validate_choice(choice, &format!("{}.choices[{}]", path, idx));
+            }
+        }
+
+        // Return both errors and warnings for comprehensive validation
+        let mut all_issues = self.errors.clone();
+        all_issues.extend(self.warnings.clone());
+        
+        if all_issues.is_empty() {
             Ok(())
         } else {
-            Err(self.errors.clone())
+            Err(all_issues)
         }
     }
 
@@ -372,15 +399,96 @@ impl SchemaValidator {
         }
     }
 
+    /// Validate a single choice
+    pub fn validate_choice(&mut self, choice: &crate::model::muxbox::Choice, path: &str) -> ValidationResult {
+        // Validate required fields
+        if choice.id.is_empty() {
+            self.add_error(ValidationError::MissingRequiredField {
+                field: format!("{}.id", path),
+            });
+        }
+
+        // Validate ExecutionMode integration and deprecation warnings
+        self.validate_execution_mode_fields(&choice.execution_mode, choice.thread, choice.pty, &format!("{}.execution_mode", path));
+
+        // Return both errors and warnings for comprehensive validation
+        let mut all_issues = self.errors.clone();
+        all_issues.extend(self.warnings.clone());
+        
+        if all_issues.is_empty() {
+            Ok(())
+        } else {
+            Err(all_issues)
+        }
+    }
+
+    /// Validate ExecutionMode field consistency and provide deprecation warnings
+    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, thread: Option<bool>, pty: Option<bool>, path: &str) {
+        use crate::model::common::ExecutionMode;
+        
+        // Check for deprecated field usage and provide warnings
+        if thread.is_some() {
+            self.add_error(ValidationError::DeprecationWarning {
+                field: format!("{}_legacy", path.replace(".execution_mode", ".thread")),
+                message: "The 'thread' field is deprecated. Use 'execution_mode: thread' instead.".to_string(),
+            });
+        }
+
+        if pty.is_some() {
+            self.add_error(ValidationError::DeprecationWarning {
+                field: format!("{}_legacy", path.replace(".execution_mode", ".pty")),
+                message: "The 'pty' field is deprecated. Use 'execution_mode: pty' instead.".to_string(),
+            });
+        }
+
+        // Validate ExecutionMode enum values
+        match execution_mode {
+            ExecutionMode::Immediate | ExecutionMode::Thread | ExecutionMode::Pty => {
+                // Valid enum values
+            }
+        }
+
+        // Check for conflicting legacy and new field usage
+        // Only flag conflicts when BOTH execution_mode is explicitly set to non-default AND legacy fields are present
+        if thread.is_some() || pty.is_some() {
+            let legacy_mode = crate::model::common::ExecutionMode::from_legacy(thread.unwrap_or(false), pty.unwrap_or(false));
+            // Only report conflict if execution_mode differs from what legacy fields would produce
+            // AND execution_mode is not the default (indicating it was explicitly set)
+            if *execution_mode != legacy_mode {
+                self.add_error(ValidationError::InvalidFieldValue {
+                    field: path.to_string(),
+                    value: format!("{:?}", execution_mode),
+                    constraint: format!(
+                        "ExecutionMode conflicts with legacy fields. execution_mode={:?} but legacy fields suggest {:?}. Remove legacy 'thread'/'pty' fields or use consistent values.",
+                        execution_mode, legacy_mode
+                    ),
+                });
+            }
+        }
+    }
+
     /// Helper methods
     fn clear(&mut self) {
         self.errors.clear();
+        self.warnings.clear();
         self.muxbox_ids.clear();
         self.layout_ids.clear();
     }
 
     fn add_error(&mut self, error: ValidationError) {
-        self.errors.push(error);
+        match error {
+            ValidationError::DeprecationWarning { .. } => {
+                self.warnings.push(error);
+            }
+            _ => {
+                self.errors.push(error);
+            }
+        }
+    }
+
+    /// Get warnings (non-fatal validation issues)
+    pub fn get_warnings(&self) -> &Vec<ValidationError> {
+        &self.warnings
     }
 
     fn collect_ids(&mut self, app: &App) {

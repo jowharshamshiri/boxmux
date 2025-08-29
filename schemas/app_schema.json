@@ -76,6 +76,12 @@
       ],
       "default": "Center"
     },
+    "execution_mode": {
+      "type": "string",
+      "enum": ["Immediate", "Thread", "Pty"],
+      "default": "Immediate",
+      "description": "Execution mode for script/choice - Immediate (synchronous), Thread (background), or Pty (real-time terminal)"
+    },
     "position_value": {
       "type": "string",
       "pattern": "^\\d+(%|px)?$",
@@ -142,9 +148,13 @@
           ],
           "description": "Script to execute when choice is selected"
         },
+        "execution_mode": {
+          "$ref": "#/definitions/execution_mode",
+          "description": "Execution mode for choice script"
+        },
         "thread": {
           "type": "boolean",
-          "description": "Whether to run choice script in separate thread"
+          "description": "[DEPRECATED] Use execution_mode instead. Whether to run choice script in separate thread"
         },
         "redirect_output": {
           "type": "string",
@@ -156,7 +166,7 @@
         },
         "pty": {
           "type": "boolean",
-          "description": "Run choice script in a pseudo-terminal (PTY) for interactive programs"
+          "description": "[DEPRECATED] Use execution_mode instead. Run choice script in a pseudo-terminal (PTY) for interactive programs"
         }
       },
       "required": ["id"],
@@ -387,9 +397,13 @@
           ],
           "description": "Script commands to execute for box content"
         },
+        "execution_mode": {
+          "$ref": "#/definitions/execution_mode",
+          "description": "Execution mode for box script - immediate (synchronous), thread (background), or pty (real-time terminal)"
+        },
         "thread": {
           "type": "boolean",
-          "description": "Whether to run script in separate thread"
+          "description": "[DEPRECATED] Use execution_mode instead. Whether to run script in separate thread"
         },
         "on_keypress": {
           "type": "object",
@@ -467,7 +481,7 @@
         },
         "pty": {
           "type": "boolean",
-          "description": "Run script in a pseudo-terminal (PTY) for interactive programs and real-time output"
+          "description": "[DEPRECATED] Use execution_mode instead. Run script in a pseudo-terminal (PTY) for interactive programs and real-time output"
         },
         "z_index": {
           "type": "integer",

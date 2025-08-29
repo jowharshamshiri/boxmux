@@ -86,6 +86,7 @@ fn test_muxbox_with_choices_bounds_validation() {
             redirect_output: None,
             append_output: None,
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
         });
@@ -202,6 +203,7 @@ fn test_minimal_muxbox_bounds_handling() {
         redirect_output: None,
         append_output: None,
         pty: None,
+        execution_mode: crate::model::common::ExecutionMode::default(),
         selected: false,
         waiting: false,
     }]);

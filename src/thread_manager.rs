@@ -1,4 +1,5 @@
 use crate::model::app::AppContext;
+use crate::model::common::ExecutionMode; // F0223: Import ExecutionMode for choice execution
 use crate::model::muxbox::Choice;
 use crate::{run_script, run_script_with_pty_and_redirect, FieldUpdate, MuxBox, Updatable};
 use bincode;
@@ -59,6 +60,8 @@ pub enum Message {
     PTYInput(String, String),           // muxbox_id, input_text
     ExecuteChoice(Choice, String, Option<Vec<String>>), // choice, muxbox_id, libs
     ChoiceExecutionComplete(String, String, Result<String, String>), // choice_id, muxbox_id, result
+    // F0223: ExecutionMode Stream Integration - create execution streams before script runs
+    CreateChoiceExecutionStream(String, String, crate::model::common::ExecutionMode, String), // choice_id, target_muxbox_id, execution_mode, stream_label
     ExternalMessage(String),
     AddBox(String, MuxBox),
     RemoveBox(String),
@@ -71,6 +74,10 @@ pub enum Message {
     RemoveStream(String, String),   // muxbox_id, stream_id
     CloseTab(String, String), // muxbox_id, stream_id - F0219: Close button for redirected tabs
     UpdateStreamContent(String, String, String), // muxbox_id, stream_id, content
+    // T0309: UNIFIED EXECUTION ARCHITECTURE - New message types for unified execution system
+    ExecuteScriptMessage(crate::model::common::ExecuteScript), // Universal script execution entry point
+    StreamUpdateMessage(crate::model::common::StreamUpdate), // Universal stream content updates
+    SourceActionMessage(crate::model::common::SourceAction), // Source lifecycle management
 }
 
 impl Hash for Message {
@@ -214,6 +221,14 @@ impl Hash for Message {
                     }
                 }
             }
+            // F0223: ExecutionMode Stream Integration hash implementation
+            Message::CreateChoiceExecutionStream(choice_id, target_muxbox_id, execution_mode, stream_label) => {
+                "create_choice_execution_stream".hash(state);
+                choice_id.hash(state);
+                target_muxbox_id.hash(state);
+                execution_mode.hash(state);
+                stream_label.hash(state);
+            }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
                 "external_message".hash(state);
@@ -276,6 +291,19 @@ impl Hash for Message {
                 muxbox_id.hash(state);
                 stream_id.hash(state);
                 content.hash(state);
+            }
+            // T0309: UNIFIED EXECUTION ARCHITECTURE - Hash implementations for new message types
+            Message::ExecuteScriptMessage(execute_script) => {
+                "execute_script_message".hash(state);
+                execute_script.hash(state);
+            }
+            Message::StreamUpdateMessage(stream_update) => {
+                "stream_update_message".hash(state);
+                stream_update.hash(state);
+            }
+            Message::SourceActionMessage(source_action) => {
+                "source_action_message".hash(state);
+                source_action.hash(state);
             }
         }
     }
@@ -657,6 +685,16 @@ impl ThreadManager {
                         self.send_message_to_all_threads((uuid, received_msg));
                         has_updates = true;
                     }
+                    Message::CreateChoiceExecutionStream(ref choice_id, ref target_muxbox_id, ref execution_mode, ref _stream_label) => {
+                        // F0223: ExecutionMode Stream Integration - forward stream creation to DrawLoop immediately
+                        log::info!(
+                            "ThreadManager forwarding stream creation for choice: {} on muxbox: {} (mode: {:?})", 
+                            choice_id, target_muxbox_id, execution_mode
+                        );
+                        // Forward immediately to DrawLoop for stream creation
+                        self.send_message_to_all_threads((uuid, received_msg));
+                        has_updates = true;
+                    }
                     _ => {
                         // For all other messages, broadcast to all threads
                         self.send_message_to_all_threads((uuid, received_msg));
@@ -928,60 +966,96 @@ create_runnable!(
                 );
                 has_executed_choice = true;
 
-                // Execute the choice script
+                // F0223: ExecutionMode Stream Integration - ALL execution modes create streams immediately
                 let choice_id = choice.id.clone();
-                let use_pty = choice.pty.unwrap_or(false);
+                let execution_mode = &choice.execution_mode;
                 let redirect_target = choice.redirect_output.clone();
-
+                
+                // F0223: Create execution stream BEFORE execution starts for ALL modes
+                let target_muxbox_id = redirect_target.as_ref().unwrap_or(&muxbox_id).clone();
+                let stream_id = format!("{}_{}", choice_id, execution_mode.as_stream_suffix());
+                let stream_creation_message = Message::CreateChoiceExecutionStream(
+                    stream_id,
+                    target_muxbox_id,
+                    execution_mode.clone(),
+                    choice.content.as_deref().unwrap_or(&choice_id).to_string(),
+                );
+                log::info!("F0223: Creating execution stream for choice {} (mode: {:?})", choice_id, execution_mode);
+                inner.send_message(stream_creation_message);
+                
                 let result = if let Some(script) = &choice.script {
                     log::info!(
-                        "ChoiceExecutionRunnable running script for choice: {} (pty: {})",
+                        "ChoiceExecutionRunnable running script for choice: {} (mode: {:?}) with GUARANTEED stream creation",
                         choice_id,
-                        use_pty
+                        execution_mode
                     );
 
-                    if use_pty {
-                        // PTY execution
-                        let message_sender = inner
-                            .message_sender
-                            .clone()
-                            .map(|sender| (sender, inner.uuid));
-                        match run_script_with_pty_and_redirect(
-                            libs,
-                            script,
-                            use_pty,
-                            app_context.pty_manager.as_ref().map(|v| &**v),
-                            Some(muxbox_id.clone()),
-                            message_sender,
-                            redirect_target,
-                        ) {
-                            Ok(output) => {
-                                log::info!("ChoiceExecutionRunnable PTY script started successfully for choice: {}", choice_id);
-                                Ok(output)
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "ChoiceExecutionRunnable PTY script failed for choice: {}: {}",
-                                    choice_id,
-                                    e
-                                );
-                                Err(e.to_string())
+                    match execution_mode {
+                        ExecutionMode::Pty => {
+                            // PTY execution - real-time PTY execution with continuous stream updates
+                            // F0223: Stream already created above, PTY will update it continuously
+                            let message_sender = inner
+                                .message_sender
+                                .clone()
+                                .map(|sender| (sender, inner.uuid));
+                            // F0228: ExecutionMode Message System - Pass ExecutionMode instead of hardcoded boolean
+                            match run_script_with_pty_and_redirect(
+                                libs,
+                                script,
+                                execution_mode, // F0228: Use ExecutionMode instead of hardcoded boolean
+                                app_context.pty_manager.as_ref().map(|v| &**v),
+                                Some(muxbox_id.clone()),
+                                message_sender,
+                                redirect_target,
+                            ) {
+                                Ok(output) => {
+                                    log::info!("ChoiceExecutionRunnable PTY script started successfully for choice: {} - stream updates will be continuous", choice_id);
+                                    Ok(output)
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "ChoiceExecutionRunnable PTY script failed for choice: {}: {} - error will be sent to stream",
+                                        choice_id,
+                                        e
+                                    );
+                                    Err(e.to_string())
+                                }
                             }
                         }
-                    } else {
-                        // Regular execution
-                        match run_script(libs, script) {
-                            Ok(output) => {
-                                log::info!("ChoiceExecutionRunnable script completed successfully for choice: {}", choice_id);
-                                Ok(output)
+                        ExecutionMode::Thread => {
+                            // Thread execution - background execution in thread pool with stream updates when complete
+                            // F0223: Stream already created above, will be updated when execution completes
+                            match run_script(libs, script) {
+                                Ok(output) => {
+                                    log::info!("ChoiceExecutionRunnable thread script completed successfully for choice: {} - result will update stream", choice_id);
+                                    Ok(output)
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "ChoiceExecutionRunnable thread script failed for choice: {}: {} - error will update stream",
+                                        choice_id,
+                                        e
+                                    );
+                                    Err(e.to_string())
+                                }
                             }
-                            Err(e) => {
-                                log::error!(
-                                    "ChoiceExecutionRunnable script failed for choice: {}: {}",
-                                    choice_id,
-                                    e
-                                );
-                                Err(e.to_string())
+                        }
+                        ExecutionMode::Immediate => {
+                            // Immediate execution - synchronous execution on UI thread but still flowing through stream architecture
+                            // F0223: Stream already created above, result will update stream immediately
+                            match run_script(libs, script) {
+                                Ok(output) => {
+                                    log::info!("ChoiceExecutionRunnable immediate script completed successfully for choice: {} - result will update stream immediately", choice_id);
+                                    Ok(output)
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "ChoiceExecutionRunnable immediate script failed for choice: {}: {}",
+                                        choice_id,
+                                        e
+                                    );
+                                    Err(e.to_string())
+                                }
                             }
                         }
                     }
@@ -1157,8 +1231,8 @@ pub fn run_script_in_thread(
                 .iter_mut()
                 .find(|c| c.id == vec[1])
                 .unwrap();
-            // Check if choice should use PTY
-            let use_pty = crate::utils::should_use_pty_for_choice(choice);
+            // F0228: ExecutionMode Message System - Use ExecutionMode directly
+            let execution_mode = &choice.execution_mode;
             let pty_manager = app_context_unwrapped.pty_manager.as_ref();
             let message_sender = Some((
                 inner.get_message_sender().as_ref().unwrap().clone(),
@@ -1168,19 +1242,24 @@ pub fn run_script_in_thread(
             match crate::utils::run_script_with_pty(
                 libs,
                 choice.script.clone().unwrap().as_ref(),
-                use_pty,
+                execution_mode, // F0228: Use ExecutionMode directly
                 pty_manager.map(|arc| arc.as_ref()),
                 Some(choice.id.clone()),
                 message_sender,
             ) {
                 Ok(output) => {
-                    inner.send_message(Message::MuxBoxOutputUpdate(choice.id.clone(), true, output))
+                    // Create stream_id for proper stream targeting
+                    let stream_id = format!("{}_{}", choice.id, execution_mode.as_stream_suffix());
+                    inner.send_message(Message::MuxBoxOutputUpdate(stream_id, true, output))
                 }
-                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
-                    choice.id.clone(),
-                    false,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    let stream_id = format!("{}_{}", choice.id, execution_mode.as_stream_suffix());
+                    inner.send_message(Message::MuxBoxOutputUpdate(
+                        stream_id,
+                        false,
+                        e.to_string(),
+                    ))
+                },
             }
             std::thread::sleep(std::time::Duration::from_millis(
                 muxbox.calc_refresh_interval(&app_context, &app_graph),

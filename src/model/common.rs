@@ -8,6 +8,217 @@ use crate::{
     AppContext, AppGraph, Layout, Message, MuxBox,
 };
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+
+// F0220: ExecutionMode Enum Definition - Replace thread+pty boolean flags with single enum
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub enum ExecutionMode {
+    /// Synchronous execution on UI thread but still flowing through stream architecture
+    Immediate,
+    /// Background execution in thread pool with stream updates when complete
+    Thread,
+    /// Real-time PTY execution with continuous stream updates
+    Pty,
+}
+
+impl Default for ExecutionMode {
+    fn default() -> Self {
+        ExecutionMode::Immediate
+    }
+}
+
+impl ExecutionMode {
+    /// Convert legacy boolean combination to ExecutionMode
+    pub fn from_legacy(thread: bool, pty: bool) -> Self {
+        if pty {
+            ExecutionMode::Pty
+        } else if thread {
+            ExecutionMode::Thread
+        } else {
+            ExecutionMode::Immediate
+        }
+    }
+
+    /// Get descriptive string for execution mode
+    pub fn description(&self) -> &'static str {
+        match self {
+            ExecutionMode::Immediate => "Synchronous execution on UI thread",
+            ExecutionMode::Thread => "Background execution in thread pool",
+            ExecutionMode::Pty => "Real-time PTY execution with continuous output",
+        }
+    }
+
+    /// Check if execution mode should create streams
+    pub fn creates_streams(&self) -> bool {
+        true // All execution modes create streams - no bypassing stream architecture
+    }
+
+    /// Check if execution mode is real-time
+    pub fn is_realtime(&self) -> bool {
+        match self {
+            ExecutionMode::Immediate => false,
+            ExecutionMode::Thread => false,
+            ExecutionMode::Pty => true,
+        }
+    }
+
+    /// Check if execution mode runs in background
+    pub fn is_background(&self) -> bool {
+        match self {
+            ExecutionMode::Immediate => false,
+            ExecutionMode::Thread => true,
+            ExecutionMode::Pty => true,
+        }
+    }
+
+    /// F0224: Get stream suffix for execution mode identification
+    pub fn as_stream_suffix(&self) -> &'static str {
+        match self {
+            ExecutionMode::Immediate => "immediate",
+            ExecutionMode::Thread => "thread",
+            ExecutionMode::Pty => "pty",
+        }
+    }
+
+    /// Check if execution mode is PTY-based
+    pub fn is_pty(&self) -> bool {
+        matches!(self, ExecutionMode::Pty)
+    }
+}
+
+// UNIFIED EXECUTION ARCHITECTURE - T0300-T0305: New message types for unified execution system
+
+/// T0300: ExecuteScript message struct - Universal entry point for all script execution
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct ExecuteScript {
+    pub script: Vec<String>,           // Script commands to execute
+    pub source: ExecutionSource,       // Source information and reference
+    pub execution_mode: ExecutionMode, // How to execute (Batch/Thread/PTY)
+    pub target_box_id: String,         // Where to create the stream
+    pub libs: Vec<String>,             // Library dependencies
+    pub redirect_output: Option<String>, // Optional output redirection
+    pub append_output: bool,            // Append vs replace mode
+}
+
+/// T0301: ExecutionSource and SourceType enums - Track what triggered the execution
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct ExecutionSource {
+    pub source_type: SourceType,       // What kind of source this is
+    pub source_id: String,             // Unique identifier for this execution
+    pub source_reference: SourceReference, // Actual source data/object
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum SourceType {
+    Choice(String),           // Choice ID that triggered execution
+    StaticScript,             // Box-level YAML script
+    SocketUpdate,             // Dynamic socket-based script
+    RedirectedScript,         // Script with output redirection  
+    HotkeyScript,            // Hotkey-triggered script
+    ScheduledScript,         // Timer/scheduled execution
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum SourceReference {
+    Choice(crate::model::muxbox::Choice), // Full choice object
+    StaticConfig(String),     // YAML configuration reference  
+    SocketCommand(String),    // Socket command that triggered this
+    HotkeyBinding(String),    // Hotkey that triggered this
+    Schedule(String),         // Schedule configuration
+}
+
+/// T0302: StreamUpdate message struct - Universal content updates from any execution mode
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct StreamUpdate {
+    pub stream_id: String,            // Target stream to update
+    pub content_update: String,       // New content to append
+    pub source_state: SourceState,    // Current state of execution source
+    pub execution_mode: ExecutionMode, // Mode that generated this update
+}
+
+/// T0303: SourceState enums - Track execution status for each mode
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum SourceState {
+    Batch(BatchSourceState),
+    Thread(ThreadSourceState), 
+    Pty(PtySourceState),
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct BatchSourceState {
+    pub task_id: String,              // Task queue identifier
+    pub queue_wait_time: Duration,    // Time spent waiting in queue
+    pub execution_time: Duration,     // Actual execution duration
+    pub exit_code: Option<i32>,       // Process exit code
+    pub status: BatchStatus,          // Current status
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct ThreadSourceState {
+    pub thread_id: String,            // Thread identifier
+    pub execution_time: Duration,     // How long execution took
+    pub exit_code: Option<i32>,       // Process exit code
+    pub status: ExecutionThreadStatus,         // Current status
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct PtySourceState {
+    pub process_id: u32,              // PTY process ID
+    pub runtime: Duration,            // How long process has been running
+    pub exit_code: Option<i32>,       // Exit code if completed
+    pub status: ExecutionPtyStatus,            // Current process status
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum BatchStatus {
+    Queued,                          // Waiting in task queue
+    Executing,                       // Currently being executed
+    Completed,                       // Finished successfully - no more updates
+    Failed(String),                  // Failed with error message - no more updates
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ExecutionThreadStatus {
+    Running,                         // Thread is executing
+    Completed,                       // Finished successfully - no more updates
+    Failed(String),                  // Failed with error message - no more updates
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ExecutionPtyStatus {
+    Starting,                        // PTY process starting up
+    Running,                         // Process is running normally - more updates expected
+    Completed,                       // Process completed successfully - no more updates
+    Failed(String),                  // Process failed with error - no more updates
+    Terminated,                      // Process was killed/terminated - no more updates
+}
+
+/// T0304: SourceAction message struct - Lifecycle management for executing sources
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct SourceAction {
+    pub action: ActionType,           // What action to perform
+    pub source_id: String,            // Source identifier to act on
+    pub execution_mode: ExecutionMode, // Mode of the target source
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ActionType {
+    Kill,                            // Terminate execution
+    Query,                           // Get status information
+    Pause,                           // Pause execution (if supported)
+    Resume,                          // Resume paused execution
+}
+
+impl SourceState {
+    /// Determine if this source expects more updates based on status (NO is_final flag needed)
+    pub fn expects_more_updates(&self) -> bool {
+        match self {
+            SourceState::Batch(state) => matches!(state.status, BatchStatus::Queued | BatchStatus::Executing),
+            SourceState::Thread(state) => matches!(state.status, ExecutionThreadStatus::Running),
+            SourceState::Pty(state) => matches!(state.status, ExecutionPtyStatus::Starting | ExecutionPtyStatus::Running),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum EntityType {
@@ -78,6 +289,64 @@ pub trait StreamSourceTrait {
     fn can_terminate(&self) -> bool;
     fn cleanup(&self) -> Result<(), String>;
     fn get_metadata(&self) -> std::collections::HashMap<String, String>;
+}
+
+// F0227: ExecutionMode Stream Source Traits - Execution-mode-specific source traits
+// These traits provide specialized lifecycle management for different execution modes
+
+/// Trait for immediate execution sources - synchronous UI thread execution
+pub trait ImmediateSource: StreamSourceTrait {
+    /// Get the execution result if available
+    fn get_execution_result(&self) -> Option<Result<String, String>>;
+    /// Check if execution is complete
+    fn is_complete(&self) -> bool;
+    /// Get execution duration
+    fn get_execution_duration(&self) -> Option<std::time::Duration>;
+}
+
+/// Trait for thread pool execution sources - background thread execution
+pub trait ThreadPoolSource: StreamSourceTrait {
+    /// Get thread handle for cancellation
+    fn get_thread_id(&self) -> Option<String>;
+    /// Check if thread is still running
+    fn is_thread_running(&self) -> bool;
+    /// Cancel the background thread
+    fn cancel_thread(&self) -> Result<(), String>;
+    /// Get thread execution status
+    fn get_thread_status(&self) -> ThreadStatus;
+    /// Set timeout for thread execution
+    fn set_timeout(&mut self, timeout_seconds: u32);
+}
+
+/// Thread execution status for ThreadPoolSource
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+pub enum ThreadStatus {
+    NotStarted,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    TimedOut,
+}
+
+/// Trait for PTY session sources - real-time process execution
+pub trait PtySessionSource: StreamSourceTrait {
+    /// Get PTY process ID
+    fn get_process_id(&self) -> Option<u32>;
+    /// Check if PTY process is still running
+    fn is_process_running(&self) -> bool;
+    /// Send input to PTY process
+    fn send_input(&self, input: &str) -> Result<(), String>;
+    /// Kill the PTY process
+    fn kill_process(&self) -> Result<(), String>;
+    /// Resize the PTY terminal
+    fn resize_terminal(&self, rows: u16, cols: u16) -> Result<(), String>;
+    /// Get terminal size
+    fn get_terminal_size(&self) -> (u16, u16);
+    /// Get command being executed
+    fn get_command(&self) -> String;
+    /// Get working directory
+    fn get_working_directory(&self) -> Option<String>;
 }
 
 // F0212: Static content sources (no lifecycle management needed)
@@ -161,6 +430,279 @@ impl StreamSourceTrait for ChoiceExecutionSource {
             meta.insert("thread_id".to_string(), thread_id.clone());
         }
         meta
+    }
+}
+
+// F0227: ExecutionMode-specific source implementations
+// These provide specialized lifecycle management for each execution mode
+
+/// Immediate execution source - for synchronous UI thread execution
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct ImmediateExecutionSource {
+    pub choice_id: String,
+    pub muxbox_id: String,
+    pub script: Vec<String>,
+    pub started_at: std::time::SystemTime,
+    pub completed_at: Option<std::time::SystemTime>,
+    pub execution_result: Option<Result<String, String>>,
+    pub execution_duration: Option<std::time::Duration>,
+}
+
+impl StreamSourceTrait for ImmediateExecutionSource {
+    fn source_type(&self) -> &'static str {
+        "immediate_execution"
+    }
+    fn source_id(&self) -> String {
+        format!("immediate_{}", self.choice_id)
+    }
+    fn can_terminate(&self) -> bool {
+        false // Immediate execution cannot be cancelled once started
+    }
+    fn cleanup(&self) -> Result<(), String> {
+        Ok(()) // No cleanup needed for immediate execution
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("choice_id".to_string(), self.choice_id.clone());
+        meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
+        meta.insert("script_lines".to_string(), self.script.len().to_string());
+        meta.insert("started_at".to_string(), format!("{:?}", self.started_at));
+        if let Some(completed_at) = self.completed_at {
+            meta.insert("completed_at".to_string(), format!("{:?}", completed_at));
+        }
+        if let Some(duration) = self.execution_duration {
+            meta.insert("duration_ms".to_string(), duration.as_millis().to_string());
+        }
+        meta.insert("is_complete".to_string(), self.is_complete().to_string());
+        meta
+    }
+}
+
+impl ImmediateSource for ImmediateExecutionSource {
+    fn get_execution_result(&self) -> Option<Result<String, String>> {
+        self.execution_result.clone()
+    }
+    
+    fn is_complete(&self) -> bool {
+        self.execution_result.is_some()
+    }
+    
+    fn get_execution_duration(&self) -> Option<std::time::Duration> {
+        self.execution_duration
+    }
+}
+
+/// Thread pool execution source - for background thread execution
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct ThreadPoolExecutionSource {
+    pub choice_id: String,
+    pub muxbox_id: String,
+    pub script: Vec<String>,
+    pub thread_id: Option<String>,
+    pub started_at: std::time::SystemTime,
+    pub timeout_seconds: Option<u32>,
+    pub thread_status: ThreadStatus,
+    pub completion_result: Option<Result<String, String>>,
+    pub execution_duration: Option<std::time::Duration>,
+}
+
+impl StreamSourceTrait for ThreadPoolExecutionSource {
+    fn source_type(&self) -> &'static str {
+        "thread_pool_execution"
+    }
+    fn source_id(&self) -> String {
+        format!("thread_{}", self.choice_id)
+    }
+    fn can_terminate(&self) -> bool {
+        matches!(self.thread_status, ThreadStatus::Running | ThreadStatus::NotStarted)
+    }
+    fn cleanup(&self) -> Result<(), String> {
+        if let Some(thread_id) = &self.thread_id {
+            // Note: Actual thread cancellation would be handled by ThreadManager
+            log::info!("Cleanup requested for thread pool execution: {}", thread_id);
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("choice_id".to_string(), self.choice_id.clone());
+        meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
+        meta.insert("script_lines".to_string(), self.script.len().to_string());
+        meta.insert("thread_status".to_string(), format!("{:?}", self.thread_status));
+        meta.insert("started_at".to_string(), format!("{:?}", self.started_at));
+        if let Some(thread_id) = &self.thread_id {
+            meta.insert("thread_id".to_string(), thread_id.clone());
+        }
+        if let Some(timeout) = self.timeout_seconds {
+            meta.insert("timeout_seconds".to_string(), timeout.to_string());
+        }
+        if let Some(duration) = self.execution_duration {
+            meta.insert("duration_ms".to_string(), duration.as_millis().to_string());
+        }
+        meta
+    }
+}
+
+impl ThreadPoolSource for ThreadPoolExecutionSource {
+    fn get_thread_id(&self) -> Option<String> {
+        self.thread_id.clone()
+    }
+    
+    fn is_thread_running(&self) -> bool {
+        matches!(self.thread_status, ThreadStatus::Running)
+    }
+    
+    fn cancel_thread(&self) -> Result<(), String> {
+        if matches!(self.thread_status, ThreadStatus::Running | ThreadStatus::NotStarted) {
+            // Note: Actual cancellation would be implemented by ThreadManager
+            log::warn!("Thread cancellation requested for choice: {}", self.choice_id);
+            Ok(())
+        } else {
+            Err(format!("Cannot cancel thread in status: {:?}", self.thread_status))
+        }
+    }
+    
+    fn get_thread_status(&self) -> ThreadStatus {
+        self.thread_status.clone()
+    }
+    
+    fn set_timeout(&mut self, timeout_seconds: u32) {
+        self.timeout_seconds = Some(timeout_seconds);
+    }
+}
+
+/// PTY session execution source - for real-time process execution
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct PtySessionExecutionSource {
+    pub choice_id: String,
+    pub muxbox_id: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub working_dir: Option<String>,
+    pub process_id: Option<u32>,
+    pub terminal_size: (u16, u16),
+    pub started_at: std::time::SystemTime,
+    pub reader_thread_id: Option<String>,
+    pub is_process_running: bool,
+}
+
+impl StreamSourceTrait for PtySessionExecutionSource {
+    fn source_type(&self) -> &'static str {
+        "pty_session_execution"
+    }
+    fn source_id(&self) -> String {
+        format!("pty_{}", self.choice_id)
+    }
+    fn can_terminate(&self) -> bool {
+        self.process_id.is_some() && self.is_process_running
+    }
+    fn cleanup(&self) -> Result<(), String> {
+        if let Some(pid) = self.process_id {
+            if self.is_process_running {
+                let result = std::process::Command::new("kill")
+                    .arg("-9")
+                    .arg(pid.to_string())
+                    .output();
+                match result {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(format!("Failed to terminate PTY process {}: {}", pid, e)),
+                }
+            } else {
+                Ok(()) // Already terminated
+            }
+        } else {
+            Ok(()) // No process to clean up
+        }
+    }
+    fn get_metadata(&self) -> std::collections::HashMap<String, String> {
+        let mut meta = std::collections::HashMap::new();
+        meta.insert("choice_id".to_string(), self.choice_id.clone());
+        meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
+        meta.insert("command".to_string(), self.command.clone());
+        meta.insert("args".to_string(), self.args.join(" "));
+        meta.insert("is_running".to_string(), self.is_process_running.to_string());
+        meta.insert("started_at".to_string(), format!("{:?}", self.started_at));
+        meta.insert(
+            "terminal_size".to_string(),
+            format!("{}x{}", self.terminal_size.0, self.terminal_size.1),
+        );
+        if let Some(pid) = self.process_id {
+            meta.insert("process_id".to_string(), pid.to_string());
+        }
+        if let Some(thread_id) = &self.reader_thread_id {
+            meta.insert("reader_thread_id".to_string(), thread_id.clone());
+        }
+        if let Some(wd) = &self.working_dir {
+            meta.insert("working_dir".to_string(), wd.clone());
+        }
+        meta
+    }
+}
+
+impl PtySessionSource for PtySessionExecutionSource {
+    fn get_process_id(&self) -> Option<u32> {
+        self.process_id
+    }
+    
+    fn is_process_running(&self) -> bool {
+        self.is_process_running
+    }
+    
+    fn send_input(&self, input: &str) -> Result<(), String> {
+        if self.process_id.is_some() && self.is_process_running {
+            // Note: Actual input sending would be implemented by PTY manager
+            log::info!("PTY input requested for choice {}: {}", self.choice_id, input);
+            Ok(())
+        } else {
+            Err("PTY process is not running".to_string())
+        }
+    }
+    
+    fn kill_process(&self) -> Result<(), String> {
+        if let Some(pid) = self.process_id {
+            if self.is_process_running {
+                let result = std::process::Command::new("kill")
+                    .arg("-TERM")
+                    .arg(pid.to_string())
+                    .output();
+                match result {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(format!("Failed to kill PTY process {}: {}", pid, e)),
+                }
+            } else {
+                Err("Process is not running".to_string())
+            }
+        } else {
+            Err("No process ID available".to_string())
+        }
+    }
+    
+    fn resize_terminal(&self, rows: u16, cols: u16) -> Result<(), String> {
+        if self.process_id.is_some() && self.is_process_running {
+            // Note: Actual terminal resizing would be implemented by PTY manager
+            log::info!("PTY resize requested for choice {}: {}x{}", self.choice_id, rows, cols);
+            Ok(())
+        } else {
+            Err("PTY process is not running".to_string())
+        }
+    }
+    
+    fn get_terminal_size(&self) -> (u16, u16) {
+        self.terminal_size
+    }
+    
+    fn get_command(&self) -> String {
+        if self.args.is_empty() {
+            self.command.clone()
+        } else {
+            format!("{} {}", self.command, self.args.join(" "))
+        }
+    }
+    
+    fn get_working_directory(&self) -> Option<String> {
+        self.working_dir.clone()
     }
 }
 
@@ -315,16 +857,22 @@ impl StreamSourceTrait for SocketSource {
 }
 
 // F0212: Unified stream source enum containing all source types
+// F0227: Updated to include execution-mode-specific sources
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub enum StreamSource {
     StaticContent(StaticContentSource),
-    ChoiceExecution(ChoiceExecutionSource),
+    ChoiceExecution(ChoiceExecutionSource), // Legacy - kept for compatibility
     PTY(PTYSource),
     Redirect(RedirectSource),
     Socket(SocketSource),
+    // F0227: ExecutionMode-specific sources for enhanced lifecycle management
+    ImmediateExecution(ImmediateExecutionSource),
+    ThreadPoolExecution(ThreadPoolExecutionSource),
+    PtySessionExecution(PtySessionExecutionSource),
 }
 
 // F0212: Implementation of StreamSourceTrait for the unified enum
+// F0227: Updated to handle execution-mode-specific sources
 impl StreamSourceTrait for StreamSource {
     fn source_type(&self) -> &'static str {
         match self {
@@ -333,6 +881,10 @@ impl StreamSourceTrait for StreamSource {
             StreamSource::PTY(s) => s.source_type(),
             StreamSource::Redirect(s) => s.source_type(),
             StreamSource::Socket(s) => s.source_type(),
+            // F0227: ExecutionMode-specific sources
+            StreamSource::ImmediateExecution(s) => s.source_type(),
+            StreamSource::ThreadPoolExecution(s) => s.source_type(),
+            StreamSource::PtySessionExecution(s) => s.source_type(),
         }
     }
 
@@ -343,6 +895,10 @@ impl StreamSourceTrait for StreamSource {
             StreamSource::PTY(s) => s.source_id(),
             StreamSource::Redirect(s) => s.source_id(),
             StreamSource::Socket(s) => s.source_id(),
+            // F0227: ExecutionMode-specific sources
+            StreamSource::ImmediateExecution(s) => s.source_id(),
+            StreamSource::ThreadPoolExecution(s) => s.source_id(),
+            StreamSource::PtySessionExecution(s) => s.source_id(),
         }
     }
 
@@ -353,6 +909,10 @@ impl StreamSourceTrait for StreamSource {
             StreamSource::PTY(s) => s.can_terminate(),
             StreamSource::Redirect(s) => s.can_terminate(),
             StreamSource::Socket(s) => s.can_terminate(),
+            // F0227: ExecutionMode-specific sources
+            StreamSource::ImmediateExecution(s) => s.can_terminate(),
+            StreamSource::ThreadPoolExecution(s) => s.can_terminate(),
+            StreamSource::PtySessionExecution(s) => s.can_terminate(),
         }
     }
 
@@ -363,6 +923,10 @@ impl StreamSourceTrait for StreamSource {
             StreamSource::PTY(s) => s.cleanup(),
             StreamSource::Redirect(s) => s.cleanup(),
             StreamSource::Socket(s) => s.cleanup(),
+            // F0227: ExecutionMode-specific sources
+            StreamSource::ImmediateExecution(s) => s.cleanup(),
+            StreamSource::ThreadPoolExecution(s) => s.cleanup(),
+            StreamSource::PtySessionExecution(s) => s.cleanup(),
         }
     }
 
@@ -373,6 +937,162 @@ impl StreamSourceTrait for StreamSource {
             StreamSource::PTY(s) => s.get_metadata(),
             StreamSource::Redirect(s) => s.get_metadata(),
             StreamSource::Socket(s) => s.get_metadata(),
+            // F0227: ExecutionMode-specific sources
+            StreamSource::ImmediateExecution(s) => s.get_metadata(),
+            StreamSource::ThreadPoolExecution(s) => s.get_metadata(),
+            StreamSource::PtySessionExecution(s) => s.get_metadata(),
+        }
+    }
+}
+
+// F0227: ExecutionMode Stream Source Factory Functions
+// These functions create execution-mode-specific sources for stream integration
+
+impl StreamSource {
+    /// Create an immediate execution source for synchronous UI thread execution
+    pub fn create_immediate_execution_source(
+        choice_id: String,
+        muxbox_id: String,
+        script: Vec<String>,
+    ) -> Self {
+        StreamSource::ImmediateExecution(ImmediateExecutionSource {
+            choice_id,
+            muxbox_id,
+            script,
+            started_at: std::time::SystemTime::now(),
+            completed_at: None,
+            execution_result: None,
+            execution_duration: None,
+        })
+    }
+    
+    /// Create a thread pool execution source for background thread execution
+    pub fn create_thread_pool_execution_source(
+        choice_id: String,
+        muxbox_id: String,
+        script: Vec<String>,
+        thread_id: Option<String>,
+        timeout_seconds: Option<u32>,
+    ) -> Self {
+        StreamSource::ThreadPoolExecution(ThreadPoolExecutionSource {
+            choice_id,
+            muxbox_id,
+            script,
+            thread_id,
+            started_at: std::time::SystemTime::now(),
+            timeout_seconds,
+            thread_status: ThreadStatus::NotStarted,
+            completion_result: None,
+            execution_duration: None,
+        })
+    }
+    
+    /// Create a PTY session execution source for real-time process execution
+    pub fn create_pty_session_execution_source(
+        choice_id: String,
+        muxbox_id: String,
+        command: String,
+        args: Vec<String>,
+        working_dir: Option<String>,
+        terminal_size: (u16, u16),
+    ) -> Self {
+        StreamSource::PtySessionExecution(PtySessionExecutionSource {
+            choice_id,
+            muxbox_id,
+            command,
+            args,
+            working_dir,
+            process_id: None,
+            terminal_size,
+            started_at: std::time::SystemTime::now(),
+            reader_thread_id: None,
+            is_process_running: false,
+        })
+    }
+    
+    /// Convert ExecutionMode to the appropriate source type
+    pub fn from_execution_mode(
+        execution_mode: &ExecutionMode,
+        choice_id: String,
+        muxbox_id: String,
+        script: Vec<String>,
+        additional_params: Option<std::collections::HashMap<String, String>>,
+    ) -> Self {
+        match execution_mode {
+            ExecutionMode::Immediate => {
+                Self::create_immediate_execution_source(choice_id, muxbox_id, script)
+            }
+            ExecutionMode::Thread => {
+                let thread_id = additional_params
+                    .as_ref()
+                    .and_then(|p| p.get("thread_id"))
+                    .map(|s| s.clone());
+                let timeout_seconds = additional_params
+                    .as_ref()
+                    .and_then(|p| p.get("timeout_seconds"))
+                    .and_then(|s| s.parse().ok());
+                Self::create_thread_pool_execution_source(choice_id, muxbox_id, script, thread_id, timeout_seconds)
+            }
+            ExecutionMode::Pty => {
+                let command = if script.is_empty() {
+                    "sh".to_string()
+                } else {
+                    script[0].clone()
+                };
+                let args = if script.len() > 1 {
+                    script[1..].to_vec()
+                } else {
+                    vec![]
+                };
+                let working_dir = additional_params
+                    .as_ref()
+                    .and_then(|p| p.get("working_dir"))
+                    .map(|s| s.clone());
+                let terminal_size = additional_params
+                    .as_ref()
+                    .and_then(|p| {
+                        let rows = p.get("terminal_rows")?.parse().ok()?;
+                        let cols = p.get("terminal_cols")?.parse().ok()?;
+                        Some((rows, cols))
+                    })
+                    .unwrap_or((24, 80));
+                Self::create_pty_session_execution_source(choice_id, muxbox_id, command, args, working_dir, terminal_size)
+            }
+        }
+    }
+    
+    /// Check if this source supports a specific execution mode trait
+    pub fn supports_immediate_source(&self) -> bool {
+        matches!(self, StreamSource::ImmediateExecution(_))
+    }
+    
+    pub fn supports_thread_pool_source(&self) -> bool {
+        matches!(self, StreamSource::ThreadPoolExecution(_))
+    }
+    
+    pub fn supports_pty_session_source(&self) -> bool {
+        matches!(self, StreamSource::PtySessionExecution(_))
+    }
+    
+    /// Get execution mode-specific source as trait object
+    pub fn as_immediate_source(&self) -> Option<&dyn ImmediateSource> {
+        match self {
+            StreamSource::ImmediateExecution(source) => Some(source),
+            _ => None,
+        }
+    }
+    
+    pub fn as_thread_pool_source(&self) -> Option<&dyn ThreadPoolSource> {
+        match self {
+            StreamSource::ThreadPoolExecution(source) => Some(source),
+            _ => None,
+        }
+    }
+    
+    pub fn as_pty_session_source(&self) -> Option<&dyn PtySessionSource> {
+        match self {
+            StreamSource::PtySessionExecution(source) => Some(source),
+            _ => None,
         }
     }
 }

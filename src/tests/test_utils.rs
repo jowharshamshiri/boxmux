@@ -86,6 +86,7 @@ impl TestDataFactory {
             table_config: None,
             auto_scroll_bottom: None,
             pty: None,
+            execution_mode: crate::model::common::ExecutionMode::default(),
             z_index: None,
             output: String::new(),
             parent_id: None,

@@ -472,13 +472,15 @@ pub fn find_previous_muxbox_uuid(layout: &Layout, current_muxbox_uuid: &str) -> 
 }
 
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
-    run_script_with_pty(libs_paths, script, false, None, None, None)
+    // F0228: Use ExecutionMode::Immediate for simple script execution without PTY
+    run_script_with_pty(libs_paths, script, &crate::model::common::ExecutionMode::Immediate, None, None, None)
 }
 
+// F0228: ExecutionMode Message System - Update function signature to use ExecutionMode
 pub fn run_script_with_pty(
     libs_paths: Option<Vec<String>>,
     script: &Vec<String>,
-    use_pty: bool,
+    execution_mode: &crate::model::common::ExecutionMode,
     pty_manager: Option<&PtyManager>,
     muxbox_id: Option<String>,
     message_sender: Option<(
@@ -489,7 +491,7 @@ pub fn run_script_with_pty(
     run_script_with_pty_and_redirect(
         libs_paths,
         script,
-        use_pty,
+        execution_mode, // F0228: Pass ExecutionMode instead of boolean
         pty_manager,
         muxbox_id,
         message_sender,
@@ -497,10 +499,11 @@ pub fn run_script_with_pty(
     )
 }
 
+// F0228: ExecutionMode Message System - Update function signature to use ExecutionMode instead of boolean
 pub fn run_script_with_pty_and_redirect(
     libs_paths: Option<Vec<String>>,
     script: &Vec<String>,
-    use_pty: bool,
+    execution_mode: &crate::model::common::ExecutionMode,
     pty_manager: Option<&PtyManager>,
     muxbox_id: Option<String>,
     message_sender: Option<(
@@ -509,7 +512,7 @@ pub fn run_script_with_pty_and_redirect(
     )>,
     redirect_target: Option<String>,
 ) -> io::Result<String> {
-    if use_pty && pty_manager.is_some() && muxbox_id.is_some() && message_sender.is_some() {
+    if execution_mode.is_pty() && pty_manager.is_some() && muxbox_id.is_some() && message_sender.is_some() {
         let pty_mgr = pty_manager.unwrap();
         let pid = muxbox_id.unwrap();
 
@@ -602,12 +605,20 @@ fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> 
     }
 }
 
+/// F0226: ExecutionMode-based PTY check - replaces legacy muxbox.pty boolean  
 pub fn should_use_pty(muxbox: &crate::model::muxbox::MuxBox) -> bool {
-    muxbox.pty.unwrap_or(false)
+    match muxbox.execution_mode {
+        crate::model::common::ExecutionMode::Pty => true,
+        _ => false,
+    }
 }
 
+/// F0226: ExecutionMode-based PTY check - replaces legacy choice.pty boolean
 pub fn should_use_pty_for_choice(choice: &crate::model::muxbox::Choice) -> bool {
-    choice.pty.unwrap_or(false)
+    match choice.execution_mode {
+        crate::model::common::ExecutionMode::Pty => true,
+        _ => false,
+    }
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {

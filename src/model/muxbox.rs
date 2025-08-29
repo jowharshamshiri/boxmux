@@ -92,7 +92,8 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Choice {
     pub id: String,
     pub content: Option<String>,
@@ -102,6 +103,9 @@ pub struct Choice {
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
     pub pty: Option<bool>,
+    // F0222: Choice ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum
+    #[serde(default)]
+    pub execution_mode: ExecutionMode,
     #[serde(skip, default)]
     pub selected: bool,
     #[serde(skip, default)]
@@ -117,6 +121,8 @@ impl Hash for Choice {
         self.redirect_output.hash(state);
         self.append_output.hash(state);
         self.pty.hash(state);
+        // F0222: Hash ExecutionMode field
+        self.execution_mode.hash(state);
         self.selected.hash(state);
         self.waiting.hash(state);
     }
@@ -131,6 +137,8 @@ impl PartialEq for Choice {
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
             && self.pty == other.pty
+            // F0222: Compare ExecutionMode field
+            && self.execution_mode == other.execution_mode
             && self.selected == other.selected
             && self.waiting == other.waiting
     }
@@ -148,6 +156,8 @@ impl Clone for Choice {
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
             pty: self.pty,
+            // F0222: Clone ExecutionMode field
+            execution_mode: self.execution_mode.clone(),
             selected: self.selected,
             waiting: self.waiting,
         }
@@ -226,6 +236,9 @@ pub struct MuxBox {
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
     pub pty: Option<bool>,
+    // F0221: MuxBox ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum  
+    #[serde(default)]
+    pub execution_mode: ExecutionMode,
     #[serde(default)]
     pub z_index: Option<i32>,
     #[serde(default)]
@@ -322,6 +335,8 @@ impl Hash for MuxBox {
         }
         self.auto_scroll_bottom.hash(state);
         self.pty.hash(state);
+        // F0221: Hash ExecutionMode field
+        self.execution_mode.hash(state);
         self.z_index.hash(state);
         if let Some(hs) = self.horizontal_scroll {
             hs.to_bits().hash(state);
@@ -396,7 +411,7 @@ impl Default for MuxBox {
             redirect_output: None,
             append_output: None,
             script: None,
-            thread: Some(false),
+            thread: None,
             on_keypress: None,
             variables: None,
             output: "".to_string(),
@@ -409,6 +424,8 @@ impl Default for MuxBox {
             table_config: None,
             auto_scroll_bottom: None,
             pty: None,
+            // F0221: Default ExecutionMode to Immediate
+            execution_mode: ExecutionMode::default(),
             z_index: None,
             horizontal_scroll: Some(0.0),
             vertical_scroll: Some(0.0),
@@ -490,6 +507,8 @@ impl PartialEq for MuxBox {
             && self.table_config == other.table_config
             && self.auto_scroll_bottom == other.auto_scroll_bottom
             && self.pty == other.pty
+            // F0221: Compare ExecutionMode field
+            && self.execution_mode == other.execution_mode
             && self.z_index == other.z_index
             && self.error_state == other.error_state
             && self.streams == other.streams
@@ -564,6 +583,8 @@ impl Clone for MuxBox {
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
             pty: self.pty,
+            // F0221: Clone ExecutionMode field
+            execution_mode: self.execution_mode.clone(),
             z_index: self.z_index,
             horizontal_scroll: self.horizontal_scroll,
             vertical_scroll: self.vertical_scroll,
@@ -1884,21 +1905,51 @@ impl MuxBox {
         false
     }
 
-    /// Initialize streams for a muxbox - replaces tab system
+    /// Check if content was defined in YAML vs populated by redirect output
+    fn is_yaml_defined_content(&self, content: &str) -> bool {
+        // F0229: Simple heuristic - redirect output typically has timestamps, ERROR prefixes, or execution indicators
+        // YAML content is usually static documentation, descriptions, or simple text
+        let lines: Vec<&str> = content.lines().collect();
+        
+        // Empty content is not YAML-defined
+        if lines.is_empty() {
+            return false;
+        }
+        
+        // Check for common redirect output patterns
+        let has_redirect_patterns = lines.iter().any(|line| {
+            line.starts_with("ERROR:") ||
+            line.starts_with("===") ||
+            line.starts_with("Executing") ||
+            line.contains("completed successfully") ||
+            line.contains("failed:") ||
+            // Check for timestamp-like patterns (crude but effective)
+            line.contains(" [") && line.contains("] ")
+        });
+        
+        // If no redirect patterns found, likely YAML-defined
+        !has_redirect_patterns
+    }
+
+    /// Initialize streams for a muxbox - F0229: Only create streams for YAML-defined content/choices
     pub fn initialize_streams(&mut self) {
         self.streams.clear();
 
-        let has_content = self
+        // F0229: Check if content was defined in YAML vs populated by redirect
+        let has_yaml_content = self
             .content
             .as_ref()
-            .map_or(false, |c| !c.trim().is_empty());
+            .map_or(false, |c| !c.trim().is_empty() && self.is_yaml_defined_content(c));
         let has_choices = self
             .choices
             .as_ref()
             .map_or(false, |choices| !choices.is_empty());
 
-        // Create content stream only if content field is present and non-empty
-        if has_content {
+        // F0229: Check if this is an action-only box (choices but no YAML content)  
+        let is_action_only_box = has_choices && !has_yaml_content;
+
+        // F0229: Only create content stream for YAML-defined content (not redirect output)
+        if has_yaml_content && !is_action_only_box {
             let content_title = if has_choices {
                 // If both content and choices exist, content tab gets box title or box ID
                 self.title.clone().unwrap_or_else(|| self.id.clone())
@@ -1932,11 +1983,11 @@ impl MuxBox {
 
         // Create choices stream only if choices exist and are non-empty
         if has_choices {
-            let choices_title = if has_content {
+            let choices_title = if has_yaml_content && !is_action_only_box {
                 // If both content and choices exist, choices get "Choices" title
                 "Choices".to_string()
             } else {
-                // Choices is the only stream, use box title or box ID
+                // Choices is the only stream (action-only box), use box title or box ID
                 self.title.clone().unwrap_or_else(|| self.id.clone())
             };
 
@@ -1954,8 +2005,8 @@ impl MuxBox {
                 )),
             );
 
-            // If no content stream exists, choices stream becomes active
-            if !has_content {
+            // If no content stream exists (action-only box), choices stream becomes active
+            if is_action_only_box || !has_yaml_content {
                 choices_stream.active = true;
             }
 
@@ -2321,6 +2372,60 @@ impl MuxBox {
         let tabs_that_fit = usable_width / tab_width.max(1);
 
         tab_labels.len().saturating_sub(tabs_that_fit)
+    }
+
+    /// F0229: ExecutionMode Migration Logic - Migrate legacy thread/pty fields to execution_mode
+    /// Called after deserialization to handle backward compatibility with existing YAML files
+    pub fn migrate_execution_mode(&mut self) {
+        // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
+        if self.execution_mode == ExecutionMode::default() {
+            let thread = self.thread.unwrap_or(false);
+            let pty = self.pty.unwrap_or(false);
+            
+            // Only update if there's actual legacy configuration to migrate
+            if thread || pty {
+                self.execution_mode = ExecutionMode::from_legacy(thread, pty);
+                log::debug!(
+                    "Migrated MuxBox '{}' execution mode from legacy thread={}, pty={} to {:?}",
+                    self.id, thread, pty, self.execution_mode
+                );
+            }
+        }
+
+        // Recursively migrate child muxboxes
+        if let Some(ref mut children) = self.children {
+            for child in children {
+                child.migrate_execution_mode();
+            }
+        }
+
+        // Migrate choices within this muxbox
+        if let Some(ref mut choices) = self.choices {
+            for choice in choices {
+                choice.migrate_execution_mode();
+            }
+        }
+    }
+}
+
+impl Choice {
+    /// F0229: ExecutionMode Migration Logic - Migrate legacy thread/pty fields to execution_mode
+    /// Called after deserialization to handle backward compatibility with existing YAML files
+    pub fn migrate_execution_mode(&mut self) {
+        // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
+        if self.execution_mode == ExecutionMode::default() {
+            let thread = self.thread.unwrap_or(false);
+            let pty = self.pty.unwrap_or(false);
+            
+            // Only update if there's actual legacy configuration to migrate
+            if thread || pty {
+                self.execution_mode = ExecutionMode::from_legacy(thread, pty);
+                log::debug!(
+                    "Migrated Choice '{}' execution mode from legacy thread={}, pty={} to {:?}",
+                    self.id, thread, pty, self.execution_mode
+                );
+            }
+        }
     }
 }
 
@@ -3326,6 +3431,7 @@ mod tests {
             redirect_output: None,
             append_output: None,
             pty: None,
+            execution_mode: ExecutionMode::default(),
             selected: false,
             waiting: false,
         }
@@ -3355,7 +3461,7 @@ mod tests {
         assert_eq!(muxbox.title, None);
         assert_eq!(muxbox.anchor, Anchor::Center);
         assert_eq!(muxbox.selected, Some(false));
-        assert_eq!(muxbox.thread, Some(false));
+        assert_eq!(muxbox.thread, None);
         assert_eq!(muxbox.horizontal_scroll, Some(0.0));
         assert_eq!(muxbox.vertical_scroll, Some(0.0));
         assert_eq!(muxbox.error_state, false);
