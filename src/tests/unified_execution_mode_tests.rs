@@ -14,8 +14,6 @@ fn test_unified_execution_immediateediate_mode() {
             content: Some("Test Immediate Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'immediate output'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -50,8 +48,6 @@ fn test_unified_execution_threadead_mode() {
             content: Some("Test Thread Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'thread output'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -81,8 +77,6 @@ fn test_unified_execution_pty_mode() {
             content: Some("Test PTY Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'pty output'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: Some(false),
@@ -112,8 +106,6 @@ fn test_unified_execution_redirect_output() {
             content: Some("Redirect Test Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'redirected output'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: Some("target_box".to_string()),
             append_output: Some(false),
@@ -149,8 +141,6 @@ fn test_action_only_boxes_no_content_streams() {
             content: Some("Action 1".to_string()),
             selected: false,
             script: Some(vec!["echo 'action1'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -191,8 +181,6 @@ fn test_mixed_content_and_choices_boxes() {
             content: Some("Choice 1".to_string()),
             selected: false,
             script: Some(vec!["echo 'choice1'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -251,8 +239,6 @@ fn test_no_unwanted_timestamp_content() {
             content: Some("No Timestamp Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'clean output'".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -281,8 +267,6 @@ fn test_execution_mode_consistency_across_trigger_methods() {
         content: Some("Consistent Choice".to_string()),
         selected: false,
         script: Some(vec!["echo 'consistent'".to_string()]),
-        pty: None,
-        thread: None,
         execution_mode: ExecutionMode::Thread, // Use Thread mode to test consistency
         redirect_output: None,
         append_output: Some(false),
@@ -297,6 +281,4 @@ fn test_execution_mode_consistency_across_trigger_methods() {
     assert_eq!(expected_stream_id, "consistent_choice_thread");
     
     // Verify that execution_mode is used instead of legacy pty/thread fields
-    assert_eq!(immediate_choice.pty, None, "Legacy pty field should be None");
-    assert_eq!(immediate_choice.thread, None, "Legacy thread field should be None");
 }

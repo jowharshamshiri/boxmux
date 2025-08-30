@@ -99,10 +99,8 @@ pub struct Choice {
     pub content: Option<String>,
     #[serde(deserialize_with = "deserialize_script", default)]
     pub script: Option<Vec<String>>,
-    pub thread: Option<bool>,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
-    pub pty: Option<bool>,
     // F0222: Choice ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum
     #[serde(default)]
     pub execution_mode: ExecutionMode,
@@ -117,10 +115,8 @@ impl Hash for Choice {
         self.id.hash(state);
         self.content.hash(state);
         self.script.hash(state);
-        self.thread.hash(state);
         self.redirect_output.hash(state);
         self.append_output.hash(state);
-        self.pty.hash(state);
         // F0222: Hash ExecutionMode field
         self.execution_mode.hash(state);
         self.selected.hash(state);
@@ -133,10 +129,8 @@ impl PartialEq for Choice {
         self.id == other.id
             && self.content == other.content
             && self.script == other.script
-            && self.thread == other.thread
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
-            && self.pty == other.pty
             // F0222: Compare ExecutionMode field
             && self.execution_mode == other.execution_mode
             && self.selected == other.selected
@@ -152,10 +146,8 @@ impl Clone for Choice {
             id: self.id.clone(),
             content: self.content.clone(),
             script: self.script.clone(),
-            thread: self.thread,
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
-            pty: self.pty,
             // F0222: Clone ExecutionMode field
             execution_mode: self.execution_mode.clone(),
             selected: self.selected,
@@ -216,7 +208,6 @@ pub struct MuxBox {
     pub append_output: Option<bool>,
     #[serde(deserialize_with = "deserialize_script", default)]
     pub script: Option<Vec<String>>,
-    pub thread: Option<bool>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
     #[serde(default)]
@@ -235,7 +226,6 @@ pub struct MuxBox {
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
-    pub pty: Option<bool>,
     // F0221: MuxBox ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum  
     #[serde(default)]
     pub execution_mode: ExecutionMode,
@@ -314,7 +304,6 @@ impl Hash for MuxBox {
         self.redirect_output.hash(state);
         self.append_output.hash(state);
         self.script.hash(state);
-        self.thread.hash(state);
         self.output.hash(state);
         self.save_in_file.hash(state);
         self.chart_type.hash(state);
@@ -334,7 +323,6 @@ impl Hash for MuxBox {
                 .hash(state);
         }
         self.auto_scroll_bottom.hash(state);
-        self.pty.hash(state);
         // F0221: Hash ExecutionMode field
         self.execution_mode.hash(state);
         self.z_index.hash(state);
@@ -411,7 +399,6 @@ impl Default for MuxBox {
             redirect_output: None,
             append_output: None,
             script: None,
-            thread: None,
             on_keypress: None,
             variables: None,
             output: "".to_string(),
@@ -423,7 +410,6 @@ impl Default for MuxBox {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
-            pty: None,
             // F0221: Default ExecutionMode to Immediate
             execution_mode: ExecutionMode::default(),
             z_index: None,
@@ -489,7 +475,6 @@ impl PartialEq for MuxBox {
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
             && self.script == other.script
-            && self.thread == other.thread
             && self.horizontal_scroll.map(|hs| hs.to_bits())
                 == other.horizontal_scroll.map(|hs| hs.to_bits())
             && self.vertical_scroll.map(|vs| vs.to_bits())
@@ -506,7 +491,6 @@ impl PartialEq for MuxBox {
             && self.table_data == other.table_data
             && self.table_config == other.table_config
             && self.auto_scroll_bottom == other.auto_scroll_bottom
-            && self.pty == other.pty
             // F0221: Compare ExecutionMode field
             && self.execution_mode == other.execution_mode
             && self.z_index == other.z_index
@@ -567,7 +551,6 @@ impl Clone for MuxBox {
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
             script: self.script.clone(),
-            thread: self.thread,
             on_keypress: self.on_keypress.clone(),
             variables: self.variables.clone(),
             output: self.output.clone(),
@@ -582,7 +565,6 @@ impl Clone for MuxBox {
             table_data: self.table_data.clone(),
             table_config: self.table_config.clone(),
             auto_scroll_bottom: self.auto_scroll_bottom,
-            pty: self.pty,
             // F0221: Clone ExecutionMode field
             execution_mode: self.execution_mode.clone(),
             z_index: self.z_index,
@@ -1527,7 +1509,7 @@ impl MuxBox {
         &self,
         pty_manager: &crate::pty_manager::PtyManager,
     ) -> Option<String> {
-        if self.pty == Some(true) {
+        if self.execution_mode == ExecutionMode::Pty {
             pty_manager.get_scrollback_content(&self.id)
         } else {
             self.content.clone()
@@ -1542,7 +1524,7 @@ impl MuxBox {
         start_line: usize,
         line_count: usize,
     ) -> Option<Vec<String>> {
-        if self.pty == Some(true) {
+        if self.execution_mode == ExecutionMode::Pty {
             if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
                 if let Ok(buffer_lock) = buffer.lock() {
                     let total_lines = buffer_lock.len();
@@ -1570,7 +1552,7 @@ impl MuxBox {
     /// Get total available scrollback lines for a muxbox
     /// F0120: PTY Scrollback - Get total scrollback line count for scroll calculations
     pub fn get_scrollback_line_count(&self, pty_manager: &crate::pty_manager::PtyManager) -> usize {
-        if self.pty == Some(true) {
+        if self.execution_mode == ExecutionMode::Pty {
             if let Some(buffer) = pty_manager.get_output_buffer(&self.id) {
                 if let Ok(buffer_lock) = buffer.lock() {
                     return buffer_lock.len();
@@ -2045,11 +2027,19 @@ impl MuxBox {
         label: String,
         source: crate::model::common::StreamSource,
     ) -> String {
-        let stream_id = format!(
-            "{}_{}",
-            self.id,
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
-        );
+        // SOURCE OBJECT ARCHITECTURE: Extract stream_id from StreamType (which contains source object stream_id)
+        let stream_id = match &stream_type {
+            StreamType::Content => format!("{}_content", self.id),
+            StreamType::Choices => format!("{}_choices", self.id),
+            StreamType::PTY => format!("{}_pty", self.id),
+            StreamType::ExternalSocket => format!("{}_external", self.id),
+            StreamType::OwnScript => format!("{}_script", self.id),
+            StreamType::ChoiceExecution(source_stream_id) => source_stream_id.clone(),
+            StreamType::PtySession(source_stream_id) => source_stream_id.clone(),
+            StreamType::RedirectedOutput(source_stream_id) => source_stream_id.clone(),
+            StreamType::RedirectSource(source_stream_id) => source_stream_id.clone(),
+            StreamType::Plugin(plugin_name) => format!("{}_{}", self.id, plugin_name),
+        };
         let stream = Stream::new(
             stream_id.clone(),
             stream_type,
@@ -2270,6 +2260,7 @@ impl MuxBox {
 
     pub fn get_tab_labels(&self) -> Vec<String> {
         // F0218: Stream Tab Integration - generate tabs from streams
+        log::info!("TAB DEBUG: get_tab_labels() called for box {}, streams count: {}", self.id, self.streams.len());
         let mut labels = Vec::new();
 
         // Use exact same ordering as switch_to_tab() - natural IndexMap insertion order
@@ -2297,6 +2288,8 @@ impl MuxBox {
             labels.push(label);
         }
 
+        log::info!("TAB DEBUG: get_tab_labels() returning {} labels for box {}: {:?}", labels.len(), self.id, labels);
+        
         // No default tab - empty boxes have no tabs
         labels
     }
@@ -2379,17 +2372,18 @@ impl MuxBox {
     pub fn migrate_execution_mode(&mut self) {
         // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
         if self.execution_mode == ExecutionMode::default() {
-            let thread = self.thread.unwrap_or(false);
-            let pty = self.pty.unwrap_or(false);
+            // T0330: Legacy fields removed - migration no longer needed  
+            // let thread = self.thread.unwrap_or(false);
+            // let pty = self.pty.unwrap_or(false);
             
-            // Only update if there's actual legacy configuration to migrate
-            if thread || pty {
-                self.execution_mode = ExecutionMode::from_legacy(thread, pty);
-                log::debug!(
-                    "Migrated MuxBox '{}' execution mode from legacy thread={}, pty={} to {:?}",
-                    self.id, thread, pty, self.execution_mode
-                );
-            }
+            // T0330: Legacy field migration removed - execution_mode should be set directly in YAML
+            // if thread || pty {
+            //     self.execution_mode = ExecutionMode::from_legacy(thread, pty);
+                // log::debug!(
+                //     "Migrated MuxBox '{}' execution mode from legacy thread={}, pty={} to {:?}",
+                //     self.id, thread, pty, self.execution_mode
+                // );
+            // }
         }
 
         // Recursively migrate child muxboxes
@@ -2414,17 +2408,18 @@ impl Choice {
     pub fn migrate_execution_mode(&mut self) {
         // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
         if self.execution_mode == ExecutionMode::default() {
-            let thread = self.thread.unwrap_or(false);
-            let pty = self.pty.unwrap_or(false);
+            // T0330: Legacy fields removed - migration no longer needed  
+            // let thread = self.thread.unwrap_or(false);
+            // let pty = self.pty.unwrap_or(false);
             
-            // Only update if there's actual legacy configuration to migrate
-            if thread || pty {
-                self.execution_mode = ExecutionMode::from_legacy(thread, pty);
-                log::debug!(
-                    "Migrated Choice '{}' execution mode from legacy thread={}, pty={} to {:?}",
-                    self.id, thread, pty, self.execution_mode
-                );
-            }
+            // T0330: Legacy field migration removed - execution_mode should be set directly in YAML
+            // if thread || pty {
+            //     self.execution_mode = ExecutionMode::from_legacy(thread, pty);
+                // log::debug!(
+                //     "Migrated Choice '{}' execution mode from legacy thread={}, pty={} to {:?}",
+                //     self.id, thread, pty, self.execution_mode
+                // );
+            // }
         }
     }
 }
@@ -2909,14 +2904,7 @@ impl Updatable for MuxBox {
             }
         }
 
-        if self.thread != other.thread {
-            updates.push(FieldUpdate {
-                entity_type: EntityType::MuxBox,
-                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-                field_name: "thread".to_string(),
-                new_value: serde_json::to_value(other.thread).unwrap(),
-            });
-        }
+        // T0330: thread field removed - tracked via execution_mode instead
 
         if self.on_keypress != other.on_keypress {
             if let Some(new_value) = &other.on_keypress {
@@ -3323,13 +3311,7 @@ impl Updatable for MuxBox {
                         self.script = new_script;
                     }
                 }
-                "thread" => {
-                    if let Ok(new_thread) =
-                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
-                    {
-                        self.thread = new_thread;
-                    }
-                }
+                // T0330: "thread" field removed - use "execution_mode" field instead
                 "horizontal_scroll" => {
                     if let Ok(new_horizontal_scroll) =
                         serde_json::from_value::<Option<f64>>(update.new_value.clone())
@@ -3427,10 +3409,8 @@ mod tests {
             id: id.to_string(),
             content: Some(content.to_string()),
             script: None,
-            thread: Some(false),
             redirect_output: None,
             append_output: None,
-            pty: None,
             execution_mode: ExecutionMode::default(),
             selected: false,
             waiting: false,
@@ -3461,7 +3441,7 @@ mod tests {
         assert_eq!(muxbox.title, None);
         assert_eq!(muxbox.anchor, Anchor::Center);
         assert_eq!(muxbox.selected, Some(false));
-        assert_eq!(muxbox.thread, None);
+        assert_eq!(muxbox.execution_mode, crate::model::common::ExecutionMode::default());
         assert_eq!(muxbox.horizontal_scroll, Some(0.0));
         assert_eq!(muxbox.vertical_scroll, Some(0.0));
         assert_eq!(muxbox.error_state, false);
@@ -3895,7 +3875,7 @@ mod tests {
         assert_eq!(choice.content, Some("Test Content".to_string()));
         assert_eq!(choice.selected, false);
         assert_eq!(choice.waiting, false);
-        assert_eq!(choice.thread, Some(false));
+        assert_eq!(choice.execution_mode, crate::model::common::ExecutionMode::default());
     }
 
     /// Tests that Choice implements Clone correctly.

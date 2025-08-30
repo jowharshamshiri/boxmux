@@ -15,14 +15,12 @@ pub mod edge_case_tests;
 pub mod execution_mode_tests;
 
 #[cfg(test)]
-pub mod execution_mode_migration_tests;
 pub mod stream_only_execution_tests;
 
 #[cfg(test)]
 pub mod execution_mode_schema_validation_tests; // F0230: ExecutionMode YAML Schema tests
 
 #[cfg(test)]
-pub mod execution_mode_migration_logic_tests; // F0229: ExecutionMode Migration Logic Tests
 
 #[cfg(test)]
 pub mod execution_mode_stream_source_traits_tests; // F0227: ExecutionMode Stream Source Traits Tests

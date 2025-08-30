@@ -1,354 +1,202 @@
-// F0228: ExecutionMode Message System Tests - Comprehensive test coverage for ExecutionMode-based message handling
+/// Tests for Unified Execution Architecture message system
+/// 
+/// These tests verify the new ExecuteScript/StreamUpdate/SourceAction message flow
+/// that replaces the old ExecuteChoice/CreateChoiceExecutionStream messages
 
-use crate::model::common::ExecutionMode;
-use crate::model::muxbox::Choice;
-use crate::tests::test_utils::TestDataFactory;
-use crate::thread_manager::Message;
-use crate::utils::{run_script_with_pty, run_script_with_pty_and_redirect};
-
-#[test]
-fn test_execution_mode_in_utils_run_script_with_pty() {
-    // Test that run_script_with_pty correctly handles ExecutionMode instead of boolean
-    let libs = Some(vec!["test".to_string()]);
-    let script = vec!["echo test".to_string()];
-    
-    // Test Immediate mode
-    let result = run_script_with_pty(
-        libs.clone(),
-        &script,
-        &ExecutionMode::Immediate,
-        None,
-        None,
-        None,
-    );
-    assert!(result.is_ok(), "Immediate mode should execute successfully");
-
-    // Test Thread mode (without PTY manager, should fallback to regular execution)
-    let result = run_script_with_pty(
-        libs.clone(),
-        &script,
-        &ExecutionMode::Thread,
-        None,
-        None,
-        None,
-    );
-    assert!(result.is_ok(), "Thread mode should execute successfully");
-
-    // Test PTY mode (without PTY manager, should fallback to regular execution)
-    let result = run_script_with_pty(
-        libs,
-        &script,
-        &ExecutionMode::Pty,
-        None,
-        None,
-        None,
-    );
-    assert!(result.is_ok(), "PTY mode should fallback to regular execution without PTY manager");
-}
-
-#[test]
-fn test_execution_mode_in_utils_run_script_with_pty_and_redirect() {
-    // Test that run_script_with_pty_and_redirect correctly handles ExecutionMode
-    let libs = Some(vec!["test".to_string()]);
-    let script = vec!["echo test".to_string()];
-    
-    // Test Immediate mode with redirect
-    let result = run_script_with_pty_and_redirect(
-        libs.clone(),
-        &script,
-        &ExecutionMode::Immediate,
-        None,
-        None,
-        None,
-        Some("test_redirect".to_string()),
-    );
-    assert!(result.is_ok(), "Immediate mode with redirect should execute successfully");
-
-    // Test Thread mode with redirect
-    let result = run_script_with_pty_and_redirect(
-        libs.clone(),
-        &script,
-        &ExecutionMode::Thread,
-        None,
-        None,
-        None,
-        Some("test_redirect".to_string()),
-    );
-    assert!(result.is_ok(), "Thread mode with redirect should execute successfully");
-
-    // Test PTY mode with redirect (should fallback without PTY manager)
-    let result = run_script_with_pty_and_redirect(
-        libs,
-        &script,
-        &ExecutionMode::Pty,
-        None,
-        None,
-        None,
-        Some("test_redirect".to_string()),
-    );
-    assert!(result.is_ok(), "PTY mode with redirect should fallback successfully");
-}
-
-#[test]
-fn test_execution_mode_is_pty_method() {
-    // Test ExecutionMode.is_pty() method used in utils functions
-    assert!(!ExecutionMode::Immediate.is_pty(), "Immediate mode should not be PTY");
-    assert!(!ExecutionMode::Thread.is_pty(), "Thread mode should not be PTY");
-    assert!(ExecutionMode::Pty.is_pty(), "PTY mode should be PTY");
-}
-
-#[test]
-fn test_execute_choice_message_structure() {
-    // Test that ExecuteChoice message structure works with ExecutionMode
-    let choice = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Pty, // F0228: ExecutionMode field
-        redirect_output: None,
-        append_output: None,
-        selected: false,
-        waiting: false,
+#[cfg(test)]
+mod tests {
+    use crate::model::common::{
+        ExecutionMode, ExecuteScript, ExecutionSource, SourceType, SourceReference,
+        StreamUpdate, SourceState, BatchSourceState, BatchStatus
     };
+    use crate::model::muxbox::Choice;
+    use crate::thread_manager::Message;
+    use std::time::Duration;
 
-    let msg = Message::ExecuteChoice(
-        choice.clone(),
-        "test_muxbox".to_string(),
-        Some(vec!["lib1".to_string()]),
-    );
-
-    // Verify message structure
-    if let Message::ExecuteChoice(choice_in_msg, muxbox_id, libs) = msg {
-        assert_eq!(choice_in_msg.id, "test_choice");
-        assert_eq!(choice_in_msg.execution_mode, ExecutionMode::Pty);
-        assert_eq!(muxbox_id, "test_muxbox");
-        assert_eq!(libs, Some(vec!["lib1".to_string()]));
-    } else {
-        panic!("Message should be ExecuteChoice variant");
+    #[test]
+    fn test_execution_mode_basic_functionality() {
+        // Test ExecutionMode enum basic operations
+        assert_eq!(ExecutionMode::default(), ExecutionMode::Immediate);
+        
+        // Test PTY detection
+        assert!(!ExecutionMode::Immediate.is_pty(), "Immediate mode should not be PTY");
+        assert!(!ExecutionMode::Thread.is_pty(), "Thread mode should not be PTY");
+        assert!(ExecutionMode::Pty.is_pty(), "PTY mode should be PTY");
     }
-}
 
-#[test]
-fn test_create_choice_execution_stream_message() {
-    // Test CreateChoiceExecutionStream message with ExecutionMode
-    let msg = Message::CreateChoiceExecutionStream(
-        "test_choice".to_string(),
-        "test_muxbox".to_string(),
-        ExecutionMode::Thread,
-        "Test Stream Label".to_string(),
-    );
+    #[test]
+    fn test_execute_script_message_structure() {
+        // Test unified ExecuteScript message structure
+        let choice = Choice {
+            id: "test_choice".to_string(),
+            content: Some("Test Choice".to_string()),
+            script: Some(vec!["echo test".to_string()]),
+            execution_mode: ExecutionMode::Pty,
+            redirect_output: None,
+            append_output: None,
+            selected: false,
+            waiting: false,
+        };
 
-    // Verify message structure
-    if let Message::CreateChoiceExecutionStream(choice_id, muxbox_id, execution_mode, label) = msg {
-        assert_eq!(choice_id, "test_choice");
-        assert_eq!(muxbox_id, "test_muxbox");
-        assert_eq!(execution_mode, ExecutionMode::Thread);
-        assert_eq!(label, "Test Stream Label");
-    } else {
-        panic!("Message should be CreateChoiceExecutionStream variant");
-    }
-}
+        // Create ExecuteScript message using unified architecture
+        let execute_script = ExecuteScript {
+            script: vec!["echo test".to_string()],
+            source: ExecutionSource {
+                source_type: SourceType::Choice("test_choice".to_string()),
+                source_id: "test_execution_001".to_string(),
+                source_reference: SourceReference::Choice(choice.clone()),
+            },
+            execution_mode: ExecutionMode::Pty,
+            target_box_id: "test_muxbox".to_string(),
+            libs: vec!["lib1".to_string()],
+            redirect_output: None,
+            append_output: false,
+            stream_id: "test-stream-001".to_string(),
+        };
 
-#[test]
-fn test_execution_mode_message_hash_consistency() {
-    // Test that messages with ExecutionMode hash consistently
-    let choice1 = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Immediate,
-        redirect_output: None,
-        append_output: None,
-        selected: false,
-        waiting: false,
-    };
+        let msg = Message::ExecuteScriptMessage(execute_script.clone());
 
-    let choice2 = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Immediate, // Same ExecutionMode
-        redirect_output: None,
-        append_output: None,
-        selected: false,
-        waiting: false,
-    };
-
-    let msg1 = Message::ExecuteChoice(choice1, "test_muxbox".to_string(), None);
-    let msg2 = Message::ExecuteChoice(choice2, "test_muxbox".to_string(), None);
-
-    // Messages with same ExecutionMode should hash equally
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher1 = DefaultHasher::new();
-    let mut hasher2 = DefaultHasher::new();
-    
-    msg1.hash(&mut hasher1);
-    msg2.hash(&mut hasher2);
-    
-    assert_eq!(hasher1.finish(), hasher2.finish(), "Messages with same ExecutionMode should hash equally");
-}
-
-#[test]
-fn test_execution_mode_message_different_modes() {
-    // Test that messages with different ExecutionModes hash differently
-    let choice_immediate = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Immediate,
-        redirect_output: None,
-        append_output: None,
-        selected: false,
-        waiting: false,
-    };
-
-    let choice_pty = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Pty, // Different ExecutionMode
-        redirect_output: None,
-        append_output: None,
-        selected: false,
-        waiting: false,
-    };
-
-    let msg1 = Message::ExecuteChoice(choice_immediate, "test_muxbox".to_string(), None);
-    let msg2 = Message::ExecuteChoice(choice_pty, "test_muxbox".to_string(), None);
-
-    // Messages with different ExecutionMode should not be equal
-    assert_ne!(msg1, msg2, "Messages with different ExecutionModes should not be equal");
-}
-
-#[test]
-fn test_execution_mode_stream_creation_message() {
-    // Test all ExecutionMode variants in stream creation messages
-    let modes = vec![
-        ExecutionMode::Immediate,
-        ExecutionMode::Thread,
-        ExecutionMode::Pty,
-    ];
-
-    for mode in modes {
-        let msg = Message::CreateChoiceExecutionStream(
-            "test_choice".to_string(),
-            "test_muxbox".to_string(),
-            mode.clone(),
-            format!("Stream for {:?}", mode),
-        );
-
-        // Verify each message can be created and structured correctly
-        if let Message::CreateChoiceExecutionStream(choice_id, muxbox_id, execution_mode, label) = msg {
-            assert_eq!(choice_id, "test_choice");
-            assert_eq!(muxbox_id, "test_muxbox");
-            assert_eq!(execution_mode, mode);
-            assert!(label.contains(&format!("{:?}", mode)));
+        // Verify message structure
+        if let Message::ExecuteScriptMessage(execute_script_msg) = msg {
+            assert_eq!(execute_script_msg.execution_mode, ExecutionMode::Pty);
+            assert_eq!(execute_script_msg.target_box_id, "test_muxbox");
+            assert_eq!(execute_script_msg.libs, vec!["lib1".to_string()]);
+            if let SourceType::Choice(choice_id) = &execute_script_msg.source.source_type {
+                assert_eq!(choice_id, "test_choice");
+            } else {
+                panic!("Source type should be Choice");
+            }
         } else {
-            panic!("Message should be CreateChoiceExecutionStream variant");
+            panic!("Message should be ExecuteScriptMessage variant");
         }
     }
-}
 
-#[test]
-fn test_no_hardcoded_boolean_in_message_system() {
-    // Test that ExecutionMode methods work correctly for message system decisions
-    
-    // PTY detection should work through ExecutionMode
-    let pty_mode = ExecutionMode::Pty;
-    assert!(pty_mode.is_pty(), "PTY mode should be detected correctly");
-    assert!(pty_mode.is_background(), "PTY mode should be background");
-    assert!(pty_mode.is_realtime(), "PTY mode should be realtime");
+    #[test]
+    fn test_stream_update_message() {
+        // Test StreamUpdate message with ExecutionMode
+        let stream_update = StreamUpdate {
+            stream_id: "test_muxbox_choice_stream".to_string(),
+            target_box_id: "test_box".to_string(),
+            content_update: "Script output content".to_string(),
+            source_state: SourceState::Batch(BatchSourceState {
+                task_id: "task_001".to_string(),
+                queue_wait_time: Duration::from_millis(10),
+                execution_time: Duration::from_millis(500),
+                exit_code: Some(0),
+                status: BatchStatus::Completed,
+            }),
+            execution_mode: ExecutionMode::Thread,
+        };
 
-    // Thread detection
-    let thread_mode = ExecutionMode::Thread;
-    assert!(!thread_mode.is_pty(), "Thread mode should not be PTY");
-    assert!(thread_mode.is_background(), "Thread mode should be background");
-    assert!(!thread_mode.is_realtime(), "Thread mode should not be realtime");
+        let msg = Message::StreamUpdateMessage(stream_update.clone());
 
-    // Immediate detection
-    let immediate_mode = ExecutionMode::Immediate;
-    assert!(!immediate_mode.is_pty(), "Immediate mode should not be PTY");
-    assert!(!immediate_mode.is_background(), "Immediate mode should not be background");
-    assert!(!immediate_mode.is_realtime(), "Immediate mode should not be realtime");
-}
+        // Verify message structure  
+        if let Message::StreamUpdateMessage(stream_update_msg) = msg {
+            assert_eq!(stream_update_msg.stream_id, "test_muxbox_choice_stream");
+            assert_eq!(stream_update_msg.content_update, "Script output content");
+            assert_eq!(stream_update_msg.execution_mode, ExecutionMode::Thread);
+            if let SourceState::Batch(batch_state) = stream_update_msg.source_state {
+                assert_eq!(batch_state.task_id, "task_001");
+                assert_eq!(batch_state.exit_code, Some(0));
+                assert!(matches!(batch_state.status, BatchStatus::Completed));
+            } else {
+                panic!("Source state should be Batch variant");
+            }
+        } else {
+            panic!("Message should be StreamUpdateMessage variant");
+        }
+    }
 
-#[test]
-fn test_execution_mode_legacy_migration_in_messages() {
-    // Test that legacy boolean conversion still works for backward compatibility
-    
-    // PTY precedence: pty=true, thread=false -> Pty
-    let mode1 = ExecutionMode::from_legacy(false, true);
-    assert_eq!(mode1, ExecutionMode::Pty, "PTY should have precedence over thread");
+    #[test]
+    fn test_execution_mode_hash_and_equality() {
+        // Test that ExecutionMode properly implements Hash and PartialEq
+        use std::collections::HashSet;
 
-    // Thread mode: pty=false, thread=true -> Thread
-    let mode2 = ExecutionMode::from_legacy(true, false);
-    assert_eq!(mode2, ExecutionMode::Thread, "Thread mode should be detected");
+        let mut modes = HashSet::new();
+        modes.insert(ExecutionMode::Immediate);
+        modes.insert(ExecutionMode::Thread);
+        modes.insert(ExecutionMode::Pty);
+        
+        // Verify all modes are distinct
+        assert_eq!(modes.len(), 3);
+        
+        // Test equality
+        assert_eq!(ExecutionMode::Immediate, ExecutionMode::Immediate);
+        assert_ne!(ExecutionMode::Immediate, ExecutionMode::Thread);
+    }
 
-    // Immediate mode: pty=false, thread=false -> Immediate
-    let mode3 = ExecutionMode::from_legacy(false, false);
-    assert_eq!(mode3, ExecutionMode::Immediate, "Default should be Immediate");
+    #[test]
+    fn test_source_type_variants() {
+        // Test all SourceType variants work correctly
+        let choice_source = SourceType::Choice("test_choice".to_string());
+        let static_source = SourceType::StaticScript;
+        let socket_source = SourceType::SocketUpdate;
+        let hotkey_source = SourceType::HotkeyScript;
+        
+        // Verify they're all distinct
+        assert_ne!(choice_source, static_source);
+        assert_ne!(static_source, socket_source);
+        assert_ne!(socket_source, hotkey_source);
+        
+        // Verify choice source contains expected value
+        if let SourceType::Choice(choice_id) = choice_source {
+            assert_eq!(choice_id, "test_choice");
+        } else {
+            panic!("Should be Choice variant");
+        }
+    }
 
-    // Both true: PTY precedence
-    let mode4 = ExecutionMode::from_legacy(true, true);
-    assert_eq!(mode4, ExecutionMode::Pty, "PTY should have precedence when both are true");
-}
+    #[test] 
+    fn test_unified_message_flow_integration() {
+        // Test that the unified message flow works end-to-end
+        let choice = Choice {
+            id: "integration_choice".to_string(),
+            content: Some("Integration Test".to_string()),
+            script: Some(vec!["echo integration".to_string()]),
+            execution_mode: ExecutionMode::Thread,
+            redirect_output: Some("output_box".to_string()),
+            append_output: Some(true),
+            selected: false,
+            waiting: false,
+        };
 
-#[test]
-fn test_muxbox_execution_mode_message_integration() {
-    // Test that MuxBox ExecutionMode integrates properly with message system
-    let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
-    muxbox.execution_mode = ExecutionMode::Pty;
+        // 1. Create ExecuteScript message (replaces ExecuteChoice)
+        let execute_script = ExecuteScript {
+            script: vec!["echo integration".to_string()],
+            source: ExecutionSource {
+                source_type: SourceType::Choice("integration_choice".to_string()),
+                source_id: "integration_001".to_string(),
+                source_reference: SourceReference::Choice(choice),
+            },
+            execution_mode: ExecutionMode::Thread,
+            target_box_id: "test_box".to_string(),
+            libs: vec![],
+            redirect_output: Some("output_box".to_string()),
+            append_output: true,
+            stream_id: "test-stream-002".to_string(),
+        };
 
-    // Test that ExecutionMode can be read from MuxBox for message decisions
-    assert!(muxbox.execution_mode.is_pty(), "MuxBox should have PTY execution mode");
-    assert!(muxbox.execution_mode.creates_streams(), "All execution modes should create streams");
+        // 2. Create StreamUpdate message (unified architecture)
+        let stream_update = StreamUpdate {
+            stream_id: "test_box_integration_stream".to_string(),
+            target_box_id: "test_box".to_string(),
+            content_update: "integration\n".to_string(),
+            source_state: SourceState::Batch(BatchSourceState {
+                task_id: "integration_001".to_string(),
+                queue_wait_time: Duration::from_millis(5),
+                execution_time: Duration::from_millis(250),
+                exit_code: Some(0),
+                status: BatchStatus::Completed,
+            }),
+            execution_mode: ExecutionMode::Thread,
+        };
 
-    // Simulate message system decision
-    let should_use_pty = muxbox.execution_mode.is_pty();
-    assert!(should_use_pty, "Message system should detect PTY mode correctly");
-}
+        // Verify both messages work together
+        let execute_msg = Message::ExecuteScriptMessage(execute_script);
+        let update_msg = Message::StreamUpdateMessage(stream_update);
 
-#[test]
-fn test_choice_execution_mode_message_integration() {
-    // Test that Choice ExecutionMode integrates properly with message system
-    let choice = Choice {
-        id: "test_choice".to_string(),
-        content: Some("Test Choice".to_string()),
-        script: Some(vec!["echo test".to_string()]),
-        thread: None,
-        pty: None,
-        execution_mode: ExecutionMode::Thread, // F0228: Use ExecutionMode
-        redirect_output: Some("redirect_target".to_string()),
-        append_output: Some(true),
-        selected: false,
-        waiting: false,
-    };
-
-    // Test message creation with choice ExecutionMode
-    let msg = Message::ExecuteChoice(
-        choice.clone(),
-        "test_muxbox".to_string(),
-        Some(vec!["lib1".to_string(), "lib2".to_string()]),
-    );
-
-    // Verify message preserves ExecutionMode
-    if let Message::ExecuteChoice(choice_in_msg, _, _) = msg {
-        assert_eq!(choice_in_msg.execution_mode, ExecutionMode::Thread);
-        assert!(choice_in_msg.execution_mode.is_background(), "Thread mode should be background");
-        assert!(!choice_in_msg.execution_mode.is_pty(), "Thread mode should not be PTY");
-    } else {
-        panic!("Message should be ExecuteChoice variant");
+        // Both should be valid message types
+        assert!(matches!(execute_msg, Message::ExecuteScriptMessage(_)));
+        assert!(matches!(update_msg, Message::StreamUpdateMessage(_)));
     }
 }

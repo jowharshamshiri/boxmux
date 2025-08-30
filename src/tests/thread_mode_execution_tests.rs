@@ -46,8 +46,6 @@ mod thread_mode_execution_tests {
             content: Some("Test Thread Choice".to_string()),
             selected: false,
             script: Some(vec!["sleep 0.1; echo hello from background".to_string()]),
-            pty: None, // Legacy field - not used with ExecutionMode
-            thread: None, // Legacy field - not used with ExecutionMode
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -56,8 +54,6 @@ mod thread_mode_execution_tests {
 
         assert_eq!(choice.execution_mode, ExecutionMode::Thread);
         assert!(choice.script.is_some());
-        assert_eq!(choice.thread, None); // Legacy field should be None
-        assert_eq!(choice.pty, None); // Legacy field should be None
     }
 
     #[test]
@@ -93,8 +89,6 @@ mod thread_mode_execution_tests {
             content: Some("Thread Choice".to_string()),
             selected: false,
             script: Some(vec!["echo thread execution".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -115,8 +109,6 @@ mod thread_mode_execution_tests {
             content: Some("Thread Choice with Redirect".to_string()),
             selected: false,
             script: Some(vec!["echo redirected background output".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: Some("output_box".to_string()),
             append_output: Some(true),
@@ -163,8 +155,6 @@ mod thread_mode_execution_tests {
             content: Some("Waiting Thread Choice".to_string()),
             selected: false,
             script: Some(vec!["sleep 1; echo done".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -245,8 +235,6 @@ mod thread_mode_execution_tests {
             content: Some("Thread Choice with Script".to_string()),
             selected: false,
             script: Some(vec!["echo 'executing in background'".to_string(), "date".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -262,8 +250,6 @@ mod thread_mode_execution_tests {
             content: Some("Thread Choice without Script".to_string()),
             selected: false,
             script: None,
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),

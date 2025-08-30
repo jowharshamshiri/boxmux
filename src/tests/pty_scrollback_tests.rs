@@ -232,7 +232,6 @@ mod pty_scrollback_tests {
             redirect_output: None,
             append_output: None,
             script: None,
-            thread: None,
             on_keypress: None,
             variables: None,
             horizontal_scroll: None,
@@ -247,8 +246,7 @@ mod pty_scrollback_tests {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
-            pty: Some(true), // This is a PTY muxbox
-            execution_mode: crate::model::common::ExecutionMode::default(),
+            execution_mode: crate::model::common::ExecutionMode::Pty,
             z_index: None,
             output: String::new(),
             parent_id: None,
@@ -264,7 +262,7 @@ mod pty_scrollback_tests {
     fn create_test_regular_muxbox() -> MuxBox {
         let mut muxbox = create_test_pty_muxbox();
         muxbox.id = "test_regular_muxbox".to_string();
-        muxbox.pty = Some(false); // This is not a PTY muxbox
+        muxbox.execution_mode = crate::model::common::ExecutionMode::Thread; // This is not a PTY muxbox
         muxbox
     }
 }

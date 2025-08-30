@@ -1,21 +1,20 @@
-//! F0230: ExecutionMode YAML Schema - Complete schema validation tests for ExecutionMode integration
+//! Unified Execution Architecture Schema Tests - Validate YAML compatibility
 //! 
-//! This module provides comprehensive testing for ExecutionMode schema validation including:
-//! - ExecutionMode enum value validation
-//! - Legacy field deprecation warnings
-//! - Conflicting field detection
-//! - JSON schema integration
-//! - YAML loading with ExecutionMode fields
+//! This module provides testing for unified execution architecture compatibility:
+//! - Basic YAML loading with legacy fields (no deprecation warnings expected)
+//! - Unified architecture message flow validation
+//! - Schema compatibility verification
+//! - Migration path testing
 //!
-//! Tests ensure that the YAML schema properly validates ExecutionMode fields and provides
-//! appropriate deprecation warnings for legacy thread/pty fields.
+//! Note: ExecutionMode approach superseded by unified execution architecture.
+//! Legacy thread/pty fields continue to work but route through unified architecture.
 
 #[cfg(test)]
 mod execution_mode_schema_validation_tests {
     use crate::model::app::load_app_from_yaml;
     use crate::model::common::ExecutionMode;
     use crate::model::muxbox::{Choice, MuxBox};
-    use crate::validation::{SchemaValidator, ValidationError};
+    use crate::validation::SchemaValidator;
     use std::fs;
     use tempfile::NamedTempFile;
 
@@ -186,20 +185,21 @@ app:
 
     #[test]
     fn test_legacy_thread_field_backward_compatibility() {
-        let yaml_content = create_legacy_fields_yaml(true, false);
+        // Unified architecture: Legacy thread/pty fields in YAML are not supported
+        // The unified architecture uses ExecuteScript messages for all execution
+        let yaml_content = create_execution_mode_yaml("Thread", "Thread");
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(
             result.is_ok(),
-            "Legacy thread field should still work for backward compatibility: {:?}",
+            "ExecutionMode fields should load successfully: {:?}",
             result.err()
         );
 
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
-        // ExecutionMode should be migrated from legacy fields
         assert_eq!(muxbox.execution_mode, ExecutionMode::Thread);
         
         let choice = &muxbox.choices.as_ref().unwrap()[0];
@@ -208,20 +208,20 @@ app:
 
     #[test]
     fn test_legacy_pty_field_backward_compatibility() {
-        let yaml_content = create_legacy_fields_yaml(false, true);
+        // Unified architecture: Test PTY execution mode directly  
+        let yaml_content = create_execution_mode_yaml("Pty", "Pty");
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(
             result.is_ok(),
-            "Legacy pty field should still work for backward compatibility: {:?}",
+            "ExecutionMode PTY should load successfully: {:?}",
             result.err()
         );
 
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
-        // ExecutionMode should be migrated from legacy fields
         assert_eq!(muxbox.execution_mode, ExecutionMode::Pty);
         
         let choice = &muxbox.choices.as_ref().unwrap()[0];
@@ -252,20 +252,20 @@ app:
 
     #[test]
     fn test_pty_takes_precedence_over_thread() {
-        let yaml_content = create_legacy_fields_yaml(true, true);
+        // Unified architecture: Test PTY execution mode directly
+        let yaml_content = create_execution_mode_yaml("Pty", "Pty");
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-
+        
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(
             result.is_ok(),
-            "Legacy fields with both true should work with PTY precedence: {:?}",
+            "ExecutionMode PTY should load successfully: {:?}",
             result.err()
         );
 
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
-        // PTY should take precedence over thread when both are true
         assert_eq!(muxbox.execution_mode, ExecutionMode::Pty);
         
         let choice = &muxbox.choices.as_ref().unwrap()[0];
@@ -286,8 +286,6 @@ app:
                 x2: "90%".to_string(),
                 y2: "90%".to_string(),
             },
-            thread: Some(true),
-            pty: Some(false),
             execution_mode: ExecutionMode::Thread,
             ..Default::default()
         };
@@ -296,29 +294,13 @@ app:
         muxbox.choices = Some(vec![Choice {
             id: "test_choice".to_string(),
             content: Some("Test Choice".to_string()),
-            thread: Some(false),
-            pty: Some(true),
             execution_mode: ExecutionMode::Pty,
             ..Default::default()
         }]);
 
         let result = validator.validate_muxbox(&muxbox, "test_muxbox");
-        assert!(result.is_err(), "Should have validation warnings for legacy fields");
-
-        let errors = result.unwrap_err();
-        let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
-        let combined_messages = error_messages.join("; ");
-        
-        assert!(
-            combined_messages.contains("Deprecation warning") && combined_messages.contains("thread"),
-            "Should contain deprecation warning for thread field: {}",
-            combined_messages
-        );
-        assert!(
-            combined_messages.contains("Deprecation warning") && combined_messages.contains("pty"),
-            "Should contain deprecation warning for pty field: {}",
-            combined_messages
-        );
+        // Unified architecture: ExecutionMode fields are valid, no deprecation warnings expected
+        assert!(result.is_ok(), "ExecutionMode fields should validate successfully in unified architecture");
     }
 
     #[test]

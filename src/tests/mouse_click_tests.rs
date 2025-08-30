@@ -77,10 +77,8 @@ mod mouse_click_tests {
             id: "test_choice".to_string(),
             content: Some("Click Me".to_string()),
             script: Some(vec!["echo clicked".to_string()]),
-            thread: Some(true),
             redirect_output: Some("output_muxbox".to_string()),
             append_output: Some(false),
-            pty: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
@@ -88,7 +86,6 @@ mod mouse_click_tests {
 
         // Verify the choice has all properties needed for mouse activation
         assert!(choice.script.is_some());
-        assert_eq!(choice.thread, Some(true));
         assert_eq!(choice.redirect_output, Some("output_muxbox".to_string()));
     }
 
@@ -110,10 +107,8 @@ mod mouse_click_tests {
             id: "choice1".to_string(),
             content: Some("First Choice".to_string()),
             script: Some(vec!["echo first".to_string()]),
-            thread: Some(false),
             redirect_output: None,
             append_output: None,
-            pty: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,
@@ -123,10 +118,8 @@ mod mouse_click_tests {
             id: "choice2".to_string(),
             content: Some("Second Choice".to_string()),
             script: Some(vec!["echo second".to_string()]),
-            thread: Some(true),
             redirect_output: Some("output".to_string()),
             append_output: Some(true),
-            pty: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
             waiting: false,

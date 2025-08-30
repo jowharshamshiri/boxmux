@@ -4,7 +4,7 @@
 //! to make writing tests easier and more consistent across the codebase.
 
 use crate::model::app::{App, AppContext};
-use crate::model::common::{Anchor, Bounds, InputBounds, SocketFunction};
+use crate::model::common::{Anchor, BatchStatus, Bounds, InputBounds, SocketFunction};
 use crate::model::layout::Layout;
 use crate::model::muxbox::MuxBox;
 use crate::thread_manager::Message;
@@ -70,7 +70,6 @@ impl TestDataFactory {
             redirect_output: None,
             append_output: None,
             script: None,
-            thread: None,
             on_keypress: None,
             variables: None,
             horizontal_scroll: None,
@@ -85,7 +84,6 @@ impl TestDataFactory {
             table_data: None,
             table_config: None,
             auto_scroll_bottom: None,
-            pty: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             z_index: None,
             output: String::new(),
@@ -273,7 +271,7 @@ impl TestAssertions {
     /// Assert message type matches expected
     pub fn assert_message_type(message: &Message, expected_type: &str) -> bool {
         match (message, expected_type) {
-            (Message::MuxBoxOutputUpdate(_, _, _), "MuxBoxOutputUpdate") => true,
+            (Message::StreamUpdateMessage(_), "StreamUpdate") => true,
             (Message::MuxBoxScriptUpdate(_, _), "MuxBoxScriptUpdate") => true,
             (Message::StopBoxRefresh(_), "StopBoxRefresh") => true,
             (Message::StartBoxRefresh(_), "StartBoxRefresh") => true,
@@ -404,7 +402,23 @@ impl IntegrationTestUtils {
                 box_id,
                 success,
                 content,
-            } => Message::MuxBoxOutputUpdate(box_id, success, content),
+            } => {
+                use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_default", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: content,
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: if success { Some(0) } else { Some(1) },
+                        status: if success { BatchStatus::Completed } else { BatchStatus::Failed("Test error".to_string()) },
+                    }),
+                    execution_mode: ExecutionMode::Thread,
+                };
+                Message::StreamUpdateMessage(stream_update)
+            },
             SocketFunction::ReplaceBoxScript { box_id, script } => {
                 Message::MuxBoxScriptUpdate(box_id, script)
             }
@@ -420,21 +434,101 @@ impl IntegrationTestUtils {
             SocketFunction::RemoveBox { box_id } => Message::RemoveBox(box_id),
             // F0137/F0138: Socket PTY Control and Query patterns
             SocketFunction::KillPtyProcess { box_id } => {
-                Message::MuxBoxOutputUpdate(box_id, true, "PTY process killed".to_string())
+                {
+                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    let stream_update = StreamUpdate {
+                        stream_id: format!("{}_pty", box_id),
+                        target_box_id: box_id.clone(),
+                        content_update: "PTY process killed".to_string(),
+                        source_state: SourceState::Batch(BatchSourceState {
+                            task_id: "test_task".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(100),
+                            exit_code: Some(0),
+                            status: BatchStatus::Completed,
+                        }),
+                        execution_mode: ExecutionMode::Pty,
+                    };
+                    Message::StreamUpdateMessage(stream_update)
+                }
             }
             SocketFunction::RestartPtyProcess { box_id } => {
-                Message::MuxBoxOutputUpdate(box_id, true, "PTY process restarted".to_string())
+                {
+                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    let stream_update = StreamUpdate {
+                        stream_id: format!("{}_pty", box_id),
+                        target_box_id: box_id.clone(),
+                        content_update: "PTY process restarted".to_string(),
+                        source_state: SourceState::Batch(BatchSourceState {
+                            task_id: "test_task".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(100),
+                            exit_code: Some(0),
+                            status: BatchStatus::Completed,
+                        }),
+                        execution_mode: ExecutionMode::Pty,
+                    };
+                    Message::StreamUpdateMessage(stream_update)
+                }
             }
             SocketFunction::QueryPtyStatus { box_id } => {
-                Message::MuxBoxOutputUpdate(box_id, true, "PTY status queried".to_string())
+                {
+                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    let stream_update = StreamUpdate {
+                        stream_id: format!("{}_pty", box_id),
+                        target_box_id: box_id.clone(),
+                        content_update: "PTY status queried".to_string(),
+                        source_state: SourceState::Batch(BatchSourceState {
+                            task_id: "test_task".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(100),
+                            exit_code: Some(0),
+                            status: BatchStatus::Completed,
+                        }),
+                        execution_mode: ExecutionMode::Pty,
+                    };
+                    Message::StreamUpdateMessage(stream_update)
+                }
             }
             // F0136: Socket PTY Spawn pattern
             SocketFunction::SpawnPtyProcess { box_id, .. } => {
-                Message::MuxBoxOutputUpdate(box_id, true, "PTY process spawned".to_string())
+                {
+                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    let stream_update = StreamUpdate {
+                        stream_id: format!("{}_pty", box_id),
+                        target_box_id: box_id.clone(),
+                        content_update: "PTY process spawned".to_string(),
+                        source_state: SourceState::Batch(BatchSourceState {
+                            task_id: "test_task".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(100),
+                            exit_code: Some(0),
+                            status: BatchStatus::Completed,
+                        }),
+                        execution_mode: ExecutionMode::Pty,
+                    };
+                    Message::StreamUpdateMessage(stream_update)
+                }
             }
             // F0139: Socket PTY Input pattern
             SocketFunction::SendPtyInput { box_id, .. } => {
-                Message::MuxBoxOutputUpdate(box_id, true, "PTY input sent".to_string())
+                {
+                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    let stream_update = StreamUpdate {
+                        stream_id: format!("{}_pty", box_id),
+                        target_box_id: box_id.clone(),
+                        content_update: "PTY input sent".to_string(),
+                        source_state: SourceState::Batch(BatchSourceState {
+                            task_id: "test_task".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(100),
+                            exit_code: Some(0),
+                            status: BatchStatus::Completed,
+                        }),
+                        execution_mode: ExecutionMode::Pty,
+                    };
+                    Message::StreamUpdateMessage(stream_update)
+                }
             }
         };
 
@@ -522,7 +616,7 @@ mod tests {
         let message = result.unwrap();
         assert!(TestAssertions::assert_message_type(
             &message,
-            "MuxBoxOutputUpdate"
+            "StreamUpdate"
         ));
     }
 }

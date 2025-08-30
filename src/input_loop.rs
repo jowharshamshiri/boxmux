@@ -1,6 +1,6 @@
 use crate::utils::should_use_pty;
 use crate::{handle_keypress, AppContext, FieldUpdate};
-use crate::{run_script, thread_manager::Runnable};
+use crate::{thread_manager::Runnable};
 use crossterm::event::{
     poll, read, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind,
 };
@@ -158,12 +158,12 @@ create_runnable!(
     InputLoop,
     |_inner: &mut RunnableImpl, _app_context: AppContext, _messages: Vec<Message>| -> bool { true },
     |inner: &mut RunnableImpl,
-     app_context: AppContext,
+     mut app_context: AppContext,
      _messages: Vec<Message>|
      -> (bool, AppContext) {
         let mut should_continue = true;
 
-        let active_layout = app_context.app.get_active_layout().unwrap();
+        let active_layout = app_context.app.get_active_layout().unwrap().clone();
 
         if poll(Duration::from_millis(10)).unwrap() {
             if let Ok(event) = read() {
@@ -352,6 +352,16 @@ create_runnable!(
                         // Create ExecuteScript message for app-level keypress handlers
                         use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference, ExecutionMode};
                         
+                        // Register execution source and get stream_id
+                        let target_box_id = "app_level".to_string(); // App level doesn't target a specific box
+                        let source_type = crate::model::common::ExecutionSourceType::SocketUpdate {
+                            command_type: format!("app_keypress_{}", key_str),
+                        };
+                        let stream_id = app_context.app.register_execution_source(
+                            source_type,
+                            target_box_id.clone()
+                        );
+                        
                         let execute_script = ExecuteScript {
                             script: actions,
                             source: ExecutionSource {
@@ -360,10 +370,11 @@ create_runnable!(
                                 source_reference: SourceReference::SocketCommand(format!("app keypress: {}", key_str)),
                             },
                             execution_mode: ExecutionMode::Immediate, // App-level handlers use immediate execution
-                            target_box_id: "app_level".to_string(), // App level doesn't target a specific box
+                            target_box_id,
                             libs: libs.unwrap_or_default(),
                             redirect_output: None,
                             append_output: false,
+                            stream_id,
                         };
                         
                         inner.send_message(Message::ExecuteScriptMessage(execute_script));
@@ -377,6 +388,16 @@ create_runnable!(
                         // Create ExecuteScript message for layout-level keypress handlers
                         use crate::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference, ExecutionMode};
                         
+                        // Register execution source and get stream_id
+                        let target_box_id = format!("layout_{}", active_layout.id);
+                        let source_type = crate::model::common::ExecutionSourceType::SocketUpdate {
+                            command_type: format!("layout_keypress_{}", key_str),
+                        };
+                        let stream_id = app_context.app.register_execution_source(
+                            source_type,
+                            target_box_id.clone()
+                        );
+                        
                         let execute_script = ExecuteScript {
                             script: actions,
                             source: ExecutionSource {
@@ -385,10 +406,11 @@ create_runnable!(
                                 source_reference: SourceReference::SocketCommand(format!("layout keypress: {}", key_str)),
                             },
                             execution_mode: ExecutionMode::Immediate, // Layout-level handlers use immediate execution
-                            target_box_id: format!("layout_{}", active_layout.id),
+                            target_box_id,
                             libs: libs.unwrap_or_default(),
                             redirect_output: None,
                             append_output: false,
+                            stream_id,
                         };
                         
                         inner.send_message(Message::ExecuteScriptMessage(execute_script));

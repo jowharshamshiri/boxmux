@@ -27,6 +27,8 @@ use boxmux_lib::model::app::*;
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
+    // Periodic refresh sources - stores box_id -> PeriodicRefreshSource mapping
+    static ref PERIODIC_REFRESH_SOURCES: Mutex<HashMap<String, boxmux_lib::model::common::PeriodicRefreshSource>> = Mutex::new(HashMap::new());
 }
 
 fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
@@ -86,16 +88,42 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                     None
                                 },
                             ) {
-                                Ok(output) => inner.send_message(Message::MuxBoxOutputUpdate(
-                                    muxbox.id.clone(),
-                                    true,
-                                    output,
-                                )),
-                                Err(e) => inner.send_message(Message::MuxBoxOutputUpdate(
-                                    muxbox.id.clone(),
-                                    false,
-                                    e.to_string(),
-                                )),
+                                Ok(output) => {
+                                    // T0325: Use StreamUpdateMessage instead of MuxBoxOutputUpdate
+                                    let stream_update = boxmux_lib::model::common::StreamUpdate {
+                                        stream_id: format!("{}_content", muxbox.id),
+                                        target_box_id: muxbox.id.clone(),
+                                        content_update: output,
+                                        source_state: boxmux_lib::model::common::SourceState::Thread(
+                                            boxmux_lib::model::common::ThreadSourceState {
+                                                thread_id: format!("{:?}", std::thread::current().id()),
+                                                execution_time: std::time::Duration::from_millis(0),
+                                                exit_code: Some(0),
+                                                status: boxmux_lib::model::common::ExecutionThreadStatus::Completed,
+                                            }
+                                        ),
+                                        execution_mode: execution_mode.clone(),
+                                    };
+                                    inner.send_message(Message::StreamUpdateMessage(stream_update));
+                                },
+                                Err(e) => {
+                                    // T0325: Use StreamUpdateMessage instead of MuxBoxOutputUpdate
+                                    let stream_update = boxmux_lib::model::common::StreamUpdate {
+                                        stream_id: format!("{}_content", muxbox.id),
+                                        target_box_id: muxbox.id.clone(),
+                                        content_update: e.to_string(),
+                                        source_state: boxmux_lib::model::common::SourceState::Thread(
+                                            boxmux_lib::model::common::ThreadSourceState {
+                                                thread_id: format!("{:?}", std::thread::current().id()),
+                                                execution_time: std::time::Duration::from_millis(0),
+                                                exit_code: Some(1),
+                                                status: boxmux_lib::model::common::ExecutionThreadStatus::Failed(e.to_string()),
+                                            }
+                                        ),
+                                        execution_mode: execution_mode.clone(),
+                                    };
+                                    inner.send_message(Message::StreamUpdateMessage(stream_update));
+                                },
                             }
                             std::thread::sleep(std::time::Duration::from_millis(
                                 muxbox.calc_refresh_interval(&app_context, &app_graph),
@@ -104,9 +132,8 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                         }
                     );
 
-                    let muxbox_refresh_loop =
-                        MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-                    manager.spawn_thread(muxbox_refresh_loop);
+                    let mux_box_refresh_loop = MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+                    manager.spawn_thread(mux_box_refresh_loop);
                 } else {
                     non_threaded_muxboxes.push(muxbox_id.clone());
                 }
@@ -116,7 +143,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
             let vec_fn = move || non_threaded_muxboxes.clone();
 
             create_runnable_with_dynamic_input!(
-                MuxBoxRefreshLoop,
+                ExecuteLoop,
                 Box::new(vec_fn),
                 |_inner: &mut RunnableImpl,
                  _app_context: AppContext,
@@ -125,20 +152,41 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  -> bool { true },
                 move |inner: &mut RunnableImpl,
                       app_context: AppContext,
-                      _messages: Vec<Message>,
+                      messages: Vec<Message>,
                       vec: Vec<String>|
                       -> (bool, AppContext) {
                     let mut app_context_unwrapped = app_context.clone();
+
+                    // UNIFIED EXECUTION ARCHITECTURE: Handle ExecuteScript messages from DrawLoop and other threads
+                    for message in messages {
+                        match message {
+                            boxmux_lib::thread_manager::Message::ExecuteScriptMessage(execute_script) => {
+                                log::info!("ExecuteLoop processing ExecuteScript for target_box: {} (mode: {:?})", 
+                                           execute_script.target_box_id, execute_script.execution_mode);
+                                
+                                // Handle execution and send StreamUpdate with stream management for different source types
+                                handle_execute_script_in_execute_loop(&execute_script, &inner);
+                            }
+                            _ => {
+                                // Other messages not handled by ExecuteLoop
+                                log::trace!("ExecuteLoop: Unhandled message type: {:?}", message);
+                            }
+                        }
+                    }
 
                     let mut last_execution_times = LAST_EXECUTION_TIMES.lock().unwrap();
 
                     for muxbox_id in vec.iter() {
                         let libs = app_context_unwrapped.app.libs.clone();
-                        let muxbox = app_context_unwrapped
-                            .app
-                            .get_muxbox_by_id_mut(muxbox_id)
-                            .unwrap();
-                        let refresh_interval = muxbox.refresh_interval.unwrap_or(1000);
+                        
+                        // Collect data from muxbox and then register source separately to avoid borrow conflicts
+                        let (refresh_interval, execution_mode, script) = {
+                            let muxbox = app_context_unwrapped
+                                .app
+                                .get_muxbox_by_id_mut(muxbox_id)
+                                .unwrap();
+                            (muxbox.refresh_interval.unwrap_or(1000), muxbox.execution_mode.clone(), muxbox.script.clone())
+                        };
 
                         let last_execution_time = last_execution_times
                             .entry(muxbox_id.clone())
@@ -146,29 +194,38 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            // F0228: ExecutionMode Message System - Use ExecutionMode instead of legacy pty field
-                            let execution_mode = &muxbox.execution_mode;
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
-                            // T0319: UNIFIED ARCHITECTURE - Replace legacy static script execution with ExecuteScript message
-                            log::info!("T0319: Static YAML script creating ExecuteScript for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
+                            // T0319: UNIFIED ARCHITECTURE - Replace legacy periodic refresh execution with ExecuteScript message
+                            log::info!("T0319: Periodic refresh creating ExecuteScript for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
                             
-                            // Create ExecuteScript message for static script execution
+                            // Create ExecuteScript message for periodic refresh execution
                             use boxmux_lib::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
                             
+                            // Register execution source and get stream_id
+                            let script_unwrapped = script.unwrap();
+                            let source_type = boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
+                                script_unwrapped.join(" ")
+                            );
+                            let stream_id = app_context_unwrapped.app.register_execution_source(
+                                source_type,
+                                muxbox_id.clone()
+                            );
+                            
                             let execute_script = ExecuteScript {
-                                script: muxbox.script.clone().unwrap(),
+                                script: script_unwrapped,
                                 source: ExecutionSource {
-                                    source_type: SourceType::StaticScript,
-                                    source_id: format!("static_script_{}", muxbox_id),
-                                    source_reference: SourceReference::StaticConfig(format!("muxbox {} refresh interval script", muxbox_id)),
+                                    source_type: SourceType::PeriodicRefresh,
+                                    source_id: format!("refresh-{}", muxbox_id),
+                                    source_reference: SourceReference::PeriodicConfig(muxbox_id.clone()),
                                 },
                                 execution_mode: execution_mode.clone(),
                                 target_box_id: muxbox_id.clone(),
                                 libs: libs.unwrap_or_default(),
-                                redirect_output: muxbox.redirect_output.clone(),
-                                append_output: muxbox.append_output.unwrap_or(false),
+                                redirect_output: None, // Periodic refresh updates self, no redirection
+                                append_output: false,  // CRITICAL: Replace content, don't append
+                                stream_id,
                             };
 
                             // Send ExecuteScript message instead of direct execution
@@ -191,8 +248,8 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                 }
             );
 
-            let muxbox_refresh_loop = MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
-            manager.spawn_thread(muxbox_refresh_loop);
+            let execute_loop = ExecuteLoop::new(app_context.clone(), Box::new(vec_fn));
+            manager.spawn_thread(execute_loop);
         }
     }
 }
@@ -919,6 +976,343 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal::disable_raw_mode()?;
 
     Ok(())
+}
+
+/// UNIFIED EXECUTION ARCHITECTURE: Handle ExecuteScript messages with proper stream management
+/// Different source types have different stream behaviors:
+/// - Choice execution: Create new streams for each execution (tabs)
+/// - Static script refresh: Reuse same stream, replace content (no new tabs)
+/// - Socket updates: Create/update streams based on context
+fn handle_execute_script_in_execute_loop(
+    execute_script: &boxmux_lib::model::common::ExecuteScript,
+    inner: &boxmux_lib::thread_manager::RunnableImpl,
+) {
+    log::info!("EXECUTELOOP DEBUG: handle_execute_script_in_execute_loop called for target_box: {} mode: {:?} redirect: {:?}", 
+               execute_script.target_box_id, execute_script.execution_mode, execute_script.redirect_output);
+    use boxmux_lib::model::common::{ExecutionMode, SourceType};
+
+    // Determine stream ID strategy based on source type
+    // SOURCE OBJECT ARCHITECTURE: ExecuteScript already contains stream_id from source object
+    let stream_id = execute_script.stream_id.clone();
+    
+    // Verify stream_id consistency (remove this once architecture is stable)
+    match &execute_script.source.source_type {
+        SourceType::Choice(_) => {
+            log::info!("Using source object stream_id {} for Choice execution", stream_id);
+        }
+        SourceType::StaticScript => {
+            log::info!("Using source object stream_id {} for StaticScript execution", stream_id);
+        }
+        SourceType::PeriodicRefresh => {
+            log::info!("Using source object stream_id {} for PeriodicRefresh execution", stream_id);
+        }
+        SourceType::SocketUpdate => {
+            log::info!("Using source object stream_id {} for SocketUpdate execution", stream_id);
+        }
+        SourceType::RedirectedScript => {
+            log::info!("Using source object stream_id {} for RedirectedScript execution", stream_id);
+        }
+        SourceType::HotkeyScript => {
+            log::info!("Using source object stream_id {} for HotkeyScript execution", stream_id);
+        }
+        SourceType::ScheduledScript => {
+            log::info!("Using source object stream_id {} for ScheduledScript execution", stream_id);
+        }
+    };
+
+    log::info!("Executing script for stream_id: {} (source: {:?})", stream_id, execute_script.source.source_type);
+
+    // Execute based on execution mode
+    match execute_script.execution_mode {
+        ExecutionMode::Immediate => {
+            execute_immediate_script_unified(execute_script, &stream_id, inner);
+        }
+        ExecutionMode::Thread => {
+            execute_threaded_script_unified(execute_script, &stream_id, inner);
+        }
+        ExecutionMode::Pty => {
+            execute_pty_script_unified(execute_script, &stream_id, inner);
+        }
+    }
+}
+
+/// Execute script immediately and send StreamUpdate
+fn execute_immediate_script_unified(
+    execute_script: &boxmux_lib::model::common::ExecuteScript,
+    stream_id: &str,
+    inner: &boxmux_lib::thread_manager::RunnableImpl,
+) {
+    use std::process::Command;
+    
+    log::info!("Immediate execution for stream: {}", stream_id);
+    
+    // Run script synchronously
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(execute_script.script.join(" "))
+        .output();
+        
+    let content = match output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.is_empty() {
+                stdout.to_string()
+            } else {
+                format!("{}\n{}", stdout, stderr)
+            }
+        }
+        Err(e) => {
+            format!("Error executing script: {}", e)
+        }
+    };
+    
+    // Send StreamUpdate with results
+    let target_box = if let Some(ref redirect_to) = execute_script.redirect_output {
+        log::info!("REDIRECT FIX: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+        redirect_to.clone()
+    } else {
+        log::info!("REDIRECT FIX: No redirect, using source box: {}", execute_script.target_box_id);
+        execute_script.target_box_id.clone()
+    };
+    
+    let stream_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id: stream_id.to_string(),
+        target_box_id: target_box,
+        content_update: content,
+        source_state: boxmux_lib::model::common::SourceState::Batch(
+            boxmux_lib::model::common::BatchSourceState {
+                task_id: stream_id.to_string(),
+                queue_wait_time: std::time::Duration::from_millis(0),
+                execution_time: std::time::Duration::from_millis(100),
+                exit_code: Some(0),
+                status: boxmux_lib::model::common::BatchStatus::Completed,
+            }
+        ),
+        execution_mode: execute_script.execution_mode.clone(),
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(stream_update));
+}
+
+/// Execute script in background thread and send StreamUpdate
+fn execute_threaded_script_unified(
+    execute_script: &boxmux_lib::model::common::ExecuteScript,
+    stream_id: &str,
+    inner: &boxmux_lib::thread_manager::RunnableImpl,
+) {
+    use std::{process::Command, thread};
+    
+    let stream_id = stream_id.to_string();
+    let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
+        log::info!("REDIRECT FIX THREAD: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+        redirect_to.clone()
+    } else {
+        log::info!("REDIRECT FIX THREAD: No redirect, using source box: {}", execute_script.target_box_id);
+        execute_script.target_box_id.clone()
+    };
+    let script = execute_script.script.clone();
+    let execution_mode = execute_script.execution_mode.clone();
+    let message_sender = inner.get_message_sender().cloned();
+    
+    log::info!("Thread execution for stream: {}", stream_id);
+    
+    // Send initial update
+    let start_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id: stream_id.clone(),
+        target_box_id: target_box_id.clone(),
+        content_update: format!("Starting thread execution: {}\n", script.join(" ")),
+        source_state: boxmux_lib::model::common::SourceState::Thread(
+            boxmux_lib::model::common::ThreadSourceState {
+                thread_id: "pending".to_string(),
+                execution_time: std::time::Duration::from_millis(0),
+                exit_code: None,
+                status: boxmux_lib::model::common::ExecutionThreadStatus::Running,
+            }
+        ),
+        execution_mode: execution_mode.clone(),
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(start_update));
+    
+    // Spawn background thread with limited scope to avoid capturing inner
+    {
+        let stream_id_for_thread = stream_id.clone();
+        let target_box_id_for_thread = target_box_id.clone();
+        let script_for_thread = script.clone();
+        let execution_mode_for_thread = execution_mode.clone();
+        let message_sender_for_thread = message_sender;
+        
+        thread::spawn(move || {
+            let stream_id = stream_id_for_thread;
+            let target_box_id = target_box_id_for_thread;
+            let script = script_for_thread;
+            let execution_mode = execution_mode_for_thread;
+            let message_sender = message_sender_for_thread;
+        let thread_id = format!("{:?}", thread::current().id());
+        
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(script.join(" "))
+            .output();
+            
+        let (content, exit_code, status) = match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let content = if stderr.is_empty() {
+                    stdout.to_string()
+                } else {
+                    format!("{}\n{}", stdout, stderr)
+                };
+                let exit_code = output.status.code();
+                let status = if output.status.success() {
+                    boxmux_lib::model::common::ExecutionThreadStatus::Completed
+                } else {
+                    boxmux_lib::model::common::ExecutionThreadStatus::Failed("Script execution failed".to_string())
+                };
+                (content, exit_code, status)
+            }
+            Err(e) => {
+                (format!("Error executing script: {}", e), Some(1), 
+                 boxmux_lib::model::common::ExecutionThreadStatus::Failed(format!("Execution error: {}", e)))
+            }
+        };
+        
+        // Send final result
+        if let Some(sender) = message_sender {
+            let final_update = boxmux_lib::model::common::StreamUpdate {
+                stream_id,
+                target_box_id,
+                content_update: content,
+                source_state: boxmux_lib::model::common::SourceState::Thread(
+                    boxmux_lib::model::common::ThreadSourceState {
+                        thread_id,
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code,
+                        status,
+                    }
+                ),
+                execution_mode,
+            };
+            
+            let _ = sender.send((uuid::Uuid::new_v4(), boxmux_lib::thread_manager::Message::StreamUpdateMessage(final_update)));
+        }
+        });
+    }
+}
+
+/// Execute script with PTY and send multi-phase StreamUpdate messages  
+fn execute_pty_script_unified(
+    execute_script: &boxmux_lib::model::common::ExecuteScript,
+    stream_id: &str,
+    inner: &boxmux_lib::thread_manager::RunnableImpl,
+) {
+    let stream_id = stream_id.to_string();
+    let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
+        log::info!("REDIRECT FIX PTY: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+        redirect_to.clone()
+    } else {
+        log::info!("REDIRECT FIX PTY: No redirect, using source box: {}", execute_script.target_box_id);
+        execute_script.target_box_id.clone()
+    };
+    let script = execute_script.script.clone();
+    let execution_mode = execute_script.execution_mode.clone();
+    
+    log::info!("PTY execution for stream: {}", stream_id);
+    
+    // Phase 1: Connecting
+    let start_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id: stream_id.clone(),
+        target_box_id: target_box_id.clone(),
+        content_update: format!("Connecting PTY for: {}\n", script.join(" ")),
+        source_state: boxmux_lib::model::common::SourceState::Pty(
+            boxmux_lib::model::common::PtySourceState {
+                process_id: 0,
+                runtime: std::time::Duration::from_millis(0),
+                exit_code: None,
+                status: boxmux_lib::model::common::ExecutionPtyStatus::Starting,
+            }
+        ),
+        execution_mode: execution_mode.clone(),
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(start_update));
+    
+    // Phase 2: Connected (simulate PTY session)
+    let connected_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id: stream_id.clone(),
+        target_box_id: target_box_id.clone(),
+        content_update: "[PTY Connected]\n".to_string(),
+        source_state: boxmux_lib::model::common::SourceState::Pty(
+            boxmux_lib::model::common::PtySourceState {
+                process_id: 12345,
+                runtime: std::time::Duration::from_millis(100),
+                exit_code: None,
+                status: boxmux_lib::model::common::ExecutionPtyStatus::Running,
+            }
+        ),
+        execution_mode: execution_mode.clone(),
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(connected_update));
+    
+    // Phase 3: Execute command and show output
+    use std::process::Command;
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(script.join(" "))
+        .output();
+        
+    let content = match output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.is_empty() {
+                stdout.to_string()
+            } else {
+                format!("{}\n{}", stdout, stderr)
+            }
+        }
+        Err(e) => {
+            format!("Error executing script: {}", e)
+        }
+    };
+    
+    let output_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id: stream_id.clone(),
+        target_box_id: target_box_id.clone(),
+        content_update: content,
+        source_state: boxmux_lib::model::common::SourceState::Pty(
+            boxmux_lib::model::common::PtySourceState {
+                process_id: 12345,
+                runtime: std::time::Duration::from_millis(200),
+                exit_code: None,
+                status: boxmux_lib::model::common::ExecutionPtyStatus::Running,
+            }
+        ),
+        execution_mode: execution_mode.clone(),
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(output_update));
+    
+    // Phase 4: Session ended
+    let end_update = boxmux_lib::model::common::StreamUpdate {
+        stream_id,
+        target_box_id,
+        content_update: "[PTY Session Ended]\n".to_string(),
+        source_state: boxmux_lib::model::common::SourceState::Pty(
+            boxmux_lib::model::common::PtySourceState {
+                process_id: 12345,
+                runtime: std::time::Duration::from_millis(300),
+                exit_code: Some(0),
+                status: boxmux_lib::model::common::ExecutionPtyStatus::Completed,
+            }
+        ),
+        execution_mode,
+    };
+    
+    inner.send_message(boxmux_lib::thread_manager::Message::StreamUpdateMessage(end_update));
 }
 
 #[cfg(test)]

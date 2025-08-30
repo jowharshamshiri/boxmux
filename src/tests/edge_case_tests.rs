@@ -285,7 +285,8 @@ mod tests {
         let result = IntegrationTestUtils::simulate_socket_to_app_workflow(special_function);
         assert!(result.is_ok());
 
-        if let Ok(Message::MuxBoxOutputUpdate(_, _, content)) = result {
+        if let Ok(Message::StreamUpdateMessage(stream_update)) = result {
+            let content = stream_update.content_update;
             assert_eq!(content, special_content);
         }
     }

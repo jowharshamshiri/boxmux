@@ -270,6 +270,11 @@ pub fn draw_muxbox(
                 muxbox.title.clone()
             };
 
+            // Generate tab labels and close buttons using muxbox methods
+            let tab_labels = muxbox.get_tab_labels();
+            let tab_close_buttons = muxbox.get_tab_close_buttons();
+            log::info!("DRAW DEBUG: Box {} has {} tab labels: {:?}", muxbox.id, tab_labels.len(), tab_labels);
+
             render_muxbox(
                 value,
                 &border_color,
@@ -291,6 +296,8 @@ pub fn draw_muxbox(
                 muxbox.current_horizontal_scroll(),
                 muxbox.current_vertical_scroll(),
                 app_context.config.locked, // Pass locked state from config
+                &tab_labels,
+                &tab_close_buttons,
                 buffer,
             );
 
@@ -1255,10 +1262,12 @@ pub fn render_muxbox(
     horizontal_scroll: f64,
     vertical_scroll: f64,
     locked: bool, // Whether muxboxes are locked (disable resize/move and hide corner knob)
+    tab_labels: &[String], // Pre-generated tab labels
+    tab_close_buttons: &[bool], // Pre-generated close button info
     buffer: &mut ScreenBuffer,
 ) {
-    // F0217: Extract content and tabs from streams using trait-based approach
-    let (should_render_choices, content_str, tab_labels, tab_close_buttons) = if !streams.is_empty()
+    // F0217: Extract content from streams using trait-based approach
+    let (should_render_choices, content_str) = if !streams.is_empty()
     {
         // Get active stream
         let active_stream = streams.values().find(|s| s.active);
@@ -1292,16 +1301,10 @@ pub fn render_muxbox(
             None
         };
 
-        // Generate tab labels from streams using IndexMap insertion order (same as muxbox.get_tab_labels())
-        let tabs: Vec<String> = streams.iter().map(|(_, s)| s.label.clone()).collect();
-
-        // F0219: Generate close button info for each tab
-        let close_buttons: Vec<bool> = streams.iter().map(|(_, s)| s.is_closeable()).collect();
-
-        (should_render_choices, content_str, tabs, close_buttons)
+        (should_render_choices, content_str)
     } else {
         // No streams - empty content
-        (false, None, vec![], vec![])
+        (false, None)
     };
 
     let content = content_str.as_deref();

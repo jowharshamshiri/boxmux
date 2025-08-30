@@ -52,8 +52,6 @@ mod immediate_mode_execution_tests {
             content: Some("Test Choice".to_string()),
             selected: false,
             script: Some(vec!["echo hello world".to_string()]),
-            pty: None, // Legacy field - not used with ExecutionMode
-            thread: None, // Legacy field - not used with ExecutionMode
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -73,8 +71,6 @@ mod immediate_mode_execution_tests {
             content: Some("Redirect Choice".to_string()),
             selected: false,
             script: Some(vec!["echo redirected".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: Some("target_muxbox".to_string()),
             append_output: Some(true),
@@ -96,8 +92,6 @@ mod immediate_mode_execution_tests {
             content: Some("Immediate Choice 1".to_string()),
             selected: false,
             script: Some(vec!["echo immediate 1".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: None,
             append_output: Some(false),
@@ -109,8 +103,6 @@ mod immediate_mode_execution_tests {
             content: Some("Thread Choice 1".to_string()),
             selected: false,
             script: Some(vec!["echo thread 1".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
@@ -152,8 +144,6 @@ mod immediate_mode_execution_tests {
             content: Some("Test".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
-            pty: Some(false), // Legacy - should be ignored
-            thread: Some(false), // Legacy - should be ignored
             execution_mode: ExecutionMode::Immediate, // This should be used
             redirect_output: None,
             append_output: None,

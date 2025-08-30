@@ -26,8 +26,6 @@ pub mod unified_execution_architecture_tests {
                 content: Some("Test Choice".to_string()),
                 selected: false,
                 script: Some(vec!["echo hello".to_string()]),
-                pty: None, // Legacy field - should be ignored
-                thread: None, // Legacy field - should be ignored
                 execution_mode: mode.clone(),
                 redirect_output: None,
                 append_output: Some(false),
@@ -38,8 +36,6 @@ pub mod unified_execution_architecture_tests {
             assert_eq!(choice.execution_mode, mode);
             
             // Verify that legacy fields are ignored
-            assert_eq!(choice.pty, None);
-            assert_eq!(choice.thread, None);
             
             // Verify stream ID format consistency
             let expected_stream_id = format!("{}_{}", choice.id, mode.as_stream_suffix());
@@ -69,8 +65,8 @@ pub mod unified_execution_architecture_tests {
                 "echo 'Second command'".to_string(),
                 "echo 'Third command'".to_string(),
             ]),
-            pty: None, 
-            thread: None, 
+ 
+ 
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: Some(false),
@@ -99,8 +95,6 @@ pub mod unified_execution_architecture_tests {
             content: Some("Clickable Choice".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: Some(false),
@@ -140,8 +134,6 @@ pub mod unified_execution_architecture_tests {
             content: Some("Consistent Choice".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
-            pty: None,
-            thread: None,
             execution_mode: ExecutionMode::Thread,
             redirect_output: Some("target_box".to_string()),
             append_output: Some(false),
@@ -173,8 +165,7 @@ pub mod unified_execution_architecture_tests {
             content: Some("Legacy Test".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
-            pty: Some(true), // Legacy field - should be ignored
-            thread: Some(true), // Legacy field - should be ignored 
+ 
             execution_mode: ExecutionMode::Immediate, // This should take precedence
             redirect_output: None,
             append_output: Some(false),
@@ -185,12 +176,8 @@ pub mod unified_execution_architecture_tests {
         assert_eq!(choice_with_legacy.execution_mode, ExecutionMode::Immediate);
         
         // Legacy fields exist but should be ignored in execution logic
-        assert_eq!(choice_with_legacy.pty, Some(true));
-        assert_eq!(choice_with_legacy.thread, Some(true));
         
         println!("✓ ExecutionMode field: {:?} (takes precedence)", choice_with_legacy.execution_mode);
-        println!("✓ Legacy pty field: {:?} (ignored)", choice_with_legacy.pty);
-        println!("✓ Legacy thread field: {:?} (ignored)", choice_with_legacy.thread);
         
         // The actual execution should use ExecutionMode::Immediate despite legacy boolean flags
         let stream_suffix = choice_with_legacy.execution_mode.as_stream_suffix();
@@ -216,9 +203,7 @@ pub mod unified_execution_architecture_tests {
                 content: Some(format!("Label Test {}", expected_suffix)),
                 selected: false,
                 script: Some(vec!["echo test".to_string()]),
-                pty: None,
-                thread: None,
-                execution_mode: mode.clone(),
+                        execution_mode: mode.clone(),
                 redirect_output: None,
                 append_output: Some(false),
                 waiting: false,

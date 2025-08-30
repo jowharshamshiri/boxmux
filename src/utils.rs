@@ -535,6 +535,7 @@ pub fn run_script_with_pty_and_redirect(
             sender,
             thread_uuid,
             redirect_target,
+            None, // Use default stream ID generation
         ) {
             Ok(_) => {
                 // PTY started successfully - clear any previous failures

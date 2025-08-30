@@ -11,7 +11,6 @@ mod pty_input_tests {
     #[test]
     fn test_should_use_pty_enabled() {
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_muxbox");
-        muxbox.pty = Some(true); // F0226: Legacy field - should be overridden by execution_mode
         muxbox.execution_mode = crate::model::common::ExecutionMode::Pty; // F0226: ExecutionMode determines PTY usage
 
         assert!(
@@ -23,7 +22,6 @@ mod pty_input_tests {
     #[test]
     fn test_should_use_pty_disabled() {
         let mut muxbox = TestDataFactory::create_test_muxbox("regular_muxbox");
-        muxbox.pty = Some(true); // F0226: Legacy field should be ignored
         muxbox.execution_mode = crate::model::common::ExecutionMode::Thread; // F0226: ExecutionMode overrides legacy pty field
 
         assert!(
@@ -56,14 +54,12 @@ mod pty_input_tests {
                 y2: "100%".to_string(),
             },
             border: Some(true),
-            pty: Some(true), // F0226: Legacy field - should be overridden by execution_mode
             execution_mode: crate::model::common::ExecutionMode::Pty, // F0226: ExecutionMode determines PTY usage
             script: Some(vec!["echo 'PTY test'".to_string()]),
             ..Default::default()
         };
 
         assert_eq!(muxbox.id, "pty_test");
-        assert_eq!(muxbox.pty, Some(true));
         assert!(should_use_pty(&muxbox));
         assert_eq!(muxbox.script.as_ref().unwrap()[0], "echo 'PTY test'");
     }

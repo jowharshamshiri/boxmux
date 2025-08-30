@@ -214,7 +214,7 @@ impl SchemaValidator {
         }
 
         // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(&muxbox.execution_mode, muxbox.thread, muxbox.pty, &format!("{}.execution_mode", path));
+        self.validate_execution_mode_fields(&muxbox.execution_mode, &format!("{}.execution_mode", path));
 
         // Validate choices if present
         if let Some(choices) = &muxbox.choices {
@@ -409,7 +409,7 @@ impl SchemaValidator {
         }
 
         // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(&choice.execution_mode, choice.thread, choice.pty, &format!("{}.execution_mode", path));
+        self.validate_execution_mode_fields(&choice.execution_mode, &format!("{}.execution_mode", path));
 
         // Return both errors and warnings for comprehensive validation
         let mut all_issues = self.errors.clone();
@@ -423,23 +423,10 @@ impl SchemaValidator {
     }
 
     /// Validate ExecutionMode field consistency and provide deprecation warnings
-    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, thread: Option<bool>, pty: Option<bool>, path: &str) {
+    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, path: &str) {
         use crate::model::common::ExecutionMode;
         
-        // Check for deprecated field usage and provide warnings
-        if thread.is_some() {
-            self.add_error(ValidationError::DeprecationWarning {
-                field: format!("{}_legacy", path.replace(".execution_mode", ".thread")),
-                message: "The 'thread' field is deprecated. Use 'execution_mode: thread' instead.".to_string(),
-            });
-        }
-
-        if pty.is_some() {
-            self.add_error(ValidationError::DeprecationWarning {
-                field: format!("{}_legacy", path.replace(".execution_mode", ".pty")),
-                message: "The 'pty' field is deprecated. Use 'execution_mode: pty' instead.".to_string(),
-            });
-        }
+        // T0330: Legacy thread/pty fields removed - no more deprecation warnings needed
 
         // Validate ExecutionMode enum values
         match execution_mode {
@@ -448,23 +435,7 @@ impl SchemaValidator {
             }
         }
 
-        // Check for conflicting legacy and new field usage
-        // Only flag conflicts when BOTH execution_mode is explicitly set to non-default AND legacy fields are present
-        if thread.is_some() || pty.is_some() {
-            let legacy_mode = crate::model::common::ExecutionMode::from_legacy(thread.unwrap_or(false), pty.unwrap_or(false));
-            // Only report conflict if execution_mode differs from what legacy fields would produce
-            // AND execution_mode is not the default (indicating it was explicitly set)
-            if *execution_mode != legacy_mode {
-                self.add_error(ValidationError::InvalidFieldValue {
-                    field: path.to_string(),
-                    value: format!("{:?}", execution_mode),
-                    constraint: format!(
-                        "ExecutionMode conflicts with legacy fields. execution_mode={:?} but legacy fields suggest {:?}. Remove legacy 'thread'/'pty' fields or use consistent values.",
-                        execution_mode, legacy_mode
-                    ),
-                });
-            }
-        }
+        // T0330: Legacy field conflict checking removed - no more legacy fields exist
     }
 
     /// Helper methods

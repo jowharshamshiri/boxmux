@@ -165,6 +165,8 @@ pub struct App {
     app_graph: Option<AppGraph>,
     #[serde(skip)]
     pub adjusted_bounds: Option<HashMap<String, HashMap<String, Bounds>>>,
+    #[serde(skip)]
+    pub execution_sources: HashMap<String, crate::model::common::UnifiedExecutionSource>,
 }
 
 impl PartialEq for App {
@@ -174,6 +176,7 @@ impl PartialEq for App {
             && self.hot_keys == other.hot_keys
             && self.app_graph == other.app_graph
             && self.adjusted_bounds == other.adjusted_bounds
+            && self.execution_sources == other.execution_sources
     }
 }
 
@@ -195,6 +198,7 @@ impl App {
             variables: None,
             app_graph: None,
             adjusted_bounds: None,
+            execution_sources: HashMap::new(),
         }
     }
 
@@ -389,6 +393,65 @@ impl App {
             }
         }
     }
+
+    /// Register a new execution source and return its stream ID
+    pub fn register_execution_source(
+        &mut self,
+        source_type: crate::model::common::ExecutionSourceType,
+        target_box_id: String,
+    ) -> String {
+        let source_id = uuid::Uuid::new_v4().to_string();
+        let stream_id = uuid::Uuid::new_v4().to_string();
+        
+        let source = crate::model::common::UnifiedExecutionSource {
+            source_id: source_id.clone(),
+            stream_id: stream_id.clone(),
+            target_box_id,
+            source_type,
+            created_at: std::time::SystemTime::now(),
+            status: crate::model::common::ExecutionSourceStatus::Pending,
+        };
+        
+        self.execution_sources.insert(source_id.clone(), source);
+        stream_id
+    }
+
+    /// Get execution source by source ID
+    pub fn get_execution_source(&self, source_id: &str) -> Option<&crate::model::common::UnifiedExecutionSource> {
+        self.execution_sources.get(source_id)
+    }
+
+    /// Get execution source by source ID (mutable)
+    pub fn get_execution_source_mut(&mut self, source_id: &str) -> Option<&mut crate::model::common::UnifiedExecutionSource> {
+        self.execution_sources.get_mut(source_id)
+    }
+
+    /// Update execution source status
+    pub fn update_source_status(&mut self, source_id: &str, status: crate::model::common::ExecutionSourceStatus) {
+        if let Some(source) = self.execution_sources.get_mut(source_id) {
+            source.status = status;
+        }
+    }
+
+    /// Remove execution source
+    pub fn remove_execution_source(&mut self, source_id: &str) -> Option<crate::model::common::UnifiedExecutionSource> {
+        self.execution_sources.remove(source_id)
+    }
+
+    /// Get all sources targeting a specific box
+    pub fn get_sources_for_box(&self, box_id: &str) -> Vec<&crate::model::common::UnifiedExecutionSource> {
+        self.execution_sources
+            .values()
+            .filter(|source| source.target_box_id == box_id)
+            .collect()
+    }
+
+    /// Find source by stream ID
+    pub fn find_source_by_stream_id(&self, stream_id: &str) -> Option<&crate::model::common::UnifiedExecutionSource> {
+        self.execution_sources
+            .values()
+            .find(|source| source.stream_id == stream_id)
+    }
 }
 
 impl Clone for App {
@@ -401,6 +464,7 @@ impl Clone for App {
             variables: self.variables.clone(),
             app_graph: self.app_graph.clone(),
             adjusted_bounds: self.adjusted_bounds.clone(),
+            execution_sources: self.execution_sources.clone(),
         }
     }
 }

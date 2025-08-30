@@ -57,8 +57,8 @@ pub mod pty_mode_execution_tests {
             content: Some("PTY Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'PTY test'".to_string()]),
-            pty: None, // Legacy field should be None
-            thread: None, // Legacy field should be None
+ // Legacy field should be None
+ // Legacy field should be None
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: None,
@@ -66,8 +66,6 @@ pub mod pty_mode_execution_tests {
         };
 
         assert_eq!(choice.execution_mode, ExecutionMode::Pty);
-        assert_eq!(choice.pty, None); // Legacy field should be None
-        assert_eq!(choice.thread, None); // Legacy field should be None
     }
 
     #[test]
@@ -80,8 +78,8 @@ pub mod pty_mode_execution_tests {
             content: Some("PTY Command".to_string()),
             selected: false,
             script: Some(vec!["htop".to_string()]), // Interactive PTY command
-            pty: None, // Legacy field
-            thread: None, // Legacy field  
+ // Legacy field
+ // Legacy field  
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: None,
@@ -134,8 +132,8 @@ pub mod pty_mode_execution_tests {
             content: Some("Start Shell".to_string()),
             selected: false,
             script: Some(vec!["bash".to_string()]),
-            pty: None, // F0226: Should not use legacy field
-            thread: None, // F0226: Should not use legacy field
+ // F0226: Should not use legacy field
+ // F0226: Should not use legacy field
             execution_mode: ExecutionMode::Pty, // F0226: Use ExecutionMode for PTY
             redirect_output: None,
             append_output: Some(false), // PTY typically doesn't append
@@ -150,8 +148,6 @@ pub mod pty_mode_execution_tests {
         assert!(pty_choice.execution_mode.description().contains("Real-time"));
 
         // Verify legacy fields are unused
-        assert_eq!(pty_choice.pty, None);
-        assert_eq!(pty_choice.thread, None);
 
         // Verify choice serialization includes execution_mode
         let serialized = serde_yaml::to_string(&pty_choice).expect("Choice should serialize");

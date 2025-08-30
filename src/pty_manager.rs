@@ -16,6 +16,7 @@ pub struct PtyProcess {
     pub master_pty: Option<Arc<Mutex<Box<dyn MasterPty + Send>>>>,
     pub can_kill: bool, // Indicates if we can kill the process
     pub output_buffer: Arc<Mutex<CircularBuffer>>, // Scrollback buffer for PTY output
+    pub stream_id: String, // Unique stream ID for this PTY process
 }
 
 impl std::fmt::Debug for PtyProcess {
@@ -30,6 +31,7 @@ impl std::fmt::Debug for PtyProcess {
                 "output_buffer_size",
                 &self.output_buffer.lock().unwrap().len(),
             )
+            .field("stream_id", &self.stream_id)
             .finish()
     }
 }
@@ -70,6 +72,7 @@ impl PtyManager {
         libs: Option<Vec<String>>,
         sender: std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
         thread_uuid: uuid::Uuid,
+        stream_id: Option<String>,
     ) -> Result<()> {
         self.spawn_pty_script_with_redirect(
             muxbox_id,
@@ -78,6 +81,7 @@ impl PtyManager {
             sender,
             thread_uuid,
             None,
+            stream_id, // Pass provided stream_id
         )
     }
 
@@ -90,12 +94,17 @@ impl PtyManager {
         sender: std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
         thread_uuid: uuid::Uuid,
         redirect_target: Option<String>,
+        stream_id: Option<String>, // Custom stream ID to use for all output
     ) -> Result<()> {
+        // SOURCE OBJECT ARCHITECTURE: stream_id must be provided from source object - no fallbacks
+        let pty_stream_id = stream_id.expect("PTY execution requires stream_id from source object - architectural issue if None");
+        
         log::info!(
-            "Starting PTY script execution for muxbox: {}, redirect: {:?}, script_lines: {}",
+            "Starting PTY script execution for muxbox: {}, redirect: {:?}, script_lines: {}, stream_id: {}",
             muxbox_id,
             redirect_target,
-            script_commands.len()
+            script_commands.len(),
+            pty_stream_id
         );
 
         // Create PTY with appropriate size (will be resized when muxbox bounds are known)
@@ -175,7 +184,8 @@ impl PtyManager {
         let output_buffer = Arc::new(Mutex::new(CircularBuffer::new(10000)));
         let buffer_clone = output_buffer.clone();
 
-        // Create PTY process record
+        // Create PTY process record - use the stream_id determined at the start of function
+        
         let pty_process = PtyProcess {
             muxbox_id: muxbox_id.clone(),
             process_id,
@@ -183,6 +193,7 @@ impl PtyManager {
             master_pty: Some(master_pty_handle),
             can_kill: true, // Process can be killed
             output_buffer,
+            stream_id: pty_stream_id.clone(),
         };
 
         // Store in active PTYs
@@ -197,6 +208,7 @@ impl PtyManager {
         // Spawn reader thread for PTY output
         let active_ptys_clone = self.active_ptys.clone();
         let muxbox_id_clone = muxbox_id.clone();
+        let pty_stream_id_clone = pty_stream_id.clone();
 
         thread::spawn(move || {
             log::info!(
@@ -249,11 +261,21 @@ impl PtyManager {
                             let pty_reader_uuid = uuid::Uuid::new_v4();
                             if let Err(e) = sender.send((
                                 pty_reader_uuid,
-                                crate::thread_manager::Message::MuxBoxOutputUpdate(
-                                    output_target.clone(),
-                                    true,
-                                    format!("{}\n", remaining_text), // Add newline for final output
-                                ),
+                                // T0328: Replace MuxBoxOutputUpdate with StreamUpdateMessage
+                                crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
+                                    stream_id: pty_stream_id.clone(),
+                                    target_box_id: output_target.clone(),
+                                    content_update: format!("{}\n", remaining_text), // Add newline for final output
+                                    source_state: crate::model::common::SourceState::Pty(
+                                        crate::model::common::PtySourceState {
+                                            process_id: 0,
+                                            runtime: std::time::Duration::from_millis(0),
+                                            exit_code: None,
+                                            status: crate::model::common::ExecutionPtyStatus::Completed,
+                                        }
+                                    ),
+                                    execution_mode: crate::model::common::ExecutionMode::Pty,
+                                }),
                             )) {
                                 error!("Failed to send final PTY output: {}", e);
                             }
@@ -262,11 +284,20 @@ impl PtyManager {
                         // Send final message indicating completion
                         if let Err(e) = sender.send((
                             thread_uuid,
-                            crate::thread_manager::Message::MuxBoxOutputUpdate(
-                                output_target.clone(),
-                                exit_code == 0,
-                                format!("\n[Process exited with code {}]\n", exit_code),
-                            ),
+                            crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
+                                stream_id: pty_stream_id.clone(),
+                                target_box_id: output_target.clone(),
+                                content_update: format!("\n[Process exited with code {}]\n", exit_code),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(exit_code as i32),
+                                        status: crate::model::common::ExecutionPtyStatus::Completed,
+                                    }
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            }),
                         )) {
                             error!("Failed to send PTY completion message: {}", e);
                         }
@@ -324,11 +355,20 @@ impl PtyManager {
                                     output_target,
                                     line.chars().take(50).collect::<String>()
                                 );
-                                let message = crate::thread_manager::Message::MuxBoxOutputUpdate(
-                                    output_target.clone(),
-                                    true,
-                                    format!("{}\n", line), // Add newline for proper line separation
-                                );
+                                let message = crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
+                                    stream_id: pty_stream_id.clone(),
+                                    target_box_id: output_target.clone(),
+                                    content_update: format!("{}\n", line), // Add newline for proper line separation
+                                    source_state: crate::model::common::SourceState::Pty(
+                                        crate::model::common::PtySourceState {
+                                            process_id: 0,
+                                            runtime: std::time::Duration::from_millis(0),
+                                            exit_code: None,
+                                            status: crate::model::common::ExecutionPtyStatus::Running,
+                                        }
+                                    ),
+                                    execution_mode: crate::model::common::ExecutionMode::Pty,
+                                });
                                 // Use a new UUID for PTY reader thread to avoid ThreadManager filtering
                                 let pty_reader_uuid = uuid::Uuid::new_v4();
                                 debug!(
@@ -359,11 +399,20 @@ impl PtyManager {
                         // Send error message
                         if let Err(e) = sender.send((
                             thread_uuid,
-                            crate::thread_manager::Message::MuxBoxOutputUpdate(
-                                muxbox_id_clone.clone(),
-                                false,
-                                format!("[PTY Error: {}]", e),
-                            ),
+                            crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
+                                stream_id: pty_stream_id.clone(),
+                                target_box_id: muxbox_id_clone.clone(),
+                                content_update: format!("[PTY Error: {}]", e),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(1),
+                                        status: crate::model::common::ExecutionPtyStatus::Failed("PTY error".to_string()),
+                                    }
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            }),
                         )) {
                             error!("Failed to send PTY error message: {}", e);
                         }
@@ -752,6 +801,12 @@ impl PtyManager {
         })
     }
 
+    /// Get the stream ID for a PTY process
+    pub fn get_stream_id(&self, muxbox_id: &str) -> Option<String> {
+        let active_ptys = self.active_ptys.lock().unwrap();
+        active_ptys.get(muxbox_id).map(|pty| pty.stream_id.clone())
+    }
+
     /// Get detailed process information for display purposes
     /// F0132: PTY Process Info - Enhanced process details for status display
     pub fn get_detailed_process_info(&self, muxbox_id: &str) -> Option<ProcessInfo> {
@@ -967,6 +1022,7 @@ impl PtyManager {
             master_pty: None,
             can_kill: false,
             output_buffer: buffer,
+            stream_id: format!("pty-test-{}", &uuid::Uuid::new_v4().to_string()[..8]),
         };
 
         self.active_ptys
@@ -991,6 +1047,7 @@ impl PtyManager {
             master_pty: None,
             can_kill: false,
             output_buffer: buffer,
+            stream_id: format!("pty-test-{}", &uuid::Uuid::new_v4().to_string()[..8]),
         };
 
         self.active_ptys

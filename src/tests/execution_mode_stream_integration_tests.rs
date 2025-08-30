@@ -74,8 +74,6 @@ fn test_execution_mode_choice_integration() {
         content: Some("Test Choice".to_string()),
         selected: false,
         script: Some(vec!["echo test".to_string()]),
-        pty: None, // Legacy field - should be ignored when execution_mode present
-        thread: None, // Legacy field - should be ignored when execution_mode present
         execution_mode: ExecutionMode::Thread,
         redirect_output: None,
         append_output: Some(false),

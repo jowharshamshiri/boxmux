@@ -10,10 +10,8 @@ mod choice_overflow_tests {
             id: id.to_string(),
             content: Some(content.to_string()),
             script: None,
-            thread: None,
             redirect_output: None,
             append_output: None,
-            pty: None,
             selected,
             waiting: false,
         }

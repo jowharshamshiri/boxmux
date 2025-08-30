@@ -22,8 +22,6 @@ mod stream_only_execution_tests {
             content: Some("Execute Test".to_string()),
             selected: false,
             script: Some(vec!["echo 'test output'".to_string()]),
-            thread: None,
-            pty: None,
             execution_mode: ExecutionMode::Immediate,
             redirect_output: Some("output_box".to_string()),
             append_output: Some(false),

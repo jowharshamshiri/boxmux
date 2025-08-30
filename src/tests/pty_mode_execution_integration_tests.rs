@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub mod pty_mode_execution_integration_tests {
     use crate::model::common::ExecutionMode;
-    use crate::model::muxbox::{Choice, MuxBox};
+    use crate::model::muxbox::Choice;
     use crate::tests::test_utils::TestDataFactory;
     use crate::utils::{should_use_pty, should_use_pty_for_choice};
 
@@ -13,8 +13,7 @@ pub mod pty_mode_execution_integration_tests {
             content: Some("PTY Choice".to_string()),
             selected: false,
             script: Some(vec!["htop".to_string()]),
-            pty: None, // Legacy field ignored
-            thread: None, // Legacy field ignored
+ // Legacy field ignored
             execution_mode: ExecutionMode::Pty, // F0226: Use ExecutionMode
             redirect_output: None,
             append_output: None,
@@ -32,8 +31,6 @@ pub mod pty_mode_execution_integration_tests {
             content: Some("Thread Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'thread'".to_string()]),
-            pty: Some(true), // Legacy field should be ignored
-            thread: Some(true), // Legacy field should be ignored
             execution_mode: ExecutionMode::Thread, // F0226: ExecutionMode overrides legacy
             redirect_output: None,
             append_output: None,
@@ -51,8 +48,6 @@ pub mod pty_mode_execution_integration_tests {
             content: Some("Immediate Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'immediate'".to_string()]),
-            pty: Some(true), // Legacy field should be ignored
-            thread: None,
             execution_mode: ExecutionMode::Immediate, // F0226: ExecutionMode overrides legacy
             redirect_output: None,
             append_output: None,
@@ -67,7 +62,6 @@ pub mod pty_mode_execution_integration_tests {
         // F0226: should_use_pty should use ExecutionMode instead of legacy pty field
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_box");
         muxbox.execution_mode = ExecutionMode::Pty;
-        muxbox.pty = None; // Legacy field ignored
 
         assert!(should_use_pty(&muxbox), "ExecutionMode::Pty should return true");
     }
@@ -77,7 +71,6 @@ pub mod pty_mode_execution_integration_tests {
         // F0226: should_use_pty should return false for ExecutionMode::Thread
         let mut muxbox = TestDataFactory::create_test_muxbox("thread_box");
         muxbox.execution_mode = ExecutionMode::Thread;
-        muxbox.pty = Some(true); // Legacy field should be ignored
 
         assert!(!should_use_pty(&muxbox), "ExecutionMode::Thread should return false even if legacy pty=true");
     }
@@ -87,7 +80,6 @@ pub mod pty_mode_execution_integration_tests {
         // F0226: should_use_pty should return false for ExecutionMode::Immediate
         let mut muxbox = TestDataFactory::create_test_muxbox("immediate_box");
         muxbox.execution_mode = ExecutionMode::Immediate;
-        muxbox.pty = Some(true); // Legacy field should be ignored
 
         assert!(!should_use_pty(&muxbox), "ExecutionMode::Immediate should return false even if legacy pty=true");
     }
@@ -108,9 +100,7 @@ pub mod pty_mode_execution_integration_tests {
                 content: Some("Test Choice".to_string()),
                 selected: false,
                 script: Some(vec!["echo 'test'".to_string()]),
-                pty: legacy_pty,
-                thread: None,
-                execution_mode: execution_mode.clone(),
+                    execution_mode: execution_mode.clone(),
                 redirect_output: None,
                 append_output: None,
                 waiting: false,
@@ -120,7 +110,6 @@ pub mod pty_mode_execution_integration_tests {
 
             let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
             muxbox.execution_mode = execution_mode;
-            muxbox.pty = legacy_pty;
 
             assert_eq!(should_use_pty(&muxbox), expected, "{} (MuxBox)", description);
         }
@@ -137,8 +126,7 @@ pub mod pty_mode_execution_integration_tests {
             content: Some("PTY Integration Choice".to_string(),),
             selected: false,
             script: Some(vec!["bash".to_string()]),
-            pty: None, // F0226: Legacy field not used
-            thread: None, // F0226: Legacy field not used
+ // F0226: Legacy field not used
             execution_mode: ExecutionMode::Pty, // F0226: ExecutionMode determines behavior
             redirect_output: None,
             append_output: Some(false),

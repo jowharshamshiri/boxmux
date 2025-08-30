@@ -49,15 +49,14 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a message about the kill attempt
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
-            &messages[0]
-        {
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) = &messages[0] {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "test_muxbox");
             // In test environment, killing a fake PID might fail, but the attempt should be made
             // So we check that we got a message about the kill attempt
-            assert!(message.contains("kill") || message.contains("Kill"));
+            assert!(stream_update.content_update.contains("kill") || stream_update.content_update.contains("Kill"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -88,14 +87,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "test_muxbox");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("cannot be killed"));
+            assert!(stream_update.content_update.contains("cannot be killed"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -114,14 +115,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "non_existent");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY not found"));
+            assert!(stream_update.content_update.contains("PTY not found"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -151,14 +154,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a success message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "test_muxbox");
-            assert!(*success);
-            assert!(message.contains("restarted"));
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
+            assert!(success);
+            assert!(stream_update.content_update.contains("restarted"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
 
         // Verify the process is marked for restart
@@ -185,14 +190,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "non_existent");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY not found"));
+            assert!(stream_update.content_update.contains("PTY not found"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -229,18 +236,20 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a success message with status info
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "test_muxbox");
-            assert!(*success);
-            assert!(message.contains("PTY Status"));
-            assert!(message.contains("test_muxbox"));
-            assert!(message.contains("12345"));
-            assert!(message.contains("Running"));
-            assert!(message.contains("Buffer Lines: 2"));
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
+            assert!(success);
+            assert!(stream_update.content_update.contains("PTY Status"));
+            assert!(stream_update.content_update.contains("test_muxbox"));
+            assert!(stream_update.content_update.contains("12345"));
+            assert!(stream_update.content_update.contains("Running"));
+            assert!(stream_update.content_update.contains("Buffer Lines: 2"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -261,16 +270,15 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        // Should have a success message about PTY spawn
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        // Should have ExecuteScript message for PTY spawn via unified architecture
+        if let crate::thread_manager::Message::ExecuteScriptMessage(execute_script) =
             &messages[0]
         {
-            assert_eq!(box_id, "test_spawn_muxbox");
-            assert!(*success);
-            assert!(message.contains("PTY process spawned successfully"));
-            assert!(message.contains("test_spawn_muxbox"));
+            assert_eq!(execute_script.target_box_id, "test_spawn_muxbox");
+            assert_eq!(execute_script.execution_mode, crate::model::common::ExecutionMode::Pty);
+            assert_eq!(execute_script.script, vec!["echo 'Hello PTY'", "ls"]);
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for successful spawn");
+            panic!("Expected ExecuteScript message for successful spawn");
         }
     }
 
@@ -291,15 +299,15 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        // Should have a success message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        // Should have ExecuteScript message for PTY spawn with redirect
+        if let crate::thread_manager::Message::ExecuteScriptMessage(execute_script) =
             &messages[0]
         {
-            assert_eq!(box_id, "source_box");
-            assert!(*success);
-            assert!(message.contains("PTY process spawned successfully"));
+            assert_eq!(execute_script.target_box_id, "source_box");
+            assert_eq!(execute_script.execution_mode, crate::model::common::ExecutionMode::Pty);
+            assert_eq!(execute_script.redirect_output, Some("target_box".to_string()));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for spawn with redirect");
+            panic!("Expected ExecuteScript message for spawn with redirect");
         }
     }
 
@@ -321,15 +329,14 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        // Should have an error message about PTY manager unavailability
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        // Should have ExecuteScript message even with missing PTY manager (will fail during execution)
+        if let crate::thread_manager::Message::ExecuteScriptMessage(execute_script) =
             &messages[0]
         {
-            assert_eq!(box_id, "test_box");
-            assert!(!success);
-            assert!(message.contains("PTY manager not available"));
+            assert_eq!(execute_script.target_box_id, "test_box");
+            assert_eq!(execute_script.execution_mode, crate::model::common::ExecutionMode::Pty);
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for missing PTY manager");
+            panic!("Expected ExecuteScript message for missing PTY manager");
         }
     }
 
@@ -350,14 +357,15 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        // Should handle empty script gracefully - result depends on PTY implementation
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, _success, _message) =
+        // Should have ExecuteScript message for empty script
+        if let crate::thread_manager::Message::ExecuteScriptMessage(execute_script) =
             &messages[0]
         {
-            assert_eq!(box_id, "empty_script_box");
-            // Success/failure depends on PTY manager's handling of empty scripts
+            assert_eq!(execute_script.target_box_id, "empty_script_box");
+            assert_eq!(execute_script.execution_mode, crate::model::common::ExecutionMode::Pty);
+            assert!(execute_script.script.is_empty());
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for empty script");
+            panic!("Expected ExecuteScript message for empty script");
         }
     }
 
@@ -387,15 +395,17 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        // Should handle complex script with multiple libs and redirect
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        // Should have ExecuteScript message for complex script with libs and redirect
+        if let crate::thread_manager::Message::ExecuteScriptMessage(execute_script) =
             &messages[0]
         {
-            assert_eq!(box_id, "complex_pty");
-            assert!(*success);
-            assert!(message.contains("PTY process spawned successfully"));
+            assert_eq!(execute_script.target_box_id, "complex_pty");
+            assert_eq!(execute_script.execution_mode, crate::model::common::ExecutionMode::Pty);
+            assert_eq!(execute_script.script.len(), 5); // 5 script lines
+            assert_eq!(execute_script.libs.len(), 2); // 2 lib files
+            assert_eq!(execute_script.redirect_output, Some("output_viewer".to_string()));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for complex script");
+            panic!("Expected ExecuteScript message for complex script");
         }
     }
 
@@ -426,15 +436,17 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have a success message about input being sent
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "input_test_box");
-            assert!(*success);
-            assert!(message.contains("Input sent successfully"));
-            assert!(message.contains("input_test_box"));
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
+            assert!(success);
+            assert!(stream_update.content_update.contains("Input sent successfully"));
+            assert!(stream_update.content_update.contains("input_test_box"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for successful input");
+            panic!("Expected StreamUpdate message for successful input");
         }
     }
 
@@ -454,15 +466,17 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message about PTY not found
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "non_existent_box");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("Failed to send input to PTY process"));
-            assert!(message.contains("No PTY process found"));
+            assert!(stream_update.content_update.contains("Failed to send input to PTY process"));
+            assert!(stream_update.content_update.contains("No PTY process found"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for missing PTY");
+            panic!("Expected StreamUpdate message for missing PTY");
         }
     }
 
@@ -493,15 +507,17 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message about process being finished
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "finished_box");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("Failed to send input to PTY process"));
-            assert!(message.contains("has finished"));
+            assert!(stream_update.content_update.contains("Failed to send input to PTY process"));
+            assert!(stream_update.content_update.contains("has finished"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for finished PTY");
+            panic!("Expected StreamUpdate message for finished PTY");
         }
     }
 
@@ -532,15 +548,17 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message about process being in error state
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "error_box");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("Failed to send input to PTY process"));
-            assert!(message.contains("error state"));
+            assert!(stream_update.content_update.contains("Failed to send input to PTY process"));
+            assert!(stream_update.content_update.contains("error state"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for error PTY");
+            panic!("Expected StreamUpdate message for error PTY");
         }
     }
 
@@ -561,14 +579,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message about PTY manager unavailability
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "any_box");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY manager not available"));
+            assert!(stream_update.content_update.contains("PTY manager not available"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for missing PTY manager");
+            panic!("Expected StreamUpdate message for missing PTY manager");
         }
     }
 
@@ -599,14 +619,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should handle special characters in input successfully
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "special_chars_box");
-            assert!(*success);
-            assert!(message.contains("Input sent successfully"));
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
+            assert!(success);
+            assert!(stream_update.content_update.contains("Input sent successfully"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for special character input");
+            panic!("Expected StreamUpdate message for special character input");
         }
     }
 
@@ -637,14 +659,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should accept input even in starting state
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "starting_box");
-            assert!(*success);
-            assert!(message.contains("Input sent successfully"));
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
+            assert!(success);
+            assert!(stream_update.content_update.contains("Input sent successfully"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message for starting PTY");
+            panic!("Expected StreamUpdate message for starting PTY");
         }
     }
 
@@ -663,14 +687,16 @@ mod socket_pty_control_tests {
         assert_eq!(messages.len(), 1);
 
         // Should have an error message
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(box_id, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let box_id = &stream_update.target_box_id;
             assert_eq!(box_id, "non_existent");
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("No PTY process found"));
+            assert!(stream_update.content_update.contains("No PTY process found"));
         } else {
-            panic!("Expected MuxBoxOutputUpdate message");
+            panic!("Expected StreamUpdateMessage");
         }
     }
 
@@ -691,11 +717,12 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY manager not available"));
+            assert!(stream_update.content_update.contains("PTY manager not available"));
         }
 
         // Test restart command without PTY manager
@@ -709,11 +736,12 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY manager not available"));
+            assert!(stream_update.content_update.contains("PTY manager not available"));
         }
 
         // Test query command without PTY manager
@@ -727,11 +755,12 @@ mod socket_pty_control_tests {
         let (_, messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
 
-        if let crate::thread_manager::Message::MuxBoxOutputUpdate(_, success, message) =
+        if let crate::thread_manager::Message::StreamUpdateMessage(stream_update) =
             &messages[0]
         {
+            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Pty(crate::model::common::PtySourceState { status: crate::model::common::ExecutionPtyStatus::Completed, .. }));
             assert!(!success);
-            assert!(message.contains("PTY manager not available"));
+            assert!(stream_update.content_update.contains("PTY manager not available"));
         }
     }
 }

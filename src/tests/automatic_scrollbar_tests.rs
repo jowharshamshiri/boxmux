@@ -85,11 +85,9 @@ mod tests {
                 id: format!("choice_{}", i),
                 content: Some(format!("Choice {}", i)),
                 script: None,
-                thread: None,
-                redirect_output: None,
+                    redirect_output: None,
                 append_output: None,
-                pty: None,
-                execution_mode: crate::model::common::ExecutionMode::default(),
+                    execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
                 waiting: false,
             });
