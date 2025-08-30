@@ -40,7 +40,7 @@ app:
               
             - id: "pty_process"
               content: "Start PTY Process"
-              pty: true
+              execution_mode: "Pty"
               script:
                 - "top -n 3"
               redirect_output: "multi_stream_box"

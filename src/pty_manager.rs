@@ -50,7 +50,7 @@ pub enum PtyStatus {
 unsafe impl Send for PtyManager {}
 unsafe impl Sync for PtyManager {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PtyManager {
     active_ptys: Arc<Mutex<HashMap<String, PtyProcess>>>,
     pty_failures: Arc<Mutex<HashMap<String, Vec<String>>>>, // Track failure reasons per muxbox
@@ -62,6 +62,36 @@ impl PtyManager {
             active_ptys: Arc::new(Mutex::new(HashMap::new())),
             pty_failures: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+
+    /// Handle ExecuteScript message for PTY execution
+    pub fn handle_execute_script(
+        &self,
+        execute_script: &crate::model::common::ExecuteScript,
+        sender: std::sync::mpsc::Sender<(uuid::Uuid, crate::thread_manager::Message)>,
+        thread_uuid: uuid::Uuid,
+    ) -> Result<()> {
+        log::info!(
+            "PTYManager handling ExecuteScript for target_box_id: {}, stream_id: {}",
+            execute_script.target_box_id,
+            execute_script.stream_id
+        );
+
+        let libs = if execute_script.libs.is_empty() {
+            None
+        } else {
+            Some(execute_script.libs.clone())
+        };
+
+        self.spawn_pty_script_with_redirect(
+            execute_script.target_box_id.clone(),
+            &execute_script.script,
+            libs,
+            sender,
+            thread_uuid,
+            execute_script.redirect_output.clone(),
+            Some(execute_script.stream_id.clone()),
+        )
     }
 
     /// Spawn a script in a PTY for the given muxbox
@@ -209,6 +239,7 @@ impl PtyManager {
         let active_ptys_clone = self.active_ptys.clone();
         let muxbox_id_clone = muxbox_id.clone();
         let pty_stream_id_clone = pty_stream_id.clone();
+        let thread_uuid_clone = thread_uuid; // Pass correct UUID to PTY reader thread
 
         thread::spawn(move || {
             log::info!(
@@ -283,7 +314,7 @@ impl PtyManager {
 
                         // Send final message indicating completion
                         if let Err(e) = sender.send((
-                            thread_uuid,
+                            thread_uuid_clone,
                             crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
                                 stream_id: pty_stream_id.clone(),
                                 target_box_id: output_target.clone(),
@@ -318,8 +349,14 @@ impl PtyManager {
                         let processed_output = ansi_processor.get_processed_text().to_string();
                         let mut lines_to_send = Vec::new();
 
+                        // DEBUG: Log what we got from ANSI processor
+                        if !processed_output.is_empty() {
+                            log::info!("ANSI processor output ({} chars): {:?}", processed_output.len(), processed_output.chars().take(100).collect::<String>());
+                        }
+
                         // Split by newlines and collect complete lines
                         let current_lines: Vec<&str> = processed_output.split('\n').collect();
+                        log::info!("Split into {} lines, ends_with_newline: {}", current_lines.len(), processed_output.ends_with('\n'));
 
                         // If we have complete lines (ending with newline), send them
                         if processed_output.ends_with('\n') {
@@ -338,11 +375,17 @@ impl PtyManager {
                             if let Some(last_line) = current_lines.last() {
                                 ansi_processor.process_string(last_line);
                             }
+                        } else if processed_output.len() > 500 {
+                            // TEMP FIX: Send accumulated content even without newlines for programs like top
+                            log::info!("Sending accumulated content without newlines ({} chars)", processed_output.len());
+                            lines_to_send.push(processed_output.clone());
+                            ansi_processor.clear_processed_text();
                         }
 
                         // Send complete lines
                         for line in lines_to_send {
-                            if !line.trim().is_empty() {
+                            // TEMP DEBUG: Send all lines including empty ones to see what we get
+                            if true { // !line.trim().is_empty() {
                                 // Store line in circular buffer for scrollback
                                 if let Ok(mut buffer) = buffer_clone.lock() {
                                     buffer.push(line.clone());
@@ -369,13 +412,12 @@ impl PtyManager {
                                     ),
                                     execution_mode: crate::model::common::ExecutionMode::Pty,
                                 });
-                                // Use a new UUID for PTY reader thread to avoid ThreadManager filtering
-                                let pty_reader_uuid = uuid::Uuid::new_v4();
+                                // Use correct thread_uuid for ThreadManager message routing
                                 debug!(
-                                    "About to send message via channel - pty_reader_uuid: {:?}",
-                                    pty_reader_uuid
+                                    "About to send PTY message via channel - thread_uuid: {:?}",
+                                    thread_uuid_clone
                                 );
-                                if let Err(e) = sender.send((pty_reader_uuid, message)) {
+                                if let Err(e) = sender.send((thread_uuid_clone, message)) {
                                     error!("PTY message send failed - channel disconnected or full: {}", e);
                                     break;
                                 } else {
@@ -398,7 +440,7 @@ impl PtyManager {
 
                         // Send error message
                         if let Err(e) = sender.send((
-                            thread_uuid,
+                            thread_uuid_clone,
                             crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
                                 stream_id: pty_stream_id.clone(),
                                 target_box_id: muxbox_id_clone.clone(),

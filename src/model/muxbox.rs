@@ -35,6 +35,7 @@ use std::io::Write;
 use crate::{utils::*, AppContext, AppGraph};
 use uuid;
 
+
 /// Flexible deserializer for script fields that handles:
 /// - Single string (split on newlines)
 /// - Array of strings
@@ -1828,12 +1829,6 @@ impl MuxBox {
         }
     }
 
-    /// Initialize default tabs (DEPRECATED - replaced by stream architecture)
-    pub fn initialize_default_tabs(&mut self) {
-        // F0212: This method is deprecated in favor of initialize_streams()
-        // The old tab system is replaced by the new stream architecture with proper source tracking
-        self.initialize_streams();
-    }
 
     /// Add a new input stream
     pub fn add_input_stream(
@@ -2367,61 +2362,9 @@ impl MuxBox {
         tab_labels.len().saturating_sub(tabs_that_fit)
     }
 
-    /// F0229: ExecutionMode Migration Logic - Migrate legacy thread/pty fields to execution_mode
-    /// Called after deserialization to handle backward compatibility with existing YAML files
-    pub fn migrate_execution_mode(&mut self) {
-        // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
-        if self.execution_mode == ExecutionMode::default() {
-            // T0330: Legacy fields removed - migration no longer needed  
-            // let thread = self.thread.unwrap_or(false);
-            // let pty = self.pty.unwrap_or(false);
-            
-            // T0330: Legacy field migration removed - execution_mode should be set directly in YAML
-            // if thread || pty {
-            //     self.execution_mode = ExecutionMode::from_legacy(thread, pty);
-                // log::debug!(
-                //     "Migrated MuxBox '{}' execution mode from legacy thread={}, pty={} to {:?}",
-                //     self.id, thread, pty, self.execution_mode
-                // );
-            // }
-        }
-
-        // Recursively migrate child muxboxes
-        if let Some(ref mut children) = self.children {
-            for child in children {
-                child.migrate_execution_mode();
-            }
-        }
-
-        // Migrate choices within this muxbox
-        if let Some(ref mut choices) = self.choices {
-            for choice in choices {
-                choice.migrate_execution_mode();
-            }
-        }
-    }
 }
 
 impl Choice {
-    /// F0229: ExecutionMode Migration Logic - Migrate legacy thread/pty fields to execution_mode
-    /// Called after deserialization to handle backward compatibility with existing YAML files
-    pub fn migrate_execution_mode(&mut self) {
-        // Only migrate if execution_mode is still at default (Immediate) and legacy fields exist
-        if self.execution_mode == ExecutionMode::default() {
-            // T0330: Legacy fields removed - migration no longer needed  
-            // let thread = self.thread.unwrap_or(false);
-            // let pty = self.pty.unwrap_or(false);
-            
-            // T0330: Legacy field migration removed - execution_mode should be set directly in YAML
-            // if thread || pty {
-            //     self.execution_mode = ExecutionMode::from_legacy(thread, pty);
-                // log::debug!(
-                //     "Migrated Choice '{}' execution mode from legacy thread={}, pty={} to {:?}",
-                //     self.id, thread, pty, self.execution_mode
-                // );
-            // }
-        }
-    }
 }
 
 impl Updatable for MuxBox {

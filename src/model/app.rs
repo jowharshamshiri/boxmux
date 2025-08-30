@@ -1052,9 +1052,6 @@ pub fn load_app_from_yaml_with_lock(
     // Apply variable substitution AFTER parsing with hierarchical context
     apply_variable_substitution(&mut app)?;
 
-    // F0229: ExecutionMode Migration Logic - Migrate legacy thread/pty fields to execution_mode
-    apply_execution_mode_migration(&mut app);
-
     // Validate the app configuration using SchemaValidator
     let mut validator = SchemaValidator::new();
     match validator.validate_app(&app) {
@@ -1265,28 +1262,6 @@ pub fn substitute_variables(content: &str) -> Result<String, Box<dyn std::error:
     context.substitute_in_string(content, &[])
 }
 
-/// F0229: ExecutionMode Migration Logic - Apply legacy thread/pty to execution_mode migration
-/// Called after YAML parsing and variable substitution to migrate legacy configurations
-fn apply_execution_mode_migration(app: &mut App) {
-    log::info!("Applying ExecutionMode migration for legacy thread/pty fields");
-    
-    // Migrate all layouts
-    for layout in &mut app.layouts {
-        migrate_layout_execution_modes(layout);
-    }
-    
-    log::info!("ExecutionMode migration completed");
-}
-
-/// F0229: ExecutionMode Migration Logic - Recursively migrate all muxboxes in a layout
-fn migrate_layout_execution_modes(layout: &mut Layout) {
-    // Migrate root children
-    if let Some(ref mut children) = layout.children {
-        for child in children {
-            child.migrate_execution_mode();
-        }
-    }
-}
 
 fn apply_post_validation_setup(app: &mut App) -> Result<(), String> {
     // This function applies the setup logic that was previously in validate_app

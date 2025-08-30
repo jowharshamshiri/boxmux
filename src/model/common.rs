@@ -28,17 +28,6 @@ impl Default for ExecutionMode {
 }
 
 impl ExecutionMode {
-    /// Convert legacy thread+pty boolean flags to ExecutionMode
-    /// Used for migration and testing legacy configurations
-    pub fn from_legacy(thread: bool, pty: bool) -> Self {
-        if pty {
-            ExecutionMode::Pty
-        } else if thread {
-            ExecutionMode::Thread
-        } else {
-            ExecutionMode::Immediate
-        }
-    }
 
     /// Get descriptive string for execution mode
     pub fn description(&self) -> &'static str {
@@ -84,6 +73,16 @@ impl ExecutionMode {
     /// Check if execution mode is PTY-based
     pub fn is_pty(&self) -> bool {
         matches!(self, ExecutionMode::Pty)
+    }
+
+    /// Convert legacy thread+pty boolean flags to ExecutionMode enum
+    /// PTY takes precedence when both flags are true
+    pub fn from_legacy(thread: bool, pty: bool) -> Self {
+        match (thread, pty) {
+            (_, true) => ExecutionMode::Pty,     // PTY takes precedence
+            (true, false) => ExecutionMode::Thread,
+            (false, false) => ExecutionMode::Immediate,
+        }
     }
 }
 
@@ -1482,7 +1481,7 @@ pub fn run_socket_function(
     socket_function: SocketFunction,
     app_context: &AppContext,
 ) -> Result<(AppContext, Vec<Message>), Box<dyn Error>> {
-    let app_context = app_context.clone();
+    let mut app_context = app_context.clone();
     let mut messages = Vec::new();
     match socket_function {
         SocketFunction::ReplaceBoxContent {
@@ -1706,7 +1705,15 @@ pub fn run_socket_function(
             libs,
             redirect_output,
         } => {
-            // Route through unified execution architecture instead of bypassing it
+            // First register execution source to get stream_id
+            let stream_id = app_context.app.register_execution_source(
+                ExecutionSourceType::SocketUpdate {
+                    command_type: "spawn_pty_process".to_string(),
+                },
+                box_id.clone()
+            );
+            
+            // Route through unified execution architecture with registered stream_id
             let execute_script_msg = crate::thread_manager::Message::ExecuteScriptMessage(ExecuteScript {
                 script,
                 source: ExecutionSource {
@@ -1719,7 +1726,7 @@ pub fn run_socket_function(
                 libs: libs.unwrap_or_default(),
                 redirect_output,
                 append_output: false,
-                stream_id: panic!("ARCHITECTURAL VIOLATION: Socket PTY spawn must register source object to get stream_id - cannot generate UUID fallback"),
+                stream_id,
             });
 
             // Add ExecuteScript message to be sent via ThreadManager

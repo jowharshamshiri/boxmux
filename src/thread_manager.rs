@@ -549,9 +549,8 @@ impl RunnableImpl {
                 self.execute_threaded_script(execute_script);
             }
             ExecutionMode::Pty => {
-                log::error!("T0315: PTY ExecuteScript should never reach RunnableImpl - this indicates a routing problem");
-                log::error!("PTY execution should be handled directly in DrawLoop, not sent to ThreadManager");
-                // This is an error condition - PTY should never reach here
+                // REMOVED DEAD CODE: PTY execution now properly routed to PTYManager, never reaches ThreadManager
+                panic!("PTY ExecuteScript reached ThreadManager - this indicates a critical routing bug that should never happen");
             }
         }
     }
@@ -702,62 +701,6 @@ impl RunnableImpl {
             // TODO: Need to send this back to DrawLoop
             log::info!("Thread execution completed, would send StreamUpdate: {:?}", final_update);
         });
-    }
-    
-    fn execute_pty_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        log::info!("T0315: PTY execution - spawning PTY process with real-time streaming");
-        
-        // Let PTYManager generate and hold its own stream ID - remove ThreadManager stream ID generation
-        // REDIRECT FIX: Use redirect destination if specified
-        let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
-            log::info!("THREADMANAGER REDIRECT FIX PTY1: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
-            redirect_to.clone()
-        } else {
-            log::info!("THREADMANAGER REDIRECT FIX PTY1: No redirect, using source box: {}", execute_script.target_box_id);
-            execute_script.target_box_id.clone()
-        };
-        let script = execute_script.script.clone();
-        let execution_mode = execute_script.execution_mode.clone();
-        
-        // Use stream_id from source object (from source registry) - no UUID generation here
-        let stream_id = execute_script.stream_id.clone();
-        let message_sender = if let Some(sender) = &self.message_sender {
-            sender.clone()
-        } else {
-            log::error!("No message sender available for PTY stream: {}", stream_id);
-            return;
-        };
-
-        // PTYManager will handle all stream creation and updates with its own UUID
-        // Just delegate to PTY manager - no ThreadManager stream ID generation needed
-        if let Some(pty_manager) = self.app_context.pty_manager.as_ref() {
-            let result = if execute_script.redirect_output.is_some() {
-                pty_manager.spawn_pty_script_with_redirect(
-                    execute_script.target_box_id.clone(),
-                    &execute_script.script,
-                    Some(execute_script.libs),
-                    message_sender.clone(),
-                    uuid::Uuid::new_v4(), // Coordination UUID for thread management
-                    execute_script.redirect_output,
-                    Some(execute_script.stream_id.clone()), // Pass the stream_id from source registry
-                )
-            } else {
-                pty_manager.spawn_pty_script(
-                    execute_script.target_box_id.clone(),
-                    &execute_script.script,
-                    Some(execute_script.libs),
-                    message_sender.clone(),
-                    uuid::Uuid::new_v4(), // Coordination UUID for thread management
-                    Some(execute_script.stream_id.clone()), // Pass the stream_id from source registry
-                )
-            };
-            
-            if let Err(e) = result {
-                log::error!("Failed to spawn PTY process: {}", e);
-            }
-        } else {
-            log::error!("PTY manager not available for PTY execution");
-        }
     }
 }
 
@@ -1015,9 +958,8 @@ impl ThreadManager {
                 self.execute_threaded_script(execute_script);
             }
             ExecutionMode::Pty => {
-                log::error!("T0315: PTY ExecuteScript should never reach ThreadManager - this indicates a routing problem");
-                log::error!("PTY execution should be handled directly in DrawLoop, not sent to ThreadManager");
-                // This is an error condition - PTY should never reach here
+                // REMOVED DEAD CODE: PTY execution now properly routed to PTYManager, never reaches ThreadManager
+                panic!("PTY ExecuteScript reached ThreadManager - this indicates a critical routing bug that should never happen");
             }
         }
     }
@@ -1146,20 +1088,6 @@ impl ThreadManager {
                 }
             }
         });
-    }
-    
-    fn execute_pty_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        log::info!("T0315: PTY execution - delegating to PTY manager with unified architecture");
-        
-        // Use stream_id from source object (from source registry) - no UUID generation here
-        let stream_id = execute_script.stream_id.clone();
-        
-        // TODO T0401: Implement proper message routing back to DrawLoop
-        // For now, PTY execution is delegated directly to PTY manager without return messages
-        log::warn!("PTY execution: proper message routing needs implementation in T0401");
-
-        // Temporary stub - PTY execution disabled until T0401 complete
-        log::error!("PTY execution disabled - broken message routing needs implementation in T0401");
     }
 }
 
