@@ -395,11 +395,19 @@ impl App {
     }
 
     /// Register a new execution source and return its stream ID
+    /// For periodic sources, reuses existing stream ID if source already exists
     pub fn register_execution_source(
         &mut self,
         source_type: crate::model::common::ExecutionSourceType,
         target_box_id: String,
     ) -> String {
+        // Check if this source already exists (important for periodic refresh sources)
+        if let Some(existing_source_id) = self.find_existing_source(&source_type, &target_box_id) {
+            // Reuse existing stream ID for this source
+            return self.execution_sources[&existing_source_id].stream_id.clone();
+        }
+        
+        // Create new source with fresh IDs
         let source_id = uuid::Uuid::new_v4().to_string();
         let stream_id = uuid::Uuid::new_v4().to_string();
         
@@ -414,6 +422,27 @@ impl App {
         
         self.execution_sources.insert(source_id.clone(), source);
         stream_id
+    }
+
+    /// Find existing source by type and target box (for source reuse)
+    fn find_existing_source(&self, source_type: &crate::model::common::ExecutionSourceType, target_box_id: &str) -> Option<String> {
+        for (source_id, source) in &self.execution_sources {
+            if source.target_box_id == target_box_id {
+                // For periodic sources, match by target box (each box has one periodic source)
+                match (&source_type, &source.source_type) {
+                    (crate::model::common::ExecutionSourceType::PeriodicScript(_), 
+                     crate::model::common::ExecutionSourceType::PeriodicScript(_)) => {
+                        return Some(source_id.clone());
+                    },
+                    // Other source types use exact matching if needed
+                    _ if source.source_type == *source_type => {
+                        return Some(source_id.clone());
+                    },
+                    _ => {}
+                }
+            }
+        }
+        None
     }
 
     /// Get execution source by source ID
@@ -436,6 +465,28 @@ impl App {
     /// Remove execution source
     pub fn remove_execution_source(&mut self, source_id: &str) -> Option<crate::model::common::UnifiedExecutionSource> {
         self.execution_sources.remove(source_id)
+    }
+
+    /// Pre-register periodic refresh sources for all boxes with scripts during app initialization
+    /// This ensures consistent stream IDs for periodic execution
+    pub fn register_periodic_sources(&mut self) {
+        // Collect all box data first to avoid borrow conflicts
+        let mut boxes_to_register = Vec::new();
+        
+        for layout in &self.layouts {
+            for muxbox in layout.get_all_muxboxes() {
+                if let Some(script) = &muxbox.script {
+                    boxes_to_register.push((muxbox.id.clone(), script.join(" ")));
+                }
+            }
+        }
+        
+        // Now register sources without borrowing conflicts
+        for (box_id, script_string) in boxes_to_register {
+            let source_type = crate::model::common::ExecutionSourceType::PeriodicScript(script_string);
+            let _stream_id = self.register_execution_source(source_type, box_id.clone());
+            log::info!("Pre-registered periodic source for box {} with stable stream ID: {}", box_id, _stream_id);
+        }
     }
 
     /// Get all sources targeting a specific box
@@ -1010,6 +1061,10 @@ pub fn load_app_from_yaml_with_lock(
         Ok(_) => {
             // Apply the old validation logic for setting up parent relationships and defaults
             apply_post_validation_setup(&mut app)?;
+            
+            // Pre-register periodic refresh sources for unified execution architecture
+            app.register_periodic_sources();
+            
             Ok(app)
         }
         Err(validation_errors) => {

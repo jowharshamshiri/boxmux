@@ -27,8 +27,6 @@ use boxmux_lib::model::app::*;
 
 lazy_static! {
     static ref LAST_EXECUTION_TIMES: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
-    // Periodic refresh sources - stores box_id -> PeriodicRefreshSource mapping
-    static ref PERIODIC_REFRESH_SOURCES: Mutex<HashMap<String, boxmux_lib::model::common::PeriodicRefreshSource>> = Mutex::new(HashMap::new());
 }
 
 fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
@@ -197,13 +195,13 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             let sender_for_pty = inner.get_message_sender().clone();
                             let thread_uuid = inner.get_uuid();
 
-                            // T0319: UNIFIED ARCHITECTURE - Replace legacy periodic refresh execution with ExecuteScript message
-                            log::info!("T0319: Periodic refresh creating ExecuteScript for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
+                            // T0319: UNIFIED ARCHITECTURE - Use pre-registered periodic refresh sources
+                            log::info!("T0319: Periodic refresh using pre-registered source for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
                             
                             // Create ExecuteScript message for periodic refresh execution
                             use boxmux_lib::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
                             
-                            // Register execution source and get stream_id
+                            // Get stable stream_id from pre-registered periodic source
                             let script_unwrapped = script.unwrap();
                             let source_type = boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
                                 script_unwrapped.join(" ")
