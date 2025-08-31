@@ -43,20 +43,27 @@ pub enum Message {
     SwitchActiveLayout(String),
     KeyPress(String),
     ExecuteHotKeyChoice(String),
-    MouseClick(u16, u16),                               // x, y coordinates
-    MouseDragStart(u16, u16),                           // x, y coordinates - start drag
-    MouseDrag(u16, u16),                                // x, y coordinates - continue drag
-    MouseDragEnd(u16, u16),                             // x, y coordinates - end drag
-    MuxBoxBorderDrag(String, u16, u16), // muxbox_id, x, y coordinates - resize muxbox
-    MuxBoxResizeComplete(String),       // muxbox_id - save changes to YAML
-    MuxBoxMove(String, u16, u16),       // muxbox_id, x, y coordinates - move muxbox
-    MuxBoxMoveComplete(String),         // muxbox_id - save position changes to YAML
-    SaveYamlState,                      // F0200: Trigger complete YAML state persistence
-    SaveActiveLayout(String),           // F0200: Save active layout to YAML
-    SaveMuxBoxContent(String, String),  // F0200: Save muxbox content to YAML
-    SaveMuxBoxScroll(String, usize, usize), // F0200: Save muxbox scroll position
-    PTYInput(String, String),           // muxbox_id, input_text
+    MouseClick(u16, u16),                          // x, y coordinates
+    MouseDragStart(u16, u16),                      // x, y coordinates - start drag
+    MouseDrag(u16, u16),                           // x, y coordinates - continue drag
+    MouseDragEnd(u16, u16),                        // x, y coordinates - end drag
+    MuxBoxBorderDrag(String, u16, u16),            // muxbox_id, x, y coordinates - resize muxbox
+    MuxBoxResizeComplete(String),                  // muxbox_id - save changes to YAML
+    MuxBoxMove(String, u16, u16),                  // muxbox_id, x, y coordinates - move muxbox
+    MuxBoxMoveComplete(String),                    // muxbox_id - save position changes to YAML
+    SaveYamlState,                                 // F0200: Trigger complete YAML state persistence
+    SaveActiveLayout(String),                      // F0200: Save active layout to YAML
+    SaveMuxBoxContent(String, String),             // F0200: Save muxbox content to YAML
+    SaveMuxBoxScroll(String, usize, usize),        // F0200: Save muxbox scroll position
+    PTYInput(String, String),                      // muxbox_id, input_text
     PTYInputWithModes(String, String, bool, bool), // F0309: muxbox_id, input_text, cursor_key_mode, keypad_mode
+    PTYMouseEvent(
+        String,
+        crossterm::event::MouseEventKind,
+        u16,
+        u16,
+        crossterm::event::KeyModifiers,
+    ), // F0310: muxbox_id, kind, column, row, modifiers
     ExternalMessage(String),
     AddBox(String, MuxBox),
     RemoveBox(String),
@@ -71,8 +78,8 @@ pub enum Message {
     UpdateStreamContent(String, String, String), // muxbox_id, stream_id, content
     // T0309: UNIFIED EXECUTION ARCHITECTURE - New message types for unified execution system
     ExecuteScriptMessage(crate::model::common::ExecuteScript), // Universal script execution entry point
-    StreamUpdateMessage(crate::model::common::StreamUpdate), // Universal stream content updates
-    SourceActionMessage(crate::model::common::SourceAction), // Source lifecycle management
+    StreamUpdateMessage(crate::model::common::StreamUpdate),   // Universal stream content updates
+    SourceActionMessage(crate::model::common::SourceAction),   // Source lifecycle management
 }
 
 impl Hash for Message {
@@ -195,6 +202,16 @@ impl Hash for Message {
                 input.hash(state);
                 cursor_key_mode.hash(state);
                 keypad_mode.hash(state);
+            }
+            Message::PTYMouseEvent(muxbox_id, kind, column, row, modifiers) => {
+                "pty_mouse_event".hash(state);
+                muxbox_id.hash(state);
+                // Hash the discriminant of MouseEventKind enum
+                std::mem::discriminant(kind).hash(state);
+                column.hash(state);
+                row.hash(state);
+                // Hash KeyModifiers as bits
+                modifiers.bits().hash(state);
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
@@ -457,7 +474,7 @@ impl Runnable for RunnableImpl {
                 Message::ExecuteScriptMessage(execute_script) => {
                     log::info!("ThreadManager processing ExecuteScript for target_box_id: {}, execution_mode: {:?}", 
                                execute_script.target_box_id, execute_script.execution_mode);
-                    
+
                     self.handle_execute_script(execute_script);
                 }
                 _ => {
@@ -531,7 +548,6 @@ impl Runnable for RunnableImpl {
         }
     }
 
-
     fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
         // This Runnable implementation doesn't need a run loop - it's handled by ThreadManager
         // Return false to indicate no continuous processing needed
@@ -542,10 +558,12 @@ impl Runnable for RunnableImpl {
 impl RunnableImpl {
     fn handle_execute_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         use crate::model::common::ExecutionMode;
-        
-        log::info!("T0315 FIXED: ThreadManager properly handling ExecuteScript for target_box: {}", 
-                   execute_script.target_box_id);
-        
+
+        log::info!(
+            "T0315 FIXED: ThreadManager properly handling ExecuteScript for target_box: {}",
+            execute_script.target_box_id
+        );
+
         // Use UpdateStreamContent to create/update the output stream
         match execute_script.execution_mode {
             ExecutionMode::Immediate => {
@@ -553,7 +571,7 @@ impl RunnableImpl {
                 self.execute_immediate_script(execute_script);
             }
             ExecutionMode::Thread => {
-                log::info!("T0315: Thread execution - dispatching to thread pool");  
+                log::info!("T0315: Thread execution - dispatching to thread pool");
                 self.execute_threaded_script(execute_script);
             }
             ExecutionMode::Pty => {
@@ -562,16 +580,16 @@ impl RunnableImpl {
             }
         }
     }
-    
+
     fn execute_immediate_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         use std::process::Command;
-        
+
         // Run the script synchronously
         let output = Command::new("sh")
             .arg("-c")
             .arg(execute_script.script.join(" "))
             .output();
-            
+
         let content = match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
@@ -586,20 +604,27 @@ impl RunnableImpl {
                 format!("Error executing script: {}", e)
             }
         };
-        
+
         // Use stream_id from ExecuteScript (already registered in source registry)
         let stream_id = execute_script.stream_id.clone();
-        
+
         // Send result via StreamUpdate with target_box_id for auto-creation
         // REDIRECT FIX: Use redirect destination if specified
         let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
-            log::info!("THREADMANAGER REDIRECT FIX UNKNOWN: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX UNKNOWN: Using redirect destination: {} (was {})",
+                redirect_to,
+                execute_script.target_box_id
+            );
             redirect_to.clone()
         } else {
-            log::info!("THREADMANAGER REDIRECT FIX UNKNOWN: No redirect, using source box: {}", execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX UNKNOWN: No redirect, using source box: {}",
+                execute_script.target_box_id
+            );
             execute_script.target_box_id.clone()
         };
-        
+
         let stream_update = crate::model::common::StreamUpdate {
             stream_id: stream_id.clone(),
             target_box_id: target_box_id,
@@ -611,26 +636,26 @@ impl RunnableImpl {
                     execution_time: std::time::Duration::from_millis(50), // Immediate scripts are very fast
                     exit_code: Some(0),
                     status: crate::model::common::BatchStatus::Completed,
-                }
+                },
             ),
             execution_mode: execute_script.execution_mode,
         };
-        
+
         self.send_message(Message::StreamUpdateMessage(stream_update));
     }
-    
+
     fn execute_threaded_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         use std::process::Command;
         use std::thread;
-        
+
         log::info!("T0315: Thread execution - spawning background thread for script");
-        
+
         // Let PTYManager generate and hold its own stream ID - remove ThreadManager stream ID generation
         let target_box_id = execute_script.target_box_id.clone();
         let script = execute_script.script.clone();
         let execution_mode = execute_script.execution_mode.clone();
         let stream_id = execute_script.stream_id.clone();
-        
+
         // Send initial "started" update using stream_id from ExecuteScript
         let start_update = crate::model::common::StreamUpdate {
             stream_id: stream_id.clone(),
@@ -642,31 +667,32 @@ impl RunnableImpl {
                     execution_time: std::time::Duration::from_millis(0),
                     exit_code: None,
                     status: crate::model::common::ExecutionThreadStatus::Running,
-                }
+                },
             ),
             execution_mode: execution_mode.clone(),
         };
-        
+
         // TODO: Need to send this message back to DrawLoop somehow
         // For now, just log it
-        log::info!("ThreadManager would send StreamUpdate message: {:?}", start_update);
-        
+        log::info!(
+            "ThreadManager would send StreamUpdate message: {:?}",
+            start_update
+        );
+
         // Create a channel to receive messages from the spawned thread
-        let (_thread_sender, _thread_receiver) = std::sync::mpsc::channel::<crate::model::common::StreamUpdate>();
-        
+        let (_thread_sender, _thread_receiver) =
+            std::sync::mpsc::channel::<crate::model::common::StreamUpdate>();
+
         // Store the receiver so we can poll it later (simplified approach)
         // TODO: This is not ideal - should use a proper async mechanism
-        
+
         // Spawn background thread for actual execution
         thread::spawn(move || {
             let thread_id = format!("{:?}", thread::current().id());
-            
+
             // Execute the script
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(script.join(" "))
-                .output();
-                
+            let output = Command::new("sh").arg("-c").arg(script.join(" ")).output();
+
             let (content, exit_code, status) = match output {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -680,16 +706,22 @@ impl RunnableImpl {
                     let status = if output.status.success() {
                         crate::model::common::ExecutionThreadStatus::Completed
                     } else {
-                        crate::model::common::ExecutionThreadStatus::Failed("Script execution failed".to_string())
+                        crate::model::common::ExecutionThreadStatus::Failed(
+                            "Script execution failed".to_string(),
+                        )
                     };
                     (content, exit_code, status)
                 }
-                Err(e) => {
-                    (format!("Error executing script: {}", e), Some(1), 
-                     crate::model::common::ExecutionThreadStatus::Failed(format!("Execution error: {}", e)))
-                }
+                Err(e) => (
+                    format!("Error executing script: {}", e),
+                    Some(1),
+                    crate::model::common::ExecutionThreadStatus::Failed(format!(
+                        "Execution error: {}",
+                        e
+                    )),
+                ),
             };
-            
+
             // Send final result back to ThreadManager
             let final_update = crate::model::common::StreamUpdate {
                 stream_id,
@@ -701,13 +733,16 @@ impl RunnableImpl {
                         execution_time: std::time::Duration::from_millis(100), // approximate
                         exit_code,
                         status,
-                    }
+                    },
                 ),
                 execution_mode,
             };
-            
+
             // TODO: Need to send this back to DrawLoop
-            log::info!("Thread execution completed, would send StreamUpdate: {:?}", final_update);
+            log::info!(
+                "Thread execution completed, would send StreamUpdate: {:?}",
+                final_update
+            );
         });
     }
 }
@@ -805,7 +840,7 @@ impl ThreadManager {
                     Message::ExecuteScriptMessage(execute_script) => {
                         log::info!("ThreadManager processing ExecuteScript from thread {}: target_box_id={}, execution_mode={:?}", 
                                    uuid, execute_script.target_box_id, execute_script.execution_mode);
-                        
+
                         // Handle ExecuteScript directly in ThreadManager, don't broadcast
                         self.handle_execute_script(execute_script);
                         has_updates = true;
@@ -951,10 +986,12 @@ impl ThreadManager {
 
     fn handle_execute_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         use crate::model::common::ExecutionMode;
-        
-        log::info!("T0315 FIXED: ThreadManager properly handling ExecuteScript for target_box: {}", 
-                   execute_script.target_box_id);
-        
+
+        log::info!(
+            "T0315 FIXED: ThreadManager properly handling ExecuteScript for target_box: {}",
+            execute_script.target_box_id
+        );
+
         // Use UpdateStreamContent to create/update the output stream
         match execute_script.execution_mode {
             ExecutionMode::Immediate => {
@@ -962,7 +999,7 @@ impl ThreadManager {
                 self.execute_immediate_script(execute_script);
             }
             ExecutionMode::Thread => {
-                log::info!("T0315: Thread execution - dispatching to thread pool");  
+                log::info!("T0315: Thread execution - dispatching to thread pool");
                 self.execute_threaded_script(execute_script);
             }
             ExecutionMode::Pty => {
@@ -974,13 +1011,13 @@ impl ThreadManager {
 
     fn execute_immediate_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         use std::process::Command;
-        
+
         // Run the script synchronously
         let output = Command::new("sh")
             .arg("-c")
             .arg(execute_script.script.join(" "))
             .output();
-            
+
         let content = match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
@@ -995,20 +1032,27 @@ impl ThreadManager {
                 format!("Error executing script: {}", e)
             }
         };
-        
+
         // SOURCE OBJECT ARCHITECTURE: Use stream_id from ExecuteScript (from source object)
         let stream_id = execute_script.stream_id.clone();
-        
+
         // Send result via StreamUpdate with target_box_id for auto-creation
         // REDIRECT FIX: Use redirect destination if specified
         let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
-            log::info!("THREADMANAGER REDIRECT FIX IMMEDIATE: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX IMMEDIATE: Using redirect destination: {} (was {})",
+                redirect_to,
+                execute_script.target_box_id
+            );
             redirect_to.clone()
         } else {
-            log::info!("THREADMANAGER REDIRECT FIX IMMEDIATE: No redirect, using source box: {}", execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX IMMEDIATE: No redirect, using source box: {}",
+                execute_script.target_box_id
+            );
             execute_script.target_box_id.clone()
         };
-        
+
         let stream_update = crate::model::common::StreamUpdate {
             stream_id: stream_id,
             target_box_id: target_box_id,
@@ -1020,34 +1064,44 @@ impl ThreadManager {
                     execution_time: std::time::Duration::from_millis(50), // Immediate scripts are very fast
                     exit_code: Some(0),
                     status: crate::model::common::BatchStatus::Completed,
-                }
+                },
             ),
             execution_mode: execute_script.execution_mode,
         };
-        
+
         // Broadcast StreamUpdate to all threads for processing
-        self.send_message_to_all_threads((uuid::Uuid::new_v4(), Message::StreamUpdateMessage(stream_update)));
+        self.send_message_to_all_threads((
+            uuid::Uuid::new_v4(),
+            Message::StreamUpdateMessage(stream_update),
+        ));
     }
-    
+
     fn execute_threaded_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
         log::info!("T0315: Thread execution - using existing thread pool infrastructure");
-        
+
         // SOURCE OBJECT ARCHITECTURE: Use stream_id from ExecuteScript (from source object)
         let stream_id = execute_script.stream_id.clone();
-        
+
         // Use existing utils::run_script_with_pty_and_redirect for Thread execution
-        let libs = if execute_script.libs.is_empty() { 
-            None 
-        } else { 
-            Some(execute_script.libs.clone()) 
+        let libs = if execute_script.libs.is_empty() {
+            None
+        } else {
+            Some(execute_script.libs.clone())
         };
-        
+
         // REDIRECT FIX: Use redirect destination if specified
         let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
-            log::info!("THREADMANAGER REDIRECT FIX THREAD: Using redirect destination: {} (was {})", redirect_to, execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX THREAD: Using redirect destination: {} (was {})",
+                redirect_to,
+                execute_script.target_box_id
+            );
             redirect_to.clone()
         } else {
-            log::info!("THREADMANAGER REDIRECT FIX THREAD: No redirect, using source box: {}", execute_script.target_box_id);
+            log::info!(
+                "THREADMANAGER REDIRECT FIX THREAD: No redirect, using source box: {}",
+                execute_script.target_box_id
+            );
             execute_script.target_box_id.clone()
         };
         let script = execute_script.script.clone();
@@ -1055,7 +1109,7 @@ impl ThreadManager {
         let redirect_target = execute_script.redirect_output.clone();
         let message_senders = self.message_senders.clone();
         let thread_manager_uuid = uuid::Uuid::new_v4();
-        
+
         // Spawn thread using existing infrastructure pattern
         std::thread::spawn(move || {
             let result = crate::utils::run_script_with_pty_and_redirect(
@@ -1067,12 +1121,12 @@ impl ThreadManager {
                 None, // No message sender needed - we'll send result directly
                 redirect_target,
             );
-            
+
             let (content, is_success) = match result {
                 Ok(output) => (output, true),
                 Err(e) => (format!("Thread execution error: {}", e), false),
             };
-            
+
             // Send result via StreamUpdate
             let final_update = crate::model::common::StreamUpdate {
                 stream_id,
@@ -1082,17 +1136,24 @@ impl ThreadManager {
                     crate::model::common::ThreadSourceState {
                         thread_id: format!("{:?}", std::thread::current().id()),
                         execution_time: std::time::Duration::from_millis(100), // approximate
-                        exit_code: Some(if is_success { 0 } else { 1 }), // Success=0, Error=1
+                        exit_code: Some(if is_success { 0 } else { 1 }),       // Success=0, Error=1
                         status: crate::model::common::ExecutionThreadStatus::Completed,
-                    }
+                    },
                 ),
                 execution_mode,
             };
-            
+
             // Send to all threads via message senders
             for (uuid, sender) in message_senders.iter() {
-                if let Err(e) = sender.send((thread_manager_uuid, Message::StreamUpdateMessage(final_update.clone()))) {
-                    log::error!("Failed to send thread execution result to thread {}: {}", uuid, e);
+                if let Err(e) = sender.send((
+                    thread_manager_uuid,
+                    Message::StreamUpdateMessage(final_update.clone()),
+                )) {
+                    log::error!(
+                        "Failed to send thread execution result to thread {}: {}",
+                        uuid,
+                        e
+                    );
                 }
             }
         });
@@ -1225,7 +1286,10 @@ create_runnable!(
             match message {
                 // All legacy ExecuteChoice handling removed - use ExecuteScript instead
                 _ => {
-                    log::debug!("ChoiceExecutionRunnable: Unhandled message type: {:?}", message);
+                    log::debug!(
+                        "ChoiceExecutionRunnable: Unhandled message type: {:?}",
+                        message
+                    );
                 }
             }
         }
@@ -1414,7 +1478,7 @@ pub fn run_script_in_thread(
                                 execution_time: std::time::Duration::from_millis(0),
                                 exit_code: Some(0),
                                 status: crate::model::common::ExecutionThreadStatus::Completed,
-                            }
+                            },
                         ),
                         execution_mode: execution_mode.clone(),
                     };
@@ -1432,13 +1496,15 @@ pub fn run_script_in_thread(
                                 thread_id: format!("{:?}", std::thread::current().id()),
                                 execution_time: std::time::Duration::from_millis(0),
                                 exit_code: Some(1),
-                                status: crate::model::common::ExecutionThreadStatus::Failed(e.to_string()),
-                            }
+                                status: crate::model::common::ExecutionThreadStatus::Failed(
+                                    e.to_string(),
+                                ),
+                            },
                         ),
                         execution_mode: execution_mode.clone(),
                     };
                     inner.send_message(Message::StreamUpdateMessage(stream_update))
-                },
+                }
             }
             std::thread::sleep(std::time::Duration::from_millis(
                 muxbox.calc_refresh_interval(&app_context, &app_graph),

@@ -57,15 +57,19 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                             let mut app_context_unwrapped = app_context.clone();
                             let app_graph = app_context_unwrapped.app.generate_graph();
                             let libs = app_context_unwrapped.app.libs.clone();
-                            
+
                             // Collect data from muxbox first to avoid borrow conflicts
                             let (muxbox_id, execution_mode, script_unwrapped, refresh_interval) = {
                                 let muxbox = app_context_unwrapped
                                     .app
                                     .get_muxbox_by_id_mut(&vec[0])
                                     .unwrap();
-                                (muxbox.id.clone(), muxbox.execution_mode.clone(), muxbox.script.clone().unwrap(), 
-                                 muxbox.calc_refresh_interval(&app_context, &app_graph))
+                                (
+                                    muxbox.id.clone(),
+                                    muxbox.execution_mode.clone(),
+                                    muxbox.script.clone().unwrap(),
+                                    muxbox.calc_refresh_interval(&app_context, &app_graph),
+                                )
                             };
 
                             let sender_for_pty = inner.get_message_sender().clone();
@@ -73,25 +77,29 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                             // T0600: UNIFIED ARCHITECTURE - Convert background scripts to use ExecuteScript messages
                             log::info!("T0600: Background script using unified ExecuteScript architecture for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
-                            
+
                             // Create ExecuteScript message for background script execution
-                            use boxmux_lib::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
-                            
+                            use boxmux_lib::model::common::{
+                                ExecuteScript, ExecutionSource, SourceReference, SourceType,
+                            };
+
                             // Get stable stream_id from source registration (now with fresh mutable borrow)
-                            let source_type = boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
-                                script_unwrapped.join(" ")
-                            );
-                            let stream_id = app_context_unwrapped.app.register_execution_source(
-                                source_type,
-                                muxbox_id.clone()
-                            );
-                            
+                            let source_type =
+                                boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
+                                    script_unwrapped.join(" "),
+                                );
+                            let stream_id = app_context_unwrapped
+                                .app
+                                .register_execution_source(source_type, muxbox_id.clone());
+
                             let execute_script = ExecuteScript {
                                 script: script_unwrapped,
                                 source: ExecutionSource {
                                     source_type: SourceType::StaticScript,
                                     source_id: format!("background-{}", muxbox_id),
-                                    source_reference: SourceReference::StaticConfig(muxbox_id.clone()),
+                                    source_reference: SourceReference::StaticConfig(
+                                        muxbox_id.clone(),
+                                    ),
                                 },
                                 execution_mode: execution_mode.clone(),
                                 target_box_id: muxbox_id.clone(),
@@ -108,14 +116,13 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 "T0600: ExecuteScript message sent for background muxbox {} script (unified architecture)",
                                 muxbox_id
                             );
-                            std::thread::sleep(std::time::Duration::from_millis(
-                                refresh_interval,
-                            ));
+                            std::thread::sleep(std::time::Duration::from_millis(refresh_interval));
                             (true, app_context_unwrapped)
                         }
                     );
 
-                    let mux_box_refresh_loop = MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
+                    let mux_box_refresh_loop =
+                        MuxBoxRefreshLoop::new(app_context.clone(), Box::new(vec_fn));
                     manager.spawn_thread(mux_box_refresh_loop);
                 } else {
                     non_threaded_muxboxes.push(muxbox_id.clone());
@@ -147,14 +154,18 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                     for muxbox_id in vec.iter() {
                         let libs = app_context_unwrapped.app.libs.clone();
-                        
+
                         // Collect data from muxbox and then register source separately to avoid borrow conflicts
                         let (refresh_interval, execution_mode, script) = {
                             let muxbox = app_context_unwrapped
                                 .app
                                 .get_muxbox_by_id_mut(muxbox_id)
                                 .unwrap();
-                            (muxbox.refresh_interval.unwrap_or(1000), muxbox.execution_mode.clone(), muxbox.script.clone())
+                            (
+                                muxbox.refresh_interval.unwrap_or(1000),
+                                muxbox.execution_mode.clone(),
+                                muxbox.script.clone(),
+                            )
                         };
 
                         let last_execution_time = last_execution_times
@@ -168,26 +179,30 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                             // T0319: UNIFIED ARCHITECTURE - Use pre-registered periodic refresh sources
                             log::info!("T0319: Periodic refresh using pre-registered source for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
-                            
+
                             // Create ExecuteScript message for periodic refresh execution
-                            use boxmux_lib::model::common::{ExecuteScript, ExecutionSource, SourceType, SourceReference};
-                            
+                            use boxmux_lib::model::common::{
+                                ExecuteScript, ExecutionSource, SourceReference, SourceType,
+                            };
+
                             // Get stable stream_id from pre-registered periodic source
                             let script_unwrapped = script.unwrap();
-                            let source_type = boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
-                                script_unwrapped.join(" ")
-                            );
-                            let stream_id = app_context_unwrapped.app.register_execution_source(
-                                source_type,
-                                muxbox_id.clone()
-                            );
-                            
+                            let source_type =
+                                boxmux_lib::model::common::ExecutionSourceType::PeriodicScript(
+                                    script_unwrapped.join(" "),
+                                );
+                            let stream_id = app_context_unwrapped
+                                .app
+                                .register_execution_source(source_type, muxbox_id.clone());
+
                             let execute_script = ExecuteScript {
                                 script: script_unwrapped,
                                 source: ExecutionSource {
                                     source_type: SourceType::PeriodicRefresh,
                                     source_id: format!("refresh-{}", muxbox_id),
-                                    source_reference: SourceReference::PeriodicConfig(muxbox_id.clone()),
+                                    source_reference: SourceReference::PeriodicConfig(
+                                        muxbox_id.clone(),
+                                    ),
                                 },
                                 execution_mode: execution_mode.clone(),
                                 target_box_id: muxbox_id.clone(),
@@ -948,11 +963,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // T0702: Removed duplicate execution handler functions - ALL execution now handled by ThreadManager only
-// Functions removed: handle_execute_script_in_execute_loop, execute_immediate_script_unified, 
+// Functions removed: handle_execute_script_in_execute_loop, execute_immediate_script_unified,
 // execute_threaded_script_unified, execute_pty_script_unified
 
 // T0702: REMOVED execute_immediate_script_unified - replaced by ThreadManager.execute_immediate_script()
-// T0702: REMOVED execute_threaded_script_unified - replaced by ThreadManager.execute_threaded_script()  
+// T0702: REMOVED execute_threaded_script_unified - replaced by ThreadManager.execute_threaded_script()
 // T0702: REMOVED execute_pty_script_unified - replaced by ThreadManager PTY handling
 
 #[cfg(test)]

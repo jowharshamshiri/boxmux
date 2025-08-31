@@ -13,14 +13,17 @@ pub mod pty_mode_execution_integration_tests {
             content: Some("PTY Choice".to_string()),
             selected: false,
             script: Some(vec!["htop".to_string()]),
- // Legacy field ignored
+            // Legacy field ignored
             execution_mode: ExecutionMode::Pty, // F0226: Use ExecutionMode
             redirect_output: None,
             append_output: None,
             waiting: false,
         };
 
-        assert!(should_use_pty_for_choice(&choice), "ExecutionMode::Pty should return true");
+        assert!(
+            should_use_pty_for_choice(&choice),
+            "ExecutionMode::Pty should return true"
+        );
     }
 
     #[test]
@@ -37,7 +40,10 @@ pub mod pty_mode_execution_integration_tests {
             waiting: false,
         };
 
-        assert!(!should_use_pty_for_choice(&choice), "ExecutionMode::Thread should return false even if legacy pty=true");
+        assert!(
+            !should_use_pty_for_choice(&choice),
+            "ExecutionMode::Thread should return false even if legacy pty=true"
+        );
     }
 
     #[test]
@@ -54,7 +60,10 @@ pub mod pty_mode_execution_integration_tests {
             waiting: false,
         };
 
-        assert!(!should_use_pty_for_choice(&choice), "ExecutionMode::Immediate should return false even if legacy pty=true");
+        assert!(
+            !should_use_pty_for_choice(&choice),
+            "ExecutionMode::Immediate should return false even if legacy pty=true"
+        );
     }
 
     #[test]
@@ -63,7 +72,10 @@ pub mod pty_mode_execution_integration_tests {
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_box");
         muxbox.execution_mode = ExecutionMode::Pty;
 
-        assert!(should_use_pty(&muxbox), "ExecutionMode::Pty should return true");
+        assert!(
+            should_use_pty(&muxbox),
+            "ExecutionMode::Pty should return true"
+        );
     }
 
     #[test]
@@ -72,7 +84,10 @@ pub mod pty_mode_execution_integration_tests {
         let mut muxbox = TestDataFactory::create_test_muxbox("thread_box");
         muxbox.execution_mode = ExecutionMode::Thread;
 
-        assert!(!should_use_pty(&muxbox), "ExecutionMode::Thread should return false even if legacy pty=true");
+        assert!(
+            !should_use_pty(&muxbox),
+            "ExecutionMode::Thread should return false even if legacy pty=true"
+        );
     }
 
     #[test]
@@ -81,17 +96,40 @@ pub mod pty_mode_execution_integration_tests {
         let mut muxbox = TestDataFactory::create_test_muxbox("immediate_box");
         muxbox.execution_mode = ExecutionMode::Immediate;
 
-        assert!(!should_use_pty(&muxbox), "ExecutionMode::Immediate should return false even if legacy pty=true");
+        assert!(
+            !should_use_pty(&muxbox),
+            "ExecutionMode::Immediate should return false even if legacy pty=true"
+        );
     }
 
     #[test]
     fn test_legacy_vs_execution_mode_priority() {
         // F0226: ExecutionMode should completely override legacy pty field
         let test_cases = [
-            (ExecutionMode::Immediate, Some(true), false, "Immediate mode overrides pty=true"),
-            (ExecutionMode::Thread, Some(true), false, "Thread mode overrides pty=true"),
-            (ExecutionMode::Pty, Some(false), true, "PTY mode overrides pty=false"),
-            (ExecutionMode::Pty, None, true, "PTY mode works without legacy field"),
+            (
+                ExecutionMode::Immediate,
+                Some(true),
+                false,
+                "Immediate mode overrides pty=true",
+            ),
+            (
+                ExecutionMode::Thread,
+                Some(true),
+                false,
+                "Thread mode overrides pty=true",
+            ),
+            (
+                ExecutionMode::Pty,
+                Some(false),
+                true,
+                "PTY mode overrides pty=false",
+            ),
+            (
+                ExecutionMode::Pty,
+                None,
+                true,
+                "PTY mode works without legacy field",
+            ),
         ];
 
         for (execution_mode, legacy_pty, expected, description) in test_cases {
@@ -100,18 +138,28 @@ pub mod pty_mode_execution_integration_tests {
                 content: Some("Test Choice".to_string()),
                 selected: false,
                 script: Some(vec!["echo 'test'".to_string()]),
-                    execution_mode: execution_mode.clone(),
+                execution_mode: execution_mode.clone(),
                 redirect_output: None,
                 append_output: None,
                 waiting: false,
             };
 
-            assert_eq!(should_use_pty_for_choice(&choice), expected, "{}", description);
+            assert_eq!(
+                should_use_pty_for_choice(&choice),
+                expected,
+                "{}",
+                description
+            );
 
             let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
             muxbox.execution_mode = execution_mode;
 
-            assert_eq!(should_use_pty(&muxbox), expected, "{} (MuxBox)", description);
+            assert_eq!(
+                should_use_pty(&muxbox),
+                expected,
+                "{} (MuxBox)",
+                description
+            );
         }
     }
 
@@ -120,13 +168,13 @@ pub mod pty_mode_execution_integration_tests {
         // F0226: Integration test for PTY mode execution
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_integration_box");
         muxbox.execution_mode = ExecutionMode::Pty;
-        
+
         let pty_choice = Choice {
             id: "pty_integration_choice".to_string(),
-            content: Some("PTY Integration Choice".to_string(),),
+            content: Some("PTY Integration Choice".to_string()),
             selected: false,
             script: Some(vec!["bash".to_string()]),
- // F0226: Legacy field not used
+            // F0226: Legacy field not used
             execution_mode: ExecutionMode::Pty, // F0226: ExecutionMode determines behavior
             redirect_output: None,
             append_output: Some(false),
@@ -138,13 +186,13 @@ pub mod pty_mode_execution_integration_tests {
         // Test utility functions
         assert!(should_use_pty(&muxbox));
         assert!(should_use_pty_for_choice(&pty_choice));
-        
+
         // Test ExecutionMode properties
         assert!(pty_choice.execution_mode.is_realtime());
         assert!(pty_choice.execution_mode.is_background());
         assert!(pty_choice.execution_mode.creates_streams());
         assert_eq!(pty_choice.execution_mode.as_stream_suffix(), "pty");
-        
+
         // Test MuxBox ExecutionMode properties
         assert!(muxbox.execution_mode.is_realtime());
         assert!(muxbox.execution_mode.is_background());

@@ -15,14 +15,20 @@ pub mod pty_mode_execution_tests {
     fn test_execution_mode_pty_is_realtime() {
         // F0226: PTY execution should be real-time
         let pty_mode = ExecutionMode::Pty;
-        assert!(pty_mode.is_realtime(), "PTY mode should be real-time execution");
+        assert!(
+            pty_mode.is_realtime(),
+            "PTY mode should be real-time execution"
+        );
     }
 
     #[test]
     fn test_execution_mode_pty_is_background() {
         // F0226: PTY execution should be background (not on UI thread)
         let pty_mode = ExecutionMode::Pty;
-        assert!(pty_mode.is_background(), "PTY mode should be background execution");
+        assert!(
+            pty_mode.is_background(),
+            "PTY mode should be background execution"
+        );
     }
 
     #[test]
@@ -30,13 +36,19 @@ pub mod pty_mode_execution_tests {
         // F0226: PTY mode should have proper description
         let pty_mode = ExecutionMode::Pty;
         let description = pty_mode.description();
-        assert!(description.contains("Real-time"), "PTY description should mention Real-time");
-        assert!(description.contains("PTY"), "PTY description should mention PTY");
+        assert!(
+            description.contains("Real-time"),
+            "PTY description should mention Real-time"
+        );
+        assert!(
+            description.contains("PTY"),
+            "PTY description should mention PTY"
+        );
     }
 
     #[test]
     fn test_execution_mode_pty_stream_suffix() {
-        // F0226: PTY execution should have proper stream suffix  
+        // F0226: PTY execution should have proper stream suffix
         let pty_mode = ExecutionMode::Pty;
         let suffix = pty_mode.as_stream_suffix();
         assert_eq!(suffix, "pty", "PTY mode should have 'pty' stream suffix");
@@ -46,7 +58,10 @@ pub mod pty_mode_execution_tests {
     fn test_execution_mode_pty_creates_streams() {
         // F0226: PTY mode should create execution streams
         let pty_mode = ExecutionMode::Pty;
-        assert!(pty_mode.creates_streams(), "PTY mode should create execution streams");
+        assert!(
+            pty_mode.creates_streams(),
+            "PTY mode should create execution streams"
+        );
     }
 
     #[test]
@@ -57,8 +72,8 @@ pub mod pty_mode_execution_tests {
             content: Some("PTY Choice".to_string()),
             selected: false,
             script: Some(vec!["echo 'PTY test'".to_string()]),
- // Legacy field should be None
- // Legacy field should be None
+            // Legacy field should be None
+            // Legacy field should be None
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: None,
@@ -72,14 +87,14 @@ pub mod pty_mode_execution_tests {
     fn test_muxbox_with_pty_choices() {
         // F0226: MuxBox should support choices with ExecutionMode::Pty
         let mut muxbox = TestDataFactory::create_test_muxbox("pty_box");
-        
+
         let pty_choice = Choice {
             id: "pty_choice".to_string(),
             content: Some("PTY Command".to_string()),
             selected: false,
             script: Some(vec!["htop".to_string()]), // Interactive PTY command
- // Legacy field
- // Legacy field  
+            // Legacy field
+            // Legacy field
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: None,
@@ -102,13 +117,17 @@ pub mod pty_mode_execution_tests {
         // F0226: ExecutionMode::Pty should serialize correctly
         let pty_mode = ExecutionMode::Pty;
         let serialized = serde_yaml::to_string(&pty_mode).expect("Should serialize");
-        assert!(serialized.trim() == "Pty", 
-                "PTY mode should serialize to 'Pty', got: {}", serialized.trim());
-        
+        assert!(
+            serialized.trim() == "Pty",
+            "PTY mode should serialize to 'Pty', got: {}",
+            serialized.trim()
+        );
+
         // Test deserialization
-        let deserialized: ExecutionMode = serde_yaml::from_str("Pty").expect("Should deserialize 'Pty'");
+        let deserialized: ExecutionMode =
+            serde_yaml::from_str("Pty").expect("Should deserialize 'Pty'");
         assert_eq!(deserialized, ExecutionMode::Pty);
-        
+
         // Only 'Pty' variant is supported, not lowercase 'pty'
         // let deserialized_lowercase: ExecutionMode = serde_yaml::from_str("pty").expect("Should deserialize 'pty'");
         // assert_eq!(deserialized_lowercase, ExecutionMode::Pty);
@@ -118,10 +137,18 @@ pub mod pty_mode_execution_tests {
     fn test_legacy_pty_migration_to_execution_mode() {
         // F0226: Legacy pty=true should migrate to ExecutionMode::Pty
         let pty_mode = ExecutionMode::from_legacy(false, true);
-        assert_eq!(pty_mode, ExecutionMode::Pty, "pty=true should migrate to ExecutionMode::Pty");
+        assert_eq!(
+            pty_mode,
+            ExecutionMode::Pty,
+            "pty=true should migrate to ExecutionMode::Pty"
+        );
 
-        let pty_override = ExecutionMode::from_legacy(true, true); 
-        assert_eq!(pty_override, ExecutionMode::Pty, "pty=true should override thread=true");
+        let pty_override = ExecutionMode::from_legacy(true, true);
+        assert_eq!(
+            pty_override,
+            ExecutionMode::Pty,
+            "pty=true should override thread=true"
+        );
     }
 
     #[test]
@@ -132,8 +159,8 @@ pub mod pty_mode_execution_tests {
             content: Some("Start Shell".to_string()),
             selected: false,
             script: Some(vec!["bash".to_string()]),
- // F0226: Should not use legacy field
- // F0226: Should not use legacy field
+            // F0226: Should not use legacy field
+            // F0226: Should not use legacy field
             execution_mode: ExecutionMode::Pty, // F0226: Use ExecutionMode for PTY
             redirect_output: None,
             append_output: Some(false), // PTY typically doesn't append
@@ -145,17 +172,26 @@ pub mod pty_mode_execution_tests {
         assert!(pty_choice.execution_mode.is_background());
         assert!(pty_choice.execution_mode.creates_streams());
         assert_eq!(pty_choice.execution_mode.as_stream_suffix(), "pty");
-        assert!(pty_choice.execution_mode.description().contains("Real-time"));
+        assert!(pty_choice
+            .execution_mode
+            .description()
+            .contains("Real-time"));
 
         // Verify legacy fields are unused
 
         // Verify choice serialization includes execution_mode
         let serialized = serde_yaml::to_string(&pty_choice).expect("Choice should serialize");
-        assert!(serialized.contains("execution_mode"), "Serialized choice should include execution_mode field");
-        assert!(serialized.contains("Pty") || serialized.contains("pty"), "Serialized choice should include PTY execution mode");
+        assert!(
+            serialized.contains("execution_mode"),
+            "Serialized choice should include execution_mode field"
+        );
+        assert!(
+            serialized.contains("Pty") || serialized.contains("pty"),
+            "Serialized choice should include PTY execution mode"
+        );
     }
 
-    #[test] 
+    #[test]
     fn test_execution_mode_pty_hash_and_equality() {
         // F0226: ExecutionMode::Pty should support hash and equality
         use std::collections::hash_map::DefaultHasher;
@@ -173,7 +209,7 @@ pub mod pty_mode_execution_tests {
         let mut hasher1 = DefaultHasher::new();
         let mut hasher2 = DefaultHasher::new();
         let mut hasher3 = DefaultHasher::new();
-        
+
         pty1.hash(&mut hasher1);
         pty2.hash(&mut hasher2);
         thread_mode.hash(&mut hasher3);
@@ -182,8 +218,14 @@ pub mod pty_mode_execution_tests {
         let hash2 = hasher2.finish();
         let hash3 = hasher3.finish();
 
-        assert_eq!(hash1, hash2, "Same ExecutionMode::Pty should have same hash");
-        assert_ne!(hash1, hash3, "Different execution modes should have different hashes");
+        assert_eq!(
+            hash1, hash2,
+            "Same ExecutionMode::Pty should have same hash"
+        );
+        assert_ne!(
+            hash1, hash3,
+            "Different execution modes should have different hashes"
+        );
     }
 
     #[test]

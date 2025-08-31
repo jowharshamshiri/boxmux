@@ -1,13 +1,13 @@
 /// Tests for Unified Execution Architecture message system
-/// 
+///
 /// These tests verify the new ExecuteScript/StreamUpdate/SourceAction message flow
 /// that replaces the old ExecuteChoice/CreateChoiceExecutionStream messages
 
 #[cfg(test)]
 mod tests {
     use crate::model::common::{
-        ExecutionMode, ExecuteScript, ExecutionSource, SourceType, SourceReference,
-        StreamUpdate, SourceState, BatchSourceState, BatchStatus
+        BatchSourceState, BatchStatus, ExecuteScript, ExecutionMode, ExecutionSource,
+        SourceReference, SourceState, SourceType, StreamUpdate,
     };
     use crate::model::muxbox::Choice;
     use crate::thread_manager::Message;
@@ -17,10 +17,16 @@ mod tests {
     fn test_execution_mode_basic_functionality() {
         // Test ExecutionMode enum basic operations
         assert_eq!(ExecutionMode::default(), ExecutionMode::Immediate);
-        
+
         // Test PTY detection
-        assert!(!ExecutionMode::Immediate.is_pty(), "Immediate mode should not be PTY");
-        assert!(!ExecutionMode::Thread.is_pty(), "Thread mode should not be PTY");
+        assert!(
+            !ExecutionMode::Immediate.is_pty(),
+            "Immediate mode should not be PTY"
+        );
+        assert!(
+            !ExecutionMode::Thread.is_pty(),
+            "Thread mode should not be PTY"
+        );
         assert!(ExecutionMode::Pty.is_pty(), "PTY mode should be PTY");
     }
 
@@ -90,7 +96,7 @@ mod tests {
 
         let msg = Message::StreamUpdateMessage(stream_update.clone());
 
-        // Verify message structure  
+        // Verify message structure
         if let Message::StreamUpdateMessage(stream_update_msg) = msg {
             assert_eq!(stream_update_msg.stream_id, "test_muxbox_choice_stream");
             assert_eq!(stream_update_msg.content_update, "Script output content");
@@ -116,10 +122,10 @@ mod tests {
         modes.insert(ExecutionMode::Immediate);
         modes.insert(ExecutionMode::Thread);
         modes.insert(ExecutionMode::Pty);
-        
+
         // Verify all modes are distinct
         assert_eq!(modes.len(), 3);
-        
+
         // Test equality
         assert_eq!(ExecutionMode::Immediate, ExecutionMode::Immediate);
         assert_ne!(ExecutionMode::Immediate, ExecutionMode::Thread);
@@ -132,12 +138,12 @@ mod tests {
         let static_source = SourceType::StaticScript;
         let socket_source = SourceType::SocketUpdate;
         let hotkey_source = SourceType::HotkeyScript;
-        
+
         // Verify they're all distinct
         assert_ne!(choice_source, static_source);
         assert_ne!(static_source, socket_source);
         assert_ne!(socket_source, hotkey_source);
-        
+
         // Verify choice source contains expected value
         if let SourceType::Choice(choice_id) = choice_source {
             assert_eq!(choice_id, "test_choice");
@@ -146,7 +152,7 @@ mod tests {
         }
     }
 
-    #[test] 
+    #[test]
     fn test_unified_message_flow_integration() {
         // Test that the unified message flow works end-to-end
         let choice = Choice {

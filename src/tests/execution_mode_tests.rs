@@ -66,14 +66,20 @@ mod execution_mode_tests {
     #[test]
     fn test_from_legacy_conversions() {
         // thread=false, pty=false -> Immediate
-        assert_eq!(ExecutionMode::from_legacy(false, false), ExecutionMode::Immediate);
-        
+        assert_eq!(
+            ExecutionMode::from_legacy(false, false),
+            ExecutionMode::Immediate
+        );
+
         // thread=true, pty=false -> Thread
-        assert_eq!(ExecutionMode::from_legacy(true, false), ExecutionMode::Thread);
-        
+        assert_eq!(
+            ExecutionMode::from_legacy(true, false),
+            ExecutionMode::Thread
+        );
+
         // thread=false, pty=true -> Pty
         assert_eq!(ExecutionMode::from_legacy(false, true), ExecutionMode::Pty);
-        
+
         // thread=true, pty=true -> Pty (pty takes precedence)
         assert_eq!(ExecutionMode::from_legacy(true, true), ExecutionMode::Pty);
     }
@@ -91,9 +97,18 @@ mod execution_mode_tests {
     /// Test description() method returns correct strings
     #[test]
     fn test_execution_mode_descriptions() {
-        assert_eq!(ExecutionMode::Immediate.description(), "Synchronous execution on UI thread");
-        assert_eq!(ExecutionMode::Thread.description(), "Background execution in thread pool");
-        assert_eq!(ExecutionMode::Pty.description(), "Real-time PTY execution with continuous output");
+        assert_eq!(
+            ExecutionMode::Immediate.description(),
+            "Synchronous execution on UI thread"
+        );
+        assert_eq!(
+            ExecutionMode::Thread.description(),
+            "Background execution in thread pool"
+        );
+        assert_eq!(
+            ExecutionMode::Pty.description(),
+            "Real-time PTY execution with continuous output"
+        );
     }
 
     // === Stream Architecture Integration Tests ===
@@ -135,7 +150,8 @@ mod execution_mode_tests {
 
         for mode in modes {
             let serialized = serde_json::to_string(&mode).expect("Serialization failed");
-            let deserialized: ExecutionMode = serde_json::from_str(&serialized).expect("Deserialization failed");
+            let deserialized: ExecutionMode =
+                serde_json::from_str(&serialized).expect("Deserialization failed");
             assert_eq!(mode, deserialized);
         }
     }
@@ -181,11 +197,11 @@ mod execution_mode_tests {
     #[test]
     fn test_execution_mode_fluent_patterns() {
         let mode = ExecutionMode::default();
-        
+
         // Test method chaining patterns
         let is_sync = !mode.is_background() && !mode.is_realtime();
         assert!(is_sync);
-        
+
         let creates_and_syncs = mode.creates_streams() && !mode.is_background();
         assert!(creates_and_syncs);
     }
@@ -194,15 +210,30 @@ mod execution_mode_tests {
     #[test]
     fn test_execution_mode_behavior_matrix() {
         let behaviors = vec![
-            (ExecutionMode::Immediate, false, false, true),  // (realtime, background, creates_streams)
-            (ExecutionMode::Thread, false, true, true),      // (realtime, background, creates_streams)
-            (ExecutionMode::Pty, true, true, true),          // (realtime, background, creates_streams)
+            (ExecutionMode::Immediate, false, false, true), // (realtime, background, creates_streams)
+            (ExecutionMode::Thread, false, true, true), // (realtime, background, creates_streams)
+            (ExecutionMode::Pty, true, true, true),     // (realtime, background, creates_streams)
         ];
 
         for (mode, expected_realtime, expected_background, expected_creates_streams) in behaviors {
-            assert_eq!(mode.is_realtime(), expected_realtime, "Realtime mismatch for {:?}", mode);
-            assert_eq!(mode.is_background(), expected_background, "Background mismatch for {:?}", mode);
-            assert_eq!(mode.creates_streams(), expected_creates_streams, "Creates streams mismatch for {:?}", mode);
+            assert_eq!(
+                mode.is_realtime(),
+                expected_realtime,
+                "Realtime mismatch for {:?}",
+                mode
+            );
+            assert_eq!(
+                mode.is_background(),
+                expected_background,
+                "Background mismatch for {:?}",
+                mode
+            );
+            assert_eq!(
+                mode.creates_streams(),
+                expected_creates_streams,
+                "Creates streams mismatch for {:?}",
+                mode
+            );
         }
     }
 }

@@ -305,7 +305,7 @@ mod layout_validation_tests {
 
             let load_time = file_start.elapsed();
 
-            // Each file should load within reasonable time (2.5 seconds for complex layouts)  
+            // Each file should load within reasonable time (2.5 seconds for complex layouts)
             assert!(
                 load_time.as_millis() < 2500,
                 "File {:?} took too long to load: {}ms",

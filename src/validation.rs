@@ -96,11 +96,7 @@ impl std::fmt::Display for ValidationError {
                 )
             }
             ValidationError::DeprecationWarning { field, message } => {
-                write!(
-                    f,
-                    "Deprecation warning for '{}': {}",
-                    field, message
-                )
+                write!(f, "Deprecation warning for '{}': {}", field, message)
             }
         }
     }
@@ -214,7 +210,10 @@ impl SchemaValidator {
         }
 
         // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(&muxbox.execution_mode, &format!("{}.execution_mode", path));
+        self.validate_execution_mode_fields(
+            &muxbox.execution_mode,
+            &format!("{}.execution_mode", path),
+        );
 
         // Validate choices if present
         if let Some(choices) = &muxbox.choices {
@@ -226,7 +225,7 @@ impl SchemaValidator {
         // Return both errors and warnings for comprehensive validation
         let mut all_issues = self.errors.clone();
         all_issues.extend(self.warnings.clone());
-        
+
         if all_issues.is_empty() {
             Ok(())
         } else {
@@ -400,7 +399,11 @@ impl SchemaValidator {
     }
 
     /// Validate a single choice
-    pub fn validate_choice(&mut self, choice: &crate::model::muxbox::Choice, path: &str) -> ValidationResult {
+    pub fn validate_choice(
+        &mut self,
+        choice: &crate::model::muxbox::Choice,
+        path: &str,
+    ) -> ValidationResult {
         // Validate required fields
         if choice.id.is_empty() {
             self.add_error(ValidationError::MissingRequiredField {
@@ -409,12 +412,15 @@ impl SchemaValidator {
         }
 
         // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(&choice.execution_mode, &format!("{}.execution_mode", path));
+        self.validate_execution_mode_fields(
+            &choice.execution_mode,
+            &format!("{}.execution_mode", path),
+        );
 
         // Return both errors and warnings for comprehensive validation
         let mut all_issues = self.errors.clone();
         all_issues.extend(self.warnings.clone());
-        
+
         if all_issues.is_empty() {
             Ok(())
         } else {
@@ -423,9 +429,13 @@ impl SchemaValidator {
     }
 
     /// Validate ExecutionMode field consistency and provide deprecation warnings
-    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, _path: &str) {
+    fn validate_execution_mode_fields(
+        &mut self,
+        execution_mode: &crate::model::common::ExecutionMode,
+        _path: &str,
+    ) {
         use crate::model::common::ExecutionMode;
-        
+
         // T0330: Legacy thread/pty fields removed - no more deprecation warnings needed
 
         // Validate ExecutionMode enum values

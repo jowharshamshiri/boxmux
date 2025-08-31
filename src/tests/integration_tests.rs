@@ -57,7 +57,13 @@ mod tests {
         if let Message::StreamUpdateMessage(stream_update) = message {
             // Use target_box_id field instead of parsing stream_id
             let box_id = &stream_update.target_box_id;
-            let success = matches!(stream_update.source_state, crate::model::common::SourceState::Batch(crate::model::common::BatchSourceState { status: crate::model::common::BatchStatus::Completed, .. }));
+            let success = matches!(
+                stream_update.source_state,
+                crate::model::common::SourceState::Batch(crate::model::common::BatchSourceState {
+                    status: crate::model::common::BatchStatus::Completed,
+                    ..
+                })
+            );
             let content = stream_update.content_update;
             assert_eq!(box_id, "test_muxbox");
             assert_eq!(success, true);
@@ -111,7 +117,15 @@ mod tests {
             Message::StreamUpdateMessage(stream_update) => {
                 // Use target_box_id field instead of parsing stream_id
                 let box_id = &stream_update.target_box_id;
-                let success = matches!(stream_update.source_state, crate::model::common::SourceState::Batch(crate::model::common::BatchSourceState { status: crate::model::common::BatchStatus::Completed, .. }));
+                let success = matches!(
+                    stream_update.source_state,
+                    crate::model::common::SourceState::Batch(
+                        crate::model::common::BatchSourceState {
+                            status: crate::model::common::BatchStatus::Completed,
+                            ..
+                        }
+                    )
+                );
                 let content = &stream_update.content_update;
                 assert_eq!(box_id, "test_muxbox");
                 assert_eq!(success, true);
@@ -155,7 +169,9 @@ mod tests {
                     success,
                     content,
                 } => {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                    use crate::model::common::{
+                        BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                    };
                     let stream_update = StreamUpdate {
                         stream_id: format!("{}_default", box_id),
                         target_box_id: box_id.clone(),
@@ -165,12 +181,16 @@ mod tests {
                             queue_wait_time: std::time::Duration::from_millis(0),
                             execution_time: std::time::Duration::from_millis(100),
                             exit_code: if success { Some(0) } else { Some(1) },
-                            status: if success { crate::model::common::BatchStatus::Completed } else { crate::model::common::BatchStatus::Failed("Test error".to_string()) },
+                            status: if success {
+                                crate::model::common::BatchStatus::Completed
+                            } else {
+                                crate::model::common::BatchStatus::Failed("Test error".to_string())
+                            },
                         }),
                         execution_mode: ExecutionMode::Thread,
                     };
                     Message::StreamUpdateMessage(stream_update)
-                },
+                }
                 _ => panic!("Unexpected socket function type"),
             };
             tx.send((test_uuid, message))

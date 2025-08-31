@@ -35,7 +35,6 @@ use std::io::Write;
 use crate::{utils::*, AppContext, AppGraph};
 use uuid;
 
-
 /// Flexible deserializer for script fields that handles:
 /// - Single string (split on newlines)
 /// - Array of strings
@@ -92,7 +91,6 @@ where
         }
     }
 }
-
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Choice {
@@ -227,7 +225,7 @@ pub struct MuxBox {
     pub table_data: Option<String>,
     pub table_config: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub auto_scroll_bottom: Option<bool>,
-    // F0221: MuxBox ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum  
+    // F0221: MuxBox ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum
     #[serde(default)]
     pub execution_mode: ExecutionMode,
     #[serde(default)]
@@ -1829,7 +1827,6 @@ impl MuxBox {
         }
     }
 
-
     /// Add a new input stream
     pub fn add_input_stream(
         &mut self,
@@ -1887,12 +1884,12 @@ impl MuxBox {
         // F0229: Simple heuristic - redirect output typically has timestamps, ERROR prefixes, or execution indicators
         // YAML content is usually static documentation, descriptions, or simple text
         let lines: Vec<&str> = content.lines().collect();
-        
+
         // Empty content is not YAML-defined
         if lines.is_empty() {
             return false;
         }
-        
+
         // Check for common redirect output patterns
         let has_redirect_patterns = lines.iter().any(|line| {
             line.starts_with("ERROR:") ||
@@ -1903,7 +1900,7 @@ impl MuxBox {
             // Check for timestamp-like patterns (crude but effective)
             line.contains(" [") && line.contains("] ")
         });
-        
+
         // If no redirect patterns found, likely YAML-defined
         !has_redirect_patterns
     }
@@ -1913,16 +1910,15 @@ impl MuxBox {
         self.streams.clear();
 
         // F0229: Check if content was defined in YAML vs populated by redirect
-        let has_yaml_content = self
-            .content
-            .as_ref()
-            .map_or(false, |c| !c.trim().is_empty() && self.is_yaml_defined_content(c));
+        let has_yaml_content = self.content.as_ref().map_or(false, |c| {
+            !c.trim().is_empty() && self.is_yaml_defined_content(c)
+        });
         let has_choices = self
             .choices
             .as_ref()
             .map_or(false, |choices| !choices.is_empty());
 
-        // F0229: Check if this is an action-only box (choices but no YAML content)  
+        // F0229: Check if this is an action-only box (choices but no YAML content)
         let is_action_only_box = has_choices && !has_yaml_content;
 
         // F0229: Only create content stream for YAML-defined content (not redirect output)
@@ -2062,16 +2058,18 @@ impl MuxBox {
     /// F0212: Remove stream and return its source for cleanup
     pub fn remove_stream(&mut self, stream_id: &str) -> Option<crate::model::common::StreamSource> {
         // Check if the stream being removed is currently active
-        let was_active = self.streams
+        let was_active = self
+            .streams
             .get(stream_id)
             .map(|stream| stream.active)
             .unwrap_or(false);
-        
+
         // Remove the stream and get its source
-        let removed_source = self.streams
+        let removed_source = self
+            .streams
             .shift_remove(stream_id)
             .and_then(|stream| stream.source);
-        
+
         // If the removed stream was active, switch to the first remaining stream
         if was_active && !self.streams.is_empty() {
             // Set the first remaining stream as active
@@ -2084,7 +2082,7 @@ impl MuxBox {
                 );
             }
         }
-        
+
         removed_source
     }
 
@@ -2255,7 +2253,11 @@ impl MuxBox {
 
     pub fn get_tab_labels(&self) -> Vec<String> {
         // F0218: Stream Tab Integration - generate tabs from streams
-        log::info!("TAB DEBUG: get_tab_labels() called for box {}, streams count: {}", self.id, self.streams.len());
+        log::info!(
+            "TAB DEBUG: get_tab_labels() called for box {}, streams count: {}",
+            self.id,
+            self.streams.len()
+        );
         let mut labels = Vec::new();
 
         // Use exact same ordering as switch_to_tab() - natural IndexMap insertion order
@@ -2283,8 +2285,13 @@ impl MuxBox {
             labels.push(label);
         }
 
-        log::info!("TAB DEBUG: get_tab_labels() returning {} labels for box {}: {:?}", labels.len(), self.id, labels);
-        
+        log::info!(
+            "TAB DEBUG: get_tab_labels() returning {} labels for box {}: {:?}",
+            labels.len(),
+            self.id,
+            labels
+        );
+
         // No default tab - empty boxes have no tabs
         labels
     }
@@ -2362,10 +2369,79 @@ impl MuxBox {
         tab_labels.len().saturating_sub(tabs_that_fit)
     }
 
+    // F0317: Terminal Window Integration Methods - PTY boxes act like terminal windows
+
+    /// Calculate terminal character dimensions from pixel bounds
+    /// F0317: PTY boxes should have dimensions that match their terminal content
+    pub fn calculate_terminal_dimensions(&self, bounds: &Bounds) -> (u16, u16) {
+        // F0316: Performance Optimization - Improved terminal dimension calculation
+        // Convert inclusive bounds to character dimensions with proper adjustments
+        let mut cols = bounds.width() as u16;
+        let mut rows = bounds.height() as u16;
+        
+        // Account for border space if present
+        if self.border.unwrap_or(false) {
+            // Borders take 2 characters (left + right) and 2 rows (top + bottom)
+            cols = cols.saturating_sub(2);
+            rows = rows.saturating_sub(2);
+        }
+        
+        // Account for title bar space (1 row for title)
+        if self.title.as_ref().map_or(false, |t| !t.is_empty()) {
+            rows = rows.saturating_sub(1);
+        }
+        
+        // Account for tab bar space if multiple streams exist
+        let stream_count = self.streams.len();
+        if stream_count > 1 {
+            rows = rows.saturating_sub(1); // Tab bar takes 1 row
+        }
+        
+        // Ensure minimum viable terminal size (htop/terminal applications need reasonable space)
+        let min_cols = 40u16;  // Minimum for readable terminal applications
+        let min_rows = 10u16;  // Minimum for practical terminal usage
+        
+        let final_cols = cols.max(min_cols);
+        let final_rows = rows.max(min_rows);
+        
+        log::debug!("Terminal dimension calculation for box {}: bounds={}x{}, border={}, title_present={}, streams={} -> {}x{} characters", 
+            self.id, bounds.width(), bounds.height(), self.border.unwrap_or(false), self.title.as_ref().map_or(false, |t| !t.is_empty()), stream_count, final_cols, final_rows);
+        
+        (final_cols, final_rows)
+    }
+
+    /// Update MuxBox bounds and resize associated PTY to match
+    /// F0317: When PTY box resizes, the underlying PTY terminal should resize too
+    pub fn update_bounds_with_pty_resize(&mut self, bounds: &Bounds, pty_manager: &mut crate::pty_manager::PtyManager) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Only handle PTY boxes - others use normal bounds update
+        if !matches!(self.execution_mode, ExecutionMode::Pty) {
+            return Ok(()); // Non-PTY boxes don't need PTY resize
+        }
+
+        // Calculate terminal dimensions from new bounds
+        let (cols, rows) = self.calculate_terminal_dimensions(bounds);
+        
+        // Resize the PTY to match the new terminal dimensions
+        if let Err(e) = pty_manager.resize_pty(&self.id, rows, cols) {
+            log::warn!("PTY resize failed for box {}: {}", self.id, e);
+            // Don't fail the operation - PTY might not exist yet or might be finished
+        } else {
+            log::debug!("PTY resized for box {} to {}x{} characters", self.id, cols, rows);
+        }
+
+        Ok(())
+    }
+
+    /// Update MuxBox title from PTY terminal title changes
+    /// F0315 + F0317: PTY terminal title changes should propagate to the containing box
+    pub fn update_title_from_pty(&mut self, terminal_title: Option<String>) {
+        if matches!(self.execution_mode, ExecutionMode::Pty) {
+            self.title = terminal_title;
+        }
+    }
 }
 
-impl Choice {
-}
+impl Choice {}
 
 impl Updatable for MuxBox {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
@@ -3384,7 +3460,10 @@ mod tests {
         assert_eq!(muxbox.title, None);
         assert_eq!(muxbox.anchor, Anchor::Center);
         assert_eq!(muxbox.selected, Some(false));
-        assert_eq!(muxbox.execution_mode, crate::model::common::ExecutionMode::default());
+        assert_eq!(
+            muxbox.execution_mode,
+            crate::model::common::ExecutionMode::default()
+        );
         assert_eq!(muxbox.horizontal_scroll, Some(0.0));
         assert_eq!(muxbox.vertical_scroll, Some(0.0));
         assert_eq!(muxbox.error_state, false);
@@ -3818,7 +3897,10 @@ mod tests {
         assert_eq!(choice.content, Some("Test Content".to_string()));
         assert_eq!(choice.selected, false);
         assert_eq!(choice.waiting, false);
-        assert_eq!(choice.execution_mode, crate::model::common::ExecutionMode::default());
+        assert_eq!(
+            choice.execution_mode,
+            crate::model::common::ExecutionMode::default()
+        );
     }
 
     /// Tests that Choice implements Clone correctly.

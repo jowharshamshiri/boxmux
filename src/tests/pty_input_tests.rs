@@ -35,7 +35,10 @@ mod pty_input_tests {
         let muxbox = TestDataFactory::create_test_muxbox("default_muxbox");
         // F0226: ExecutionMode defaults to Immediate, pty field is None by default
 
-        assert_eq!(muxbox.execution_mode, crate::model::common::ExecutionMode::Immediate);
+        assert_eq!(
+            muxbox.execution_mode,
+            crate::model::common::ExecutionMode::Immediate
+        );
         assert!(
             !should_use_pty(&muxbox),
             "MuxBox with default ExecutionMode::Immediate should not use PTY"

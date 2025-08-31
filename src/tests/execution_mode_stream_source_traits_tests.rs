@@ -2,12 +2,11 @@
 // Comprehensive test suite for execution-mode-specific source traits and implementations
 
 use crate::model::common::{
-    ExecutionMode, StreamSource, StreamSourceTrait,
-    ImmediateExecutionSource, ImmediateSource,
-    ThreadPoolExecutionSource, ThreadPoolSource, ThreadStatus,
-    PtySessionExecutionSource, PtySessionSource,
+    ExecutionMode, ImmediateExecutionSource, ImmediateSource, PtySessionExecutionSource,
+    PtySessionSource, StreamSource, StreamSourceTrait, ThreadPoolExecutionSource, ThreadPoolSource,
+    ThreadStatus,
 };
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 #[cfg(test)]
 mod tests {
@@ -32,7 +31,7 @@ mod tests {
         assert_eq!(source.source_id(), "immediate_test_choice");
         assert!(!source.can_terminate()); // Immediate execution cannot be terminated
         assert!(source.cleanup().is_ok());
-        
+
         let metadata = source.get_metadata();
         assert_eq!(metadata.get("choice_id"), Some(&"test_choice".to_string()));
         assert_eq!(metadata.get("muxbox_id"), Some(&"test_box".to_string()));
@@ -64,8 +63,14 @@ mod tests {
         source.completed_at = Some(SystemTime::now());
 
         assert!(source.is_complete());
-        assert_eq!(source.get_execution_result(), Some(Ok("test output".to_string())));
-        assert_eq!(source.get_execution_duration(), Some(Duration::from_millis(100)));
+        assert_eq!(
+            source.get_execution_result(),
+            Some(Ok("test output".to_string()))
+        );
+        assert_eq!(
+            source.get_execution_duration(),
+            Some(Duration::from_millis(100))
+        );
     }
 
     // ===== ThreadPoolExecutionSource Tests =====
@@ -89,9 +94,12 @@ mod tests {
         assert_eq!(source.source_id(), "thread_thread_choice");
         assert!(source.can_terminate()); // Running thread can be terminated
         assert!(source.cleanup().is_ok());
-        
+
         let metadata = source.get_metadata();
-        assert_eq!(metadata.get("choice_id"), Some(&"thread_choice".to_string()));
+        assert_eq!(
+            metadata.get("choice_id"),
+            Some(&"thread_choice".to_string())
+        );
         assert_eq!(metadata.get("thread_id"), Some(&"thread-123".to_string()));
         assert_eq!(metadata.get("timeout_seconds"), Some(&"30".to_string()));
         assert_eq!(metadata.get("script_lines"), Some(&"2".to_string()));
@@ -155,7 +163,7 @@ mod tests {
         ] {
             source.thread_status = status.clone();
             assert_eq!(source.get_thread_status(), status);
-            
+
             // Only running and not-started can be cancelled
             let can_cancel = matches!(status, ThreadStatus::Running | ThreadStatus::NotStarted);
             assert_eq!(source.cancel_thread().is_ok(), can_cancel);
@@ -183,7 +191,7 @@ mod tests {
         assert_eq!(source.source_type(), "pty_session_execution");
         assert_eq!(source.source_id(), "pty_pty_choice");
         assert!(source.can_terminate()); // Running PTY process can be terminated
-        
+
         let metadata = source.get_metadata();
         assert_eq!(metadata.get("choice_id"), Some(&"pty_choice".to_string()));
         assert_eq!(metadata.get("command"), Some(&"bash".to_string()));
@@ -215,12 +223,15 @@ mod tests {
         assert!(source.is_process_running());
         assert_eq!(source.get_terminal_size(), (30, 120));
         assert_eq!(source.get_command(), "bash -i");
-        assert_eq!(source.get_working_directory(), Some("/home/user".to_string()));
-        
+        assert_eq!(
+            source.get_working_directory(),
+            Some("/home/user".to_string())
+        );
+
         // Test process operations (should succeed for running process)
         assert!(source.send_input("echo test\n").is_ok());
         assert!(source.resize_terminal(25, 100).is_ok());
-        
+
         // Note: kill_process() test would be platform-specific and potentially disruptive
     }
 
@@ -262,7 +273,11 @@ mod tests {
             choice_id: "cmd3".to_string(),
             muxbox_id: "box3".to_string(),
             command: "git".to_string(),
-            args: vec!["commit".to_string(), "-m".to_string(), "test message".to_string()],
+            args: vec![
+                "commit".to_string(),
+                "-m".to_string(),
+                "test message".to_string(),
+            ],
             working_dir: None,
             process_id: None,
             terminal_size: (24, 80),
@@ -318,7 +333,7 @@ mod tests {
     #[test]
     fn test_execution_mode_to_stream_source_conversion() {
         let script = vec!["echo test".to_string()];
-        
+
         // Test Immediate mode conversion
         let immediate_source = StreamSource::from_execution_mode(
             &ExecutionMode::Immediate,
@@ -328,12 +343,12 @@ mod tests {
             None,
         );
         assert!(immediate_source.supports_immediate_source());
-        
+
         // Test Thread mode conversion
         let mut thread_params = std::collections::HashMap::new();
         thread_params.insert("thread_id".to_string(), "thread-456".to_string());
         thread_params.insert("timeout_seconds".to_string(), "60".to_string());
-        
+
         let thread_source = StreamSource::from_execution_mode(
             &ExecutionMode::Thread,
             "thread_choice".to_string(),
@@ -342,13 +357,13 @@ mod tests {
             Some(thread_params),
         );
         assert!(thread_source.supports_thread_pool_source());
-        
+
         // Test PTY mode conversion
         let mut pty_params = std::collections::HashMap::new();
         pty_params.insert("working_dir".to_string(), "/home/user".to_string());
         pty_params.insert("terminal_rows".to_string(), "30".to_string());
         pty_params.insert("terminal_cols".to_string(), "120".to_string());
-        
+
         let pty_source = StreamSource::from_execution_mode(
             &ExecutionMode::Pty,
             "pty_choice".to_string(),
@@ -415,7 +430,7 @@ mod tests {
             }
             _ => panic!("Expected ImmediateExecution source"),
         };
-        
+
         let metadata = immediate.get_metadata();
         assert_eq!(metadata.get("is_complete"), Some(&"true".to_string()));
         assert_eq!(metadata.get("duration_ms"), Some(&"150".to_string()));
@@ -424,15 +439,25 @@ mod tests {
         let thread = StreamSource::create_thread_pool_execution_source(
             "thread_meta".to_string(),
             "thread_meta_box".to_string(),
-            vec!["long".to_string(), "running".to_string(), "script".to_string()],
+            vec![
+                "long".to_string(),
+                "running".to_string(),
+                "script".to_string(),
+            ],
             Some("thread-meta-123".to_string()),
             Some(120),
         );
-        
+
         let thread_metadata = thread.get_metadata();
         assert_eq!(thread_metadata.get("script_lines"), Some(&"3".to_string()));
-        assert_eq!(thread_metadata.get("timeout_seconds"), Some(&"120".to_string()));
-        assert_eq!(thread_metadata.get("thread_id"), Some(&"thread-meta-123".to_string()));
+        assert_eq!(
+            thread_metadata.get("timeout_seconds"),
+            Some(&"120".to_string())
+        );
+        assert_eq!(
+            thread_metadata.get("thread_id"),
+            Some(&"thread-meta-123".to_string())
+        );
 
         // Test PTY execution metadata
         let pty = StreamSource::create_pty_session_execution_source(
@@ -443,12 +468,24 @@ mod tests {
             Some("/project/root".to_string()),
             (40, 160),
         );
-        
+
         let pty_metadata = pty.get_metadata();
-        assert_eq!(pty_metadata.get("command"), Some(&"complex_command".to_string()));
-        assert_eq!(pty_metadata.get("args"), Some(&"--arg1 --arg2=value".to_string()));
-        assert_eq!(pty_metadata.get("working_dir"), Some(&"/project/root".to_string()));
-        assert_eq!(pty_metadata.get("terminal_size"), Some(&"40x160".to_string()));
+        assert_eq!(
+            pty_metadata.get("command"),
+            Some(&"complex_command".to_string())
+        );
+        assert_eq!(
+            pty_metadata.get("args"),
+            Some(&"--arg1 --arg2=value".to_string())
+        );
+        assert_eq!(
+            pty_metadata.get("working_dir"),
+            Some(&"/project/root".to_string())
+        );
+        assert_eq!(
+            pty_metadata.get("terminal_size"),
+            Some(&"40x160".to_string())
+        );
     }
 
     /// Test lifecycle management differences between execution modes
@@ -491,7 +528,7 @@ mod tests {
             _ => panic!("Expected PtySessionExecution source"),
         };
         assert!(pty.can_terminate());
-        
+
         // Test PTY with terminated process
         if let StreamSource::PtySessionExecution(ref mut source) = pty {
             source.is_process_running = false;
@@ -515,7 +552,7 @@ mod tests {
             reader_thread_id: None,
             is_process_running: false,
         };
-        
+
         assert!(pty_not_running.send_input("test\n").is_err());
         assert!(pty_not_running.resize_terminal(25, 90).is_err());
         assert!(pty_not_running.kill_process().is_err());
@@ -532,7 +569,7 @@ mod tests {
             completion_result: Some(Ok("done".to_string())),
             execution_duration: Some(Duration::from_millis(100)),
         };
-        
+
         assert!(completed_thread.cancel_thread().is_err());
     }
 }

@@ -273,7 +273,12 @@ pub fn draw_muxbox(
             // Generate tab labels and close buttons using muxbox methods
             let tab_labels = muxbox.get_tab_labels();
             let tab_close_buttons = muxbox.get_tab_close_buttons();
-            log::info!("DRAW DEBUG: Box {} has {} tab labels: {:?}", muxbox.id, tab_labels.len(), tab_labels);
+            log::info!(
+                "DRAW DEBUG: Box {} has {} tab labels: {:?}",
+                muxbox.id,
+                tab_labels.len(),
+                tab_labels
+            );
 
             render_muxbox(
                 value,
@@ -1267,8 +1272,7 @@ pub fn render_muxbox(
     buffer: &mut ScreenBuffer,
 ) {
     // F0217: Extract content from streams using trait-based approach
-    let (should_render_choices, content_str) = if !streams.is_empty()
-    {
+    let (should_render_choices, content_str) = if !streams.is_empty() {
         // Get active stream
         let active_stream = streams.values().find(|s| s.active);
         let should_render_choices = if let Some(stream) = active_stream {

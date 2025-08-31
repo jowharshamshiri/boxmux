@@ -20,9 +20,9 @@ mod clickable_scrollbar_tests {
                 id: format!("choice_{}", i),
                 content: Some(format!("Choice {}", i)),
                 script: None,
-                    redirect_output: None,
+                redirect_output: None,
                 append_output: None,
-                    execution_mode: crate::model::common::ExecutionMode::default(),
+                execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
                 waiting: false,
             });
@@ -201,9 +201,9 @@ mod clickable_scrollbar_tests {
                 id: format!("choice_{}", i),
                 content: Some(format!("Choice {}", i)),
                 script: None,
-                    redirect_output: None,
+                redirect_output: None,
                 append_output: None,
-                    execution_mode: crate::model::common::ExecutionMode::default(),
+                execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
                 waiting: false,
             });
@@ -342,9 +342,9 @@ mod clickable_scrollbar_tests {
                     i
                 )),
                 script: None,
-                    redirect_output: None,
+                redirect_output: None,
                 append_output: None,
-                    execution_mode: crate::model::common::ExecutionMode::default(),
+                execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
                 waiting: false,
             });

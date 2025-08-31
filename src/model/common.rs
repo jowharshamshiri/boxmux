@@ -28,7 +28,6 @@ impl Default for ExecutionMode {
 }
 
 impl ExecutionMode {
-
     /// Get descriptive string for execution mode
     pub fn description(&self) -> &'static str {
         match self {
@@ -79,7 +78,7 @@ impl ExecutionMode {
     /// PTY takes precedence when both flags are true
     pub fn from_legacy(thread: bool, pty: bool) -> Self {
         match (thread, pty) {
-            (_, true) => ExecutionMode::Pty,     // PTY takes precedence
+            (_, true) => ExecutionMode::Pty, // PTY takes precedence
             (true, false) => ExecutionMode::Thread,
             (false, false) => ExecutionMode::Immediate,
         }
@@ -91,52 +90,52 @@ impl ExecutionMode {
 /// T0300: ExecuteScript message struct - Universal entry point for all script execution
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct ExecuteScript {
-    pub script: Vec<String>,           // Script commands to execute
-    pub source: ExecutionSource,       // Source information and reference
-    pub execution_mode: ExecutionMode, // How to execute (Batch/Thread/PTY)
-    pub target_box_id: String,         // Where to create the stream
-    pub libs: Vec<String>,             // Library dependencies
+    pub script: Vec<String>,             // Script commands to execute
+    pub source: ExecutionSource,         // Source information and reference
+    pub execution_mode: ExecutionMode,   // How to execute (Batch/Thread/PTY)
+    pub target_box_id: String,           // Where to create the stream
+    pub libs: Vec<String>,               // Library dependencies
     pub redirect_output: Option<String>, // Optional output redirection
-    pub append_output: bool,            // Append vs replace mode
-    pub stream_id: String,             // Stream ID from source registry
+    pub append_output: bool,             // Append vs replace mode
+    pub stream_id: String,               // Stream ID from source registry
 }
 
 /// T0301: ExecutionSource and SourceType enums - Track what triggered the execution
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct ExecutionSource {
-    pub source_type: SourceType,       // What kind of source this is
-    pub source_id: String,             // Unique identifier for this execution
+    pub source_type: SourceType,           // What kind of source this is
+    pub source_id: String,                 // Unique identifier for this execution
     pub source_reference: SourceReference, // Actual source data/object
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SourceType {
-    Choice(String),           // Choice ID that triggered execution
-    StaticScript,             // Box-level YAML script (one-time execution)
-    PeriodicRefresh,          // Periodic refresh script execution
-    SocketUpdate,             // Dynamic socket-based script
-    RedirectedScript,         // Script with output redirection  
-    HotkeyScript,            // Hotkey-triggered script
-    ScheduledScript,         // Timer/scheduled execution
+    Choice(String),   // Choice ID that triggered execution
+    StaticScript,     // Box-level YAML script (one-time execution)
+    PeriodicRefresh,  // Periodic refresh script execution
+    SocketUpdate,     // Dynamic socket-based script
+    RedirectedScript, // Script with output redirection
+    HotkeyScript,     // Hotkey-triggered script
+    ScheduledScript,  // Timer/scheduled execution
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SourceReference {
     Choice(crate::model::muxbox::Choice), // Full choice object
-    StaticConfig(String),     // YAML configuration reference (one-time)
-    PeriodicConfig(String),   // YAML configuration for periodic refresh
-    SocketCommand(String),    // Socket command that triggered this
-    HotkeyBinding(String),    // Hotkey that triggered this
-    Schedule(String),         // Schedule configuration
+    StaticConfig(String),                 // YAML configuration reference (one-time)
+    PeriodicConfig(String),               // YAML configuration for periodic refresh
+    SocketCommand(String),                // Socket command that triggered this
+    HotkeyBinding(String),                // Hotkey that triggered this
+    Schedule(String),                     // Schedule configuration
 }
 
 /// T0302: StreamUpdate message struct - Universal content updates from any execution mode
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct StreamUpdate {
-    pub stream_id: String,            // Target stream to update
-    pub target_box_id: String,        // Target box to create/update stream in
-    pub content_update: String,       // New content to append
-    pub source_state: SourceState,    // Current state of execution source
+    pub stream_id: String,             // Target stream to update
+    pub target_box_id: String,         // Target box to create/update stream in
+    pub content_update: String,        // New content to append
+    pub source_state: SourceState,     // Current state of execution source
     pub execution_mode: ExecutionMode, // Mode that generated this update
 }
 
@@ -144,82 +143,87 @@ pub struct StreamUpdate {
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SourceState {
     Batch(BatchSourceState),
-    Thread(ThreadSourceState), 
+    Thread(ThreadSourceState),
     Pty(PtySourceState),
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct BatchSourceState {
-    pub task_id: String,              // Task queue identifier
-    pub queue_wait_time: Duration,    // Time spent waiting in queue
-    pub execution_time: Duration,     // Actual execution duration
-    pub exit_code: Option<i32>,       // Process exit code
-    pub status: BatchStatus,          // Current status
+    pub task_id: String,           // Task queue identifier
+    pub queue_wait_time: Duration, // Time spent waiting in queue
+    pub execution_time: Duration,  // Actual execution duration
+    pub exit_code: Option<i32>,    // Process exit code
+    pub status: BatchStatus,       // Current status
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct ThreadSourceState {
-    pub thread_id: String,            // Thread identifier
-    pub execution_time: Duration,     // How long execution took
-    pub exit_code: Option<i32>,       // Process exit code
-    pub status: ExecutionThreadStatus,         // Current status
+    pub thread_id: String,             // Thread identifier
+    pub execution_time: Duration,      // How long execution took
+    pub exit_code: Option<i32>,        // Process exit code
+    pub status: ExecutionThreadStatus, // Current status
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct PtySourceState {
-    pub process_id: u32,              // PTY process ID
-    pub runtime: Duration,            // How long process has been running
-    pub exit_code: Option<i32>,       // Exit code if completed
-    pub status: ExecutionPtyStatus,            // Current process status
+    pub process_id: u32,            // PTY process ID
+    pub runtime: Duration,          // How long process has been running
+    pub exit_code: Option<i32>,     // Exit code if completed
+    pub status: ExecutionPtyStatus, // Current process status
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum BatchStatus {
-    Queued,                          // Waiting in task queue
-    Executing,                       // Currently being executed
-    Completed,                       // Finished successfully - no more updates
-    Failed(String),                  // Failed with error message - no more updates
+    Queued,         // Waiting in task queue
+    Executing,      // Currently being executed
+    Completed,      // Finished successfully - no more updates
+    Failed(String), // Failed with error message - no more updates
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ExecutionThreadStatus {
-    Running,                         // Thread is executing
-    Completed,                       // Finished successfully - no more updates
-    Failed(String),                  // Failed with error message - no more updates
+    Running,        // Thread is executing
+    Completed,      // Finished successfully - no more updates
+    Failed(String), // Failed with error message - no more updates
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ExecutionPtyStatus {
-    Starting,                        // PTY process starting up
-    Running,                         // Process is running normally - more updates expected
-    Completed,                       // Process completed successfully - no more updates
-    Failed(String),                  // Process failed with error - no more updates
-    Terminated,                      // Process was killed/terminated - no more updates
+    Starting,       // PTY process starting up
+    Running,        // Process is running normally - more updates expected
+    Completed,      // Process completed successfully - no more updates
+    Failed(String), // Process failed with error - no more updates
+    Terminated,     // Process was killed/terminated - no more updates
 }
 
 /// T0304: SourceAction message struct - Lifecycle management for executing sources
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct SourceAction {
-    pub action: ActionType,           // What action to perform
-    pub source_id: String,            // Source identifier to act on
+    pub action: ActionType,            // What action to perform
+    pub source_id: String,             // Source identifier to act on
     pub execution_mode: ExecutionMode, // Mode of the target source
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ActionType {
-    Kill,                            // Terminate execution
-    Query,                           // Get status information
-    Pause,                           // Pause execution (if supported)
-    Resume,                          // Resume paused execution
+    Kill,   // Terminate execution
+    Query,  // Get status information
+    Pause,  // Pause execution (if supported)
+    Resume, // Resume paused execution
 }
 
 impl SourceState {
     /// Determine if this source expects more updates based on status (NO is_final flag needed)
     pub fn expects_more_updates(&self) -> bool {
         match self {
-            SourceState::Batch(state) => matches!(state.status, BatchStatus::Queued | BatchStatus::Executing),
+            SourceState::Batch(state) => {
+                matches!(state.status, BatchStatus::Queued | BatchStatus::Executing)
+            }
             SourceState::Thread(state) => matches!(state.status, ExecutionThreadStatus::Running),
-            SourceState::Pty(state) => matches!(state.status, ExecutionPtyStatus::Starting | ExecutionPtyStatus::Running),
+            SourceState::Pty(state) => matches!(
+                state.status,
+                ExecutionPtyStatus::Starting | ExecutionPtyStatus::Running
+            ),
         }
     }
 }
@@ -250,9 +254,9 @@ pub enum StreamType {
 /// Unified source object that tracks all execution sources with their stream IDs
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct UnifiedExecutionSource {
-    pub source_id: String,           // Unique source identifier
-    pub stream_id: String,           // Stream ID for this source
-    pub target_box_id: String,       // Which box receives updates
+    pub source_id: String,     // Unique source identifier
+    pub stream_id: String,     // Stream ID for this source
+    pub target_box_id: String, // Which box receives updates
     pub source_type: ExecutionSourceType,
     pub created_at: std::time::SystemTime,
     pub status: ExecutionSourceStatus,
@@ -260,21 +264,25 @@ pub struct UnifiedExecutionSource {
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ExecutionSourceType {
-    StaticContent(String),           // Box's static content
-    PeriodicScript(String),          // Box's periodic refresh script
-    ChoiceExecution {                // Choice script execution
+    StaticContent(String),  // Box's static content
+    PeriodicScript(String), // Box's periodic refresh script
+    ChoiceExecution {
+        // Choice script execution
         choice_id: String,
         script: Vec<String>,
         redirect_output: Option<String>,
     },
-    PtyProcess {                     // PTY process
+    PtyProcess {
+        // PTY process
         process_id: Option<u32>,
         command: Vec<String>,
     },
-    SocketUpdate {                   // Socket-based updates
+    SocketUpdate {
+        // Socket-based updates
         command_type: String,
     },
-    HotkeyScript {                   // Hotkey-triggered script
+    HotkeyScript {
+        // Hotkey-triggered script
         hotkey: String,
         script: Vec<String>,
     },
@@ -282,11 +290,11 @@ pub enum ExecutionSourceType {
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ExecutionSourceStatus {
-    Pending,     // Waiting to start
-    Running,     // Currently executing
-    Completed,   // Finished successfully
+    Pending,        // Waiting to start
+    Running,        // Currently executing
+    Completed,      // Finished successfully
     Failed(String), // Failed with error
-    Terminated,  // Killed/stopped
+    Terminated,     // Killed/stopped
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
@@ -438,15 +446,15 @@ pub struct ChoiceExecutionSource {
 /// Periodic refresh execution source - manages periodic script execution with persistent stream
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
 pub struct PeriodicRefreshSource {
-    pub source_id: String,           // Unique source identifier
-    pub box_id: String,              // Target box for updates
-    pub script: Vec<String>,         // Script to execute periodically
-    pub stream_id: String,           // EMBEDDED: Stream ID for consistent updates
-    pub execution_mode: ExecutionMode, // How to execute the script
-    pub refresh_interval: u64,       // Milliseconds between executions
+    pub source_id: String,                             // Unique source identifier
+    pub box_id: String,                                // Target box for updates
+    pub script: Vec<String>,                           // Script to execute periodically
+    pub stream_id: String,                             // EMBEDDED: Stream ID for consistent updates
+    pub execution_mode: ExecutionMode,                 // How to execute the script
+    pub refresh_interval: u64,                         // Milliseconds between executions
     pub last_execution: Option<std::time::SystemTime>, // Last execution time
-    pub created_at: std::time::SystemTime, // When source was created
-    pub execution_count: u64,        // Number of times executed
+    pub created_at: std::time::SystemTime,             // When source was created
+    pub execution_count: u64,                          // Number of times executed
 }
 
 impl StreamSourceTrait for ChoiceExecutionSource {
@@ -512,9 +520,18 @@ impl StreamSourceTrait for PeriodicRefreshSource {
         metadata.insert("source_id".to_string(), self.source_id.clone());
         metadata.insert("box_id".to_string(), self.box_id.clone());
         metadata.insert("stream_id".to_string(), self.stream_id.clone());
-        metadata.insert("execution_mode".to_string(), format!("{:?}", self.execution_mode));
-        metadata.insert("refresh_interval".to_string(), self.refresh_interval.to_string());
-        metadata.insert("execution_count".to_string(), self.execution_count.to_string());
+        metadata.insert(
+            "execution_mode".to_string(),
+            format!("{:?}", self.execution_mode),
+        );
+        metadata.insert(
+            "refresh_interval".to_string(),
+            self.refresh_interval.to_string(),
+        );
+        metadata.insert(
+            "execution_count".to_string(),
+            self.execution_count.to_string(),
+        );
         metadata
     }
 }
@@ -568,11 +585,11 @@ impl ImmediateSource for ImmediateExecutionSource {
     fn get_execution_result(&self) -> Option<Result<String, String>> {
         self.execution_result.clone()
     }
-    
+
     fn is_complete(&self) -> bool {
         self.execution_result.is_some()
     }
-    
+
     fn get_execution_duration(&self) -> Option<std::time::Duration> {
         self.execution_duration
     }
@@ -600,7 +617,10 @@ impl StreamSourceTrait for ThreadPoolExecutionSource {
         format!("thread_{}", self.choice_id)
     }
     fn can_terminate(&self) -> bool {
-        matches!(self.thread_status, ThreadStatus::Running | ThreadStatus::NotStarted)
+        matches!(
+            self.thread_status,
+            ThreadStatus::Running | ThreadStatus::NotStarted
+        )
     }
     fn cleanup(&self) -> Result<(), String> {
         if let Some(thread_id) = &self.thread_id {
@@ -616,7 +636,10 @@ impl StreamSourceTrait for ThreadPoolExecutionSource {
         meta.insert("choice_id".to_string(), self.choice_id.clone());
         meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
         meta.insert("script_lines".to_string(), self.script.len().to_string());
-        meta.insert("thread_status".to_string(), format!("{:?}", self.thread_status));
+        meta.insert(
+            "thread_status".to_string(),
+            format!("{:?}", self.thread_status),
+        );
         meta.insert("started_at".to_string(), format!("{:?}", self.started_at));
         if let Some(thread_id) = &self.thread_id {
             meta.insert("thread_id".to_string(), thread_id.clone());
@@ -635,25 +658,34 @@ impl ThreadPoolSource for ThreadPoolExecutionSource {
     fn get_thread_id(&self) -> Option<String> {
         self.thread_id.clone()
     }
-    
+
     fn is_thread_running(&self) -> bool {
         matches!(self.thread_status, ThreadStatus::Running)
     }
-    
+
     fn cancel_thread(&self) -> Result<(), String> {
-        if matches!(self.thread_status, ThreadStatus::Running | ThreadStatus::NotStarted) {
+        if matches!(
+            self.thread_status,
+            ThreadStatus::Running | ThreadStatus::NotStarted
+        ) {
             // Note: Actual cancellation would be implemented by ThreadManager
-            log::warn!("Thread cancellation requested for choice: {}", self.choice_id);
+            log::warn!(
+                "Thread cancellation requested for choice: {}",
+                self.choice_id
+            );
             Ok(())
         } else {
-            Err(format!("Cannot cancel thread in status: {:?}", self.thread_status))
+            Err(format!(
+                "Cannot cancel thread in status: {:?}",
+                self.thread_status
+            ))
         }
     }
-    
+
     fn get_thread_status(&self) -> ThreadStatus {
         self.thread_status.clone()
     }
-    
+
     fn set_timeout(&mut self, timeout_seconds: u32) {
         self.timeout_seconds = Some(timeout_seconds);
     }
@@ -708,7 +740,10 @@ impl StreamSourceTrait for PtySessionExecutionSource {
         meta.insert("muxbox_id".to_string(), self.muxbox_id.clone());
         meta.insert("command".to_string(), self.command.clone());
         meta.insert("args".to_string(), self.args.join(" "));
-        meta.insert("is_running".to_string(), self.is_process_running.to_string());
+        meta.insert(
+            "is_running".to_string(),
+            self.is_process_running.to_string(),
+        );
         meta.insert("started_at".to_string(), format!("{:?}", self.started_at));
         meta.insert(
             "terminal_size".to_string(),
@@ -731,21 +766,25 @@ impl PtySessionSource for PtySessionExecutionSource {
     fn get_process_id(&self) -> Option<u32> {
         self.process_id
     }
-    
+
     fn is_process_running(&self) -> bool {
         self.is_process_running
     }
-    
+
     fn send_input(&self, input: &str) -> Result<(), String> {
         if self.process_id.is_some() && self.is_process_running {
             // Note: Actual input sending would be implemented by PTY manager
-            log::info!("PTY input requested for choice {}: {}", self.choice_id, input);
+            log::info!(
+                "PTY input requested for choice {}: {}",
+                self.choice_id,
+                input
+            );
             Ok(())
         } else {
             Err("PTY process is not running".to_string())
         }
     }
-    
+
     fn kill_process(&self) -> Result<(), String> {
         if let Some(pid) = self.process_id {
             if self.is_process_running {
@@ -764,21 +803,26 @@ impl PtySessionSource for PtySessionExecutionSource {
             Err("No process ID available".to_string())
         }
     }
-    
+
     fn resize_terminal(&self, rows: u16, cols: u16) -> Result<(), String> {
         if self.process_id.is_some() && self.is_process_running {
             // Note: Actual terminal resizing would be implemented by PTY manager
-            log::info!("PTY resize requested for choice {}: {}x{}", self.choice_id, rows, cols);
+            log::info!(
+                "PTY resize requested for choice {}: {}x{}",
+                self.choice_id,
+                rows,
+                cols
+            );
             Ok(())
         } else {
             Err("PTY process is not running".to_string())
         }
     }
-    
+
     fn get_terminal_size(&self) -> (u16, u16) {
         self.terminal_size
     }
-    
+
     fn get_command(&self) -> String {
         if self.args.is_empty() {
             self.command.clone()
@@ -786,7 +830,7 @@ impl PtySessionSource for PtySessionExecutionSource {
             format!("{} {}", self.command, self.args.join(" "))
         }
     }
-    
+
     fn get_working_directory(&self) -> Option<String> {
         self.working_dir.clone()
     }
@@ -1057,7 +1101,7 @@ impl StreamSource {
             execution_duration: None,
         })
     }
-    
+
     /// Create a thread pool execution source for background thread execution
     pub fn create_thread_pool_execution_source(
         choice_id: String,
@@ -1078,7 +1122,7 @@ impl StreamSource {
             execution_duration: None,
         })
     }
-    
+
     /// Create a PTY session execution source for real-time process execution
     pub fn create_pty_session_execution_source(
         choice_id: String,
@@ -1101,7 +1145,7 @@ impl StreamSource {
             is_process_running: false,
         })
     }
-    
+
     /// Convert ExecutionMode to the appropriate source type
     pub fn from_execution_mode(
         execution_mode: &ExecutionMode,
@@ -1123,7 +1167,13 @@ impl StreamSource {
                     .as_ref()
                     .and_then(|p| p.get("timeout_seconds"))
                     .and_then(|s| s.parse().ok());
-                Self::create_thread_pool_execution_source(choice_id, muxbox_id, script, thread_id, timeout_seconds)
+                Self::create_thread_pool_execution_source(
+                    choice_id,
+                    muxbox_id,
+                    script,
+                    thread_id,
+                    timeout_seconds,
+                )
             }
             ExecutionMode::Pty => {
                 let command = if script.is_empty() {
@@ -1148,24 +1198,31 @@ impl StreamSource {
                         Some((rows, cols))
                     })
                     .unwrap_or((24, 80));
-                Self::create_pty_session_execution_source(choice_id, muxbox_id, command, args, working_dir, terminal_size)
+                Self::create_pty_session_execution_source(
+                    choice_id,
+                    muxbox_id,
+                    command,
+                    args,
+                    working_dir,
+                    terminal_size,
+                )
             }
         }
     }
-    
+
     /// Check if this source supports a specific execution mode trait
     pub fn supports_immediate_source(&self) -> bool {
         matches!(self, StreamSource::ImmediateExecution(_))
     }
-    
+
     pub fn supports_thread_pool_source(&self) -> bool {
         matches!(self, StreamSource::ThreadPoolExecution(_))
     }
-    
+
     pub fn supports_pty_session_source(&self) -> bool {
         matches!(self, StreamSource::PtySessionExecution(_))
     }
-    
+
     /// Get execution mode-specific source as trait object
     pub fn as_immediate_source(&self) -> Option<&dyn ImmediateSource> {
         match self {
@@ -1173,14 +1230,14 @@ impl StreamSource {
             _ => None,
         }
     }
-    
+
     pub fn as_thread_pool_source(&self) -> Option<&dyn ThreadPoolSource> {
         match self {
             StreamSource::ThreadPoolExecution(source) => Some(source),
             _ => None,
         }
     }
-    
+
     pub fn as_pty_session_source(&self) -> Option<&dyn PtySessionSource> {
         match self {
             StreamSource::PtySessionExecution(source) => Some(source),
@@ -1490,25 +1547,29 @@ pub fn run_socket_function(
             content,
         } => {
             // T0328: Replace MuxBoxOutputUpdate with StreamUpdateMessage
-            messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                stream_id: format!("socket-{}", box_id),
-                target_box_id: box_id.clone(),
-                content_update: content,
-                source_state: crate::model::common::SourceState::Batch(
-                    crate::model::common::BatchSourceState {
-                        task_id: format!("socket-{}", box_id),
-                        queue_wait_time: std::time::Duration::from_millis(0),
-                        execution_time: std::time::Duration::from_millis(0),
-                        exit_code: if success { Some(0) } else { Some(1) },
-                        status: if success {
-                            crate::model::common::BatchStatus::Completed
-                        } else {
-                            crate::model::common::BatchStatus::Failed("Unknown error".to_string())
+            messages.push(Message::StreamUpdateMessage(
+                crate::model::common::StreamUpdate {
+                    stream_id: format!("socket-{}", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: content,
+                    source_state: crate::model::common::SourceState::Batch(
+                        crate::model::common::BatchSourceState {
+                            task_id: format!("socket-{}", box_id),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: std::time::Duration::from_millis(0),
+                            exit_code: if success { Some(0) } else { Some(1) },
+                            status: if success {
+                                crate::model::common::BatchStatus::Completed
+                            } else {
+                                crate::model::common::BatchStatus::Failed(
+                                    "Unknown error".to_string(),
+                                )
+                            },
                         },
-                    }
-                ),
-                execution_mode: crate::model::common::ExecutionMode::Immediate,
-            }));
+                    ),
+                    execution_mode: crate::model::common::ExecutionMode::Immediate,
+                },
+            ));
         }
         SocketFunction::ReplaceBoxScript { box_id, script } => {
             messages.push(Message::MuxBoxScriptUpdate(box_id, script));
@@ -1535,112 +1596,136 @@ pub fn run_socket_function(
         SocketFunction::KillPtyProcess { box_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
                 // Get the stream ID from the PTY process source object
-                let stream_id = pty_manager.get_stream_id(&box_id).unwrap_or_else(|| {
-                    format!("error-no-pty-{}", box_id)
-                });
-                
+                let stream_id = pty_manager
+                    .get_stream_id(&box_id)
+                    .unwrap_or_else(|| format!("error-no-pty-{}", box_id));
+
                 match pty_manager.kill_pty_process(&box_id) {
                     Ok(_) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id,
-                            content_update: format!("PTY process killed for box {}", box_id),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(0),
-                                    status: crate::model::common::ExecutionPtyStatus::Completed,
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id,
+                                content_update: format!("PTY process killed for box {}", box_id),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(0),
+                                        status: crate::model::common::ExecutionPtyStatus::Completed,
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                     Err(err) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id,
-                            content_update: format!("Failed to kill PTY process: {}", err),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(1),
-                                    status: crate::model::common::ExecutionPtyStatus::Failed("Error".to_string()),
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id,
+                                content_update: format!("Failed to kill PTY process: {}", err),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(1),
+                                        status: crate::model::common::ExecutionPtyStatus::Failed(
+                                            "Error".to_string(),
+                                        ),
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                 }
             } else {
-                messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                    target_box_id: box_id.clone(),
-                    stream_id: format!("error-no-pty-{}", box_id),
-                    content_update: "PTY manager not available".to_string(),
-                    source_state: crate::model::common::SourceState::Pty(
-                        crate::model::common::PtySourceState {
-                            process_id: 0,
-                            runtime: std::time::Duration::from_millis(0),
-                            exit_code: Some(1),
-                            status: crate::model::common::ExecutionPtyStatus::Failed("PTY manager not available".to_string()),
-                        }
-                    ),
-                    execution_mode: crate::model::common::ExecutionMode::Pty,
-                }));
+                messages.push(Message::StreamUpdateMessage(
+                    crate::model::common::StreamUpdate {
+                        target_box_id: box_id.clone(),
+                        stream_id: format!("error-no-pty-{}", box_id),
+                        content_update: "PTY manager not available".to_string(),
+                        source_state: crate::model::common::SourceState::Pty(
+                            crate::model::common::PtySourceState {
+                                process_id: 0,
+                                runtime: std::time::Duration::from_millis(0),
+                                exit_code: Some(1),
+                                status: crate::model::common::ExecutionPtyStatus::Failed(
+                                    "PTY manager not available".to_string(),
+                                ),
+                            },
+                        ),
+                        execution_mode: crate::model::common::ExecutionMode::Pty,
+                    },
+                ));
             }
         }
         SocketFunction::RestartPtyProcess { box_id } => {
             if let Some(pty_manager) = &app_context.pty_manager {
                 match pty_manager.restart_pty_process(&box_id) {
                     Ok(_) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id: pty_manager.get_stream_id(&box_id).unwrap_or_else(|| format!("error-no-pty-{}", box_id)),
-                            content_update: format!("PTY process restarted for box {}", box_id),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(0),
-                                    status: crate::model::common::ExecutionPtyStatus::Completed,
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id: pty_manager
+                                    .get_stream_id(&box_id)
+                                    .unwrap_or_else(|| format!("error-no-pty-{}", box_id)),
+                                content_update: format!("PTY process restarted for box {}", box_id),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(0),
+                                        status: crate::model::common::ExecutionPtyStatus::Completed,
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                     Err(err) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id: pty_manager.get_stream_id(&box_id).unwrap_or_else(|| format!("error-no-pty-{}", box_id)),
-                            content_update: format!("Failed to restart PTY process: {}", err),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(1),
-                                    status: crate::model::common::ExecutionPtyStatus::Failed("Error".to_string()),
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id: pty_manager
+                                    .get_stream_id(&box_id)
+                                    .unwrap_or_else(|| format!("error-no-pty-{}", box_id)),
+                                content_update: format!("Failed to restart PTY process: {}", err),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(1),
+                                        status: crate::model::common::ExecutionPtyStatus::Failed(
+                                            "Error".to_string(),
+                                        ),
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                 }
             } else {
-                messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                    target_box_id: box_id.clone(),
-                    stream_id: format!("error-no-pty-{}", box_id),
-                    content_update: "PTY manager not available".to_string(),
-                    source_state: crate::model::common::SourceState::Pty(
-                        crate::model::common::PtySourceState {
-                            process_id: 0,
-                            runtime: std::time::Duration::from_millis(0),
-                            exit_code: Some(1),
-                            status: crate::model::common::ExecutionPtyStatus::Failed("PTY manager not available".to_string()),
-                        }
-                    ),
-                    execution_mode: crate::model::common::ExecutionMode::Pty,
-                }));
+                messages.push(Message::StreamUpdateMessage(
+                    crate::model::common::StreamUpdate {
+                        target_box_id: box_id.clone(),
+                        stream_id: format!("error-no-pty-{}", box_id),
+                        content_update: "PTY manager not available".to_string(),
+                        source_state: crate::model::common::SourceState::Pty(
+                            crate::model::common::PtySourceState {
+                                process_id: 0,
+                                runtime: std::time::Duration::from_millis(0),
+                                exit_code: Some(1),
+                                status: crate::model::common::ExecutionPtyStatus::Failed(
+                                    "PTY manager not available".to_string(),
+                                ),
+                            },
+                        ),
+                        execution_mode: crate::model::common::ExecutionMode::Pty,
+                    },
+                ));
             }
         }
         // F0138: Socket PTY Query - Get PTY status and info
@@ -1651,51 +1736,61 @@ pub fn run_socket_function(
                         "PTY Status - Box: {}, PID: {:?}, Status: {:?}, Running: {}, Buffer Lines: {}",
                         info.muxbox_id, info.process_id, info.status, info.is_running, info.buffer_lines
                     );
-                    messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                        stream_id: format!("error-no-manager-{}", box_id),
-                        content_update: status_info,
-                        source_state: crate::model::common::SourceState::Pty(
-                            crate::model::common::PtySourceState {
-                                process_id: 0,
-                                runtime: std::time::Duration::from_millis(0),
-                                exit_code: Some(0),
-                                status: crate::model::common::ExecutionPtyStatus::Completed,
-                            }
-                        ),
-                        execution_mode: crate::model::common::ExecutionMode::Pty,
-                    }));
+                    messages.push(Message::StreamUpdateMessage(
+                        crate::model::common::StreamUpdate {
+                            target_box_id: box_id.clone(),
+                            stream_id: format!("error-no-manager-{}", box_id),
+                            content_update: status_info,
+                            source_state: crate::model::common::SourceState::Pty(
+                                crate::model::common::PtySourceState {
+                                    process_id: 0,
+                                    runtime: std::time::Duration::from_millis(0),
+                                    exit_code: Some(0),
+                                    status: crate::model::common::ExecutionPtyStatus::Completed,
+                                },
+                            ),
+                            execution_mode: crate::model::common::ExecutionMode::Pty,
+                        },
+                    ));
                 } else {
-                    messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                        stream_id: format!("error-no-manager-{}", box_id),
-                        content_update: format!("No PTY process found for box {}", box_id),
+                    messages.push(Message::StreamUpdateMessage(
+                        crate::model::common::StreamUpdate {
+                            target_box_id: box_id.clone(),
+                            stream_id: format!("error-no-manager-{}", box_id),
+                            content_update: format!("No PTY process found for box {}", box_id),
+                            source_state: crate::model::common::SourceState::Pty(
+                                crate::model::common::PtySourceState {
+                                    process_id: 0,
+                                    runtime: std::time::Duration::from_millis(0),
+                                    exit_code: Some(1),
+                                    status: crate::model::common::ExecutionPtyStatus::Failed(
+                                        "Error".to_string(),
+                                    ),
+                                },
+                            ),
+                            execution_mode: crate::model::common::ExecutionMode::Pty,
+                        },
+                    ));
+                }
+            } else {
+                messages.push(Message::StreamUpdateMessage(
+                    crate::model::common::StreamUpdate {
+                        target_box_id: box_id.clone(),
+                        stream_id: format!("error-no-pty-{}", box_id),
+                        content_update: "PTY manager not available".to_string(),
                         source_state: crate::model::common::SourceState::Pty(
                             crate::model::common::PtySourceState {
                                 process_id: 0,
                                 runtime: std::time::Duration::from_millis(0),
                                 exit_code: Some(1),
-                                status: crate::model::common::ExecutionPtyStatus::Failed("Error".to_string()),
-                            }
+                                status: crate::model::common::ExecutionPtyStatus::Failed(
+                                    "PTY manager not available".to_string(),
+                                ),
+                            },
                         ),
                         execution_mode: crate::model::common::ExecutionMode::Pty,
-                    }));
-                }
-            } else {
-                messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                    target_box_id: box_id.clone(),
-                    stream_id: format!("error-no-pty-{}", box_id),
-                    content_update: "PTY manager not available".to_string(),
-                    source_state: crate::model::common::SourceState::Pty(
-                        crate::model::common::PtySourceState {
-                            process_id: 0,
-                            runtime: std::time::Duration::from_millis(0),
-                            exit_code: Some(1),
-                            status: crate::model::common::ExecutionPtyStatus::Failed("PTY manager not available".to_string()),
-                        }
-                    ),
-                    execution_mode: crate::model::common::ExecutionMode::Pty,
-                }));
+                    },
+                ));
             }
         }
         // F0136: Socket PTY Spawn - Spawn PTY processes via socket commands
@@ -1710,86 +1805,108 @@ pub fn run_socket_function(
                 ExecutionSourceType::SocketUpdate {
                     command_type: "spawn_pty_process".to_string(),
                 },
-                box_id.clone()
+                box_id.clone(),
             );
-            
+
             // Route through unified execution architecture with registered stream_id
-            let execute_script_msg = crate::thread_manager::Message::ExecuteScriptMessage(ExecuteScript {
-                script,
-                source: ExecutionSource {
-                    source_type: SourceType::SocketUpdate,
-                    source_id: box_id.clone(),
-                    source_reference: SourceReference::SocketCommand("spawn_pty_process".to_string()),
-                },
-                execution_mode: ExecutionMode::Pty,
-                target_box_id: box_id.clone(),
-                libs: libs.unwrap_or_default(),
-                redirect_output,
-                append_output: false,
-                stream_id,
-            });
+            let execute_script_msg =
+                crate::thread_manager::Message::ExecuteScriptMessage(ExecuteScript {
+                    script,
+                    source: ExecutionSource {
+                        source_type: SourceType::SocketUpdate,
+                        source_id: box_id.clone(),
+                        source_reference: SourceReference::SocketCommand(
+                            "spawn_pty_process".to_string(),
+                        ),
+                    },
+                    execution_mode: ExecutionMode::Pty,
+                    target_box_id: box_id.clone(),
+                    libs: libs.unwrap_or_default(),
+                    redirect_output,
+                    append_output: false,
+                    stream_id,
+                });
 
             // Add ExecuteScript message to be sent via ThreadManager
             messages.push(execute_script_msg);
-            log::info!("PTY process spawn queued for execution via unified architecture: {}", box_id);
+            log::info!(
+                "PTY process spawn queued for execution via unified architecture: {}",
+                box_id
+            );
         }
         // F0139: Socket PTY Input - Send input to PTY processes remotely
         SocketFunction::SendPtyInput { box_id, input } => {
             if let Some(pty_manager) = &app_context.pty_manager {
                 // Get the stream ID from the PTY process source object
-                let stream_id = pty_manager.get_stream_id(&box_id).unwrap_or_else(|| {
-                    format!("error-no-pty-{}", box_id)
-                });
-                
+                let stream_id = pty_manager
+                    .get_stream_id(&box_id)
+                    .unwrap_or_else(|| format!("error-no-pty-{}", box_id));
+
                 match pty_manager.send_input(&box_id, &input) {
                     Ok(_) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id,
-                            content_update: format!("Input sent successfully to PTY process for box {}", box_id),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(0),
-                                    status: crate::model::common::ExecutionPtyStatus::Completed,
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id,
+                                content_update: format!(
+                                    "Input sent successfully to PTY process for box {}",
+                                    box_id
+                                ),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(0),
+                                        status: crate::model::common::ExecutionPtyStatus::Completed,
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                     Err(err) => {
-                        messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                target_box_id: box_id.clone(),
-                            stream_id,
-                            content_update: format!("Failed to send input to PTY process: {}", err),
-                            source_state: crate::model::common::SourceState::Pty(
-                                crate::model::common::PtySourceState {
-                                    process_id: 0,
-                                    runtime: std::time::Duration::from_millis(0),
-                                    exit_code: Some(1),
-                                    status: crate::model::common::ExecutionPtyStatus::Failed("Error".to_string()),
-                                }
-                            ),
-                            execution_mode: crate::model::common::ExecutionMode::Pty,
-                        }));
+                        messages.push(Message::StreamUpdateMessage(
+                            crate::model::common::StreamUpdate {
+                                target_box_id: box_id.clone(),
+                                stream_id,
+                                content_update: format!(
+                                    "Failed to send input to PTY process: {}",
+                                    err
+                                ),
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: Some(1),
+                                        status: crate::model::common::ExecutionPtyStatus::Failed(
+                                            "Error".to_string(),
+                                        ),
+                                    },
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            },
+                        ));
                     }
                 }
             } else {
-                messages.push(Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                    target_box_id: box_id.clone(),
-                    stream_id: format!("error-no-pty-{}", box_id),
-                    content_update: "PTY manager not available".to_string(),
-                    source_state: crate::model::common::SourceState::Pty(
-                        crate::model::common::PtySourceState {
-                            process_id: 0,
-                            runtime: std::time::Duration::from_millis(0),
-                            exit_code: Some(1),
-                            status: crate::model::common::ExecutionPtyStatus::Failed("PTY manager not available".to_string()),
-                        }
-                    ),
-                    execution_mode: crate::model::common::ExecutionMode::Pty,
-                }));
+                messages.push(Message::StreamUpdateMessage(
+                    crate::model::common::StreamUpdate {
+                        target_box_id: box_id.clone(),
+                        stream_id: format!("error-no-pty-{}", box_id),
+                        content_update: "PTY manager not available".to_string(),
+                        source_state: crate::model::common::SourceState::Pty(
+                            crate::model::common::PtySourceState {
+                                process_id: 0,
+                                runtime: std::time::Duration::from_millis(0),
+                                exit_code: Some(1),
+                                status: crate::model::common::ExecutionPtyStatus::Failed(
+                                    "PTY manager not available".to_string(),
+                                ),
+                            },
+                        ),
+                        execution_mode: crate::model::common::ExecutionMode::Pty,
+                    },
+                ));
             }
         }
     }
@@ -2932,7 +3049,10 @@ mod tests {
                 assert_eq!(stream_update.content_update, "Test content");
                 match &stream_update.source_state {
                     crate::model::common::SourceState::Batch(state) => {
-                        assert!(matches!(state.status, crate::model::common::BatchStatus::Completed));
+                        assert!(matches!(
+                            state.status,
+                            crate::model::common::BatchStatus::Completed
+                        ));
                     }
                     _ => panic!("Expected Batch source state"),
                 }

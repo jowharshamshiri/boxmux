@@ -473,7 +473,14 @@ pub fn find_previous_muxbox_uuid(layout: &Layout, current_muxbox_uuid: &str) -> 
 
 pub fn run_script(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> io::Result<String> {
     // F0228: Use ExecutionMode::Immediate for simple script execution without PTY
-    run_script_with_pty(libs_paths, script, &crate::model::common::ExecutionMode::Immediate, None, None, None)
+    run_script_with_pty(
+        libs_paths,
+        script,
+        &crate::model::common::ExecutionMode::Immediate,
+        None,
+        None,
+        None,
+    )
 }
 
 // F0228: ExecutionMode Message System - Update function signature to use ExecutionMode
@@ -512,7 +519,11 @@ pub fn run_script_with_pty_and_redirect(
     )>,
     redirect_target: Option<String>,
 ) -> io::Result<String> {
-    if execution_mode.is_pty() && pty_manager.is_some() && muxbox_id.is_some() && message_sender.is_some() {
+    if execution_mode.is_pty()
+        && pty_manager.is_some()
+        && muxbox_id.is_some()
+        && message_sender.is_some()
+    {
         let pty_mgr = pty_manager.unwrap();
         let pid = muxbox_id.unwrap();
 

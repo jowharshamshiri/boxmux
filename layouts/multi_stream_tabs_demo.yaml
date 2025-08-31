@@ -42,7 +42,7 @@ app:
               content: "Start PTY Process"
               execution_mode: "Pty"
               script:
-                - "top -n 3"
+                - "htop"
               redirect_output: "multi_stream_box"
 
         # Control panel box

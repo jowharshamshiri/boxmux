@@ -127,8 +127,10 @@ impl PtyManager {
         stream_id: Option<String>, // Custom stream ID to use for all output
     ) -> Result<()> {
         // SOURCE OBJECT ARCHITECTURE: stream_id must be provided from source object - no fallbacks
-        let pty_stream_id = stream_id.expect("PTY execution requires stream_id from source object - architectural issue if None");
-        
+        let pty_stream_id = stream_id.expect(
+            "PTY execution requires stream_id from source object - architectural issue if None",
+        );
+
         log::info!(
             "Starting PTY script execution for muxbox: {}, redirect: {:?}, script_lines: {}, stream_id: {}",
             muxbox_id,
@@ -137,14 +139,15 @@ impl PtyManager {
             pty_stream_id
         );
 
-        // Create PTY with appropriate size (will be resized when muxbox bounds are known)
+        // F0316: Performance Optimization - Create PTY with better initial size
+        // Start with larger default size to avoid initial constraint issues
         let pty_size = PtySize {
-            rows: 24,
-            cols: 80,
+            rows: 40,   // Larger default to accommodate most terminal applications
+            cols: 120,  // Wider default for better compatibility
             pixel_width: 0,
             pixel_height: 0,
         };
-        log::debug!("PTY size configured: {}x{}", pty_size.cols, pty_size.rows);
+        log::debug!("F0316: PTY size configured with improved defaults: {}x{} (will be resized to match MuxBox bounds)", pty_size.cols, pty_size.rows);
 
         // Create PTY system on-demand for thread safety
         let pty_system = portable_pty::native_pty_system();
@@ -215,7 +218,7 @@ impl PtyManager {
         let buffer_clone = output_buffer.clone();
 
         // Create PTY process record - use the stream_id determined at the start of function
-        
+
         let pty_process = PtyProcess {
             muxbox_id: muxbox_id.clone(),
             process_id,
@@ -249,11 +252,14 @@ impl PtyManager {
             );
 
             let mut buffer = [0u8; 4096];
-            let mut ansi_processor = AnsiProcessor::with_screen_size(80, 24);
+            // F0316: Performance Optimization - Use consistent larger default size
+            let mut ansi_processor = AnsiProcessor::with_screen_size(120, 40);
             // Start in line mode - will auto-detect and switch to screen mode if needed
             ansi_processor.set_screen_mode(false);
             let mut bytes_processed = 0u64;
             let mut _messages_sent = 0u32;
+            // F0316: Performance Optimization - Track baseline capture for differential drawing
+            let mut baseline_captured = false;
 
             // Create reader once outside the loop using cloned master PTY handle
             let mut pty_reader = match master_pty_clone.lock().unwrap().try_clone_reader() {
@@ -317,20 +323,26 @@ impl PtyManager {
                         // Send final message indicating completion
                         if let Err(e) = sender.send((
                             thread_uuid_clone,
-                            crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                                stream_id: pty_stream_id.clone(),
-                                target_box_id: output_target.clone(),
-                                content_update: format!("\n[Process exited with code {}]\n", exit_code),
-                                source_state: crate::model::common::SourceState::Pty(
-                                    crate::model::common::PtySourceState {
-                                        process_id: 0,
-                                        runtime: std::time::Duration::from_millis(0),
-                                        exit_code: Some(exit_code as i32),
-                                        status: crate::model::common::ExecutionPtyStatus::Completed,
-                                    }
-                                ),
-                                execution_mode: crate::model::common::ExecutionMode::Pty,
-                            }),
+                            crate::thread_manager::Message::StreamUpdateMessage(
+                                crate::model::common::StreamUpdate {
+                                    stream_id: pty_stream_id.clone(),
+                                    target_box_id: output_target.clone(),
+                                    content_update: format!(
+                                        "\n[Process exited with code {}]\n",
+                                        exit_code
+                                    ),
+                                    source_state: crate::model::common::SourceState::Pty(
+                                        crate::model::common::PtySourceState {
+                                            process_id: 0,
+                                            runtime: std::time::Duration::from_millis(0),
+                                            exit_code: Some(exit_code as i32),
+                                            status:
+                                                crate::model::common::ExecutionPtyStatus::Completed,
+                                        },
+                                    ),
+                                    execution_mode: crate::model::common::ExecutionMode::Pty,
+                                },
+                            ),
                         )) {
                             error!("Failed to send PTY completion message: {}", e);
                         }
@@ -347,11 +359,22 @@ impl PtyManager {
                         // Process raw bytes through ANSI processor
                         ansi_processor.process_bytes(&buffer[..bytes_read]);
 
+                        // F0316: Performance Optimization - Capture baseline for differential drawing
+                        let should_replace = ansi_processor.should_replace_content();
+                        if should_replace && !baseline_captured {
+                            // Full-screen program detected - capture initial state for differential drawing
+                            ansi_processor.capture_baseline();
+                            baseline_captured = true;
+                            log::debug!("F0316: Captured baseline screen state for differential drawing (screen_mode={}, terminal_size={}x{})", 
+                                ansi_processor.use_screen_buffer, 
+                                ansi_processor.terminal_state.screen_width, 
+                                ansi_processor.terminal_state.screen_height);
+                        }
+
                         // Get terminal screen content for stream integration
                         // This feeds PTY TerminalScreenBuffer into BoxMux's main differential drawing system
                         let content_to_send = ansi_processor.get_screen_content_for_stream();
-                        let should_replace = ansi_processor.should_replace_content();
-                        
+
                         if !content_to_send.trim().is_empty() {
                             if should_replace {
                                 log::info!("Full-screen program detected - sending terminal screen content ({} chars) to {}", 
@@ -363,7 +386,7 @@ impl PtyManager {
                         } else {
                             continue; // No content to send
                         }
-                        
+
                         // Send content if we have any
                         if !content_to_send.trim().is_empty() {
                             // Store content in circular buffer for scrollback
@@ -372,40 +395,55 @@ impl PtyManager {
                                 debug!("Added content to PTY buffer (total: {})", buffer.len());
                             }
 
+                            // F0316: Capture length for debug logging before content is moved
+                            let content_length = content_to_send.len();
+                            
                             // Create appropriate content update based on program behavior
                             let content_update = if should_replace {
                                 format!("REPLACE:{}", content_to_send) // Signal to replace, not append
                             } else {
                                 content_to_send // Normal append behavior
                             };
-                            
-                            let message = crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                                stream_id: pty_stream_id.clone(),
-                                target_box_id: output_target.clone(),
-                                content_update,
-                                source_state: crate::model::common::SourceState::Pty(
-                                    crate::model::common::PtySourceState {
-                                        process_id: 0,
-                                        runtime: std::time::Duration::from_millis(0),
-                                        exit_code: None,
-                                        status: crate::model::common::ExecutionPtyStatus::Running,
-                                    }
-                                ),
-                                execution_mode: crate::model::common::ExecutionMode::Pty,
-                            });
-                            
+
+                            let message = crate::thread_manager::Message::StreamUpdateMessage(
+                                crate::model::common::StreamUpdate {
+                                    stream_id: pty_stream_id.clone(),
+                                    target_box_id: output_target.clone(),
+                                    content_update,
+                                    source_state: crate::model::common::SourceState::Pty(
+                                        crate::model::common::PtySourceState {
+                                            process_id: 0,
+                                            runtime: std::time::Duration::from_millis(0),
+                                            exit_code: None,
+                                            status:
+                                                crate::model::common::ExecutionPtyStatus::Running,
+                                        },
+                                    ),
+                                    execution_mode: crate::model::common::ExecutionMode::Pty,
+                                },
+                            );
+
                             // Use correct thread_uuid for ThreadManager message routing
                             debug!(
                                 "About to send PTY message via channel - thread_uuid: {:?}",
                                 thread_uuid_clone
                             );
                             if let Err(e) = sender.send((thread_uuid_clone, message)) {
-                                error!("PTY message send failed - channel disconnected or full: {}", e);
+                                error!(
+                                    "PTY message send failed - channel disconnected or full: {}",
+                                    e
+                                );
                                 break;
                             } else {
                                 debug!("PTY message sent successfully via channel");
                             }
                             _messages_sent += 1;
+
+                            // F0316: Performance Optimization - Update screen state for next differential comparison
+                            if baseline_captured && should_replace {
+                                ansi_processor.update_screen_state();
+                                log::debug!("F0316: Updated screen state after sending {} characters for differential comparison", content_length);
+                            }
                         }
                     }
                     Err(e) => {
@@ -422,20 +460,25 @@ impl PtyManager {
                         // Send error message
                         if let Err(e) = sender.send((
                             thread_uuid_clone,
-                            crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                                stream_id: pty_stream_id.clone(),
-                                target_box_id: muxbox_id_clone.clone(),
-                                content_update: format!("[PTY Error: {}]", e),
-                                source_state: crate::model::common::SourceState::Pty(
-                                    crate::model::common::PtySourceState {
-                                        process_id: 0,
-                                        runtime: std::time::Duration::from_millis(0),
-                                        exit_code: Some(1),
-                                        status: crate::model::common::ExecutionPtyStatus::Failed("PTY error".to_string()),
-                                    }
-                                ),
-                                execution_mode: crate::model::common::ExecutionMode::Pty,
-                            }),
+                            crate::thread_manager::Message::StreamUpdateMessage(
+                                crate::model::common::StreamUpdate {
+                                    stream_id: pty_stream_id.clone(),
+                                    target_box_id: muxbox_id_clone.clone(),
+                                    content_update: format!("[PTY Error: {}]", e),
+                                    source_state: crate::model::common::SourceState::Pty(
+                                        crate::model::common::PtySourceState {
+                                            process_id: 0,
+                                            runtime: std::time::Duration::from_millis(0),
+                                            exit_code: Some(1),
+                                            status:
+                                                crate::model::common::ExecutionPtyStatus::Failed(
+                                                    "PTY error".to_string(),
+                                                ),
+                                        },
+                                    ),
+                                    execution_mode: crate::model::common::ExecutionMode::Pty,
+                                },
+                            ),
                         )) {
                             error!("Failed to send PTY error message: {}", e);
                         }
@@ -449,6 +492,123 @@ impl PtyManager {
         });
 
         Ok(())
+    }
+
+    /// F0310: Generate terminal state-aware mouse sequence based on current terminal modes
+    pub fn generate_mouse_sequence(
+        &self,
+        muxbox_id: &str,
+        kind: crossterm::event::MouseEventKind,
+        column: u16,
+        row: u16,
+        modifiers: crossterm::event::KeyModifiers,
+    ) -> Option<String> {
+        use crate::ansi_processor::{
+            MouseButton as AnsiMouseButton, MouseEventType, MouseModifiers,
+        };
+        use crossterm::event::{KeyModifiers, MouseButton as CrosstermButton, MouseEventKind};
+
+        let active_ptys = self.active_ptys.lock().unwrap();
+        let _pty_process = active_ptys.get(muxbox_id)?;
+
+        // Convert crossterm event to our mouse event types
+        let (event_type, button) = match kind {
+            MouseEventKind::Down(crossterm_button) => {
+                let button = match crossterm_button {
+                    CrosstermButton::Left => Some(AnsiMouseButton::Left),
+                    CrosstermButton::Right => Some(AnsiMouseButton::Right),
+                    CrosstermButton::Middle => Some(AnsiMouseButton::Middle),
+                };
+                (MouseEventType::Press, button)
+            }
+            MouseEventKind::Up(crossterm_button) => {
+                let button = match crossterm_button {
+                    CrosstermButton::Left => Some(AnsiMouseButton::Left),
+                    CrosstermButton::Right => Some(AnsiMouseButton::Right),
+                    CrosstermButton::Middle => Some(AnsiMouseButton::Middle),
+                };
+                (MouseEventType::Release, button)
+            }
+            MouseEventKind::Drag(_) => (MouseEventType::Motion, None),
+            MouseEventKind::ScrollUp => (MouseEventType::Wheel, Some(AnsiMouseButton::WheelUp)),
+            MouseEventKind::ScrollDown => (MouseEventType::Wheel, Some(AnsiMouseButton::WheelDown)),
+            MouseEventKind::ScrollLeft => (MouseEventType::Wheel, Some(AnsiMouseButton::WheelLeft)),
+            MouseEventKind::ScrollRight => {
+                (MouseEventType::Wheel, Some(AnsiMouseButton::WheelRight))
+            }
+            _ => return None,
+        };
+
+        // Convert crossterm modifiers to our modifier struct
+        let mouse_modifiers = MouseModifiers {
+            shift: modifiers.contains(KeyModifiers::SHIFT),
+            ctrl: modifiers.contains(KeyModifiers::CONTROL),
+            alt: modifiers.contains(KeyModifiers::ALT),
+            meta: modifiers.contains(KeyModifiers::SUPER),
+        };
+
+        // Generate basic mouse sequence (TODO: integrate with actual terminal state)
+        self.generate_basic_mouse_sequence(
+            event_type,
+            column as usize,
+            row as usize,
+            button,
+            mouse_modifiers,
+        )
+    }
+
+    /// Generate basic mouse report for initial implementation
+    fn generate_basic_mouse_sequence(
+        &self,
+        event_type: crate::ansi_processor::MouseEventType,
+        x: usize,
+        y: usize,
+        button: Option<crate::ansi_processor::MouseButton>,
+        modifiers: crate::ansi_processor::MouseModifiers,
+    ) -> Option<String> {
+        use crate::ansi_processor::{MouseButton as AnsiMouseButton, MouseEventType};
+
+        // Only report press events and wheel for basic compatibility
+        if event_type != MouseEventType::Press && event_type != MouseEventType::Wheel {
+            return None;
+        }
+
+        let mut cb = 0u8;
+
+        // Set button bits
+        match (event_type, button) {
+            (MouseEventType::Press, Some(AnsiMouseButton::Left)) => cb = 0,
+            (MouseEventType::Press, Some(AnsiMouseButton::Middle)) => cb = 1,
+            (MouseEventType::Press, Some(AnsiMouseButton::Right)) => cb = 2,
+            (MouseEventType::Wheel, Some(AnsiMouseButton::WheelUp)) => cb = 64,
+            (MouseEventType::Wheel, Some(AnsiMouseButton::WheelDown)) => cb = 65,
+            _ => return None,
+        }
+
+        // Add modifier bits
+        if modifiers.shift {
+            cb += 4;
+        }
+        if modifiers.ctrl {
+            cb += 8;
+        }
+        if modifiers.alt {
+            cb += 16;
+        }
+
+        // Add base offset
+        cb += 32;
+
+        // Coordinates are 1-based and offset by 32, clamped to valid range
+        let cx = ((x + 1).min(223)) as u8 + 32;
+        let cy = ((y + 1).min(223)) as u8 + 32;
+
+        Some(format!(
+            "\x1b[M{}{}{}",
+            char::from(cb),
+            char::from(cx),
+            char::from(cy)
+        ))
     }
 
     /// Send input to a PTY

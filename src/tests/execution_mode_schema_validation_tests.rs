@@ -1,5 +1,5 @@
 //! Unified Execution Architecture Schema Tests - Validate YAML compatibility
-//! 
+//!
 //! This module provides testing for unified execution architecture compatibility:
 //! - Basic YAML loading with legacy fields (no deprecation warnings expected)
 //! - Unified architecture message flow validation
@@ -19,7 +19,10 @@ mod execution_mode_schema_validation_tests {
     use tempfile::NamedTempFile;
 
     /// Create a test YAML content with ExecutionMode fields
-    fn create_execution_mode_yaml(muxbox_execution_mode: &str, choice_execution_mode: &str) -> String {
+    fn create_execution_mode_yaml(
+        muxbox_execution_mode: &str,
+        choice_execution_mode: &str,
+    ) -> String {
         format!(
             r#"
 app:
@@ -106,7 +109,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Immediate);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Immediate);
     }
@@ -127,7 +130,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Thread);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Thread);
     }
@@ -148,7 +151,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Pty);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Pty);
     }
@@ -177,7 +180,8 @@ app:
 
         let error_msg = result.err().unwrap().to_string();
         assert!(
-            error_msg.contains("JSON Schema validation failed") || error_msg.contains("execution_mode"),
+            error_msg.contains("JSON Schema validation failed")
+                || error_msg.contains("execution_mode"),
             "Error should mention execution_mode validation failure: {}",
             error_msg
         );
@@ -201,14 +205,14 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Thread);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Thread);
     }
 
     #[test]
     fn test_legacy_pty_field_backward_compatibility() {
-        // Unified architecture: Test PTY execution mode directly  
+        // Unified architecture: Test PTY execution mode directly
         let yaml_content = create_execution_mode_yaml("Pty", "Pty");
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
@@ -223,7 +227,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Pty);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Pty);
     }
@@ -245,7 +249,7 @@ app:
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         // When both legacy fields are false, should default to Immediate
         assert_eq!(muxbox.execution_mode, ExecutionMode::Immediate);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Immediate);
     }
@@ -256,7 +260,7 @@ app:
         let yaml_content = create_execution_mode_yaml("Pty", "Pty");
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
-        
+
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
         assert!(
             result.is_ok(),
@@ -267,7 +271,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Pty);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Pty);
     }
@@ -275,7 +279,7 @@ app:
     #[test]
     fn test_execution_mode_schema_validator_deprecation_warnings() {
         let mut validator = SchemaValidator::new();
-        
+
         // Create a muxbox with legacy fields
         use crate::model::common::InputBounds;
         let mut muxbox = MuxBox {
@@ -300,7 +304,10 @@ app:
 
         let result = validator.validate_muxbox(&muxbox, "test_muxbox");
         // Unified architecture: ExecutionMode fields are valid, no deprecation warnings expected
-        assert!(result.is_ok(), "ExecutionMode fields should validate successfully in unified architecture");
+        assert!(
+            result.is_ok(),
+            "ExecutionMode fields should validate successfully in unified architecture"
+        );
     }
 
     #[test]
@@ -323,14 +330,14 @@ app:
 
         // This should still load but with warnings during validation
         let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        
+
         // The loading should succeed but validation should detect the conflict
         if result.is_ok() {
             // Test the validator separately for conflict detection
             let mut validator = SchemaValidator::new();
             let app = result.unwrap();
             let validation_result = validator.validate_app(&app);
-            
+
             if validation_result.is_err() {
                 let errors = validation_result.unwrap_err();
                 let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
@@ -360,7 +367,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Thread);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Pty);
     }
@@ -394,7 +401,7 @@ app:
         let app = result.unwrap();
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert_eq!(muxbox.execution_mode, ExecutionMode::Immediate);
-        
+
         let choice = &muxbox.choices.as_ref().unwrap()[0];
         assert_eq!(choice.execution_mode, ExecutionMode::Immediate);
     }
@@ -434,8 +441,11 @@ app:
         );
 
         let app = result.unwrap();
-        let choices = &app.layouts[0].children.as_ref().unwrap()[0].choices.as_ref().unwrap();
-        
+        let choices = &app.layouts[0].children.as_ref().unwrap()[0]
+            .choices
+            .as_ref()
+            .unwrap();
+
         assert_eq!(choices[0].execution_mode, ExecutionMode::Immediate);
         assert_eq!(choices[1].execution_mode, ExecutionMode::Thread);
         assert_eq!(choices[2].execution_mode, ExecutionMode::Pty);
@@ -468,7 +478,7 @@ app:
     fn test_comprehensive_schema_validation_integration() {
         // Test that the JSON schema properly validates ExecutionMode fields
         let mut validator = SchemaValidator::new();
-        
+
         let yaml_content = r#"
 app:
   layouts:
@@ -495,13 +505,18 @@ app:
                 // Check if errors are related to missing schema files vs actual validation failures
                 let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
                 let combined = error_messages.join("; ");
-                
-                if combined.contains("Failed to load schema file") || combined.contains("No such file") {
+
+                if combined.contains("Failed to load schema file")
+                    || combined.contains("No such file")
+                {
                     // Schema files missing is acceptable for this test
                     assert!(true);
                 } else {
                     // Actual validation failures indicate schema issues
-                    panic!("Schema validation should accept ExecutionMode fields: {}", combined);
+                    panic!(
+                        "Schema validation should accept ExecutionMode fields: {}",
+                        combined
+                    );
                 }
             }
         }

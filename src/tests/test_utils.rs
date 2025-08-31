@@ -403,7 +403,9 @@ impl IntegrationTestUtils {
                 success,
                 content,
             } => {
-                use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
                 let stream_update = StreamUpdate {
                     stream_id: format!("{}_default", box_id),
                     target_box_id: box_id.clone(),
@@ -413,12 +415,16 @@ impl IntegrationTestUtils {
                         queue_wait_time: std::time::Duration::from_millis(0),
                         execution_time: std::time::Duration::from_millis(100),
                         exit_code: if success { Some(0) } else { Some(1) },
-                        status: if success { BatchStatus::Completed } else { BatchStatus::Failed("Test error".to_string()) },
+                        status: if success {
+                            BatchStatus::Completed
+                        } else {
+                            BatchStatus::Failed("Test error".to_string())
+                        },
                     }),
                     execution_mode: ExecutionMode::Thread,
                 };
                 Message::StreamUpdateMessage(stream_update)
-            },
+            }
             SocketFunction::ReplaceBoxScript { box_id, script } => {
                 Message::MuxBoxScriptUpdate(box_id, script)
             }
@@ -434,101 +440,101 @@ impl IntegrationTestUtils {
             SocketFunction::RemoveBox { box_id } => Message::RemoveBox(box_id),
             // F0137/F0138: Socket PTY Control and Query patterns
             SocketFunction::KillPtyProcess { box_id } => {
-                {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
-                    let stream_update = StreamUpdate {
-                        stream_id: format!("{}_pty", box_id),
-                        target_box_id: box_id.clone(),
-                        content_update: "PTY process killed".to_string(),
-                        source_state: SourceState::Batch(BatchSourceState {
-                            task_id: "test_task".to_string(),
-                            queue_wait_time: std::time::Duration::from_millis(0),
-                            execution_time: std::time::Duration::from_millis(100),
-                            exit_code: Some(0),
-                            status: BatchStatus::Completed,
-                        }),
-                        execution_mode: ExecutionMode::Pty,
-                    };
-                    Message::StreamUpdateMessage(stream_update)
-                }
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_pty", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: "PTY process killed".to_string(),
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: Some(0),
+                        status: BatchStatus::Completed,
+                    }),
+                    execution_mode: ExecutionMode::Pty,
+                };
+                Message::StreamUpdateMessage(stream_update)
             }
             SocketFunction::RestartPtyProcess { box_id } => {
-                {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
-                    let stream_update = StreamUpdate {
-                        stream_id: format!("{}_pty", box_id),
-                        target_box_id: box_id.clone(),
-                        content_update: "PTY process restarted".to_string(),
-                        source_state: SourceState::Batch(BatchSourceState {
-                            task_id: "test_task".to_string(),
-                            queue_wait_time: std::time::Duration::from_millis(0),
-                            execution_time: std::time::Duration::from_millis(100),
-                            exit_code: Some(0),
-                            status: BatchStatus::Completed,
-                        }),
-                        execution_mode: ExecutionMode::Pty,
-                    };
-                    Message::StreamUpdateMessage(stream_update)
-                }
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_pty", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: "PTY process restarted".to_string(),
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: Some(0),
+                        status: BatchStatus::Completed,
+                    }),
+                    execution_mode: ExecutionMode::Pty,
+                };
+                Message::StreamUpdateMessage(stream_update)
             }
             SocketFunction::QueryPtyStatus { box_id } => {
-                {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
-                    let stream_update = StreamUpdate {
-                        stream_id: format!("{}_pty", box_id),
-                        target_box_id: box_id.clone(),
-                        content_update: "PTY status queried".to_string(),
-                        source_state: SourceState::Batch(BatchSourceState {
-                            task_id: "test_task".to_string(),
-                            queue_wait_time: std::time::Duration::from_millis(0),
-                            execution_time: std::time::Duration::from_millis(100),
-                            exit_code: Some(0),
-                            status: BatchStatus::Completed,
-                        }),
-                        execution_mode: ExecutionMode::Pty,
-                    };
-                    Message::StreamUpdateMessage(stream_update)
-                }
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_pty", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: "PTY status queried".to_string(),
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: Some(0),
+                        status: BatchStatus::Completed,
+                    }),
+                    execution_mode: ExecutionMode::Pty,
+                };
+                Message::StreamUpdateMessage(stream_update)
             }
             // F0136: Socket PTY Spawn pattern
             SocketFunction::SpawnPtyProcess { box_id, .. } => {
-                {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
-                    let stream_update = StreamUpdate {
-                        stream_id: format!("{}_pty", box_id),
-                        target_box_id: box_id.clone(),
-                        content_update: "PTY process spawned".to_string(),
-                        source_state: SourceState::Batch(BatchSourceState {
-                            task_id: "test_task".to_string(),
-                            queue_wait_time: std::time::Duration::from_millis(0),
-                            execution_time: std::time::Duration::from_millis(100),
-                            exit_code: Some(0),
-                            status: BatchStatus::Completed,
-                        }),
-                        execution_mode: ExecutionMode::Pty,
-                    };
-                    Message::StreamUpdateMessage(stream_update)
-                }
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_pty", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: "PTY process spawned".to_string(),
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: Some(0),
+                        status: BatchStatus::Completed,
+                    }),
+                    execution_mode: ExecutionMode::Pty,
+                };
+                Message::StreamUpdateMessage(stream_update)
             }
             // F0139: Socket PTY Input pattern
             SocketFunction::SendPtyInput { box_id, .. } => {
-                {
-                    use crate::model::common::{StreamUpdate, SourceState, BatchSourceState, ExecutionMode};
-                    let stream_update = StreamUpdate {
-                        stream_id: format!("{}_pty", box_id),
-                        target_box_id: box_id.clone(),
-                        content_update: "PTY input sent".to_string(),
-                        source_state: SourceState::Batch(BatchSourceState {
-                            task_id: "test_task".to_string(),
-                            queue_wait_time: std::time::Duration::from_millis(0),
-                            execution_time: std::time::Duration::from_millis(100),
-                            exit_code: Some(0),
-                            status: BatchStatus::Completed,
-                        }),
-                        execution_mode: ExecutionMode::Pty,
-                    };
-                    Message::StreamUpdateMessage(stream_update)
-                }
+                use crate::model::common::{
+                    BatchSourceState, ExecutionMode, SourceState, StreamUpdate,
+                };
+                let stream_update = StreamUpdate {
+                    stream_id: format!("{}_pty", box_id),
+                    target_box_id: box_id.clone(),
+                    content_update: "PTY input sent".to_string(),
+                    source_state: SourceState::Batch(BatchSourceState {
+                        task_id: "test_task".to_string(),
+                        queue_wait_time: std::time::Duration::from_millis(0),
+                        execution_time: std::time::Duration::from_millis(100),
+                        exit_code: Some(0),
+                        status: BatchStatus::Completed,
+                    }),
+                    execution_mode: ExecutionMode::Pty,
+                };
+                Message::StreamUpdateMessage(stream_update)
             }
         };
 

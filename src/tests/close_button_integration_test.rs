@@ -32,7 +32,10 @@ mod tests {
             id: "redirect_output_1".to_string(),
             stream_type: StreamType::RedirectedOutput("choice_deploy".to_string()),
             label: "→Deploy".to_string(),
-            content: vec!["Deployment output line 1".to_string(), "Deployment output line 2".to_string()],
+            content: vec![
+                "Deployment output line 1".to_string(),
+                "Deployment output line 2".to_string(),
+            ],
             choices: None,
             active: false,
             source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
@@ -93,7 +96,11 @@ mod tests {
         );
 
         // Test 7: Verify stream was actually removed
-        assert_eq!(muxbox.streams.len(), 1, "Should have 1 stream after removal");
+        assert_eq!(
+            muxbox.streams.len(),
+            1,
+            "Should have 1 stream after removal"
+        );
         assert!(
             !muxbox.streams.contains_key("redirect_output_1"),
             "Redirected stream should be removed"
@@ -118,68 +125,77 @@ mod tests {
         let mut streams = IndexMap::new();
 
         // Add content stream
-        streams.insert("content".to_string(), Stream {
-            id: "content".to_string(),
-            stream_type: StreamType::Content,
-            label: "Content".to_string(),
-            content: vec!["Base content".to_string()],
-            choices: None,
-            active: true,
-            source: None,
-            content_hash: 0,
-            last_updated: SystemTime::now(),
-            created_at: SystemTime::now(),
-        });
+        streams.insert(
+            "content".to_string(),
+            Stream {
+                id: "content".to_string(),
+                stream_type: StreamType::Content,
+                label: "Content".to_string(),
+                content: vec!["Base content".to_string()],
+                choices: None,
+                active: true,
+                source: None,
+                content_hash: 0,
+                last_updated: SystemTime::now(),
+                created_at: SystemTime::now(),
+            },
+        );
 
         // Add first redirected stream
-        streams.insert("redirect1".to_string(), Stream {
-            id: "redirect1".to_string(),
-            stream_type: StreamType::RedirectedOutput("deploy".to_string()),
-            label: "→Deploy".to_string(),
-            content: vec!["Deploy output".to_string()],
-            choices: None,
-            active: false,
-            source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
-                choice_id: "deploy".to_string(),
-                thread_id: None,
-                process_id: None,
-                execution_type: "thread".to_string(),
-                started_at: SystemTime::now(),
-                muxbox_id: "multi_redirect_box".to_string(),
-                timeout_seconds: None,
-            })),
-            content_hash: 0,
-            last_updated: SystemTime::now(),
-            created_at: SystemTime::now(),
-        });
+        streams.insert(
+            "redirect1".to_string(),
+            Stream {
+                id: "redirect1".to_string(),
+                stream_type: StreamType::RedirectedOutput("deploy".to_string()),
+                label: "→Deploy".to_string(),
+                content: vec!["Deploy output".to_string()],
+                choices: None,
+                active: false,
+                source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
+                    choice_id: "deploy".to_string(),
+                    thread_id: None,
+                    process_id: None,
+                    execution_type: "thread".to_string(),
+                    started_at: SystemTime::now(),
+                    muxbox_id: "multi_redirect_box".to_string(),
+                    timeout_seconds: None,
+                })),
+                content_hash: 0,
+                last_updated: SystemTime::now(),
+                created_at: SystemTime::now(),
+            },
+        );
 
         // Add second redirected stream
-        streams.insert("redirect2".to_string(), Stream {
-            id: "redirect2".to_string(),
-            stream_type: StreamType::RedirectedOutput("monitor".to_string()),
-            label: "→Monitor".to_string(),
-            content: vec!["Monitor output".to_string()],
-            choices: None,
-            active: false,
-            source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
-                choice_id: "monitor".to_string(),
-                thread_id: None,
-                process_id: None,
-                execution_type: "thread".to_string(),
-                started_at: SystemTime::now(),
-                muxbox_id: "multi_redirect_box".to_string(),
-                timeout_seconds: None,
-            })),
-            content_hash: 0,
-            last_updated: SystemTime::now(),
-            created_at: SystemTime::now(),
-        });
+        streams.insert(
+            "redirect2".to_string(),
+            Stream {
+                id: "redirect2".to_string(),
+                stream_type: StreamType::RedirectedOutput("monitor".to_string()),
+                label: "→Monitor".to_string(),
+                content: vec!["Monitor output".to_string()],
+                choices: None,
+                active: false,
+                source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
+                    choice_id: "monitor".to_string(),
+                    thread_id: None,
+                    process_id: None,
+                    execution_type: "thread".to_string(),
+                    started_at: SystemTime::now(),
+                    muxbox_id: "multi_redirect_box".to_string(),
+                    timeout_seconds: None,
+                })),
+                content_hash: 0,
+                last_updated: SystemTime::now(),
+                created_at: SystemTime::now(),
+            },
+        );
 
         muxbox.streams = streams;
 
         // Verify initial state
         assert_eq!(muxbox.streams.len(), 3, "Should have 3 streams initially");
-        
+
         let close_buttons = muxbox.get_tab_close_buttons();
         assert_eq!(
             close_buttons,
@@ -190,10 +206,14 @@ mod tests {
         // Remove first redirected stream
         let removed = muxbox.remove_stream("redirect1");
         assert!(removed.is_some(), "Should remove first redirected stream");
-        
+
         // Verify state after first removal
-        assert_eq!(muxbox.streams.len(), 2, "Should have 2 streams after first removal");
-        
+        assert_eq!(
+            muxbox.streams.len(),
+            2,
+            "Should have 2 streams after first removal"
+        );
+
         let updated_close_buttons = muxbox.get_tab_close_buttons();
         assert_eq!(
             updated_close_buttons,
@@ -204,10 +224,14 @@ mod tests {
         // Remove second redirected stream
         let removed2 = muxbox.remove_stream("redirect2");
         assert!(removed2.is_some(), "Should remove second redirected stream");
-        
+
         // Verify final state
-        assert_eq!(muxbox.streams.len(), 1, "Should have 1 stream after all removals");
-        
+        assert_eq!(
+            muxbox.streams.len(),
+            1,
+            "Should have 1 stream after all removals"
+        );
+
         let final_close_buttons = muxbox.get_tab_close_buttons();
         assert_eq!(
             final_close_buttons,
@@ -222,40 +246,46 @@ mod tests {
         let mut streams = IndexMap::new();
 
         // Add content stream (not active)
-        streams.insert("content".to_string(), Stream {
-            id: "content".to_string(),
-            stream_type: StreamType::Content,
-            label: "Content".to_string(),
-            content: vec!["Base content".to_string()],
-            choices: None,
-            active: false, // Not active initially
-            source: None,
-            content_hash: 0,
-            last_updated: SystemTime::now(),
-            created_at: SystemTime::now(),
-        });
+        streams.insert(
+            "content".to_string(),
+            Stream {
+                id: "content".to_string(),
+                stream_type: StreamType::Content,
+                label: "Content".to_string(),
+                content: vec!["Base content".to_string()],
+                choices: None,
+                active: false, // Not active initially
+                source: None,
+                content_hash: 0,
+                last_updated: SystemTime::now(),
+                created_at: SystemTime::now(),
+            },
+        );
 
         // Add redirected stream (active)
-        streams.insert("redirect_active".to_string(), Stream {
-            id: "redirect_active".to_string(),
-            stream_type: StreamType::RedirectedOutput("deploy".to_string()),
-            label: "→Deploy".to_string(),
-            content: vec!["Deploy output".to_string()],
-            choices: None,
-            active: true, // This is the active stream
-            source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
-                choice_id: "deploy".to_string(),
-                thread_id: None,
-                process_id: None,
-                execution_type: "thread".to_string(),
-                started_at: SystemTime::now(),
-                muxbox_id: "active_switch_box".to_string(),
-                timeout_seconds: None,
-            })),
-            content_hash: 0,
-            last_updated: SystemTime::now(),
-            created_at: SystemTime::now(),
-        });
+        streams.insert(
+            "redirect_active".to_string(),
+            Stream {
+                id: "redirect_active".to_string(),
+                stream_type: StreamType::RedirectedOutput("deploy".to_string()),
+                label: "→Deploy".to_string(),
+                content: vec!["Deploy output".to_string()],
+                choices: None,
+                active: true, // This is the active stream
+                source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
+                    choice_id: "deploy".to_string(),
+                    thread_id: None,
+                    process_id: None,
+                    execution_type: "thread".to_string(),
+                    started_at: SystemTime::now(),
+                    muxbox_id: "active_switch_box".to_string(),
+                    timeout_seconds: None,
+                })),
+                content_hash: 0,
+                last_updated: SystemTime::now(),
+                created_at: SystemTime::now(),
+            },
+        );
 
         muxbox.streams = streams;
 
@@ -274,7 +304,10 @@ mod tests {
 
         // Verify that the content stream is now active
         let new_active_stream = muxbox.get_active_stream();
-        assert!(new_active_stream.is_some(), "Should have a new active stream");
+        assert!(
+            new_active_stream.is_some(),
+            "Should have a new active stream"
+        );
         assert_eq!(
             new_active_stream.unwrap().id,
             "content",

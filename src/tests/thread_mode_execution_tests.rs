@@ -12,9 +12,18 @@ mod thread_mode_execution_tests {
     fn test_execution_mode_thread_is_background() {
         // F0225: Thread mode should be background execution
         let thread_mode = ExecutionMode::Thread;
-        assert!(thread_mode.is_background(), "Thread mode should be background");
-        assert!(!thread_mode.is_realtime(), "Thread mode should not be realtime");
-        assert!(thread_mode.creates_streams(), "Thread mode should create streams");
+        assert!(
+            thread_mode.is_background(),
+            "Thread mode should be background"
+        );
+        assert!(
+            !thread_mode.is_realtime(),
+            "Thread mode should not be realtime"
+        );
+        assert!(
+            thread_mode.creates_streams(),
+            "Thread mode should create streams"
+        );
     }
 
     #[test]
@@ -28,7 +37,10 @@ mod thread_mode_execution_tests {
     fn test_execution_mode_thread_description() {
         // F0225: Thread mode should have correct description
         let thread_mode = ExecutionMode::Thread;
-        assert_eq!(thread_mode.description(), "Background execution in thread pool");
+        assert_eq!(
+            thread_mode.description(),
+            "Background execution in thread pool"
+        );
     }
 
     #[test]
@@ -61,10 +73,13 @@ mod thread_mode_execution_tests {
         // F0225: Thread mode should be different from immediate mode
         let thread_mode = ExecutionMode::Thread;
         let immediate_mode = ExecutionMode::Immediate;
-        
+
         assert_ne!(thread_mode, immediate_mode);
         assert!(thread_mode.is_background() && !immediate_mode.is_background());
-        assert_ne!(thread_mode.as_stream_suffix(), immediate_mode.as_stream_suffix());
+        assert_ne!(
+            thread_mode.as_stream_suffix(),
+            immediate_mode.as_stream_suffix()
+        );
         assert_ne!(thread_mode.description(), immediate_mode.description());
     }
 
@@ -73,7 +88,7 @@ mod thread_mode_execution_tests {
         // F0225: Thread mode should be different from PTY mode
         let thread_mode = ExecutionMode::Thread;
         let pty_mode = ExecutionMode::Pty;
-        
+
         assert_ne!(thread_mode, pty_mode);
         assert!(thread_mode.is_background() && pty_mode.is_background()); // Both background
         assert!(!thread_mode.is_realtime() && pty_mode.is_realtime()); // Different real-time behavior
@@ -116,7 +131,10 @@ mod thread_mode_execution_tests {
         };
 
         assert_eq!(choice_with_redirect.execution_mode, ExecutionMode::Thread);
-        assert_eq!(choice_with_redirect.redirect_output, Some("output_box".to_string()));
+        assert_eq!(
+            choice_with_redirect.redirect_output,
+            Some("output_box".to_string())
+        );
         assert_eq!(choice_with_redirect.append_output, Some(true));
     }
 
@@ -124,27 +142,41 @@ mod thread_mode_execution_tests {
     fn test_thread_mode_stream_creation() {
         // F0225: Thread mode must create streams (requirement for stream architecture)
         let thread_mode = ExecutionMode::Thread;
-        assert!(thread_mode.creates_streams(), 
-            "F0225: Thread mode MUST create streams for architecture consistency");
+        assert!(
+            thread_mode.creates_streams(),
+            "F0225: Thread mode MUST create streams for architecture consistency"
+        );
     }
 
     #[test]
     fn test_thread_mode_execution_properties() {
         // F0225: Test all execution properties of thread mode
         let thread_mode = ExecutionMode::Thread;
-        
+
         // Thread mode should be background but not real-time
-        assert!(thread_mode.is_background(), "Thread mode should be background execution");
-        assert!(!thread_mode.is_realtime(), "Thread mode should not be real-time");
-        
+        assert!(
+            thread_mode.is_background(),
+            "Thread mode should be background execution"
+        );
+        assert!(
+            !thread_mode.is_realtime(),
+            "Thread mode should not be real-time"
+        );
+
         // Thread mode should create streams for result delivery
-        assert!(thread_mode.creates_streams(), "Thread mode should create streams");
-        
+        assert!(
+            thread_mode.creates_streams(),
+            "Thread mode should create streams"
+        );
+
         // Thread mode should have appropriate stream suffix
         assert_eq!(thread_mode.as_stream_suffix(), "thread");
-        
+
         // Thread mode description should be accurate
-        assert_eq!(thread_mode.description(), "Background execution in thread pool");
+        assert_eq!(
+            thread_mode.description(),
+            "Background execution in thread pool"
+        );
     }
 
     #[test]
@@ -163,11 +195,11 @@ mod thread_mode_execution_tests {
 
         // Initially not waiting
         assert!(!thread_choice.waiting);
-        
+
         // Can be set to waiting (simulating execution start)
         thread_choice.waiting = true;
         assert!(thread_choice.waiting);
-        
+
         // Execution mode should remain thread
         assert_eq!(thread_choice.execution_mode, ExecutionMode::Thread);
     }
@@ -192,7 +224,7 @@ mod thread_mode_execution_tests {
 
         // Same modes should hash the same
         assert_eq!(hasher1.finish(), hasher2.finish());
-        
+
         // Different modes should hash differently
         assert_ne!(hasher1.finish(), hasher3.finish());
     }
@@ -202,25 +234,37 @@ mod thread_mode_execution_tests {
         // F0225: Legacy thread=true should migrate to ExecutionMode::Thread
         let legacy_thread_mode = ExecutionMode::from_legacy(true, false);
         let direct_thread_mode = ExecutionMode::Thread;
-        
+
         assert_eq!(legacy_thread_mode, direct_thread_mode);
-        assert_eq!(legacy_thread_mode.is_background(), direct_thread_mode.is_background());
-        assert_eq!(legacy_thread_mode.creates_streams(), direct_thread_mode.creates_streams());
-        assert_eq!(legacy_thread_mode.as_stream_suffix(), direct_thread_mode.as_stream_suffix());
-        assert_eq!(legacy_thread_mode.description(), direct_thread_mode.description());
+        assert_eq!(
+            legacy_thread_mode.is_background(),
+            direct_thread_mode.is_background()
+        );
+        assert_eq!(
+            legacy_thread_mode.creates_streams(),
+            direct_thread_mode.creates_streams()
+        );
+        assert_eq!(
+            legacy_thread_mode.as_stream_suffix(),
+            direct_thread_mode.as_stream_suffix()
+        );
+        assert_eq!(
+            legacy_thread_mode.description(),
+            direct_thread_mode.description()
+        );
     }
 
     #[test]
     fn test_thread_mode_default_behavior() {
         // F0225: Thread mode should have appropriate default behavior
         let thread_mode = ExecutionMode::Thread;
-        
+
         // Should not be the default mode (Immediate is default)
         assert_ne!(ExecutionMode::default(), thread_mode);
-        
+
         // But should be explicitly creatable
         assert_eq!(thread_mode, ExecutionMode::Thread);
-        
+
         // Should have consistent behavior
         assert!(thread_mode.is_background());
         assert!(thread_mode.creates_streams());
@@ -234,17 +278,23 @@ mod thread_mode_execution_tests {
             id: "script_test".to_string(),
             content: Some("Thread Choice with Script".to_string()),
             selected: false,
-            script: Some(vec!["echo 'executing in background'".to_string(), "date".to_string()]),
+            script: Some(vec![
+                "echo 'executing in background'".to_string(),
+                "date".to_string(),
+            ]),
             execution_mode: ExecutionMode::Thread,
             redirect_output: None,
             append_output: Some(false),
             waiting: false,
         };
 
-        assert_eq!(thread_choice_with_script.execution_mode, ExecutionMode::Thread);
+        assert_eq!(
+            thread_choice_with_script.execution_mode,
+            ExecutionMode::Thread
+        );
         assert!(thread_choice_with_script.script.is_some());
         assert_eq!(thread_choice_with_script.script.as_ref().unwrap().len(), 2);
-        
+
         let thread_choice_without_script = Choice {
             id: "no_script_test".to_string(),
             content: Some("Thread Choice without Script".to_string()),
@@ -256,7 +306,10 @@ mod thread_mode_execution_tests {
             waiting: false,
         };
 
-        assert_eq!(thread_choice_without_script.execution_mode, ExecutionMode::Thread);
+        assert_eq!(
+            thread_choice_without_script.execution_mode,
+            ExecutionMode::Thread
+        );
         assert!(thread_choice_without_script.script.is_none());
     }
 }

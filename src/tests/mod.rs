@@ -5,6 +5,19 @@
 #[cfg(test)]
 pub mod test_utils;
 
+// F0326-F0355: Visual Testing System - Character-Exact Validation
+#[cfg(test)]
+pub mod visual_testing;
+
+#[cfg(test)]
+pub mod visual_basic_box_tests;
+
+#[cfg(test)]
+pub mod visual_demo_test;
+
+#[cfg(test)]
+pub mod visual_animation_demo;
+
 #[cfg(test)]
 pub mod integration_tests;
 
@@ -21,7 +34,6 @@ pub mod stream_only_execution_tests;
 pub mod execution_mode_schema_validation_tests; // F0230: ExecutionMode YAML Schema tests
 
 #[cfg(test)]
-
 #[cfg(test)]
 pub mod execution_mode_stream_source_traits_tests; // F0227: ExecutionMode Stream Source Traits Tests
 
@@ -141,6 +153,18 @@ pub mod yaml_live_persistence_tests;
 pub mod resize_100_percent_debug;
 
 #[cfg(test)]
+pub mod tab_stop_tests; // F0313: Tab Stop Management tests
+
+#[cfg(test)]
+pub mod line_attribute_tests; // F0314: Line Attribute Support tests
+
+#[cfg(test)]
+pub mod terminal_title_tests; // F0315: Terminal Title Support tests
+
+#[cfg(test)]
+pub mod pty_box_resize_integration_tests; // F0317: PTY Box Resize Integration tests
+
+#[cfg(test)]
 pub mod terminal_100_width_reality_test;
 
 #[cfg(test)]
@@ -174,3 +198,6 @@ pub mod periodic_source_stability_tests;
 //#[cfg(test)]
 //pub mod choice_overflow_tests;
 pub mod full_screen_detection_tests;
+
+#[cfg(test)]
+pub mod performance_optimization_tests; // F0316: Performance Optimization - Dirty Region Tracking Tests

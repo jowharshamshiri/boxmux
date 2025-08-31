@@ -11,9 +11,18 @@ mod immediate_mode_execution_tests {
     fn test_execution_mode_immediate_is_not_background() {
         // F0224: Immediate mode should not be background execution
         let immediate_mode = ExecutionMode::Immediate;
-        assert!(!immediate_mode.is_background(), "Immediate mode should not be background");
-        assert!(!immediate_mode.is_realtime(), "Immediate mode should not be realtime");
-        assert!(immediate_mode.creates_streams(), "Immediate mode should create streams");
+        assert!(
+            !immediate_mode.is_background(),
+            "Immediate mode should not be background"
+        );
+        assert!(
+            !immediate_mode.is_realtime(),
+            "Immediate mode should not be realtime"
+        );
+        assert!(
+            immediate_mode.creates_streams(),
+            "Immediate mode should create streams"
+        );
     }
 
     #[test]
@@ -27,7 +36,10 @@ mod immediate_mode_execution_tests {
     fn test_execution_mode_immediate_description() {
         // F0224: Immediate mode should have correct description
         let immediate_mode = ExecutionMode::Immediate;
-        assert_eq!(immediate_mode.description(), "Synchronous execution on UI thread");
+        assert_eq!(
+            immediate_mode.description(),
+            "Synchronous execution on UI thread"
+        );
     }
 
     #[test]
@@ -86,7 +98,7 @@ mod immediate_mode_execution_tests {
     fn test_muxbox_with_immediate_choices() {
         // F0224: Test muxbox with immediate mode choices
         let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
-        
+
         let immediate_choice = Choice {
             id: "immediate_1".to_string(),
             content: Some("Immediate Choice 1".to_string()),
@@ -131,8 +143,14 @@ mod immediate_mode_execution_tests {
         assert_eq!(pty_mode.clone(), ExecutionMode::Pty);
 
         // Test that they have different stream suffixes
-        assert_ne!(immediate_mode.as_stream_suffix(), thread_mode.as_stream_suffix());
-        assert_ne!(immediate_mode.as_stream_suffix(), pty_mode.as_stream_suffix());
+        assert_ne!(
+            immediate_mode.as_stream_suffix(),
+            thread_mode.as_stream_suffix()
+        );
+        assert_ne!(
+            immediate_mode.as_stream_suffix(),
+            pty_mode.as_stream_suffix()
+        );
         assert_ne!(thread_mode.as_stream_suffix(), pty_mode.as_stream_suffix());
     }
 
@@ -156,7 +174,10 @@ mod immediate_mode_execution_tests {
 
         // Test choice can be cloned and compared
         let cloned_choice = choice_immediate.clone();
-        assert_eq!(choice_immediate.execution_mode, cloned_choice.execution_mode);
+        assert_eq!(
+            choice_immediate.execution_mode,
+            cloned_choice.execution_mode
+        );
     }
 
     #[test]
@@ -188,7 +209,7 @@ mod immediate_mode_execution_tests {
         // Thread and PTY should be background
         assert!(thread.is_background());
         assert!(!thread.is_realtime());
-        
+
         assert!(pty.is_background());
         assert!(pty.is_realtime());
 
@@ -201,8 +222,14 @@ mod immediate_mode_execution_tests {
     #[test]
     fn test_legacy_migration_patterns() {
         // F0224: Test various legacy boolean combinations map correctly
-        assert_eq!(ExecutionMode::from_legacy(false, false), ExecutionMode::Immediate);
-        assert_eq!(ExecutionMode::from_legacy(true, false), ExecutionMode::Thread);
+        assert_eq!(
+            ExecutionMode::from_legacy(false, false),
+            ExecutionMode::Immediate
+        );
+        assert_eq!(
+            ExecutionMode::from_legacy(true, false),
+            ExecutionMode::Thread
+        );
         assert_eq!(ExecutionMode::from_legacy(false, true), ExecutionMode::Pty);
         assert_eq!(ExecutionMode::from_legacy(true, true), ExecutionMode::Pty); // PTY takes precedence
     }
