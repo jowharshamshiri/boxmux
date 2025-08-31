@@ -56,6 +56,7 @@ pub enum Message {
     SaveMuxBoxContent(String, String),  // F0200: Save muxbox content to YAML
     SaveMuxBoxScroll(String, usize, usize), // F0200: Save muxbox scroll position
     PTYInput(String, String),           // muxbox_id, input_text
+    PTYInputWithModes(String, String, bool, bool), // F0309: muxbox_id, input_text, cursor_key_mode, keypad_mode
     ExternalMessage(String),
     AddBox(String, MuxBox),
     RemoveBox(String),
@@ -187,6 +188,13 @@ impl Hash for Message {
                 "pty_input".hash(state);
                 muxbox_id.hash(state);
                 input.hash(state);
+            }
+            Message::PTYInputWithModes(muxbox_id, input, cursor_key_mode, keypad_mode) => {
+                "pty_input_with_modes".hash(state);
+                muxbox_id.hash(state);
+                input.hash(state);
+                cursor_key_mode.hash(state);
+                keypad_mode.hash(state);
             }
             Message::Pause => "pause".hash(state),
             Message::ExternalMessage(msg) => {
@@ -644,7 +652,7 @@ impl RunnableImpl {
         log::info!("ThreadManager would send StreamUpdate message: {:?}", start_update);
         
         // Create a channel to receive messages from the spawned thread
-        let (thread_sender, thread_receiver) = std::sync::mpsc::channel::<crate::model::common::StreamUpdate>();
+        let (_thread_sender, _thread_receiver) = std::sync::mpsc::channel::<crate::model::common::StreamUpdate>();
         
         // Store the receiver so we can poll it later (simplified approach)
         // TODO: This is not ideal - should use a proper async mechanism

@@ -451,11 +451,20 @@ create_runnable!(
                             if let Some(children) = &mut layout.children {
                                 for muxbox in children {
                                     if let Some(stream) = muxbox.streams.get_mut(&stream_update.stream_id) {
-                                        // Append content to existing stream
+                                        // Handle replace vs append based on content prefix
                                         if !stream_update.content_update.is_empty() {
-                                            stream.content.push(stream_update.content_update.clone());
-                                            log::info!("Appended content to existing stream {}: {} characters", 
-                                                        stream_update.stream_id, stream_update.content_update.len());
+                                            if stream_update.content_update.starts_with("REPLACE:") {
+                                                // Replace content for full-screen programs
+                                                let new_content = stream_update.content_update.strip_prefix("REPLACE:").unwrap_or(&stream_update.content_update);
+                                                stream.content = vec![new_content.to_string()];
+                                                log::info!("Replaced content in existing stream {}: {} characters", 
+                                                          stream_update.stream_id, new_content.len());
+                                            } else {
+                                                // Normal append behavior
+                                                stream.content.push(stream_update.content_update.clone());
+                                                log::info!("Appended content to existing stream {}: {} characters", 
+                                                          stream_update.stream_id, stream_update.content_update.len());
+                                            }
                                         }
                                         
                                                         stream_found = true;
@@ -495,9 +504,18 @@ create_runnable!(
                                 // Add the content to the newly created stream
                                 if let Some(stream) = target_muxbox.streams.get_mut(&stream_id) {
                                     if !stream_update.content_update.is_empty() {
-                                        stream.content.push(stream_update.content_update.clone());
-                                        log::info!("Added content to new stream {}: {} characters", 
-                                                   stream_id, stream_update.content_update.len());
+                                        if stream_update.content_update.starts_with("REPLACE:") {
+                                            // Replace content for full-screen programs
+                                            let new_content = stream_update.content_update.strip_prefix("REPLACE:").unwrap_or(&stream_update.content_update);
+                                            stream.content = vec![new_content.to_string()];
+                                            log::info!("Set initial content in new stream {}: {} characters", 
+                                                       stream_id, new_content.len());
+                                        } else {
+                                            // Normal append behavior
+                                            stream.content.push(stream_update.content_update.clone());
+                                            log::info!("Added content to new stream {}: {} characters", 
+                                                       stream_id, stream_update.content_update.len());
+                                        }
                                     }
                                 }
                                 

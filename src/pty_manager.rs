@@ -238,7 +238,7 @@ impl PtyManager {
         // Spawn reader thread for PTY output
         let active_ptys_clone = self.active_ptys.clone();
         let muxbox_id_clone = muxbox_id.clone();
-        let pty_stream_id_clone = pty_stream_id.clone();
+        let _pty_stream_id_clone = pty_stream_id.clone();
         let thread_uuid_clone = thread_uuid; // Pass correct UUID to PTY reader thread
 
         thread::spawn(move || {
@@ -249,7 +249,9 @@ impl PtyManager {
             );
 
             let mut buffer = [0u8; 4096];
-            let mut ansi_processor = AnsiProcessor::new();
+            let mut ansi_processor = AnsiProcessor::with_screen_size(80, 24);
+            // Start in line mode - will auto-detect and switch to screen mode if needed
+            ansi_processor.set_screen_mode(false);
             let mut bytes_processed = 0u64;
             let mut _messages_sent = 0u32;
 
@@ -286,8 +288,8 @@ impl PtyManager {
                             }
                         }
 
-                        // Send any remaining processed output
-                        let remaining_text = ansi_processor.get_processed_text();
+                        // Send remaining terminal screen content for stream integration
+                        let remaining_text = ansi_processor.get_screen_content_for_stream();
                         if !remaining_text.is_empty() {
                             let pty_reader_uuid = uuid::Uuid::new_v4();
                             if let Err(e) = sender.send((
@@ -345,86 +347,65 @@ impl PtyManager {
                         // Process raw bytes through ANSI processor
                         ansi_processor.process_bytes(&buffer[..bytes_read]);
 
-                        // Get processed text and send line by line
-                        let processed_output = ansi_processor.get_processed_text().to_string();
-                        let mut lines_to_send = Vec::new();
-
-                        // DEBUG: Log what we got from ANSI processor
-                        if !processed_output.is_empty() {
-                            log::info!("ANSI processor output ({} chars): {:?}", processed_output.len(), processed_output.chars().take(100).collect::<String>());
+                        // Get terminal screen content for stream integration
+                        // This feeds PTY TerminalScreenBuffer into BoxMux's main differential drawing system
+                        let content_to_send = ansi_processor.get_screen_content_for_stream();
+                        let should_replace = ansi_processor.should_replace_content();
+                        
+                        if !content_to_send.trim().is_empty() {
+                            if should_replace {
+                                log::info!("Full-screen program detected - sending terminal screen content ({} chars) to {}", 
+                                          content_to_send.len(), output_target);
+                            } else {
+                                log::info!("Line-based program - sending processed content ({} chars) to {}", 
+                                          content_to_send.len(), output_target);
+                            }
+                        } else {
+                            continue; // No content to send
                         }
+                        
+                        // Send content if we have any
+                        if !content_to_send.trim().is_empty() {
+                            // Store content in circular buffer for scrollback
+                            if let Ok(mut buffer) = buffer_clone.lock() {
+                                buffer.push(content_to_send.clone());
+                                debug!("Added content to PTY buffer (total: {})", buffer.len());
+                            }
 
-                        // Split by newlines and collect complete lines
-                        let current_lines: Vec<&str> = processed_output.split('\n').collect();
-                        log::info!("Split into {} lines, ends_with_newline: {}", current_lines.len(), processed_output.ends_with('\n'));
-
-                        // If we have complete lines (ending with newline), send them
-                        if processed_output.ends_with('\n') {
-                            lines_to_send.extend(current_lines.iter().map(|s| s.to_string()));
-                            ansi_processor.clear_processed_text();
-                        } else if current_lines.len() > 1 {
-                            // Send all but the last incomplete line
-                            lines_to_send.extend(
-                                current_lines[..current_lines.len() - 1]
-                                    .iter()
-                                    .map(|s| s.to_string()),
+                            // Create appropriate content update based on program behavior
+                            let content_update = if should_replace {
+                                format!("REPLACE:{}", content_to_send) // Signal to replace, not append
+                            } else {
+                                content_to_send // Normal append behavior
+                            };
+                            
+                            let message = crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
+                                stream_id: pty_stream_id.clone(),
+                                target_box_id: output_target.clone(),
+                                content_update,
+                                source_state: crate::model::common::SourceState::Pty(
+                                    crate::model::common::PtySourceState {
+                                        process_id: 0,
+                                        runtime: std::time::Duration::from_millis(0),
+                                        exit_code: None,
+                                        status: crate::model::common::ExecutionPtyStatus::Running,
+                                    }
+                                ),
+                                execution_mode: crate::model::common::ExecutionMode::Pty,
+                            });
+                            
+                            // Use correct thread_uuid for ThreadManager message routing
+                            debug!(
+                                "About to send PTY message via channel - thread_uuid: {:?}",
+                                thread_uuid_clone
                             );
-
-                            // Keep the last incomplete line in processor
-                            ansi_processor.clear_processed_text();
-                            if let Some(last_line) = current_lines.last() {
-                                ansi_processor.process_string(last_line);
+                            if let Err(e) = sender.send((thread_uuid_clone, message)) {
+                                error!("PTY message send failed - channel disconnected or full: {}", e);
+                                break;
+                            } else {
+                                debug!("PTY message sent successfully via channel");
                             }
-                        } else if processed_output.len() > 500 {
-                            // TEMP FIX: Send accumulated content even without newlines for programs like top
-                            log::info!("Sending accumulated content without newlines ({} chars)", processed_output.len());
-                            lines_to_send.push(processed_output.clone());
-                            ansi_processor.clear_processed_text();
-                        }
-
-                        // Send complete lines
-                        for line in lines_to_send {
-                            // TEMP DEBUG: Send all lines including empty ones to see what we get
-                            if true { // !line.trim().is_empty() {
-                                // Store line in circular buffer for scrollback
-                                if let Ok(mut buffer) = buffer_clone.lock() {
-                                    buffer.push(line.clone());
-                                    debug!("Added line to PTY buffer (total: {})", buffer.len());
-                                }
-
-                                log::info!(
-                                    "Sending PTY line (len: {}) to {}: {}",
-                                    line.len(),
-                                    output_target,
-                                    line.chars().take(50).collect::<String>()
-                                );
-                                let message = crate::thread_manager::Message::StreamUpdateMessage(crate::model::common::StreamUpdate {
-                                    stream_id: pty_stream_id.clone(),
-                                    target_box_id: output_target.clone(),
-                                    content_update: format!("{}\n", line), // Add newline for proper line separation
-                                    source_state: crate::model::common::SourceState::Pty(
-                                        crate::model::common::PtySourceState {
-                                            process_id: 0,
-                                            runtime: std::time::Duration::from_millis(0),
-                                            exit_code: None,
-                                            status: crate::model::common::ExecutionPtyStatus::Running,
-                                        }
-                                    ),
-                                    execution_mode: crate::model::common::ExecutionMode::Pty,
-                                });
-                                // Use correct thread_uuid for ThreadManager message routing
-                                debug!(
-                                    "About to send PTY message via channel - thread_uuid: {:?}",
-                                    thread_uuid_clone
-                                );
-                                if let Err(e) = sender.send((thread_uuid_clone, message)) {
-                                    error!("PTY message send failed - channel disconnected or full: {}", e);
-                                    break;
-                                } else {
-                                    debug!("PTY message sent successfully via channel");
-                                }
-                                _messages_sent += 1;
-                            }
+                            _messages_sent += 1;
                         }
                     }
                     Err(e) => {

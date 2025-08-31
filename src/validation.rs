@@ -423,7 +423,7 @@ impl SchemaValidator {
     }
 
     /// Validate ExecutionMode field consistency and provide deprecation warnings
-    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, path: &str) {
+    fn validate_execution_mode_fields(&mut self, execution_mode: &crate::model::common::ExecutionMode, _path: &str) {
         use crate::model::common::ExecutionMode;
         
         // T0330: Legacy thread/pty fields removed - no more deprecation warnings needed

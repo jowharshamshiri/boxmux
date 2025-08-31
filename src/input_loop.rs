@@ -12,8 +12,13 @@ use crate::thread_manager::*;
 use uuid::Uuid;
 
 /// Convert crossterm KeyEvent to appropriate PTY input string
-/// F0127: Enhanced special key handling with modifiers and extended key support
-pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
+/// F0309: Enhanced input translation system with terminal mode awareness
+pub fn format_key_for_pty_with_modes(
+    code: KeyCode, 
+    modifiers: KeyModifiers, 
+    cursor_key_mode: bool, 
+    keypad_mode: bool
+) -> String {
     // Helper function to generate modified key sequences
     let format_modified_key = |base_seq: &str, modifiers: KeyModifiers| -> String {
         let mut mod_code = 1;
@@ -36,6 +41,72 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
     };
 
     match code {
+        // F0309: Numeric keypad support with application keypad mode (must come before general Char case)
+        KeyCode::Char('0') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 0 (handled specially when keypad mode matters)
+            if keypad_mode { "\x1bOp".to_string() } else { "0".to_string() }
+        }
+        KeyCode::Char('1') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 1
+            if keypad_mode { "\x1bOq".to_string() } else { "1".to_string() }
+        }
+        KeyCode::Char('2') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 2
+            if keypad_mode { "\x1bOr".to_string() } else { "2".to_string() }
+        }
+        KeyCode::Char('3') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 3
+            if keypad_mode { "\x1bOs".to_string() } else { "3".to_string() }
+        }
+        KeyCode::Char('4') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 4
+            if keypad_mode { "\x1bOt".to_string() } else { "4".to_string() }
+        }
+        KeyCode::Char('5') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 5
+            if keypad_mode { "\x1bOu".to_string() } else { "5".to_string() }
+        }
+        KeyCode::Char('6') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 6
+            if keypad_mode { "\x1bOv".to_string() } else { "6".to_string() }
+        }
+        KeyCode::Char('7') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 7
+            if keypad_mode { "\x1bOw".to_string() } else { "7".to_string() }
+        }
+        KeyCode::Char('8') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 8
+            if keypad_mode { "\x1bOx".to_string() } else { "8".to_string() }
+        }
+        KeyCode::Char('9') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad 9
+            if keypad_mode { "\x1bOy".to_string() } else { "9".to_string() }
+        }
+        KeyCode::Char('.') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad decimal point
+            if keypad_mode { "\x1bOn".to_string() } else { ".".to_string() }
+        }
+        KeyCode::Char('+') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad plus
+            if keypad_mode { "\x1bOk".to_string() } else { "+".to_string() }
+        }
+        KeyCode::Char('-') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad minus
+            if keypad_mode { "\x1bOm".to_string() } else { "-".to_string() }
+        }
+        KeyCode::Char('*') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad multiply
+            if keypad_mode { "\x1bOj".to_string() } else { "*".to_string() }
+        }
+        KeyCode::Char('/') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad divide
+            if keypad_mode { "\x1bOo".to_string() } else { "/".to_string() }
+        }
+        KeyCode::Char('=') if modifiers.contains(KeyModifiers::SHIFT) => {
+            // Numpad equals
+            if keypad_mode { "\x1bOX".to_string() } else { "=".to_string() }
+        }
+        
         KeyCode::Char(c) => {
             if modifiers.contains(KeyModifiers::CONTROL) {
                 // Enhanced control character handling
@@ -90,15 +161,33 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
         KeyCode::Delete => format_modified_key("\x1b[3~", modifiers),
         KeyCode::Insert => format_modified_key("\x1b[2~", modifiers),
 
-        // Arrow keys with modifier support
-        KeyCode::Up => format_modified_key("\x1b[A", modifiers),
-        KeyCode::Down => format_modified_key("\x1b[B", modifiers),
-        KeyCode::Right => format_modified_key("\x1b[C", modifiers),
-        KeyCode::Left => format_modified_key("\x1b[D", modifiers),
+        // F0309: Arrow keys with terminal mode awareness
+        KeyCode::Up => {
+            let base_seq = if cursor_key_mode { "\x1bOA" } else { "\x1b[A" };
+            format_modified_key(base_seq, modifiers)
+        }
+        KeyCode::Down => {
+            let base_seq = if cursor_key_mode { "\x1bOB" } else { "\x1b[B" };
+            format_modified_key(base_seq, modifiers)
+        }
+        KeyCode::Right => {
+            let base_seq = if cursor_key_mode { "\x1bOC" } else { "\x1b[C" };
+            format_modified_key(base_seq, modifiers)
+        }
+        KeyCode::Left => {
+            let base_seq = if cursor_key_mode { "\x1bOD" } else { "\x1b[D" };
+            format_modified_key(base_seq, modifiers)
+        }
 
-        // Home/End with modifier support
-        KeyCode::Home => format_modified_key("\x1b[H", modifiers),
-        KeyCode::End => format_modified_key("\x1b[F", modifiers),
+        // F0309: Home/End with terminal mode awareness
+        KeyCode::Home => {
+            let base_seq = if cursor_key_mode { "\x1bOH" } else { "\x1b[H" };
+            format_modified_key(base_seq, modifiers)
+        }
+        KeyCode::End => {
+            let base_seq = if cursor_key_mode { "\x1bOF" } else { "\x1b[F" };
+            format_modified_key(base_seq, modifiers)
+        }
 
         // Page Up/Down with modifier support
         KeyCode::PageUp => format_modified_key("\x1b[5~", modifiers),
@@ -143,6 +232,7 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
             }
         }
 
+
         // Additional special keys
         KeyCode::CapsLock => "".to_string(), // Usually handled by system
         KeyCode::ScrollLock => "".to_string(),
@@ -152,6 +242,170 @@ pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
         KeyCode::Menu => "\x1b[29~".to_string(),
 
         _ => "".to_string(),
+    }
+}
+
+/// F0309: Backwards-compatible wrapper for existing code
+/// F0127: Enhanced special key handling with modifiers and extended key support
+pub fn format_key_for_pty(code: KeyCode, modifiers: KeyModifiers) -> String {
+    // Use normal mode defaults for backwards compatibility
+    format_key_for_pty_with_modes(code, modifiers, false, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_input_translation_system_cursor_keys() {
+        // F0309: Test cursor key translation with terminal modes
+        
+        // Normal mode (DECCKM disabled) - default escape sequences
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Up, KeyModifiers::NONE, false, false), "\x1b[A");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Down, KeyModifiers::NONE, false, false), "\x1b[B");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Right, KeyModifiers::NONE, false, false), "\x1b[C");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Left, KeyModifiers::NONE, false, false), "\x1b[D");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Home, KeyModifiers::NONE, false, false), "\x1b[H");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::End, KeyModifiers::NONE, false, false), "\x1b[F");
+
+        // Application cursor key mode (DECCKM enabled) - SS3 sequences  
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Up, KeyModifiers::NONE, true, false), "\x1bOA");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Down, KeyModifiers::NONE, true, false), "\x1bOB");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Right, KeyModifiers::NONE, true, false), "\x1bOC");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Left, KeyModifiers::NONE, true, false), "\x1bOD");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Home, KeyModifiers::NONE, true, false), "\x1bOH");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::End, KeyModifiers::NONE, true, false), "\x1bOF");
+    }
+
+    #[test]
+    fn test_input_translation_system_keypad_keys() {
+        // F0309: Test keypad translation with application keypad mode (DECPAM)
+        
+        // Note: KeyCode::Char with SHIFT modifier simulates keypad keys for testing
+        // Normal keypad mode (DECPAM disabled) - literal characters
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('0'), KeyModifiers::SHIFT, false, false), "0");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('1'), KeyModifiers::SHIFT, false, false), "1");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('5'), KeyModifiers::SHIFT, false, false), "5");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('9'), KeyModifiers::SHIFT, false, false), "9");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('.'), KeyModifiers::SHIFT, false, false), ".");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('+'), KeyModifiers::SHIFT, false, false), "+");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('-'), KeyModifiers::SHIFT, false, false), "-");
+
+        // Application keypad mode (DECPAM enabled) - SS3 sequences
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('0'), KeyModifiers::SHIFT, false, true), "\x1bOp");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('1'), KeyModifiers::SHIFT, false, true), "\x1bOq");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('2'), KeyModifiers::SHIFT, false, true), "\x1bOr");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('5'), KeyModifiers::SHIFT, false, true), "\x1bOu");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('9'), KeyModifiers::SHIFT, false, true), "\x1bOy");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('.'), KeyModifiers::SHIFT, false, true), "\x1bOn");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('+'), KeyModifiers::SHIFT, false, true), "\x1bOk");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('-'), KeyModifiers::SHIFT, false, true), "\x1bOm");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('*'), KeyModifiers::SHIFT, false, true), "\x1bOj");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('/'), KeyModifiers::SHIFT, false, true), "\x1bOo");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('='), KeyModifiers::SHIFT, false, true), "\x1bOX");
+    }
+
+    #[test]
+    fn test_input_translation_system_mode_combinations() {
+        // F0309: Test various combinations of terminal modes
+        
+        // Both modes enabled
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Up, KeyModifiers::NONE, true, true), "\x1bOA");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('5'), KeyModifiers::SHIFT, true, true), "\x1bOu");
+        
+        // Only cursor key mode enabled
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Left, KeyModifiers::NONE, true, false), "\x1bOD");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('3'), KeyModifiers::SHIFT, true, false), "3");
+        
+        // Only keypad mode enabled  
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Right, KeyModifiers::NONE, false, true), "\x1b[C");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Char('7'), KeyModifiers::SHIFT, false, true), "\x1bOw");
+    }
+
+    #[test]
+    fn test_input_translation_system_modifiers() {
+        // F0309: Test that modified keys work correctly with terminal modes
+        
+        // Modified cursor keys in normal mode
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Up, KeyModifiers::SHIFT, false, false), "\x1b[1;2A");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Right, KeyModifiers::CONTROL, false, false), "\x1b[1;5C");
+        
+        // Modified cursor keys in application mode  
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Down, KeyModifiers::ALT, true, false), "\x1b[1;3B");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Left, KeyModifiers::CONTROL | KeyModifiers::SHIFT, true, false), "\x1b[1;6D");
+    }
+
+    #[test]
+    fn test_input_translation_system_special_keys() {
+        // F0309: Test that non-cursor/keypad keys are unaffected by terminal modes
+        
+        // Function keys should be the same regardless of modes
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::F(1), KeyModifiers::NONE, false, false), "\x1bOP");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::F(1), KeyModifiers::NONE, true, true), "\x1bOP");
+        
+        // Tab, Enter, Escape should be unaffected
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Tab, KeyModifiers::NONE, false, false), "\t");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Tab, KeyModifiers::NONE, true, true), "\t");
+        
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Enter, KeyModifiers::NONE, false, false), "\r");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Enter, KeyModifiers::NONE, true, true), "\r");
+        
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Esc, KeyModifiers::NONE, false, false), "\x1b");
+        assert_eq!(format_key_for_pty_with_modes(KeyCode::Esc, KeyModifiers::NONE, true, true), "\x1b");
+    }
+
+    #[test]
+    fn test_backwards_compatibility() {
+        // F0309: Test that the backwards-compatible function works correctly
+        
+        // Should use normal mode defaults (false, false)
+        assert_eq!(format_key_for_pty(KeyCode::Up, KeyModifiers::NONE), "\x1b[A");
+        assert_eq!(format_key_for_pty(KeyCode::Char('5'), KeyModifiers::SHIFT), "5");
+        
+        // Should match the explicit call with false modes
+        assert_eq!(
+            format_key_for_pty(KeyCode::Left, KeyModifiers::CONTROL), 
+            format_key_for_pty_with_modes(KeyCode::Left, KeyModifiers::CONTROL, false, false)
+        );
+    }
+
+    #[test]
+    fn test_input_translation_comprehensive_sequences() {
+        // F0309: Comprehensive test of all key sequences
+        
+        // Test all arrow keys in both modes
+        let arrow_keys = [
+            (KeyCode::Up, "\x1b[A", "\x1bOA"),
+            (KeyCode::Down, "\x1b[B", "\x1bOB"), 
+            (KeyCode::Right, "\x1b[C", "\x1bOC"),
+            (KeyCode::Left, "\x1b[D", "\x1bOD"),
+        ];
+        
+        for (key, normal_seq, app_seq) in arrow_keys.iter() {
+            assert_eq!(format_key_for_pty_with_modes(*key, KeyModifiers::NONE, false, false), *normal_seq);
+            assert_eq!(format_key_for_pty_with_modes(*key, KeyModifiers::NONE, true, false), *app_seq);
+        }
+        
+        // Test all numeric keypad keys in both modes
+        let keypad_keys = [
+            ('0', "\x1bOp"), ('1', "\x1bOq"), ('2', "\x1bOr"), ('3', "\x1bOs"), ('4', "\x1bOt"),
+            ('5', "\x1bOu"), ('6', "\x1bOv"), ('7', "\x1bOw"), ('8', "\x1bOx"), ('9', "\x1bOy"),
+            ('.', "\x1bOn"), ('+', "\x1bOk"), ('-', "\x1bOm"), ('*', "\x1bOj"), 
+            ('/', "\x1bOo"), ('=', "\x1bOX"),
+        ];
+        
+        for (key_char, app_seq) in keypad_keys.iter() {
+            // Normal mode - literal character
+            assert_eq!(
+                format_key_for_pty_with_modes(KeyCode::Char(*key_char), KeyModifiers::SHIFT, false, false), 
+                key_char.to_string()
+            );
+            // Application keypad mode - escape sequence
+            assert_eq!(
+                format_key_for_pty_with_modes(KeyCode::Char(*key_char), KeyModifiers::SHIFT, false, true), 
+                *app_seq
+            );
+        }
     }
 }
 create_runnable!(
@@ -221,8 +475,18 @@ create_runnable!(
                             .unwrap_or(false);
 
                         if focused_muxbox_has_pty {
-                            // Convert key event to string and send to PTY
-                            let key_str = format_key_for_pty(code, modifiers);
+                            // F0309: Convert key event to string with terminal mode awareness
+                            // TODO: Get actual terminal modes from focused muxbox's terminal state
+                            let cursor_key_mode = false; // Default: normal cursor keys
+                            let keypad_mode = false;      // Default: normal keypad
+                            
+                            let key_str = format_key_for_pty_with_modes(
+                                code, 
+                                modifiers, 
+                                cursor_key_mode, 
+                                keypad_mode
+                            );
+                            
                             if let Some(focused_muxbox) = selected_muxboxes.first() {
                                 inner.send_message(Message::PTYInput(
                                     focused_muxbox.id.clone(),

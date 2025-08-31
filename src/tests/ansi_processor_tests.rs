@@ -67,8 +67,8 @@ mod ansi_processor_integration_tests {
         processor.process_string("Start\x1b[5;10HMiddle\x1b[1;1HBegin");
 
         // After positioning cursor and writing, should track position
-        assert!(processor.cursor_y <= 10); // Rough bounds check
-        assert!(processor.cursor_x >= 0);
+        assert!(processor.get_cursor_y() <= 10); // Rough bounds check
+        assert!(processor.get_cursor_x() >= 0);
     }
 
     #[test]
@@ -78,9 +78,9 @@ mod ansi_processor_integration_tests {
         processor.process_string("\x1b[31mRed\x1b[32mGreen\x1b[0mReset");
 
         // After reset, colors should be cleared
-        assert_eq!(processor.current_fg_color, None);
-        assert_eq!(processor.current_bg_color, None);
-        assert!(!processor.bold);
+        assert_eq!(processor.terminal_state.current_attributes.fg_color, None);
+        assert_eq!(processor.terminal_state.current_attributes.bg_color, None);
+        assert!(!processor.terminal_state.current_attributes.bold);
     }
 
     #[test]

@@ -173,3 +173,4 @@ pub mod periodic_source_stability_tests;
 // Commented out due to test framework complexity - functionality tested via demo YAML
 //#[cfg(test)]
 //pub mod choice_overflow_tests;
+pub mod full_screen_detection_tests;
