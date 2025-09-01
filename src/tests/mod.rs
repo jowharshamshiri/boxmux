@@ -212,4 +212,7 @@ pub mod full_screen_detection_tests;
 pub mod border_component_tests;
 
 #[cfg(test)]
+pub mod status_indicator_tests;
+
+#[cfg(test)]
 pub mod performance_optimization_tests; // F0316: Performance Optimization - Dirty Region Tracking Tests

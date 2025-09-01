@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
 use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
-use crate::components::{VerticalScrollbar, HorizontalScrollbar};
+use crate::components::{VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer};
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
@@ -823,231 +823,29 @@ pub fn render_muxbox(
             use crate::model::common::ChoicesStreamTrait;
             let choices = stream.get_choices();
             if !choices.is_empty() {
-                // Use existing choices rendering logic - pass the Choice objects directly
+                // Use ChoiceRenderer component for unified choice rendering
                 let viewable_height = bounds.height().saturating_sub(2); // Account for borders
-                let total_choices = choices.len();
-                let choice_overflows = total_choices > viewable_height;
-
-                // Calculate scroll offset for choices
-                let vertical_offset = if choice_overflows {
-                    ((vertical_scroll / 100.0) * (total_choices - viewable_height) as f64).floor()
-                        as usize
-                } else {
-                    0
-                };
-
-                // Respect overflow_behavior for choices
-                if choice_overflows && overflow_behavior == "scroll" {
-                    // Render visible choices with scrolling
-                    let visible_choices =
-                        choices.iter().skip(vertical_offset).take(viewable_height);
-                    let mut y_position = bounds.top() + 1;
-
-                    for choice in visible_choices {
-                        let fg_color = if choice.selected {
-                            selected_menu_fg_color
-                        } else {
-                            menu_fg_color
-                        };
-                        let bg_color = if choice.selected {
-                            selected_menu_bg_color
-                        } else {
-                            menu_bg_color
-                        };
-
-                        let formatted_content = if choice.waiting {
-                            format!("{}...", choice.content.as_ref().unwrap())
-                        } else {
-                            choice.content.as_ref().unwrap().to_string()
-                        };
-
-                        print_with_color_and_background_at(
-                            y_position,
-                            bounds.left() + 2,
-                            fg_color,
-                            bg_color,
-                            &formatted_content,
-                            buffer,
-                        );
-                        y_position += 1;
-                    }
-
-                    // Draw vertical scrollbar for choices using component
-                    if *draw_border {
-                        let vertical_scrollbar = VerticalScrollbar::new("choices".to_string());
-                        vertical_scrollbar.draw(
-                            &bounds,
-                            total_choices,
-                            viewable_height,
-                            vertical_scroll,
-                            border_color,
-                            bg_color,
-                            buffer,
-                        );
-                        scrollbars_drawn = true;
-                    }
-                } else {
-                    // Handle other overflow behaviors (wrap, fill, cross_out, removed) and clipping
-                    let mut y_position = bounds.top() + 1;
-                    let viewable_width = bounds.width().saturating_sub(4);
-                    let viewable_height = bounds.height().saturating_sub(2);
-
-                    if overflow_behavior == "wrap" {
-                        // Create all wrapped lines first
-                        let mut all_wrapped_lines = Vec::new();
-                        for choice in choices {
-                            let fg_color = if choice.selected {
-                                selected_menu_fg_color
-                            } else {
-                                menu_fg_color
-                            };
-                            let bg_color = if choice.selected {
-                                selected_menu_bg_color
-                            } else {
-                                menu_bg_color
-                            };
-
-                            let formatted_content = if choice.waiting {
-                                format!("{}...", choice.content.as_ref().unwrap())
-                            } else {
-                                choice.content.as_ref().unwrap().to_string()
-                            };
-
-                            // Wrap the choice text
-                            let wrapped_lines =
-                                wrap_text_to_width(&formatted_content, viewable_width);
-
-                            for wrapped_line in wrapped_lines {
-                                all_wrapped_lines.push((wrapped_line, fg_color, bg_color));
-                            }
-                        }
-
-                        // Calculate scroll offset for wrapped lines
-                        let total_wrapped_lines = all_wrapped_lines.len();
-                        let vertical_offset = if total_wrapped_lines > viewable_height {
-                            ((vertical_scroll / 100.0)
-                                * (total_wrapped_lines - viewable_height) as f64)
-                                .floor() as usize
-                        } else {
-                            0
-                        };
-
-                        // Render visible wrapped lines with scroll offset
-                        let visible_lines = all_wrapped_lines
-                            .iter()
-                            .skip(vertical_offset)
-                            .take(viewable_height);
-                        for (wrapped_line, fg_color, bg_color) in visible_lines {
-                            if y_position > bounds.bottom() - 1 {
-                                break; // Don't draw outside the bounds
-                            }
-
-                            print_with_color_and_background_at(
-                                y_position,
-                                bounds.left() + 2,
-                                *fg_color,
-                                *bg_color,
-                                wrapped_line,
-                                buffer,
-                            );
-                            y_position += 1;
-                        }
-
-                        // Check if wrapped choices overflow vertically and need scrollbar
-                        let total_wrapped_lines: usize = choices
-                            .iter()
-                            .map(|choice| {
-                                let formatted_content = if choice.waiting {
-                                    format!("{}...", choice.content.as_ref().unwrap())
-                                } else {
-                                    choice.content.as_ref().unwrap().to_string()
-                                };
-                                wrap_text_to_width(&formatted_content, viewable_width).len()
-                            })
-                            .sum();
-
-                        if total_wrapped_lines > viewable_height && *draw_border {
-                            let vertical_scrollbar = VerticalScrollbar::new("wrapped_choices".to_string());
-                            vertical_scrollbar.draw(
-                                &bounds,
-                                total_wrapped_lines,
-                                viewable_height,
-                                vertical_scroll,
-                                border_color,
-                                bg_color,
-                                buffer,
-                            );
-                            scrollbars_drawn = true;
-                        }
-                    } else {
-                        // Original choice rendering (simple clipping for other overflow behaviors)
-                        for choice in choices {
-                            if y_position > bounds.bottom() - 1 {
-                                break; // Don't draw outside the bounds
-                            }
-
-                            let fg_color = if choice.selected {
-                                selected_menu_fg_color
-                            } else {
-                                menu_fg_color
-                            };
-                            let bg_color = if choice.selected {
-                                selected_menu_bg_color
-                            } else {
-                                menu_bg_color
-                            };
-
-                            let formatted_content = if choice.waiting {
-                                format!("{}...", choice.content.as_ref().unwrap())
-                            } else {
-                                choice.content.as_ref().unwrap().to_string()
-                            };
-
-                            // Apply overflow behavior to choice text
-                            let processed_content = match overflow_behavior {
-                                "fill" => {
-                                    let mut filled = formatted_content.clone();
-                                    while filled.len() < viewable_width {
-                                        filled.push(' ');
-                                    }
-                                    filled.truncate(viewable_width);
-                                    filled
-                                }
-                                "cross_out" => {
-                                    let mut crossed = String::new();
-                                    for ch in formatted_content.chars().take(viewable_width) {
-                                        if ch == ' ' {
-                                            crossed.push(' ');
-                                        } else {
-                                            crossed.push('X');
-                                        }
-                                    }
-                                    crossed
-                                }
-                                "removed" => {
-                                    continue; // Don't draw removed choices
-                                }
-                                _ => {
-                                    // Default clipping behavior
-                                    if formatted_content.len() > viewable_width {
-                                        formatted_content.chars().take(viewable_width).collect()
-                                    } else {
-                                        formatted_content
-                                    }
-                                }
-                            };
-
-                            print_with_color_and_background_at(
-                                y_position,
-                                bounds.left() + 2,
-                                fg_color,
-                                bg_color,
-                                &processed_content,
-                                buffer,
-                            );
-                            y_position += 1;
-                        }
-                    }
+                let viewable_width = bounds.width().saturating_sub(4); // Account for borders and padding
+                
+                let choice_renderer = ChoiceRenderer::new("choices".to_string());
+                let component_scrollbars_drawn = choice_renderer.draw(
+                    &bounds,
+                    &choices,
+                    viewable_height,
+                    viewable_width,
+                    vertical_scroll,
+                    overflow_behavior,
+                    menu_fg_color,
+                    menu_bg_color,
+                    selected_menu_fg_color,
+                    selected_menu_bg_color,
+                    border_color,
+                    *draw_border,
+                    buffer,
+                );
+                
+                if component_scrollbars_drawn {
+                    scrollbars_drawn = true;
                 }
             }
         }

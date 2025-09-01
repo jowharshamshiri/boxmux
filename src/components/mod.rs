@@ -7,8 +7,12 @@ pub mod vertical_scrollbar;
 pub mod horizontal_scrollbar;
 pub mod tab_bar;
 pub mod border;
+pub mod status_indicator;
+pub mod choice_renderer;
 
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
 pub use tab_bar::{TabBar, TabNavigationAction};
 pub use border::{Border, BorderStyle, BorderCharSet};
+pub use status_indicator::{StatusIndicator, StatusType};
+pub use choice_renderer::ChoiceRenderer;
