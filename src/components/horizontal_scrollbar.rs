@@ -253,11 +253,11 @@ mod tests {
         assert!((scroll_pct - 0.0).abs() < 0.01);
         
         // Click at right of track should be close to 100%
-        let scroll_pct = scrollbar.click_position_to_scroll_percentage(49, &bounds);
-        assert!((scroll_pct - 97.44).abs() < 1.0); // Right edge of track
+        let scroll_pct = scrollbar.click_position_to_scroll_percentage(48, &bounds);
+        assert!((scroll_pct - 97.37).abs() < 1.0); // Right edge of track (now at position 48)
         
         // Click in middle should be ~50%
         let scroll_pct = scrollbar.click_position_to_scroll_percentage(30, &bounds);
-        assert!((scroll_pct - 48.72).abs() < 1.0); // Approximately 50%
+        assert!((scroll_pct - 50.0).abs() < 1.0); // Approximately 50%
     }
 }
