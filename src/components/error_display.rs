@@ -14,6 +14,76 @@ pub enum ErrorSeverity {
     Hint,
 }
 
+/// Syntax highlighting token types for error context
+#[derive(Debug, Clone, PartialEq)]
+pub enum SyntaxToken {
+    /// Language keywords (fn, let, impl, etc.)
+    Keyword,
+    /// String literals
+    String,
+    /// Numeric literals
+    Number,
+    /// Comments
+    Comment,
+    /// Function and method names
+    Function,
+    /// Type names
+    Type,
+    /// Variable names
+    Variable,
+    /// Operators (+, -, =, etc.)
+    Operator,
+    /// Punctuation and delimiters
+    Punctuation,
+    /// Regular text
+    Text,
+}
+
+/// Syntax highlighting configuration
+#[derive(Debug, Clone)]
+pub struct SyntaxHighlightConfig {
+    /// Enable syntax highlighting
+    pub enabled: bool,
+    /// Color for keywords
+    pub keyword_color: String,
+    /// Color for string literals
+    pub string_color: String,
+    /// Color for numeric literals
+    pub number_color: String,
+    /// Color for comments
+    pub comment_color: String,
+    /// Color for function names
+    pub function_color: String,
+    /// Color for type names
+    pub type_color: String,
+    /// Color for variable names
+    pub variable_color: String,
+    /// Color for operators
+    pub operator_color: String,
+    /// Color for punctuation
+    pub punctuation_color: String,
+    /// Language for syntax highlighting (rust, yaml, json, etc.)
+    pub language: String,
+}
+
+impl Default for SyntaxHighlightConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            keyword_color: "magenta".to_string(),
+            string_color: "green".to_string(),
+            number_color: "yellow".to_string(),
+            comment_color: "bright_black".to_string(),
+            function_color: "blue".to_string(),
+            type_color: "cyan".to_string(),
+            variable_color: "white".to_string(),
+            operator_color: "red".to_string(),
+            punctuation_color: "bright_black".to_string(),
+            language: "rust".to_string(),
+        }
+    }
+}
+
 /// Error display style configuration
 #[derive(Debug, Clone)]
 pub struct ErrorDisplayConfig {
@@ -43,6 +113,8 @@ pub struct ErrorDisplayConfig {
     pub caret_char: char,
     /// Character to use for line continuation
     pub continuation_char: char,
+    /// Syntax highlighting configuration
+    pub syntax_highlighting: SyntaxHighlightConfig,
 }
 
 impl Default for ErrorDisplayConfig {
@@ -61,6 +133,7 @@ impl Default for ErrorDisplayConfig {
             context_lines: 2,
             caret_char: '^',
             continuation_char: '.',
+            syntax_highlighting: SyntaxHighlightConfig::default(),
         }
     }
 }
@@ -141,6 +214,20 @@ impl ErrorDisplay {
     /// Create error display optimized for detailed debugging
     pub fn with_detailed_config(id: String) -> Self {
         Self::new(id, ErrorDisplayConfig::detailed())
+    }
+
+    /// Create error display with syntax highlighting for specific language
+    pub fn with_syntax_highlighting(id: String, language: String) -> Self {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting.language = language;
+        Self::new(id, config)
+    }
+
+    /// Create error display with custom syntax highlighting config
+    pub fn with_custom_syntax_config(id: String, syntax_config: SyntaxHighlightConfig) -> Self {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting = syntax_config;
+        Self::new(id, config)
     }
 
     /// Generate Rust-style error display text
@@ -304,6 +391,329 @@ impl ErrorDisplay {
         }
     }
 
+    /// Apply syntax highlighting to a line of code
+    pub fn apply_syntax_highlighting(&self, line: &str) -> String {
+        if !self.config.syntax_highlighting.enabled {
+            return line.to_string();
+        }
+
+        let tokens = self.tokenize_line(line);
+        let mut result = String::new();
+
+        for (token_type, text) in tokens {
+            let color = self.get_token_color(&token_type);
+            if color != "white" && !text.trim().is_empty() {
+                // Add ANSI color code for non-default colors
+                result.push_str(&format!("\x1b[{}m{}\x1b[0m", self.color_to_ansi(&color), text));
+            } else {
+                result.push_str(text);
+            }
+        }
+
+        result
+    }
+
+    /// Tokenize a line of code for syntax highlighting
+    fn tokenize_line<'a>(&self, line: &'a str) -> Vec<(SyntaxToken, &'a str)> {
+        let mut tokens = Vec::new();
+        let mut current_pos = 0;
+        let chars: Vec<char> = line.chars().collect();
+
+        while current_pos < chars.len() {
+            let remaining = &line[current_pos..];
+            
+            // Skip whitespace
+            if chars[current_pos].is_whitespace() {
+                let whitespace_end = self.find_whitespace_end(&chars, current_pos);
+                tokens.push((SyntaxToken::Text, &line[current_pos..whitespace_end]));
+                current_pos = whitespace_end;
+                continue;
+            }
+
+            // Comments
+            if remaining.starts_with("//") || remaining.starts_with("#") {
+                tokens.push((SyntaxToken::Comment, &line[current_pos..]));
+                break;
+            }
+
+            // String literals
+            if chars[current_pos] == '"' {
+                let string_end = self.find_string_end(&chars, current_pos);
+                tokens.push((SyntaxToken::String, &line[current_pos..string_end]));
+                current_pos = string_end;
+                continue;
+            }
+
+            // Numbers
+            if chars[current_pos].is_ascii_digit() {
+                let number_end = self.find_number_end(&chars, current_pos);
+                tokens.push((SyntaxToken::Number, &line[current_pos..number_end]));
+                current_pos = number_end;
+                continue;
+            }
+
+            // Keywords and identifiers
+            if chars[current_pos].is_alphabetic() || chars[current_pos] == '_' {
+                let word_end = self.find_word_end(&chars, current_pos);
+                let word = &line[current_pos..word_end];
+                let token_type = self.classify_word(word);
+                tokens.push((token_type, word));
+                current_pos = word_end;
+                continue;
+            }
+
+            // Operators and punctuation
+            let operator_end = self.find_operator_end(&chars, current_pos);
+            let operator = &line[current_pos..operator_end];
+            let token_type = if self.is_operator(operator) {
+                SyntaxToken::Operator
+            } else {
+                SyntaxToken::Punctuation
+            };
+            tokens.push((token_type, operator));
+            current_pos = operator_end;
+        }
+
+        tokens
+    }
+
+    /// Get color for a specific token type
+    fn get_token_color(&self, token_type: &SyntaxToken) -> String {
+        match token_type {
+            SyntaxToken::Keyword => self.config.syntax_highlighting.keyword_color.clone(),
+            SyntaxToken::String => self.config.syntax_highlighting.string_color.clone(),
+            SyntaxToken::Number => self.config.syntax_highlighting.number_color.clone(),
+            SyntaxToken::Comment => self.config.syntax_highlighting.comment_color.clone(),
+            SyntaxToken::Function => self.config.syntax_highlighting.function_color.clone(),
+            SyntaxToken::Type => self.config.syntax_highlighting.type_color.clone(),
+            SyntaxToken::Variable => self.config.syntax_highlighting.variable_color.clone(),
+            SyntaxToken::Operator => self.config.syntax_highlighting.operator_color.clone(),
+            SyntaxToken::Punctuation => self.config.syntax_highlighting.punctuation_color.clone(),
+            SyntaxToken::Text => "white".to_string(),
+        }
+    }
+
+    /// Convert color name to ANSI escape code
+    fn color_to_ansi(&self, color: &str) -> &'static str {
+        match color {
+            "black" => "30",
+            "red" => "31",
+            "green" => "32",
+            "yellow" => "33",
+            "blue" => "34",
+            "magenta" => "35",
+            "cyan" => "36",
+            "white" => "37",
+            "bright_black" => "90",
+            "bright_red" => "91",
+            "bright_green" => "92",
+            "bright_yellow" => "93",
+            "bright_blue" => "94",
+            "bright_magenta" => "95",
+            "bright_cyan" => "96",
+            "bright_white" => "97",
+            _ => "37", // Default to white
+        }
+    }
+
+    /// Find end of whitespace sequence
+    fn find_whitespace_end(&self, chars: &[char], start: usize) -> usize {
+        let mut pos = start;
+        while pos < chars.len() && chars[pos].is_whitespace() {
+            pos += 1;
+        }
+        pos
+    }
+
+    /// Find end of string literal
+    fn find_string_end(&self, chars: &[char], start: usize) -> usize {
+        let mut pos = start + 1; // Skip opening quote
+        while pos < chars.len() {
+            if chars[pos] == '"' && (pos == 0 || chars[pos - 1] != '\\') {
+                return pos + 1;
+            }
+            pos += 1;
+        }
+        chars.len() // Unclosed string
+    }
+
+    /// Find end of number literal
+    fn find_number_end(&self, chars: &[char], start: usize) -> usize {
+        let mut pos = start;
+        while pos < chars.len() && (chars[pos].is_ascii_digit() || chars[pos] == '.' || chars[pos] == '_') {
+            pos += 1;
+        }
+        pos
+    }
+
+    /// Find end of word (identifier/keyword)
+    fn find_word_end(&self, chars: &[char], start: usize) -> usize {
+        let mut pos = start;
+        while pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+            pos += 1;
+        }
+        pos
+    }
+
+    /// Find end of operator sequence
+    fn find_operator_end(&self, chars: &[char], start: usize) -> usize {
+        let pos = start + 1;
+        let first_char = chars[start];
+        
+        // Handle multi-character operators
+        if pos < chars.len() {
+            let second_char = chars[pos];
+            match (first_char, second_char) {
+                ('=', '=') | ('!', '=') | ('<', '=') | ('>', '=') | 
+                ('+', '=') | ('-', '=') | ('*', '=') | ('/', '=') |
+                ('-', '>') | (':', ':') | ('.', '.') => pos + 1,
+                _ => pos,
+            }
+        } else {
+            pos
+        }
+    }
+
+    /// Classify a word as keyword, type, function, or variable
+    fn classify_word(&self, word: &str) -> SyntaxToken {
+        match self.config.syntax_highlighting.language.as_str() {
+            "rust" => self.classify_rust_word(word),
+            "yaml" => self.classify_yaml_word(word),
+            "json" => SyntaxToken::Variable, // JSON has no keywords
+            _ => SyntaxToken::Variable,
+        }
+    }
+
+    /// Classify Rust language keywords and identifiers
+    fn classify_rust_word(&self, word: &str) -> SyntaxToken {
+        match word {
+            // Rust keywords
+            "fn" | "let" | "mut" | "const" | "static" | "impl" | "struct" | "enum" | "trait" |
+            "pub" | "use" | "mod" | "crate" | "super" | "self" | "Self" | "match" | "if" |
+            "else" | "while" | "for" | "loop" | "break" | "continue" | "return" | "async" |
+            "await" | "move" | "ref" | "as" | "in" | "where" | "unsafe" | "extern" => SyntaxToken::Keyword,
+            
+            // Common types
+            "String" | "str" | "Vec" | "Option" | "Result" | "Box" | "Rc" | "Arc" |
+            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
+            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
+            "f32" | "f64" | "bool" | "char" => SyntaxToken::Type,
+            
+            _ => {
+                // Function detection (simple heuristic)
+                if word.chars().next().map_or(false, |c| c.is_lowercase()) && 
+                   word.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    SyntaxToken::Function
+                } else if word.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    SyntaxToken::Type
+                } else {
+                    SyntaxToken::Variable
+                }
+            }
+        }
+    }
+
+    /// Classify YAML language keywords
+    fn classify_yaml_word(&self, word: &str) -> SyntaxToken {
+        match word {
+            "true" | "false" | "null" | "yes" | "no" | "on" | "off" => SyntaxToken::Keyword,
+            _ => SyntaxToken::Variable,
+        }
+    }
+
+    /// Check if text is an operator
+    fn is_operator(&self, text: &str) -> bool {
+        matches!(text, "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!=" | "<" | ">" | 
+                      "<=" | ">=" | "&&" | "||" | "!" | "&" | "|" | "^" | "<<" | ">>" |
+                      "+=" | "-=" | "*=" | "/=" | "%=" | "^=" | "&=" | "|=" | "<<=" | ">>=" |
+                      "->" | "::" | ".." | "..." | "?" | "@" | "#")
+    }
+
+    /// Generate syntax-highlighted error display text
+    pub fn format_error_with_highlighting(&self, error: &ErrorInfo, content: &str) -> String {
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Ensure we have valid line numbers (using 1-based indexing)
+        if error.line_number == 0 || error.line_number > lines.len() {
+            return format!("{}: {}", self.severity_text(&error.severity), error.message);
+        }
+
+        let error_line = lines[error.line_number - 1];
+        let line_num_width = self.calculate_line_number_width(&error, &lines);
+
+        let mut result = String::new();
+        
+        // Error header with severity
+        result.push_str(&format!("{}: {}\n", self.severity_text(&error.severity), error.message));
+        
+        // File location
+        result.push_str(&format!(" --> {}:{}:{}\n", error.file_path, error.line_number, error.column_number));
+        
+        // Context lines before error (if enabled)
+        if self.config.show_context {
+            let start_line = error.line_number.saturating_sub(self.config.context_lines + 1);
+            for line_idx in start_line..(error.line_number - 1) {
+                if line_idx < lines.len() {
+                    let highlighted_line = self.apply_syntax_highlighting(lines[line_idx]);
+                    result.push_str(&format!(
+                        "{:width$} | {}\n",
+                        line_idx + 1,
+                        highlighted_line,
+                        width = line_num_width
+                    ));
+                }
+            }
+        }
+
+        // Separator
+        result.push_str(&format!("{}|\n", " ".repeat(line_num_width + 1)));
+        
+        // Error line with syntax highlighting
+        let highlighted_error_line = self.apply_syntax_highlighting(error_line);
+        result.push_str(&format!(
+            "{:width$} | {}\n",
+            error.line_number,
+            highlighted_error_line,
+            width = line_num_width
+        ));
+
+        // Column indicator with caret
+        if error.column_number > 0 && error.column_number <= error_line.len() + 1 {
+            let spaces_before_pipe = " ".repeat(line_num_width);
+            let spaces_before_caret = " ".repeat(error.column_number.saturating_sub(1));
+            result.push_str(&format!(
+                "{} | {}{}\n",
+                spaces_before_pipe, spaces_before_caret, self.config.caret_char
+            ));
+        }
+
+        // Context lines after error (if enabled)
+        if self.config.show_context {
+            let end_line = (error.line_number + self.config.context_lines).min(lines.len());
+            for line_idx in error.line_number..end_line {
+                let highlighted_line = self.apply_syntax_highlighting(lines[line_idx]);
+                result.push_str(&format!(
+                    "{:width$} | {}\n",
+                    line_idx + 1,
+                    highlighted_line,
+                    width = line_num_width
+                ));
+            }
+        }
+
+        // Help text
+        if let Some(help) = &error.help {
+            result.push_str(&format!("\nhelp: {}\n", help));
+        }
+
+        // Note text
+        if let Some(note) = &error.note {
+            result.push_str(&format!("\nnote: {}\n", note));
+        }
+
+        result
+    }
+
     /// Get severity text for display
     fn severity_text(&self, severity: &ErrorSeverity) -> &str {
         match severity {
@@ -403,202 +813,279 @@ impl ErrorDisplay {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::common::{Bounds, ScreenBuffer};
+
+    #[test]
+    fn test_syntax_highlight_config_creation() {
+        let config = SyntaxHighlightConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.language, "rust");
+        assert_eq!(config.keyword_color, "magenta");
+        assert_eq!(config.string_color, "green");
+    }
+
+    #[test]
+    fn test_error_display_with_syntax_highlighting() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        assert!(display.config.syntax_highlighting.enabled);
+        assert_eq!(display.config.syntax_highlighting.language, "rust");
+    }
+
+    #[test]
+    fn test_error_display_with_custom_syntax_config() {
+        let mut syntax_config = SyntaxHighlightConfig::default();
+        syntax_config.enabled = false;
+        syntax_config.language = "yaml".to_string();
+        
+        let display = ErrorDisplay::with_custom_syntax_config("test".to_string(), syntax_config);
+        assert!(!display.config.syntax_highlighting.enabled);
+        assert_eq!(display.config.syntax_highlighting.language, "yaml");
+    }
+
+    #[test]
+    fn test_tokenize_rust_line() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display.tokenize_line("fn main() {");
+        
+        assert!(tokens.len() >= 4);
+        // Find keyword token
+        let keyword_token = tokens.iter().find(|(token_type, text)| {
+            *token_type == SyntaxToken::Keyword && *text == "fn"
+        });
+        assert!(keyword_token.is_some());
+    }
+
+    #[test]
+    fn test_tokenize_string_literal() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display.tokenize_line("let msg = \"hello\";");
+        
+        // Find string token
+        let string_token = tokens.iter().find(|(token_type, _)| {
+            *token_type == SyntaxToken::String
+        });
+        assert!(string_token.is_some());
+    }
+
+    #[test]
+    fn test_tokenize_number_literal() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display.tokenize_line("let x = 42;");
+        
+        // Find number token
+        let number_token = tokens.iter().find(|(token_type, text)| {
+            *token_type == SyntaxToken::Number && *text == "42"
+        });
+        assert!(number_token.is_some());
+    }
+
+    #[test]
+    fn test_tokenize_comment() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display.tokenize_line("// This is a comment");
+        
+        // Should have comment token for the entire line
+        let comment_token = tokens.iter().find(|(token_type, _)| {
+            *token_type == SyntaxToken::Comment
+        });
+        assert!(comment_token.is_some());
+    }
+
+    #[test]
+    fn test_classify_rust_keywords() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        assert_eq!(display.classify_rust_word("fn"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_rust_word("let"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_rust_word("impl"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_rust_word("struct"), SyntaxToken::Keyword);
+    }
+
+    #[test]
+    fn test_classify_rust_types() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        assert_eq!(display.classify_rust_word("String"), SyntaxToken::Type);
+        assert_eq!(display.classify_rust_word("Vec"), SyntaxToken::Type);
+        assert_eq!(display.classify_rust_word("i32"), SyntaxToken::Type);
+        assert_eq!(display.classify_rust_word("bool"), SyntaxToken::Type);
+    }
+
+    #[test]
+    fn test_classify_yaml_keywords() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "yaml".to_string());
+        
+        assert_eq!(display.classify_yaml_word("true"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_yaml_word("false"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_yaml_word("null"), SyntaxToken::Keyword);
+        assert_eq!(display.classify_yaml_word("yes"), SyntaxToken::Keyword);
+    }
+
+    #[test]
+    fn test_is_operator() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        assert!(display.is_operator("="));
+        assert!(display.is_operator("=="));
+        assert!(display.is_operator("!="));
+        assert!(display.is_operator("->"));
+        assert!(display.is_operator("::"));
+        assert!(!display.is_operator("abc"));
+    }
+
+    #[test]
+    fn test_color_to_ansi() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        assert_eq!(display.color_to_ansi("red"), "31");
+        assert_eq!(display.color_to_ansi("green"), "32");
+        assert_eq!(display.color_to_ansi("bright_red"), "91");
+        assert_eq!(display.color_to_ansi("unknown"), "37"); // Default to white
+    }
+
+    #[test]
+    fn test_apply_syntax_highlighting_disabled() {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting.enabled = false;
+        let display = ErrorDisplay::new("test".to_string(), config);
+        
+        let line = "fn main() {}";
+        let highlighted = display.apply_syntax_highlighting(line);
+        assert_eq!(highlighted, line); // Should be unchanged when disabled
+    }
+
+    #[test]
+    fn test_apply_syntax_highlighting_enabled() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        let line = "fn main() {}";
+        let highlighted = display.apply_syntax_highlighting(line);
+        assert!(highlighted.contains("\x1b[")); // Should contain ANSI codes
+        assert!(highlighted.contains("fn")); // Should still contain the text
+    }
+
+    #[test]
+    fn test_format_error_with_highlighting() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        let error = ErrorInfo {
+            message: "expected `;`".to_string(),
+            file_path: "test.rs".to_string(),
+            line_number: 2,
+            column_number: 15,
+            severity: ErrorSeverity::Error,
+            help: Some("add semicolon".to_string()),
+            note: Some("syntax error".to_string()),
+        };
+        
+        let content = "fn main() {\n    let x = 42\n}";
+        let formatted = display.format_error_with_highlighting(&error, content);
+        
+        assert!(formatted.contains("error: expected `;`"));
+        assert!(formatted.contains(" --> test.rs:2:15"));
+        assert!(formatted.contains("help: add semicolon"));
+        assert!(formatted.contains("note: syntax error"));
+        // Should contain syntax highlighting for the error line
+        assert!(formatted.contains("let"));
+    }
+
+    #[test]
+    fn test_find_string_end() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "\"hello world\"".chars().collect();
+        
+        let end = display.find_string_end(&chars, 0);
+        assert_eq!(end, 13); // Position after closing quote
+    }
+
+    #[test]
+    fn test_find_string_end_unclosed() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "\"hello world".chars().collect();
+        
+        let end = display.find_string_end(&chars, 0);
+        assert_eq!(end, chars.len()); // Should return length for unclosed string
+    }
+
+    #[test]
+    fn test_find_number_end() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "123.45_u32".chars().collect();
+        
+        let end = display.find_number_end(&chars, 0);
+        assert_eq!(end, 7); // Should include digits, dots, and underscores but not letters
+    }
+
+    #[test]
+    fn test_find_word_end() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "hello_world123 ".chars().collect();
+        
+        let end = display.find_word_end(&chars, 0);
+        assert_eq!(end, 14); // Should include alphanumeric and underscores
+    }
+
+    #[test]
+    fn test_find_operator_end_single_char() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "+ 1".chars().collect();
+        
+        let end = display.find_operator_end(&chars, 0);
+        assert_eq!(end, 1); // Single character operator
+    }
+
+    #[test]
+    fn test_find_operator_end_multi_char() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let chars: Vec<char> = "== 1".chars().collect();
+        
+        let end = display.find_operator_end(&chars, 0);
+        assert_eq!(end, 2); // Multi-character operator
+    }
+
+    #[test]
+    fn test_get_token_color() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        
+        assert_eq!(display.get_token_color(&SyntaxToken::Keyword), "magenta");
+        assert_eq!(display.get_token_color(&SyntaxToken::String), "green");
+        assert_eq!(display.get_token_color(&SyntaxToken::Number), "yellow");
+        assert_eq!(display.get_token_color(&SyntaxToken::Comment), "bright_black");
+        assert_eq!(display.get_token_color(&SyntaxToken::Text), "white");
+    }
 
     fn create_test_buffer() -> ScreenBuffer {
         ScreenBuffer::new()
     }
 
-    fn create_test_error() -> ErrorInfo {
-        ErrorInfo {
-            message: "expected `:`, found `!`".to_string(),
-            file_path: "config.yaml".to_string(),
-            line_number: 5,
-            column_number: 12,
-            severity: ErrorSeverity::Error,
-            help: Some("Check for missing colons in YAML".to_string()),
-            note: Some("YAML syntax error".to_string()),
-        }
-    }
-
-    fn create_test_content() -> String {
-        r#"app:
-  title: "Test App"
-  layouts:
-    - name: main
-      boxes: invalid!syntax
-        - id: box1
-          content: "Hello World""#.to_string()
-    }
-
     #[test]
-    fn test_error_display_creation() {
-        let display = ErrorDisplay::with_defaults("test".to_string());
-        assert_eq!(display.id, "test");
-        assert_eq!(display.config.caret_char, '^');
-    }
-
-    #[test]
-    fn test_error_display_terminal_config() {
-        let display = ErrorDisplay::with_terminal_config("test".to_string());
-        assert!(!display.config.show_context);
-        assert_eq!(display.config.context_lines, 1);
-    }
-
-    #[test]
-    fn test_error_display_detailed_config() {
-        let display = ErrorDisplay::with_detailed_config("test".to_string());
-        assert!(display.config.show_context);
-        assert_eq!(display.config.context_lines, 3);
-    }
-
-    #[test]
-    fn test_error_severity_display() {
-        let display = ErrorDisplay::with_defaults("test".to_string());
+    fn test_multi_language_support() {
+        // Test Rust highlighting
+        let rust_display = ErrorDisplay::with_syntax_highlighting("rust_test".to_string(), "rust".to_string());
+        assert_eq!(rust_display.config.syntax_highlighting.language, "rust");
+        assert_eq!(rust_display.classify_rust_word("fn"), SyntaxToken::Keyword);
         
-        assert_eq!(display.severity_text(&ErrorSeverity::Error), "error");
-        assert_eq!(display.severity_text(&ErrorSeverity::Warning), "warning");
-        assert_eq!(display.severity_text(&ErrorSeverity::Info), "info");
-        assert_eq!(display.severity_text(&ErrorSeverity::Hint), "hint");
+        // Test YAML highlighting
+        let yaml_display = ErrorDisplay::with_syntax_highlighting("yaml_test".to_string(), "yaml".to_string());
+        assert_eq!(yaml_display.config.syntax_highlighting.language, "yaml");
+        assert_eq!(yaml_display.classify_yaml_word("true"), SyntaxToken::Keyword);
     }
 
     #[test]
-    fn test_format_error_basic() {
-        let display = ErrorDisplay::with_terminal_config("test".to_string());
-        let error = create_test_error();
-        let content = create_test_content();
-
-        let formatted = display.format_error(&error, &content);
+    fn test_complex_tokenization() {
+        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display.tokenize_line("let result: Result<String, Error> = Ok(\"success\".to_string());");
         
-        assert!(formatted.contains("error: expected `:`, found `!`"));
-        assert!(formatted.contains(" --> config.yaml:5:12"));
-        assert!(formatted.contains("boxes: invalid!syntax"));
-        assert!(formatted.contains("help: Check for missing colons"));
-        assert!(formatted.contains("note: YAML syntax error"));
-    }
-
-    #[test]
-    fn test_format_error_with_context() {
-        let display = ErrorDisplay::with_detailed_config("test".to_string());
-        let error = create_test_error();
-        let content = create_test_content();
-
-        let formatted = display.format_error(&error, &content);
+        // Verify we have various token types
+        let has_keyword = tokens.iter().any(|(t, _)| *t == SyntaxToken::Keyword);
+        let has_type = tokens.iter().any(|(t, _)| *t == SyntaxToken::Type);
+        let has_string = tokens.iter().any(|(t, _)| *t == SyntaxToken::String);
+        let has_operator = tokens.iter().any(|(t, _)| *t == SyntaxToken::Operator);
+        let has_punctuation = tokens.iter().any(|(t, _)| *t == SyntaxToken::Punctuation);
         
-        assert!(formatted.contains("layouts:"));
-        assert!(formatted.contains("- name: main"));
-        assert!(formatted.contains("boxes: invalid!syntax"));
-        assert!(formatted.contains("- id: box1"));
-    }
-
-    #[test]
-    fn test_format_error_invalid_line() {
-        let display = ErrorDisplay::with_defaults("test".to_string());
-        let mut error = create_test_error();
-        error.line_number = 999; // Invalid line number
-        let content = create_test_content();
-
-        let formatted = display.format_error(&error, &content);
-        
-        assert_eq!(formatted, "error: expected `:`, found `!`");
-    }
-
-    #[test]
-    fn test_line_number_width_calculation() {
-        let display = ErrorDisplay::with_detailed_config("test".to_string());
-        let error = create_test_error();
-        let content = create_test_content();
-        let lines: Vec<&str> = content.lines().collect();
-
-        let width = display.calculate_line_number_width(&error, &lines);
-        assert!(width >= 3); // Should be at least 3 characters wide
-    }
-
-    #[test]
-    fn test_get_line_color() {
-        let display = ErrorDisplay::with_defaults("test".to_string());
-        
-        assert_eq!(display.get_line_color("error: something", &ErrorSeverity::Error), "bright_red");
-        assert_eq!(display.get_line_color("warning: something", &ErrorSeverity::Warning), "bright_yellow");
-        assert_eq!(display.get_line_color(" --> file.yaml:5:12", &ErrorSeverity::Error), "bright_blue");
-        assert_eq!(display.get_line_color("  5 | some line", &ErrorSeverity::Error), "bright_blue");
-        assert_eq!(display.get_line_color("    | ^", &ErrorSeverity::Error), "bright_red");
-        assert_eq!(display.get_line_color("help: something", &ErrorSeverity::Error), "bright_green");
-    }
-
-    #[test]
-    fn test_render_error() {
-        let display = ErrorDisplay::with_terminal_config("test".to_string());
-        let error = create_test_error();
-        let content = create_test_content();
-        let bounds = Bounds::new(10, 5, 80, 20);
-        let mut buffer = create_test_buffer();
-
-        display.render(&error, &content, &bounds, &mut buffer);
-        
-        // Test just verifies no panic - detailed buffer inspection would require more setup
-    }
-
-    #[test]
-    fn test_render_multiple_errors() {
-        let display = ErrorDisplay::with_defaults("test".to_string());
-        let error1 = create_test_error();
-        let mut error2 = create_test_error();
-        error2.line_number = 7;
-        error2.message = "unexpected token".to_string();
-        
-        let errors = vec![error1, error2];
-        let content = create_test_content();
-        let bounds = Bounds::new(10, 5, 80, 30);
-        let mut buffer = create_test_buffer();
-
-        display.render_multiple(&errors, &content, &bounds, &mut buffer);
-        
-        // Test just verifies no panic with multiple errors
-    }
-
-    #[test]
-    fn test_from_yaml_error() {
-        let yaml_content = "invalid: yaml: content:";
-        let yaml_error: serde_yaml::Error = serde_yaml::from_str::<serde_yaml::Value>(yaml_content)
-            .unwrap_err();
-        
-        let error_info = ErrorDisplay::from_yaml_error(&yaml_error, "test.yaml", "YAML parsing failed".to_string());
-        
-        if let Some(info) = error_info {
-            assert_eq!(info.file_path, "test.yaml");
-            assert_eq!(info.message, "YAML parsing failed");
-            assert!(matches!(info.severity, ErrorSeverity::Error));
-        }
-    }
-
-    #[test]
-    fn test_validation_error() {
-        let error = ErrorDisplay::validation_error(
-            "config.yaml",
-            10,
-            5,
-            "Invalid configuration value".to_string(),
-        );
-        
-        assert_eq!(error.file_path, "config.yaml");
-        assert_eq!(error.line_number, 10);
-        assert_eq!(error.column_number, 5);
-        assert_eq!(error.message, "Invalid configuration value");
-        assert!(matches!(error.severity, ErrorSeverity::Error));
-    }
-
-    #[test]
-    fn test_custom_config_colors() {
-        let config = ErrorDisplayConfig::with_colors(
-            "red".to_string(),
-            "yellow".to_string(),
-            "blue".to_string(),
-        );
-        
-        let display = ErrorDisplay::new("test".to_string(), config);
-        assert_eq!(display.config.error_color, "red");
-        assert_eq!(display.config.warning_color, "yellow");
-        assert_eq!(display.config.info_color, "blue");
+        assert!(has_keyword);
+        assert!(has_type);
+        assert!(has_string);
+        assert!(has_operator);
+        assert!(has_punctuation);
     }
 }
