@@ -1227,11 +1227,31 @@ impl MuxBox {
             }
         }
 
-        // Check text content for overflow (if no choices, or choices don't overflow)
-        let content = if !self.output.is_empty() {
-            Some(self.output.as_str())
-        } else {
-            self.content.as_deref()
+        // Check text content for overflow from streams (F0214: Stream-based scrollbar fix)
+        let content = {
+            // Use get_active_stream_content() to match how scrollbars are drawn in draw_utils.rs
+            if let Some(stream) = self.get_active_stream() {
+                match stream.stream_type {
+                    crate::model::common::StreamType::Content
+                    | crate::model::common::StreamType::RedirectedOutput(_)
+                    | crate::model::common::StreamType::PTY
+                    | crate::model::common::StreamType::Plugin(_)
+                    | crate::model::common::StreamType::ChoiceExecution(_)
+                    | crate::model::common::StreamType::PtySession(_)
+                    | crate::model::common::StreamType::OwnScript => {
+                        use crate::model::common::ContentStreamTrait;
+                        Some(stream.get_content_lines().join("\n"))
+                    }
+                    _ => None,
+                }
+            } else {
+                // Fallback to old field-based approach for backward compatibility
+                if !self.output.is_empty() {
+                    Some(self.output.as_str())
+                } else {
+                    self.content.as_deref()
+                }.map(|s| s.to_string())
+            }
         };
 
         if let Some(content_str) = content {

@@ -1,0 +1,100 @@
+app:
+  layouts:
+    - id: "scrollbar_test"
+      root: true
+      children:
+        # Static content box with long content (should show both scrollbars)
+        - id: "static_content"
+          title: "Static Content (should scroll)"
+          position:
+            x1: "5%"
+            y1: "5%"
+            x2: "45%"
+            y2: "45%"
+          border: true
+          border_color: "cyan"
+          content: |
+            This is a very long line that should trigger horizontal scrolling because it exceeds the muxbox width significantly.
+            Line 2 of content
+            Line 3 of content
+            Line 4 of content
+            Line 5 of content
+            Line 6 of content
+            Line 7 of content
+            Line 8 of content
+            Line 9 of content
+            Line 10 of content
+            Line 11 of content
+            Line 12 of content
+            Line 13 of content
+            Line 14 of content
+            Line 15 of content (should exceed vertical height)
+
+        # Script output box with periodic updates (should show scrollbars)
+        - id: "script_output"  
+          title: "Script Output (should scroll)"
+          position:
+            x1: "55%"
+            y1: "5%"
+            x2: "95%"
+            y2: "45%"
+          border: true
+          border_color: "yellow"
+          script:
+            - "for i in {1..20}; do echo \"Script output line $i - this is a very long line that should trigger horizontal scrolling because it exceeds the box width\"; done"
+          refresh_interval: 3000
+
+        # Choice box with many choices (should show vertical scrollbar)
+        - id: "many_choices"
+          title: "Many Choices (should scroll)"
+          position:
+            x1: "5%"
+            y1: "55%"
+            x2: "45%"
+            y2: "95%"
+          border: true
+          border_color: "green"
+          choices:
+            - id: "choice1"
+              content: "Choice 1 - Very long choice content that should trigger horizontal scrolling"
+            - id: "choice2"
+              content: "Choice 2"
+            - id: "choice3"
+              content: "Choice 3"
+            - id: "choice4"
+              content: "Choice 4"
+            - id: "choice5"
+              content: "Choice 5"
+            - id: "choice6"
+              content: "Choice 6"
+            - id: "choice7"
+              content: "Choice 7"
+            - id: "choice8"
+              content: "Choice 8"
+            - id: "choice9"
+              content: "Choice 9"
+            - id: "choice10"
+              content: "Choice 10"
+
+        # Instructions
+        - id: "instructions"
+          title: "Scrollbar Test Instructions"
+          position:
+            x1: "55%"
+            y1: "55%"
+            x2: "95%"
+            y2: "95%"
+          border: true
+          border_color: "magenta"
+          content: |
+            SCROLLBAR TEST:
+            
+            1. Static content (top-left): Should show both vertical and horizontal scrollbars
+            2. Script output (top-right): Should show scrollbars and respond to mouse clicks
+            3. Many choices (bottom-left): Should show vertical scrollbar for choices
+            
+            Test:
+            - Click on scrollbars to jump to position
+            - Use arrow keys to scroll when box is selected
+            - Horizontal scrollbars should appear ABOVE bottom border
+            - All scrollbars should respond to interaction

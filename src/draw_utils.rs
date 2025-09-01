@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
 use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
+use crate::components::{VerticalScrollbar, HorizontalScrollbar};
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
@@ -561,10 +562,7 @@ pub fn draw_horizontal_line_with_title(
     // If there is no title and no border, do nothing
 }
 
-static H_SCROLL_CHAR: &str = "■";
-static V_SCROLL_CHAR: &str = "█";
-static H_SCROLL_TRACK: &str = "─";
-static V_SCROLL_TRACK: &str = "│";
+// Scrollbar constants moved to components module
 
 // F0203: Multi-Stream Input Tabs - Tab rendering functions
 pub fn draw_horizontal_line_with_tabs(
@@ -1461,9 +1459,10 @@ pub fn render_muxbox(
                         y_position += 1;
                     }
 
-                    // Draw vertical scrollbar for choices
+                    // Draw vertical scrollbar for choices using component
                     if *draw_border {
-                        draw_vertical_scrollbar(
+                        let vertical_scrollbar = VerticalScrollbar::new("choices".to_string());
+                        vertical_scrollbar.draw(
                             &bounds,
                             total_choices,
                             viewable_height,
@@ -1555,7 +1554,8 @@ pub fn render_muxbox(
                             .sum();
 
                         if total_wrapped_lines > viewable_height && *draw_border {
-                            draw_vertical_scrollbar(
+                            let vertical_scrollbar = VerticalScrollbar::new("wrapped_choices".to_string());
+                            vertical_scrollbar.draw(
                                 &bounds,
                                 total_wrapped_lines,
                                 viewable_height,
@@ -1728,96 +1728,28 @@ pub fn render_muxbox(
                 );
             }
 
-            // Drawing scroll indicators with track and position
-            if max_content_height > viewable_height {
-                let track_height = bounds.bottom().saturating_sub(bounds.top() + 1); // Actual track space
+            // Draw scrollbars using components
+            let vertical_scrollbar = VerticalScrollbar::new("content".to_string());
+            vertical_scrollbar.draw(
+                &bounds,
+                max_content_height,
+                viewable_height,
+                vertical_scroll,
+                border_color,
+                bg_color,
+                buffer,
+            );
 
-                // Draw vertical scroll track
-                for y in (bounds.top() + 1)..bounds.bottom() {
-                    print_with_color_and_background_at(
-                        y,
-                        bounds.right(),
-                        "bright_black",
-                        bg_color,
-                        V_SCROLL_TRACK,
-                        buffer,
-                    );
-                }
-
-                if track_height > 0 {
-                    // Calculate proportional knob size and position
-                    let content_ratio = viewable_height as f64 / max_content_height as f64;
-                    let knob_size =
-                        std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
-                    let available_track = track_height.saturating_sub(knob_size);
-
-                    let knob_position = if available_track > 0 {
-                        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
-                    } else {
-                        0
-                    };
-
-                    // Draw proportional vertical scroll knob
-                    for i in 0..knob_size {
-                        let knob_y = bounds.top() + 1 + knob_position + i;
-                        if knob_y < bounds.bottom() {
-                            print_with_color_and_background_at(
-                                knob_y,
-                                bounds.right(),
-                                border_color,
-                                bg_color,
-                                V_SCROLL_CHAR,
-                                buffer,
-                            );
-                        }
-                    }
-                }
-            }
-
-            if max_content_width > viewable_width {
-                let track_width = bounds.right().saturating_sub(bounds.left() + 1); // Actual track space
-
-                // Draw horizontal scroll track
-                for x in (bounds.left() + 1)..bounds.right() {
-                    print_with_color_and_background_at(
-                        bounds.bottom(),
-                        x,
-                        "bright_black",
-                        bg_color,
-                        H_SCROLL_TRACK,
-                        buffer,
-                    );
-                }
-
-                if track_width > 0 {
-                    // Calculate proportional knob size and position
-                    let content_ratio = viewable_width as f64 / max_content_width as f64;
-                    let knob_size =
-                        std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
-                    let available_track = track_width.saturating_sub(knob_size);
-
-                    let knob_position = if available_track > 0 {
-                        ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
-                    } else {
-                        0
-                    };
-
-                    // Draw proportional horizontal scroll knob
-                    for i in 0..knob_size {
-                        let knob_x = bounds.left() + 1 + knob_position + i;
-                        if knob_x < bounds.right() {
-                            print_with_color_and_background_at(
-                                bounds.bottom(),
-                                knob_x,
-                                border_color,
-                                bg_color,
-                                H_SCROLL_CHAR,
-                                buffer,
-                            );
-                        }
-                    }
-                }
-            }
+            let horizontal_scrollbar = HorizontalScrollbar::new("content".to_string());
+            horizontal_scrollbar.draw(
+                &bounds,
+                max_content_width,
+                viewable_width,
+                horizontal_scroll,
+                border_color,
+                bg_color,
+                buffer,
+            );
 
             // Scroll position percentage indicator removed - visual scrollbars provide sufficient feedback
 
@@ -1888,7 +1820,8 @@ pub fn render_muxbox(
 
             // Draw vertical scrollbar if wrapped content overflows
             if wrapped_overflows_vertically && *draw_border {
-                draw_vertical_scrollbar(
+                let vertical_scrollbar = VerticalScrollbar::new("wrapped_content".to_string());
+                vertical_scrollbar.draw(
                     &bounds,
                     wrapped_content.len(),
                     viewable_height,
@@ -1920,7 +1853,8 @@ pub fn render_muxbox(
 
             // Draw vertical scrollbar if wrapped choices overflow
             if wrapped_overflows_vertically && *draw_border {
-                draw_vertical_scrollbar(
+                let vertical_scrollbar = VerticalScrollbar::new("wrapped_choices_final".to_string());
+                vertical_scrollbar.draw(
                     &bounds,
                     wrapped_choices.len(),
                     viewable_height,
@@ -1936,15 +1870,53 @@ pub fn render_muxbox(
 
     // Draw borders for all cases (normal, scroll, wrap) - but not for special behaviors (fill, cross_out, removed)
     if *draw_border {
-        // Draw bottom border - always draw this
-        draw_horizontal_line(
-            bounds.bottom(),
-            bounds.left(),
-            bounds.right(),
-            border_color,
-            bg_color,
-            buffer,
-        );
+        // Check if we need to draw scrollbars to determine border sections
+        let has_horizontal_scrollbar = content.is_some() && {
+            if let Some(content_str) = content {
+                let content_lines: Vec<&str> = content_str.lines().collect();
+                let max_content_width = content_lines
+                    .iter()
+                    .map(|line| line.len())
+                    .max()
+                    .unwrap_or(0);
+                let viewable_width = bounds.width().saturating_sub(4);
+                max_content_width > viewable_width && _overflowing && overflow_behavior == "scroll"
+            } else {
+                false
+            }
+        };
+
+        // Draw bottom border - skip middle section if horizontal scrollbar is drawn
+        if has_horizontal_scrollbar {
+            // Draw left corner of bottom border
+            draw_horizontal_line(
+                bounds.bottom(),
+                bounds.left(),
+                bounds.left() + 1,
+                border_color,
+                bg_color,
+                buffer,
+            );
+            // Draw right corner of bottom border  
+            draw_horizontal_line(
+                bounds.bottom(),
+                bounds.right().saturating_sub(1),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
+        } else {
+            // Draw full bottom border
+            draw_horizontal_line(
+                bounds.bottom(),
+                bounds.left(),
+                bounds.right(),
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
 
         // Draw left border - always draw this
         draw_vertical_line(
@@ -2009,58 +1981,7 @@ pub fn render_muxbox(
     }
 }
 
-// Helper function to draw vertical scrollbars - unified for choices and content
-fn draw_vertical_scrollbar(
-    bounds: &Bounds,
-    content_height: usize,
-    viewable_height: usize,
-    vertical_scroll: f64,
-    border_color: &str,
-    bg_color: &str,
-    buffer: &mut ScreenBuffer,
-) {
-    let track_height = bounds.bottom().saturating_sub(bounds.top() + 1);
-
-    // Draw vertical scroll track
-    for y in (bounds.top() + 1)..bounds.bottom() {
-        print_with_color_and_background_at(
-            y,
-            bounds.right(),
-            "bright_black",
-            bg_color,
-            V_SCROLL_TRACK,
-            buffer,
-        );
-    }
-
-    if track_height > 0 {
-        // Calculate proportional knob size and position
-        let content_ratio = viewable_height as f64 / content_height as f64;
-        let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
-        let available_track = track_height.saturating_sub(knob_size);
-
-        let knob_position = if available_track > 0 {
-            ((vertical_scroll / 100.0) * available_track as f64).round() as usize
-        } else {
-            0
-        };
-
-        // Draw proportional vertical scroll knob
-        for i in 0..knob_size {
-            let knob_y = bounds.top() + 1 + knob_position + i;
-            if knob_y < bounds.bottom() {
-                print_with_color_and_background_at(
-                    knob_y,
-                    bounds.right(),
-                    border_color,
-                    bg_color,
-                    V_SCROLL_CHAR,
-                    buffer,
-                );
-            }
-        }
-    }
-}
+// Old manual scrollbar function removed - now using unified components
 
 pub fn fill_muxbox(
     bounds: &Bounds,

@@ -1759,7 +1759,7 @@ create_runnable!(
                                 // Check for vertical scrollbar click (right border)
                                 if *x as usize == muxbox_bounds.right()
                                     && *y as usize > muxbox_bounds.top()
-                                    && (*y as usize) < muxbox_bounds.bottom()
+                                    && (*y as usize) < muxbox_bounds.bottom().saturating_sub(1)
                                 {
                                     let track_height =
                                         (muxbox_bounds.height() as isize - 2).max(1) as usize;
@@ -1801,10 +1801,10 @@ create_runnable!(
                                     break;
                                 }
 
-                                // Check for horizontal scrollbar click (bottom border)
+                                // Check for horizontal scrollbar click (on bottom border)
                                 if *y as usize == muxbox_bounds.bottom()
                                     && *x as usize > muxbox_bounds.left()
-                                    && (*x as usize) < muxbox_bounds.right()
+                                    && (*x as usize) < muxbox_bounds.right().saturating_sub(1)
                                 {
                                     let track_width =
                                         (muxbox_bounds.width() as isize - 2).max(1) as usize;
