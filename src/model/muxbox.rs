@@ -1689,30 +1689,6 @@ impl MuxBox {
         }
     }
 
-    /// Generate chart content for the muxbox
-    pub fn generate_chart_content(&self, bounds: &Bounds) -> Option<String> {
-        use crate::chart::{generate_chart, parse_chart_data, ChartConfig, ChartType};
-
-        if let (Some(chart_type_str), Some(chart_data)) = (&self.chart_type, &self.chart_data) {
-            let data = parse_chart_data(chart_data);
-            let chart_type = match chart_type_str.as_str() {
-                "bar" => ChartType::Bar,
-                "line" => ChartType::Line,
-                "histogram" => ChartType::Histogram,
-                _ => ChartType::Bar,
-            };
-            let config = ChartConfig {
-                chart_type,
-                width: bounds.width().saturating_sub(4),
-                height: bounds.height().saturating_sub(4),
-                title: None, // Don't show chart title since muxbox already has the title
-                color: "blue".to_string(),
-            };
-            Some(generate_chart(&data, &config))
-        } else {
-            None
-        }
-    }
 
     /// Generate table content for the muxbox
     pub fn generate_table_content(&self, bounds: &Bounds) -> Option<String> {

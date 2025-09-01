@@ -1059,6 +1059,7 @@ pub fn load_app_from_yaml_with_lock(
                     severity: ErrorSeverity::Error,
                     help: Some("Check YAML syntax and structure".to_string()),
                     note: None,
+                    caret_positioning: None,
                 };
                 let formatted_error = error_display.format_error(&error_info, &contents);
                 return Err(formatted_error.into());
@@ -1080,6 +1081,7 @@ pub fn load_app_from_yaml_with_lock(
                             severity: ErrorSeverity::Error,
                             help: Some("Verify configuration structure".to_string()),
                             note: None,
+                            caret_positioning: None,
                         };
                         let formatted_error = error_display.format_error(&error_info, &contents);
                         return Err(formatted_error.into());

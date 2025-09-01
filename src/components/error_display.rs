@@ -185,6 +185,62 @@ pub struct ErrorInfo {
     pub help: Option<String>,
     /// Optional note text
     pub note: Option<String>,
+    /// Enhanced caret positioning configuration
+    pub caret_positioning: Option<CaretPositioning>,
+}
+
+/// Multi-line error span for precise highlighting
+#[derive(Debug, Clone)]
+pub struct ErrorSpan {
+    /// Start line number (1-indexed)
+    pub start_line: usize,
+    /// Start column number (1-indexed)
+    pub start_column: usize,
+    /// End line number (1-indexed, can be same as start_line for single-line errors)
+    pub end_line: usize,
+    /// End column number (1-indexed)
+    pub end_column: usize,
+    /// Message for this span
+    pub message: String,
+}
+
+/// Enhanced caret positioning configuration
+#[derive(Debug, Clone)]
+pub struct CaretPositioning {
+    /// Primary error span (required)
+    pub primary_span: ErrorSpan,
+    /// Secondary spans for additional context (optional)
+    pub secondary_spans: Vec<ErrorSpan>,
+    /// Whether to show multi-line carets
+    pub show_multi_line_carets: bool,
+    /// Whether to show line continuation indicators
+    pub show_line_continuations: bool,
+    /// Character for multi-line caret start
+    pub multi_line_start_char: char,
+    /// Character for multi-line caret middle
+    pub multi_line_middle_char: char,
+    /// Character for multi-line caret end
+    pub multi_line_end_char: char,
+}
+
+impl Default for CaretPositioning {
+    fn default() -> Self {
+        Self {
+            primary_span: ErrorSpan {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 1,
+                message: String::new(),
+            },
+            secondary_spans: Vec::new(),
+            show_multi_line_carets: true,
+            show_line_continuations: true,
+            multi_line_start_char: '┌',
+            multi_line_middle_char: '│',
+            multi_line_end_char: '└',
+        }
+    }
 }
 
 /// Rust-style error message rendering component with line indicators and caret positioning
@@ -785,6 +841,7 @@ impl ErrorDisplay {
                 severity: ErrorSeverity::Error,
                 help: Some("Check YAML syntax and structure".to_string()),
                 note: None,
+                caret_positioning: None,
             })
         } else {
             None
@@ -806,6 +863,288 @@ impl ErrorDisplay {
             severity: ErrorSeverity::Error,
             help: Some("Verify configuration values and structure".to_string()),
             note: None,
+            caret_positioning: None,
+        }
+    }
+
+    /// Render error with enhanced multi-line caret positioning
+    pub fn render_with_enhanced_carets(
+        &self,
+        error: &ErrorInfo,
+        content: &str,
+        bounds: &Bounds,
+        buffer: &mut ScreenBuffer,
+    ) {
+        if let Some(caret_positioning) = &error.caret_positioning {
+            let formatted_error = self.format_error_with_multi_line_carets(error, content, caret_positioning);
+            let error_lines: Vec<&str> = formatted_error.lines().collect();
+
+            let viewable_height = bounds.height().saturating_sub(2);
+            let start_y = bounds.top() + 1;
+
+            // Render error lines within bounds
+            for (line_idx, &line) in error_lines.iter().take(viewable_height).enumerate() {
+                let y_position = start_y + line_idx;
+                if y_position > bounds.bottom() - 1 {
+                    break;
+                }
+
+                // Enhanced color determination for multi-line carets
+                let text_color = self.get_enhanced_line_color(line, &error.severity, caret_positioning);
+
+                print_with_color_and_background_at(
+                    y_position,
+                    bounds.left() + 1,
+                    &text_color,
+                    &self.config.background_color,
+                    line,
+                    buffer,
+                );
+            }
+        } else {
+            // Fallback to standard rendering
+            self.render(error, content, bounds, buffer);
+        }
+    }
+
+    /// Format error message with enhanced multi-line caret positioning
+    pub fn format_error_with_multi_line_carets(
+        &self,
+        error: &ErrorInfo,
+        content: &str,
+        caret_positioning: &CaretPositioning,
+    ) -> String {
+        let mut result = String::new();
+        
+        // Header with severity and message
+        let severity_color = self.get_severity_color(&error.severity);
+        result.push_str(&format!("{}: {}\n", 
+            match error.severity {
+                ErrorSeverity::Error => "error",
+                ErrorSeverity::Warning => "warning", 
+                ErrorSeverity::Info => "info",
+                ErrorSeverity::Hint => "hint",
+            },
+            error.message
+        ));
+
+        // File location
+        result.push_str(&format!(" --> {}:{}:{}\n", 
+            error.file_path, 
+            caret_positioning.primary_span.start_line,
+            caret_positioning.primary_span.start_column
+        ));
+
+        let lines: Vec<&str> = content.lines().collect();
+        let line_number_width = self.calculate_line_number_width(error, &lines);
+
+        // Render multi-line error span
+        self.render_multi_line_span(
+            &mut result,
+            &lines,
+            &caret_positioning.primary_span,
+            line_number_width,
+            true, // is_primary
+        );
+
+        // Render secondary spans
+        for secondary_span in &caret_positioning.secondary_spans {
+            result.push_str(&format!("   {}\n", secondary_span.message));
+            self.render_multi_line_span(
+                &mut result,
+                &lines,
+                secondary_span,
+                line_number_width,
+                false, // is_primary
+            );
+        }
+
+        // Add help and note
+        if let Some(help) = &error.help {
+            result.push_str(&format!("   = help: {}\n", help));
+        }
+        if let Some(note) = &error.note {
+            result.push_str(&format!("   = note: {}\n", note));
+        }
+
+        result
+    }
+
+    /// Render a multi-line error span with proper caret indicators
+    fn render_multi_line_span(
+        &self,
+        result: &mut String,
+        lines: &[&str],
+        span: &ErrorSpan,
+        line_number_width: usize,
+        _is_primary: bool,
+    ) {
+        let start_line = span.start_line.saturating_sub(1);
+        let end_line = span.end_line.saturating_sub(1);
+        
+        // Show context lines before if enabled
+        let context_start = if self.config.show_context {
+            start_line.saturating_sub(self.config.context_lines)
+        } else {
+            start_line
+        };
+        
+        let context_end = if self.config.show_context {
+            (end_line + self.config.context_lines + 1).min(lines.len())
+        } else {
+            end_line + 1
+        };
+
+        for line_idx in context_start..context_end {
+            if line_idx >= lines.len() {
+                break;
+            }
+            
+            let line_num = line_idx + 1;
+            let is_error_line = line_idx >= start_line && line_idx <= end_line;
+            let line_content = lines[line_idx];
+            
+            // Format line number with proper padding
+            let line_num_str = if is_error_line {
+                format!("{:width$}", line_num, width = line_number_width)
+            } else {
+                " ".repeat(line_number_width)
+            };
+            
+            // Apply syntax highlighting
+            let highlighted_content = self.apply_syntax_highlighting(line_content);
+            
+            if is_error_line {
+                result.push_str(&format!("{} | {}\n", line_num_str, highlighted_content));
+                
+                // Add caret indicators for error lines
+                if span.start_line == span.end_line {
+                    // Single line error - traditional caret
+                    let spaces_before_pipe = " ".repeat(line_number_width);
+                    let spaces_before_caret = " ".repeat(span.start_column.saturating_sub(1));
+                    let caret_length = if span.end_column > span.start_column {
+                        span.end_column - span.start_column
+                    } else {
+                        1
+                    };
+                    let carets = self.config.caret_char.to_string().repeat(caret_length);
+                    result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, carets));
+                } else {
+                    // Multi-line error - enhanced carets
+                    let spaces_before_pipe = " ".repeat(line_number_width);
+                    
+                    if line_idx == start_line {
+                        // Start line - show start character and line continuation
+                        let spaces_before_caret = " ".repeat(span.start_column.saturating_sub(1));
+                        let continuation_length = line_content.len().saturating_sub(span.start_column.saturating_sub(1));
+                        let continuation = if continuation_length > 0 {
+                            format!("┌{}", "─".repeat(continuation_length.saturating_sub(1)))
+                        } else {
+                            "┌".to_string()
+                        };
+                        result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, continuation));
+                    } else if line_idx == end_line {
+                        // End line - show end character and end caret
+                        let end_caret_length = span.end_column.saturating_sub(1);
+                        let end_continuation = if end_caret_length > 0 {
+                            format!("{}└{}", "─".repeat(end_caret_length.saturating_sub(1)), self.config.caret_char)
+                        } else {
+                            format!("└{}", self.config.caret_char)
+                        };
+                        result.push_str(&format!("{} | {}\n", spaces_before_pipe, end_continuation));
+                    } else {
+                        // Middle line - show continuation character
+                        result.push_str(&format!("{} | │\n", spaces_before_pipe));
+                    }
+                }
+            } else {
+                // Context line
+                result.push_str(&format!("{} | {}\n", line_num_str, highlighted_content));
+            }
+        }
+    }
+
+    /// Get color for error severity level
+    fn get_severity_color(&self, severity: &ErrorSeverity) -> String {
+        match severity {
+            ErrorSeverity::Error => self.config.error_color.clone(),
+            ErrorSeverity::Warning => self.config.warning_color.clone(),
+            ErrorSeverity::Info => self.config.info_color.clone(),
+            ErrorSeverity::Hint => self.config.hint_color.clone(),
+        }
+    }
+
+    /// Get enhanced line color for multi-line caret positioning
+    fn get_enhanced_line_color(&self, line: &str, severity: &ErrorSeverity, caret_positioning: &CaretPositioning) -> String {
+        // Check for multi-line caret indicators
+        if line.contains(caret_positioning.multi_line_start_char) || 
+           line.contains(caret_positioning.multi_line_middle_char) ||
+           line.contains(caret_positioning.multi_line_end_char) {
+            return self.config.caret_color.clone();
+        }
+        
+        // Standard line color determination
+        self.get_line_color(line, severity)
+    }
+
+    /// Create ErrorInfo with enhanced caret positioning for multi-line errors
+    pub fn create_multi_line_error(
+        message: String,
+        file_path: String,
+        start_line: usize,
+        start_column: usize,
+        end_line: usize,
+        end_column: usize,
+        severity: ErrorSeverity,
+    ) -> ErrorInfo {
+        let primary_span = ErrorSpan {
+            start_line,
+            start_column,
+            end_line,
+            end_column,
+            message: message.clone(),
+        };
+        
+        ErrorInfo {
+            message,
+            file_path,
+            line_number: start_line,
+            column_number: start_column,
+            severity,
+            help: None,
+            note: None,
+            caret_positioning: Some(CaretPositioning {
+                primary_span,
+                ..Default::default()
+            }),
+        }
+    }
+
+    /// Add secondary span to existing error for additional context
+    pub fn add_secondary_span(
+        &self,
+        error: &mut ErrorInfo,
+        start_line: usize,
+        start_column: usize,
+        end_line: usize,
+        end_column: usize,
+        message: String,
+    ) {
+        let secondary_span = ErrorSpan {
+            start_line,
+            start_column,
+            end_line,
+            end_column,
+            message,
+        };
+
+        if let Some(caret_positioning) = &mut error.caret_positioning {
+            caret_positioning.secondary_spans.push(secondary_span);
+        } else {
+            error.caret_positioning = Some(CaretPositioning {
+                secondary_spans: vec![secondary_span],
+                ..Default::default()
+            });
         }
     }
 }
@@ -975,6 +1314,7 @@ mod tests {
             severity: ErrorSeverity::Error,
             help: Some("add semicolon".to_string()),
             note: Some("syntax error".to_string()),
+            caret_positioning: None,
         };
         
         let content = "fn main() {\n    let x = 42\n}";
@@ -1087,5 +1427,259 @@ mod tests {
         assert!(has_string);
         assert!(has_operator);
         assert!(has_punctuation);
+    }
+
+    #[test]
+    fn test_error_span_creation() {
+        let span = ErrorSpan {
+            start_line: 5,
+            start_column: 10,
+            end_line: 7,
+            end_column: 15,
+            message: "Multi-line error span".to_string(),
+        };
+        
+        assert_eq!(span.start_line, 5);
+        assert_eq!(span.start_column, 10);
+        assert_eq!(span.end_line, 7);
+        assert_eq!(span.end_column, 15);
+        assert_eq!(span.message, "Multi-line error span");
+    }
+
+    #[test]
+    fn test_caret_positioning_default() {
+        let caret_positioning = CaretPositioning::default();
+        
+        assert_eq!(caret_positioning.primary_span.start_line, 1);
+        assert_eq!(caret_positioning.primary_span.start_column, 1);
+        assert_eq!(caret_positioning.primary_span.end_line, 1);
+        assert_eq!(caret_positioning.primary_span.end_column, 1);
+        assert!(caret_positioning.secondary_spans.is_empty());
+        assert!(caret_positioning.show_multi_line_carets);
+        assert!(caret_positioning.show_line_continuations);
+        assert_eq!(caret_positioning.multi_line_start_char, '┌');
+        assert_eq!(caret_positioning.multi_line_middle_char, '│');
+        assert_eq!(caret_positioning.multi_line_end_char, '└');
+    }
+
+    #[test]
+    fn test_create_multi_line_error() {
+        let error = ErrorDisplay::create_multi_line_error(
+            "Multi-line syntax error".to_string(),
+            "test.rs".to_string(),
+            10,
+            5,
+            12,
+            8,
+            ErrorSeverity::Error,
+        );
+        
+        assert_eq!(error.message, "Multi-line syntax error");
+        assert_eq!(error.file_path, "test.rs");
+        assert_eq!(error.line_number, 10);
+        assert_eq!(error.column_number, 5);
+        assert_eq!(error.severity, ErrorSeverity::Error);
+        
+        let caret_positioning = error.caret_positioning.unwrap();
+        assert_eq!(caret_positioning.primary_span.start_line, 10);
+        assert_eq!(caret_positioning.primary_span.start_column, 5);
+        assert_eq!(caret_positioning.primary_span.end_line, 12);
+        assert_eq!(caret_positioning.primary_span.end_column, 8);
+    }
+
+    #[test]
+    fn test_add_secondary_span() {
+        let display = ErrorDisplay::with_defaults("test".to_string());
+        let mut error = ErrorDisplay::create_multi_line_error(
+            "Primary error".to_string(),
+            "main.rs".to_string(),
+            5,
+            10,
+            5,
+            20,
+            ErrorSeverity::Error,
+        );
+        
+        display.add_secondary_span(
+            &mut error,
+            8,
+            5,
+            8,
+            15,
+            "Related issue here".to_string(),
+        );
+        
+        let caret_positioning = error.caret_positioning.unwrap();
+        assert_eq!(caret_positioning.secondary_spans.len(), 1);
+        
+        let secondary = &caret_positioning.secondary_spans[0];
+        assert_eq!(secondary.start_line, 8);
+        assert_eq!(secondary.start_column, 5);
+        assert_eq!(secondary.end_line, 8);
+        assert_eq!(secondary.end_column, 15);
+        assert_eq!(secondary.message, "Related issue here");
+    }
+
+    #[test]
+    fn test_enhanced_caret_formatting_single_line() {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting.enabled = false; // Disable syntax highlighting for cleaner test assertions
+        let display = ErrorDisplay::new("test".to_string(), config);
+        let error = ErrorDisplay::create_multi_line_error(
+            "Single line error".to_string(),
+            "test.rs".to_string(),
+            3,
+            10,
+            3,
+            15,
+            ErrorSeverity::Error,
+        );
+        
+        let content = "line 1\nline 2\nthis is line 3 with error\nline 4";
+        let caret_positioning = error.caret_positioning.as_ref().unwrap();
+        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+        
+        assert!(formatted.contains("error: Single line error"));
+        assert!(formatted.contains("--> test.rs:3:10"));
+        assert!(formatted.contains("this is line 3 with error"));
+        assert!(formatted.contains("^^^^^")); // 5 caret characters for positions 10-15
+    }
+
+    #[test]
+    fn test_enhanced_caret_formatting_multi_line() {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting.enabled = false; // Disable syntax highlighting for cleaner test assertions
+        let display = ErrorDisplay::new("test".to_string(), config);
+        let error = ErrorDisplay::create_multi_line_error(
+            "Multi-line error".to_string(),
+            "test.rs".to_string(),
+            2,
+            5,
+            4,
+            10,
+            ErrorSeverity::Warning,
+        );
+        
+        let content = "line 1\nstart error here\nmiddle line\nend error here\nline 5";
+        let caret_positioning = error.caret_positioning.as_ref().unwrap();
+        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+        
+        assert!(formatted.contains("warning: Multi-line error"));
+        assert!(formatted.contains("--> test.rs:2:5"));
+        assert!(formatted.contains("start error here"));
+        assert!(formatted.contains("middle line"));
+        assert!(formatted.contains("end error here"));
+        assert!(formatted.contains("┌")); // Multi-line start
+        assert!(formatted.contains("│")); // Multi-line middle
+        assert!(formatted.contains("└")); // Multi-line end
+    }
+
+    #[test]
+    fn test_enhanced_caret_with_secondary_spans() {
+        let mut config = ErrorDisplayConfig::default();
+        config.syntax_highlighting.enabled = false; // Disable syntax highlighting for cleaner test assertions
+        let display = ErrorDisplay::new("test".to_string(), config);
+        let mut error = ErrorDisplay::create_multi_line_error(
+            "Primary error with context".to_string(),
+            "lib.rs".to_string(),
+            10,
+            1,
+            10,
+            20,
+            ErrorSeverity::Error,
+        );
+        
+        display.add_secondary_span(
+            &mut error,
+            15,
+            5,
+            15,
+            12,
+            "Related definition".to_string(),
+        );
+        
+        let content = (1..=20).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+        let caret_positioning = error.caret_positioning.as_ref().unwrap();
+        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+        
+        assert!(formatted.contains("Primary error with context"));
+        assert!(formatted.contains("line 10"));
+        assert!(formatted.contains("Related definition"));
+        assert!(formatted.contains("line 15"));
+    }
+
+    #[test]
+    fn test_enhanced_line_color_detection() {
+        let display = ErrorDisplay::with_defaults("test".to_string());
+        let caret_positioning = CaretPositioning::default();
+        
+        // Test caret line detection
+        let caret_line = format!("   | {}", caret_positioning.multi_line_start_char);
+        let color = display.get_enhanced_line_color(&caret_line, &ErrorSeverity::Error, &caret_positioning);
+        assert_eq!(color, "bright_red"); // Should use caret color
+        
+        // Test normal line
+        let normal_line = "   | regular code line";
+        let color = display.get_enhanced_line_color(&normal_line, &ErrorSeverity::Error, &caret_positioning);
+        assert_eq!(color, "bright_red"); // Should use error color
+    }
+
+    #[test]
+    fn test_render_with_enhanced_carets() {
+        let display = ErrorDisplay::with_defaults("test".to_string());
+        let error = ErrorDisplay::create_multi_line_error(
+            "Render test error".to_string(),
+            "render.rs".to_string(),
+            1,
+            1,
+            2,
+            5,
+            ErrorSeverity::Info,
+        );
+        
+        let content = "first line\nsecond line";
+        let bounds = Bounds::new(0, 0, 80, 10);
+        let mut buffer = create_test_buffer();
+        
+        // Should not panic and should handle rendering gracefully
+        display.render_with_enhanced_carets(&error, content, &bounds, &mut buffer);
+        
+        // Test fallback to standard rendering when no caret positioning
+        let standard_error = ErrorInfo {
+            message: "Standard error".to_string(),
+            file_path: "std.rs".to_string(),
+            line_number: 1,
+            column_number: 1,
+            severity: ErrorSeverity::Error,
+            help: None,
+            note: None,
+            caret_positioning: None,
+        };
+        
+        display.render_with_enhanced_carets(&standard_error, content, &bounds, &mut buffer);
+    }
+
+    #[test]
+    fn test_multi_line_span_rendering() {
+        let display = ErrorDisplay::with_detailed_config("detailed_test".to_string());
+        let span = ErrorSpan {
+            start_line: 2,
+            start_column: 10,
+            end_line: 4,
+            end_column: 5,
+            message: "Test span".to_string(),
+        };
+        
+        let lines = vec!["line 1", "line 2 with error start", "line 3 middle", "line 4 error end", "line 5"];
+        let mut result = String::new();
+        
+        display.render_multi_line_span(&mut result, &lines, &span, 3, true);
+        
+        assert!(result.contains("line 2 with error start"));
+        assert!(result.contains("line 3 middle"));
+        assert!(result.contains("line 4 error end"));
+        assert!(result.contains("┌")); // Start indicator
+        assert!(result.contains("│")); // Middle indicator  
+        assert!(result.contains("└")); // End indicator
     }
 }

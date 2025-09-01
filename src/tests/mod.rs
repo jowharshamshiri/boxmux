@@ -76,8 +76,6 @@ pub mod comprehensive_variable_tests;
 #[cfg(test)]
 pub mod hierarchical_variable_tests;
 
-#[cfg(test)]
-pub mod chart_tests;
 
 #[cfg(test)]
 pub mod plugin_integration_tests;

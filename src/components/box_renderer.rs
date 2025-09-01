@@ -1,5 +1,6 @@
 use crate::components::{
-    VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer, OverflowRenderer, OverflowConfig
+    VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer, OverflowRenderer, OverflowConfig,
+    ChartComponent, ChartConfig, ChartType
 };
 use crate::draw_utils::{
     get_fg_color, get_bg_color, fill_muxbox, draw_horizontal_line, draw_vertical_line,
@@ -29,6 +30,39 @@ impl<'a> BoxRenderer<'a> {
         Self {
             muxbox,
             component_id,
+        }
+    }
+    
+    /// Generate chart content if the muxbox has chart configuration
+    /// This moves chart rendering responsibility from MuxBox to BoxRenderer
+    fn generate_chart_content(&self, bounds: &Bounds) -> Option<String> {
+        if let (Some(chart_type_str), Some(chart_data)) = (&self.muxbox.chart_type, &self.muxbox.chart_data) {
+            let data = ChartComponent::parse_chart_data(chart_data);
+            
+            // Parse chart type with support for all variants including pie and scatter
+            let chart_type = chart_type_str.parse::<ChartType>().unwrap_or(ChartType::Bar);
+            
+            let config = ChartConfig {
+                chart_type,
+                width: bounds.width().saturating_sub(4),
+                height: bounds.height().saturating_sub(4),
+                title: None, // Don't show chart title since muxbox already has the title
+                color: "blue".to_string(),
+                show_title: false, // Muxbox already shows title
+                show_values: true,
+                show_grid: false,
+            };
+            
+            let chart = ChartComponent::with_data_and_config(
+                format!("muxbox_chart_{}", self.muxbox.id),
+                data,
+                config
+            );
+            
+            // Generate with muxbox title context to avoid duplication
+            Some(chart.generate_with_muxbox_title(self.muxbox.title.as_deref()))
+        } else {
+            None
         }
     }
 
@@ -160,8 +194,14 @@ impl<'a> BoxRenderer<'a> {
     ) {
         // EXACT copy of render_muxbox() logic - preserves ALL functionality
 
+        // Check for chart content first - charts take priority over streams
+        let chart_content = self.generate_chart_content(bounds);
+        
         // F0217: Extract content from streams using trait-based approach
-        let (should_render_choices, content_str) = if !streams.is_empty() {
+        let (should_render_choices, content_str) = if chart_content.is_some() {
+            // Chart content overrides stream content
+            (false, chart_content)
+        } else if !streams.is_empty() {
             let active_stream = streams.values().find(|s| s.active);
             let should_render_choices = if let Some(stream) = active_stream {
                 matches!(stream.stream_type, StreamType::Choices)
