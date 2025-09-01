@@ -19,6 +19,9 @@ pub mod visual_demo_test;
 pub mod visual_animation_demo;
 
 #[cfg(test)]
+pub mod box_renderer_tests;
+
+#[cfg(test)]
 pub mod integration_tests;
 
 #[cfg(test)]

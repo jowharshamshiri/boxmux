@@ -1,4 +1,3 @@
-sd
 app:
   layouts:
     - id: "multi_stream_tabs_demo"

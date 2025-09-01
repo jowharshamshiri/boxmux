@@ -12,6 +12,7 @@ pub mod choice_renderer;
 pub mod selection_styles;
 pub mod overflow_renderer;
 pub mod error_display;
+pub mod box_renderer;
 
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
@@ -25,3 +26,4 @@ pub use selection_styles::{
 };
 pub use overflow_renderer::{OverflowRenderer, OverflowConfig, OverflowBehavior};
 pub use error_display::{ErrorDisplay, ErrorDisplayConfig, ErrorInfo, ErrorSeverity};
+pub use box_renderer::BoxRenderer;
