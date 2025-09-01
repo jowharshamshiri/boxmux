@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
+use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
@@ -335,15 +336,38 @@ pub fn print_with_color_and_background_at(
     text: &str,
     buffer: &mut ScreenBuffer,
 ) {
-    let fg_color_code = get_fg_color(fg_color);
-    let bg_color_code = get_bg_color(bg_color);
-    for (i, ch) in text.chars().enumerate() {
-        let cell = Cell {
-            fg_color: fg_color_code.clone(),
-            bg_color: bg_color_code.clone(),
-            ch,
-        };
-        buffer.update(x + i, y, cell);
+    // Check if text contains ANSI sequences
+    if contains_ansi_sequences(text) {
+        // Process ANSI sequences and render directly
+        let cells = process_ansi_text(text);
+        for (i, cell) in cells.iter().enumerate() {
+            buffer.update(x + i, y, cell.clone());
+        }
+    } else {
+        // Original behavior for plain text
+        let fg_color_code = get_fg_color(fg_color);
+        let bg_color_code = get_bg_color(bg_color);
+        for (i, ch) in text.chars().enumerate() {
+            let cell = Cell {
+                fg_color: fg_color_code.clone(),
+                bg_color: bg_color_code.clone(),
+                ch,
+            };
+            buffer.update(x + i, y, cell);
+        }
+    }
+}
+
+/// Render ANSI text with embedded color codes at specific position
+pub fn print_ansi_text_at(
+    y: usize,
+    x: usize,
+    text: &str,
+    buffer: &mut ScreenBuffer,
+) {
+    let cells = process_ansi_text(text);
+    for (i, cell) in cells.iter().enumerate() {
+        buffer.update(x + i, y, cell.clone());
     }
 }
 
@@ -2179,6 +2203,7 @@ fn render_wrapped_content(
             break;
         }
 
+        // Use the updated function that handles ANSI sequences
         print_with_color_and_background_at(
             render_y,
             content_start_x,

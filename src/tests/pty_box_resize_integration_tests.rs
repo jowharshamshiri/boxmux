@@ -102,7 +102,7 @@ mod tests {
             (Bounds::new(0, 0, 119, 39), (120, 40)),    // Large terminal
             (Bounds::new(0, 0, 39, 11), (40, 12)),      // Small terminal
             (Bounds::new(0, 0, 199, 59), (200, 60)),    // Wide terminal
-            (Bounds::new(0, 0, 24, 24), (25, 25)),      // Square terminal
+            (Bounds::new(0, 0, 24, 24), (40, 25)),      // Square terminal (min_cols=40 enforced)
         ];
 
         for (bounds, (expected_cols, expected_rows)) in test_cases {

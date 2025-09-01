@@ -2083,6 +2083,11 @@ impl AnsiProcessor {
         self.baseline_captured && self.previous_screen_state.is_some()
     }
 
+    /// F0318: Get terminal state for character set and other state inspection
+    pub fn get_terminal_state(&self) -> &TerminalState {
+        &self.terminal_state
+    }
+
     /// Calculate dirty regions for efficient screen updates
     fn calculate_dirty_regions(&self) -> Vec<DirtyRegion> {
         // F0316: Performance Optimization - Proper dirty region calculation
@@ -2686,6 +2691,14 @@ impl Perform for AnsiProcessor {
                         self.processed_text.pop();
                     }
                 }
+            }
+            0x0E => {
+                // F0318: SO (Shift Out) - Switch to G1 character set
+                self.terminal_state.active_charset = 1;
+            }
+            0x0F => {
+                // F0318: SI (Shift In) - Switch to G0 character set
+                self.terminal_state.active_charset = 0;
             }
             _ => {
                 // Other control characters - for now just ignore

@@ -10,6 +10,7 @@ pub mod model {
 pub mod thread_manager;
 // pub mod choice_threads; // T311: Removed with ChoiceThreadManager unification
 pub mod ansi_processor;
+pub mod ansi_color_processor;
 pub mod chart;
 pub mod circular_buffer;
 pub mod draw_loop;
@@ -28,6 +29,7 @@ pub mod validation;
 pub mod tests;
 
 pub use ansi_processor::*;
+pub use ansi_color_processor::*;
 pub use chart::*;
 pub use draw_loop::*;
 pub use input_loop::*;

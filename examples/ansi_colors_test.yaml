@@ -1,0 +1,29 @@
+app:
+  frame_delay_ms: 100
+  title: "ANSI Color Test"
+  layouts:
+    - name: "color_demo"
+      active: true
+      fill_char: " "
+      bg_color: "black"
+      children:
+        - id: "ansi_text"
+          title: "ANSI Color Demo"
+          x1: 10
+          y1: 5
+          x2: 70
+          y2: 15
+          content: "Normal text\n\x1b[31mRed text\x1b[0m and back to normal\n\x1b[32mGreen\x1b[0m, \x1b[33mYellow\x1b[0m, \x1b[34mBlue\x1b[0m\n\x1b[1m\x1b[31mBold Red\x1b[0m\n\x1b[41mRed background\x1b[0m"
+          border: true
+          border_color: "white"
+          
+        - id: "pty_demo"
+          title: "PTY with ANSI Colors (ls --color=always)"
+          x1: 10
+          y1: 18
+          x2: 70
+          y2: 25
+          script: "ls --color=always"
+          pty: true
+          border: true
+          border_color: "cyan"

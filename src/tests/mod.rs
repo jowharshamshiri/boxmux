@@ -165,6 +165,12 @@ pub mod terminal_title_tests; // F0315: Terminal Title Support tests
 pub mod pty_box_resize_integration_tests; // F0317: PTY Box Resize Integration tests
 
 #[cfg(test)]
+pub mod character_set_tests; // F0318: Character Set Support tests
+
+#[cfg(test)]
+pub mod terminal_compatibility_tests; // F0319: Terminal Compatibility Testing
+
+#[cfg(test)]
 pub mod terminal_100_width_reality_test;
 
 #[cfg(test)]
