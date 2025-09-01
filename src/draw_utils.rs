@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
 use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
-use crate::components::{VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer};
+use crate::components::{VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer, OverflowRenderer, OverflowConfig};
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
@@ -991,91 +991,85 @@ pub fn render_muxbox(
         }
     }
 
-    // Handle special overflow behaviors that completely replace content
+    // Handle special overflow behaviors using OverflowRenderer component
     if _overflowing && overflow_behavior != "scroll" && overflow_behavior != "wrap" {
-        if overflow_behavior == "fill" {
-            fill_muxbox(&bounds, true, bg_color, '█', buffer);
-        } else if overflow_behavior == "cross_out" {
-            for i in 0..bounds.width() {
-                let cell = Cell {
-                    fg_color: border_color_code.clone(),
-                    bg_color: parent_bg_color_code.clone(),
-                    ch: 'X',
-                };
-                buffer.update(bounds.left() + i, bounds.top() + i, cell);
-            }
-        } else if overflow_behavior == "removed" {
-            fill_muxbox(&bounds, false, parent_bg_color, ' ', buffer);
-        }
-        return; // These behaviors completely replace the muxbox, no borders needed
-    }
+        let overflow_config = match overflow_behavior {
+            "fill" => OverflowConfig::fill('█'),
+            "cross_out" => OverflowConfig::cross_out(),
+            "removed" => OverflowConfig::removed(),
+            _ => OverflowConfig::default(),
+        };
+        
+        let overflow_renderer = OverflowRenderer::new(
+            format!("muxbox_special_overflow"), 
+            overflow_config
+        );
 
-    // Handle text wrapping - render wrapped content but still draw borders and scrollbars
-    if _overflowing && overflow_behavior == "wrap" {
         if let Some(content) = content {
-            let viewable_width = bounds.width().saturating_sub(4);
-            let wrapped_content = wrap_text_to_width(content, viewable_width);
-
-            // Check if wrapped content still overflows vertically
-            let viewable_height = bounds.height().saturating_sub(4);
-            let wrapped_overflows_vertically = wrapped_content.len() > viewable_height;
-
-            render_wrapped_content(
-                &wrapped_content,
+            if overflow_renderer.render_text_overflow(
+                content,
                 &bounds,
                 vertical_scroll,
+                0.0, // No horizontal scroll for special behaviors
                 fg_color,
                 bg_color,
+                border_color,
+                parent_bg_color,
                 buffer,
-            );
-
-            // Draw vertical scrollbar if wrapped content overflows
-            if wrapped_overflows_vertically && *draw_border {
-                let vertical_scrollbar = VerticalScrollbar::new("wrapped_content".to_string());
-                vertical_scrollbar.draw(
-                    &bounds,
-                    wrapped_content.len(),
-                    viewable_height,
-                    vertical_scroll,
-                    border_color,
-                    bg_color,
-                    buffer,
-                );
-                scrollbars_drawn = true;
+            ) {
+                return; // Component handled overflow, no borders needed
             }
         } else if let Some(ref choices) = choices {
-            let viewable_width = bounds.width().saturating_sub(4);
-            let wrapped_choices = wrap_choices_to_width(choices, viewable_width);
-
-            // Check if wrapped choices overflow vertically
-            let viewable_height = bounds.height().saturating_sub(4);
-            let wrapped_overflows_vertically = wrapped_choices.len() > viewable_height;
-
-            render_wrapped_choices(
-                &choices,
+            if overflow_renderer.render_choice_overflow(
+                choices,
                 &bounds,
                 vertical_scroll,
-                fg_color,
-                bg_color,
+                menu_fg_color,
+                menu_bg_color,
                 selected_menu_fg_color,
                 selected_menu_bg_color,
+                border_color,
+                parent_bg_color,
+                buffer,
+            ) {
+                return; // Component handled overflow, no borders needed
+            }
+        }
+    }
+
+    // Handle text wrapping using OverflowRenderer component
+    if _overflowing && overflow_behavior == "wrap" {
+        let overflow_config = OverflowConfig::wrap();
+        let overflow_renderer = OverflowRenderer::new(
+            format!("muxbox_wrap_overflow"), 
+            overflow_config
+        );
+
+        if let Some(content) = content {
+            scrollbars_drawn = overflow_renderer.render_text_overflow(
+                content,
+                &bounds,
+                vertical_scroll,
+                0.0, // No horizontal scroll for wrap
+                fg_color,
+                bg_color,
+                border_color,
+                parent_bg_color,
                 buffer,
             );
-
-            // Draw vertical scrollbar if wrapped choices overflow
-            if wrapped_overflows_vertically && *draw_border {
-                let vertical_scrollbar = VerticalScrollbar::new("wrapped_choices_final".to_string());
-                vertical_scrollbar.draw(
-                    &bounds,
-                    wrapped_choices.len(),
-                    viewable_height,
-                    vertical_scroll,
-                    border_color,
-                    bg_color,
-                    buffer,
-                );
-                scrollbars_drawn = true;
-            }
+        } else if let Some(ref choices) = choices {
+            scrollbars_drawn = overflow_renderer.render_choice_overflow(
+                choices,
+                &bounds,
+                vertical_scroll,
+                menu_fg_color,
+                menu_bg_color,
+                selected_menu_fg_color,
+                selected_menu_bg_color,
+                border_color,
+                parent_bg_color,
+                buffer,
+            );
         }
     }
 
@@ -1307,7 +1301,7 @@ pub fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
 }
 
 /// Render wrapped text content within bounds
-fn render_wrapped_content(
+pub fn render_wrapped_content(
     wrapped_lines: &[String],
     bounds: &Bounds,
     vertical_scroll: f64,
@@ -1390,7 +1384,7 @@ pub fn wrap_choices_to_width(
 }
 
 /// Render wrapped choices within bounds
-fn render_wrapped_choices(
+pub fn render_wrapped_choices(
     choices: &[crate::model::muxbox::Choice],
     bounds: &Bounds,
     vertical_scroll: f64,

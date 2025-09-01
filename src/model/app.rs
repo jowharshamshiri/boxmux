@@ -1,6 +1,7 @@
 use crate::live_yaml_sync::LiveYamlSync;
 use crate::model::muxbox::*;
 use crate::{model::layout::Layout, Bounds};
+use crate::components::{ErrorDisplay, ErrorInfo, ErrorSeverity};
 
 use std::fs::File;
 use std::io::Read;
@@ -1049,14 +1050,18 @@ pub fn load_app_from_yaml_with_lock(
             if let Some(location) = serde_error.location() {
                 let line_num = location.line();
                 let col_num = location.column();
-                let error_display = create_rust_style_error_display(
-                    &contents,
-                    file_path,
-                    line_num,
-                    col_num,
-                    &format!("{}", serde_error),
-                );
-                return Err(error_display.into());
+                let error_display = ErrorDisplay::with_terminal_config("yaml_parser".to_string());
+                let error_info = ErrorInfo {
+                    message: format!("{}", serde_error),
+                    file_path: file_path.to_string(),
+                    line_number: line_num,
+                    column_number: col_num,
+                    severity: ErrorSeverity::Error,
+                    help: Some("Check YAML syntax and structure".to_string()),
+                    note: None,
+                };
+                let formatted_error = error_display.format_error(&error_info, &contents);
+                return Err(formatted_error.into());
             }
 
             // Fallback: try to deserialize directly into App
@@ -1066,14 +1071,18 @@ pub fn load_app_from_yaml_with_lock(
                     if let Some(location) = app_error.location() {
                         let line_num = location.line();
                         let col_num = location.column();
-                        let error_display = create_rust_style_error_display(
-                            &contents,
-                            file_path,
-                            line_num,
-                            col_num,
-                            &format!("{}", app_error),
-                        );
-                        return Err(error_display.into());
+                        let error_display = ErrorDisplay::with_terminal_config("app_parser".to_string());
+                        let error_info = ErrorInfo {
+                            message: format!("{}", app_error),
+                            file_path: file_path.to_string(),
+                            line_number: line_num,
+                            column_number: col_num,
+                            severity: ErrorSeverity::Error,
+                            help: Some("Verify configuration structure".to_string()),
+                            note: None,
+                        };
+                        let formatted_error = error_display.format_error(&error_info, &contents);
+                        return Err(formatted_error.into());
                     }
                     return Err(format!("YAML parsing error: {}", app_error).into());
                 }
@@ -1107,47 +1116,6 @@ pub fn load_app_from_yaml_with_lock(
     }
 }
 
-fn create_rust_style_error_display(
-    contents: &str,
-    file_path: &str,
-    line_num: usize,
-    col_num: usize,
-    error_msg: &str,
-) -> String {
-    let lines: Vec<&str> = contents.lines().collect();
-
-    // Ensure we have valid line numbers (serde_yaml uses 1-based indexing)
-    if line_num == 0 || line_num > lines.len() {
-        return format!("YAML parsing error: {}", error_msg);
-    }
-
-    let error_line = lines[line_num - 1];
-    let line_num_width = format!("{}", line_num).len().max(3);
-
-    // Create the error display similar to Rust compiler
-    let mut result = String::new();
-    result.push_str(&format!("error: {}\n", error_msg));
-    result.push_str(&format!(" --> {}:{}:{}\n", file_path, line_num, col_num));
-    result.push_str(&format!("  |\n"));
-    result.push_str(&format!(
-        "{:width$} | {}\n",
-        line_num,
-        error_line,
-        width = line_num_width
-    ));
-
-    // Add column indicator with ^^^ under the problematic area
-    if col_num > 0 && col_num <= error_line.len() + 1 {
-        let spaces_before_pipe = " ".repeat(line_num_width);
-        let spaces_before_caret = " ".repeat(col_num.saturating_sub(1));
-        result.push_str(&format!(
-            "{} | {}{}\n",
-            spaces_before_pipe, spaces_before_caret, "^"
-        ));
-    }
-
-    result
-}
 
 /// Apply variable substitution to all fields in the parsed App structure
 fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {

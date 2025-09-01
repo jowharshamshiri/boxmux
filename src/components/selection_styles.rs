@@ -554,11 +554,12 @@ mod tests {
     fn test_calculate_style_colors_and_text_basic() {
         let renderer = SelectionStyleRenderer::with_defaults("test".to_string());
         let mut choice = Choice {
+            id: "test_choice".to_string(),
             content: Some("Test Choice".to_string()),
             selected: true,
             waiting: false,
             script: None,
-            libs: None,
+            execution_mode: crate::model::common::ExecutionMode::Immediate,
             redirect_output: None,
             append_output: None,
         };
@@ -590,11 +591,12 @@ mod tests {
         
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
+            id: "menu_item".to_string(),
             content: Some("Menu Item".to_string()),
             selected: true,
             waiting: false,
             script: None,
-            libs: None,
+            execution_mode: crate::model::common::ExecutionMode::Immediate,
             redirect_output: None,
             append_output: None,
         };
@@ -622,11 +624,12 @@ mod tests {
         
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
+            id: "inverted".to_string(),
             content: Some("Inverted".to_string()),
             selected: true,
             waiting: false,
             script: None,
-            libs: None,
+            execution_mode: crate::model::common::ExecutionMode::Immediate,
             redirect_output: None,
             append_output: None,
         };
@@ -650,11 +653,12 @@ mod tests {
     fn test_waiting_state_indicator() {
         let renderer = SelectionStyleRenderer::with_defaults("test".to_string());
         let choice = Choice {
+            id: "loading".to_string(),
             content: Some("Loading".to_string()),
             selected: false,
             waiting: true,
             script: None,
-            libs: None,
+            execution_mode: crate::model::common::ExecutionMode::Immediate,
             redirect_output: None,
             append_output: None,
         };
@@ -681,11 +685,12 @@ mod tests {
         
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
+            id: "focused".to_string(),
             content: Some("Focused".to_string()),
             selected: true,
             waiting: false,
             script: None,
-            libs: None,
+            execution_mode: crate::model::common::ExecutionMode::Immediate,
             redirect_output: None,
             append_output: None,
         };

@@ -10,6 +10,8 @@ pub mod border;
 pub mod status_indicator;
 pub mod choice_renderer;
 pub mod selection_styles;
+pub mod overflow_renderer;
+pub mod error_display;
 
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
@@ -21,3 +23,5 @@ pub use selection_styles::{
     SelectionStyleRenderer, SelectionStyleConfig, SelectionStyle, FocusStyle, 
     FeedbackStyle, SelectionIndicators, BorderChars
 };
+pub use overflow_renderer::{OverflowRenderer, OverflowConfig, OverflowBehavior};
+pub use error_display::{ErrorDisplay, ErrorDisplayConfig, ErrorInfo, ErrorSeverity};
