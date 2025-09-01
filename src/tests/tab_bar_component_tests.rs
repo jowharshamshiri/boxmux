@@ -28,7 +28,7 @@ mod tests {
         );
 
         // Tab bar should have drawn content - basic smoke test
-        assert!(buffer.cells.len() > 0, "Tab bar should draw content to buffer");
+        assert!(buffer.buffer.len() > 0, "Tab bar should draw content to buffer");
     }
 
     #[test]
@@ -54,7 +54,7 @@ mod tests {
         );
 
         // Should draw successfully with mixed close buttons
-        assert!(buffer.cells.len() > 0, "Tab bar should handle close buttons");
+        assert!(buffer.buffer.len() > 0, "Tab bar should handle close buttons");
     }
 
     #[test]
@@ -142,6 +142,6 @@ mod tests {
         );
 
         // Should handle scrolling without panicking
-        assert!(buffer.cells.len() > 0, "Scrolling tabs should render properly");
+        assert!(buffer.buffer.len() > 0, "Scrolling tabs should render properly");
     }
 }

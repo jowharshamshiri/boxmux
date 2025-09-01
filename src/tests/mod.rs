@@ -209,4 +209,7 @@ pub mod periodic_source_stability_tests;
 pub mod full_screen_detection_tests;
 
 #[cfg(test)]
+pub mod border_component_tests;
+
+#[cfg(test)]
 pub mod performance_optimization_tests; // F0316: Performance Optimization - Dirty Region Tracking Tests
