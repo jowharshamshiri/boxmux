@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
 use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
-use crate::components::{VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer, OverflowRenderer, OverflowConfig, BoxRenderer};
+use crate::components::BoxRenderer;
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
