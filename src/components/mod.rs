@@ -5,6 +5,8 @@
 
 pub mod vertical_scrollbar;
 pub mod horizontal_scrollbar;
+pub mod tab_bar;
 
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
+pub use tab_bar::{TabBar, TabNavigationAction};

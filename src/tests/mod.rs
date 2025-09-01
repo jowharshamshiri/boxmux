@@ -120,6 +120,9 @@ pub mod pty_resize_tests;
 pub mod ansi_processor_tests;
 
 #[cfg(test)]
+pub mod tab_bar_component_tests;
+
+#[cfg(test)]
 pub mod special_key_tests;
 
 #[cfg(test)]
