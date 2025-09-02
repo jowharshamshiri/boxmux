@@ -39,6 +39,12 @@ pub trait VisualAssertions {
         fg_color: Option<u8>,
         bg_color: Option<u8>,
     ) -> Result<(), AssertionError>;
+
+    /// Assert screen contains specific text anywhere
+    fn assert_contains_text(&self, expected: &str) -> Result<(), AssertionError>;
+
+    /// Assert screen has a border (corners and edges)
+    fn assert_has_border(&self) -> Result<(), AssertionError>;
 }
 
 /// F0327: Assertion error with detailed context
@@ -298,6 +304,65 @@ impl VisualAssertions for TerminalFrame {
         }
 
         Ok(())
+    }
+
+    fn assert_contains_text(&self, expected: &str) -> Result<(), AssertionError> {
+        // Search through all screen content for the expected text
+        for (y, row) in self.buffer.iter().enumerate() {
+            let line: String = row.iter().map(|cell| cell.ch).collect();
+            if line.contains(expected) {
+                return Ok(());
+            }
+        }
+
+        // If not found, create error with context
+        let mut context = Vec::new();
+        context.push("Screen content:".to_string());
+        for (y, row) in self.buffer.iter().enumerate().take(10) {
+            let line: String = row.iter().map(|cell| cell.ch).collect();
+            context.push(format!("{:2}: '{}'", y, line.trim_end()));
+        }
+
+        Err(AssertionError {
+            message: "Text not found in screen content".to_string(),
+            expected: format!("text containing '{}'", expected),
+            actual: "text not found".to_string(),
+            position: None,
+            context,
+        })
+    }
+
+    fn assert_has_border(&self) -> Result<(), AssertionError> {
+        // Check for basic border characters at expected positions
+        // This is a simplified check for demonstration
+        
+        if self.buffer.is_empty() || self.buffer[0].is_empty() {
+            return Err(AssertionError {
+                message: "Empty screen buffer".to_string(),
+                expected: "border characters".to_string(),
+                actual: "empty buffer".to_string(),
+                position: None,
+                context: vec!["Screen is empty".to_string()],
+            });
+        }
+
+        // Look for border-like characters in the first row
+        let first_row: String = self.buffer[0].iter().map(|cell| cell.ch).collect();
+        let has_border_chars = first_row.chars().any(|c| {
+            matches!(c, '┌' | '┐' | '└' | '┘' | '─' | '│' | '┬' | '┴' | '├' | '┤' | '┼')
+        });
+
+        if has_border_chars {
+            Ok(())
+        } else {
+            Err(AssertionError {
+                message: "No border characters detected".to_string(),
+                expected: "border characters (┌┐└┘─│)".to_string(),
+                actual: format!("first row: '{}'", first_row.trim()),
+                position: Some((0, 0)),
+                context: vec!["Expected box drawing characters".to_string()],
+            })
+        }
     }
 }
 

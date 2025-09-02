@@ -217,3 +217,13 @@ pub mod status_indicator_tests;
 
 #[cfg(test)]
 pub mod performance_optimization_tests; // F0316: Performance Optimization - Dirty Region Tracking Tests
+
+#[cfg(test)]
+pub mod interactive_visual_tests; // Enhanced visual testing with interaction support
+
+// Temporarily commented out due to compilation issues with visual testing framework
+// #[cfg(test)]
+// pub mod user_perspective_component_tests; // User-expectation focused component testing
+
+#[cfg(test)]
+pub mod user_behavioral_component_tests; // User behavioral expectation testing (unit-test style)

@@ -157,18 +157,22 @@ impl TerminalCapture {
         &self,
         muxbox: &crate::model::muxbox::MuxBox,
     ) -> (u16, u16, u16, u16) {
-        // Simple bounds calculation for visual testing
-        // In real implementation, this would use proper bounds calculation from utils
         let (term_width, term_height) = self.dimensions;
-
-        // For now, use default bounds that fit in terminal
-        // This is a simplified implementation for testing purposes
-        let default_x = 0u16;
-        let default_y = 0u16;
-        let default_width = term_width.min(30);
-        let default_height = term_height.min(10);
-
-        (default_x, default_y, default_width, default_height)
+        
+        // Parse the InputBounds from the muxbox position
+        let position = &muxbox.position;
+        
+        // Simple parsing of position strings - in real implementation this would use proper bounds calculation
+        let x1 = position.x1.parse::<u16>().unwrap_or(0).min(term_width - 1);
+        let y1 = position.y1.parse::<u16>().unwrap_or(0).min(term_height - 1);
+        let x2 = position.x2.parse::<u16>().unwrap_or(x1 + 30).min(term_width);
+        let y2 = position.y2.parse::<u16>().unwrap_or(y1 + 10).min(term_height);
+        
+        // Ensure we have at least minimal size
+        let width = (x2.saturating_sub(x1)).max(2);
+        let height = (y2.saturating_sub(y1)).max(2);
+        
+        (x1, y1, width, height)
     }
 
     /// F0332: Render border characters to buffer
@@ -309,18 +313,45 @@ impl TerminalCapture {
 
     /// Extract actual content from muxbox streams/tabs
     fn extract_muxbox_content(&self, muxbox: &crate::model::muxbox::MuxBox, app: &App) -> String {
-        // First check if there are any streams with content
+        // First check if there are any active streams
         if !muxbox.streams.is_empty() {
-            if let Some((_, stream)) = muxbox.streams.iter().next() {
-                return stream.content.join("\n");
+            // Look for active stream first, or fall back to first stream
+            let stream = muxbox.streams.iter().find(|(_, s)| s.active)
+                .or_else(|| muxbox.streams.iter().next())
+                .map(|(_, s)| s);
+                
+            if let Some(stream) = stream {
+                // Handle different stream types
+                match &stream.stream_type {
+                    crate::model::common::StreamType::Choices => {
+                        // For choice streams, extract the choice content
+                        if let Some(choices) = &stream.choices {
+                            let mut content = Vec::new();
+                            for choice in choices {
+                                let display_text = choice.content.as_deref().unwrap_or(&choice.id);
+                                content.push(display_text.to_string());
+                            }
+                            return content.join("\n");
+                        }
+                    }
+                    crate::model::common::StreamType::Content => {
+                        // For content streams, use the content field
+                        if !stream.content.is_empty() {
+                            return stream.content.join("\n");
+                        }
+                    }
+                    _ => {
+                        // For other stream types, use content field
+                        return stream.content.join("\n");
+                    }
+                }
             }
         }
 
-        // Check for choices
+        // Fallback: check for direct choices on muxbox (legacy support)
         if let Some(choices) = &muxbox.choices {
             let mut content = Vec::new();
             for choice in choices {
-                // Use the id as display text, or content if available
                 let display_text = choice.content.as_deref().unwrap_or(&choice.id);
                 content.push(display_text.to_string());
             }

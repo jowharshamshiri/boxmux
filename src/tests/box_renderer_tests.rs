@@ -23,7 +23,7 @@ mod tests {
 
     #[test]
     fn test_box_renderer_basic_rendering() {
-        let mut muxbox = TestDataFactory::create_test_muxbox("test_box");
+        let mut muxbox = TestDataFactory::create_test_muxbox_with_parent("test_box", "test_layout");
         muxbox.title = Some("Test Title".to_string());
         
         let context = create_test_context();
@@ -40,7 +40,7 @@ mod tests {
                 x2: 50, y2: 20,
             }
         );
-        adjusted_bounds.insert("main".to_string(), layout_bounds);
+        adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
         let renderer = BoxRenderer::new(&muxbox, "test_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_box_renderer_with_content_stream() {
-        let mut muxbox = TestDataFactory::create_test_muxbox("content_box");
+        let mut muxbox = TestDataFactory::create_test_muxbox_with_parent("content_box", "test_layout");
         
         // Add content stream with correct API
         let mut streams = IndexMap::new();
@@ -89,7 +89,7 @@ mod tests {
                 x2: 45, y2: 15,
             }
         );
-        adjusted_bounds.insert("main".to_string(), layout_bounds);
+        adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
         let renderer = BoxRenderer::new(&muxbox, "content_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_box_renderer_with_choices_stream() {
-        let mut muxbox = TestDataFactory::create_test_muxbox("choice_box");
+        let mut muxbox = TestDataFactory::create_test_muxbox_with_parent("choice_box", "test_layout");
         
         // Add choices stream with correct API
         let mut streams = IndexMap::new();
@@ -149,7 +149,7 @@ mod tests {
                 x2: 60, y2: 25,
             }
         );
-        adjusted_bounds.insert("main".to_string(), layout_bounds);
+        adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
         let renderer = BoxRenderer::new(&muxbox, "choice_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_box_renderer_component_integration() {
-        let mut muxbox = TestDataFactory::create_test_muxbox("integration_box");
+        let mut muxbox = TestDataFactory::create_test_muxbox_with_parent("integration_box", "test_layout");
         
         // Configure for scrollable content to test scrollbar integration
         muxbox.overflow_behavior = Some("scroll".to_string());
@@ -240,7 +240,7 @@ mod tests {
                 x2: 35, y2: 15, // Small box to force scrolling
             }
         );
-        adjusted_bounds.insert("main".to_string(), layout_bounds);
+        adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
         let renderer = BoxRenderer::new(&muxbox, "integration_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_box_renderer_pty_indicator_integration() {
-        let mut muxbox = TestDataFactory::create_test_muxbox("pty_box");
+        let mut muxbox = TestDataFactory::create_test_muxbox_with_parent("pty_box", "test_layout");
         
         // Set PTY execution mode
         muxbox.execution_mode = ExecutionMode::Pty;
@@ -276,7 +276,7 @@ mod tests {
                 x2: 50, y2: 20,
             }
         );
-        adjusted_bounds.insert("main".to_string(), layout_bounds);
+        adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
         let renderer = BoxRenderer::new(&muxbox, "pty_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();

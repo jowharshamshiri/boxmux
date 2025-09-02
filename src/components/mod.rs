@@ -14,6 +14,8 @@ pub mod overflow_renderer;
 pub mod error_display;
 pub mod box_renderer;
 pub mod chart_component;
+pub mod table_component;
+pub mod progress_bar;
 
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
@@ -29,3 +31,5 @@ pub use overflow_renderer::{OverflowRenderer, OverflowConfig, OverflowBehavior};
 pub use error_display::{ErrorDisplay, ErrorDisplayConfig, ErrorInfo, ErrorSeverity, ErrorSpan, CaretPositioning};
 pub use box_renderer::BoxRenderer;
 pub use chart_component::{ChartComponent, ChartConfig, ChartType, DataPoint};
+pub use table_component::{TableComponent, TableComponentConfig};
+pub use progress_bar::{ProgressBar, ProgressBarConfig, ProgressState, ProgressBarOrientation};

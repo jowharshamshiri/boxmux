@@ -105,13 +105,27 @@ impl TestDataFactory {
         muxbox
     }
 
+    /// Create a test muxbox with parent layout ID set
+    pub fn create_test_muxbox_with_parent(id: &str, parent_layout_id: &str) -> MuxBox {
+        let mut muxbox = Self::create_test_muxbox(id);
+        muxbox.parent_layout_id = Some(parent_layout_id.to_string());
+        muxbox
+    }
+
     /// Create a test layout with muxboxes
     pub fn create_test_layout(id: &str, muxboxes: Option<Vec<MuxBox>>) -> Layout {
+        let mut boxes = muxboxes.unwrap_or_else(|| vec![Self::create_test_muxbox("default_muxbox")]);
+        
+        // Set parent layout ID for all boxes
+        for muxbox in &mut boxes {
+            muxbox.parent_layout_id = Some(id.to_string());
+        }
+        
         Layout {
             id: id.to_string(),
             title: Some(format!("Test Layout {}", id)),
             refresh_interval: None,
-            children: muxboxes.or_else(|| Some(vec![Self::create_test_muxbox("default_muxbox")])),
+            children: Some(boxes),
             fill: None,
             fill_char: None,
             selected_fill_char: None,
@@ -158,8 +172,7 @@ impl TestDataFactory {
 
     /// Create a test app with basic structure
     pub fn create_test_app() -> App {
-        let muxbox = Self::create_test_muxbox("test_muxbox");
-        let layout = Self::create_root_layout("test_layout", Some(vec![muxbox]));
+        let layout = Self::create_root_layout("test_layout", None); // Use None to let create_test_layout handle muxbox creation
 
         let mut app = App::new();
         app.layouts = vec![layout];
@@ -171,13 +184,9 @@ impl TestDataFactory {
 
     /// Create an app with multiple layouts for testing layout switching
     pub fn create_multi_layout_app() -> App {
-        let muxbox1 = Self::create_test_muxbox("muxbox1");
-        let muxbox2 = Self::create_test_muxbox("muxbox2");
-        let muxbox3 = Self::create_test_muxbox("muxbox3");
-
-        let layout1 = Self::create_root_layout("layout1", Some(vec![muxbox1]));
-        let layout2 = Self::create_test_layout("layout2", Some(vec![muxbox2]));
-        let layout3 = Self::create_test_layout("layout3", Some(vec![muxbox3]));
+        let layout1 = Self::create_root_layout("layout1", Some(vec![Self::create_test_muxbox_with_parent("muxbox1", "layout1")]));
+        let layout2 = Self::create_test_layout("layout2", Some(vec![Self::create_test_muxbox_with_parent("muxbox2", "layout2")]));
+        let layout3 = Self::create_test_layout("layout3", Some(vec![Self::create_test_muxbox_with_parent("muxbox3", "layout3")]));
 
         let mut app = App::new();
         app.layouts = vec![layout1, layout2, layout3];
