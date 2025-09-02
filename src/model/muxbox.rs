@@ -619,7 +619,7 @@ impl MuxBox {
         app_context.app.get_layout_by_id(layout_id).cloned()
     }
 
-    pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_fg_color(app_context, app_graph);
         }
@@ -652,15 +652,15 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
-    pub fn calc_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_bg_color(app_context, app_graph);
         }
@@ -693,15 +693,15 @@ impl MuxBox {
             "black"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
-    pub fn calc_border_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_border_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_border_color(app_context, app_graph);
         }
@@ -734,11 +734,11 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
@@ -746,7 +746,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         if self.error_state {
             return self.calc_error_title_bg_color(app_context, app_graph);
         }
@@ -779,15 +779,15 @@ impl MuxBox {
             "bright_black"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
-    pub fn calc_title_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_title_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_title_fg_color(app_context, app_graph);
         }
@@ -820,11 +820,11 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
@@ -844,7 +844,7 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_menu_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_menu_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.menu_fg_color.clone());
@@ -852,15 +852,15 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.menu_fg_color.clone());
 
-        inherit_string(
+        inherit_string_transparent(
             self.menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            "bright_white",
+            Some("bright_white"),
         )
     }
 
-    pub fn calc_menu_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_menu_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.menu_bg_color.clone());
@@ -868,11 +868,11 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.menu_bg_color.clone());
 
-        inherit_string(
+        inherit_string_transparent(
             self.menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            "black",
+            Some("black"),
         )
     }
 
@@ -880,7 +880,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.selected_menu_fg_color.clone());
@@ -888,11 +888,11 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.selected_menu_fg_color.clone());
 
-        inherit_string(
+        inherit_string_transparent(
             self.selected_menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            "bright_white",
+            Some("bright_white"),
         )
     }
 
@@ -900,7 +900,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.selected_menu_bg_color.clone());
@@ -908,15 +908,15 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.selected_menu_bg_color.clone());
 
-        inherit_string(
+        inherit_string_transparent(
             self.selected_menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            "red",
+            Some("red"),
         )
     }
 
-    pub fn calc_error_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_error_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_fg_color.clone()
@@ -945,15 +945,15 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
-    pub fn calc_error_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
+    pub fn calc_error_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_bg_color.clone()
@@ -982,11 +982,11 @@ impl MuxBox {
             "red"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
@@ -994,7 +994,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_title_fg_color.clone()
@@ -1023,11 +1023,11 @@ impl MuxBox {
             "red"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
@@ -1035,7 +1035,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_title_bg_color.clone()
@@ -1064,11 +1064,11 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 
@@ -1076,7 +1076,7 @@ impl MuxBox {
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
-    ) -> String {
+    ) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_border_color.clone()
@@ -1105,11 +1105,11 @@ impl MuxBox {
             "white"
         };
 
-        inherit_string(
+        crate::utils::inherit_string_transparent(
             self_color,
             parent_color.as_ref(),
             parent_layout_color.as_ref(),
-            default_color,
+            Some(default_color),
         )
     }
 

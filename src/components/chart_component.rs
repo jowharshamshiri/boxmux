@@ -223,11 +223,11 @@ impl ChartComponent {
             };
             
             print_with_color_and_background_at(
-                bounds.left(),
                 y_pos,
+                bounds.left(),
+                &Some(fg_color.to_string()),
+                &Some(bg_color.to_string()),
                 &display_line,
-                fg_color,
-                bg_color,
                 buffer,
             );
         }

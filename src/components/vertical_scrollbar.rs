@@ -78,8 +78,8 @@ impl VerticalScrollbar {
         content_height: usize,
         viewable_height: usize,
         vertical_scroll: f64,
-        border_color: &str,
-        bg_color: &str,
+        border_color: &Option<String>,
+        bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
         if !self.should_draw(content_height, viewable_height) {
@@ -94,7 +94,7 @@ impl VerticalScrollbar {
             print_with_color_and_background_at(
                 y,
                 x,
-                "bright_black",
+                &Some("bright_black".to_string()),
                 bg_color,
                 self.track_char,
                 buffer,

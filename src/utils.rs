@@ -106,6 +106,32 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
     }
 }
 
+/// Inherit string with transparent support - returns None if no color specified anywhere
+pub fn inherit_string_transparent(
+    child_value: Option<&String>,
+    parent_value: Option<&String>,
+    parent_layout_value: Option<&String>,
+    default_value: Option<&str>,
+) -> Option<String> {
+    if let Some(value) = child_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    if let Some(value) = parent_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    if let Some(value) = parent_layout_value {
+        if !value.is_empty() {
+            return Some(value.clone());
+        }
+    }
+    default_value.map(|s| s.to_string())
+}
+
+/// Legacy inherit function with default fallback
 pub fn inherit_string(
     child_value: Option<&String>,
     parent_value: Option<&String>,

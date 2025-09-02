@@ -51,12 +51,11 @@ impl ChoiceRenderer {
         viewable_width: usize,
         vertical_scroll: f64,
         overflow_behavior: &str,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         self.draw_with_focus(
@@ -71,7 +70,6 @@ impl ChoiceRenderer {
             selected_menu_fg_color,
             selected_menu_bg_color,
             border_color,
-            draw_border,
             None, // No focused choice by default
             buffer,
         )
@@ -86,12 +84,11 @@ impl ChoiceRenderer {
         viewable_width: usize,
         vertical_scroll: f64,
         overflow_behavior: &str,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         focused_choice_index: Option<usize>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
@@ -114,8 +111,7 @@ impl ChoiceRenderer {
                     selected_menu_fg_color,
                     selected_menu_bg_color,
                     border_color,
-                    draw_border,
-                    focused_choice_index,
+                            focused_choice_index,
                     buffer,
                 )
             }
@@ -131,8 +127,7 @@ impl ChoiceRenderer {
                     selected_menu_fg_color,
                     selected_menu_bg_color,
                     border_color,
-                    draw_border,
-                    focused_choice_index,
+                            focused_choice_index,
                     buffer,
                 )
             }
@@ -160,12 +155,11 @@ impl ChoiceRenderer {
         choices: &[Choice],
         viewable_height: usize,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let total_choices = choices.len();
@@ -198,7 +192,7 @@ impl ChoiceRenderer {
         }
 
         // Draw vertical scrollbar for choices
-        if draw_border {
+        if crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_choices", self.id));
             vertical_scrollbar.draw(
                 parent_bounds,
@@ -222,12 +216,11 @@ impl ChoiceRenderer {
         choices: &[Choice],
         viewable_height: usize,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         focused_choice_index: Option<usize>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
@@ -280,7 +273,7 @@ impl ChoiceRenderer {
         }
 
         // Draw vertical scrollbar for choices
-        if draw_border {
+        if crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_choices", self.id));
             vertical_scrollbar.draw(
                 parent_bounds,
@@ -305,12 +298,11 @@ impl ChoiceRenderer {
         viewable_height: usize,
         viewable_width: usize,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         // Create all wrapped lines first
@@ -360,7 +352,7 @@ impl ChoiceRenderer {
         }
 
         // Draw vertical scrollbar if needed
-        if total_wrapped_lines > viewable_height && draw_border {
+        if total_wrapped_lines > viewable_height && crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_wrapped_choices", self.id));
             vertical_scrollbar.draw(
                 parent_bounds,
@@ -385,12 +377,11 @@ impl ChoiceRenderer {
         viewable_height: usize,
         viewable_width: usize,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         focused_choice_index: Option<usize>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
@@ -413,7 +404,7 @@ impl ChoiceRenderer {
                 let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
 
                 for wrapped_line in wrapped_lines {
-                    all_wrapped_lines.push((wrapped_line, fg_color.to_string(), bg_color.to_string()));
+                    all_wrapped_lines.push((wrapped_line, fg_color.clone(), bg_color.clone()));
                 }
             } else {
                 // Fallback to basic rendering
@@ -429,7 +420,7 @@ impl ChoiceRenderer {
                 let wrapped_lines = wrap_text_to_width(&formatted_content, viewable_width);
 
                 for wrapped_line in wrapped_lines {
-                    all_wrapped_lines.push((wrapped_line, fg_color.to_string(), bg_color.to_string()));
+                    all_wrapped_lines.push((wrapped_line, fg_color.clone(), bg_color.clone()));
                 }
             }
         }
@@ -460,7 +451,7 @@ impl ChoiceRenderer {
         }
 
         // Draw vertical scrollbar if needed
-        if total_wrapped_lines > viewable_height && draw_border {
+        if total_wrapped_lines > viewable_height && crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_wrapped_choices", self.id));
             vertical_scrollbar.draw(
                 parent_bounds,
@@ -483,10 +474,10 @@ impl ChoiceRenderer {
         parent_bounds: &Bounds,
         choices: &[Choice],
         viewable_height: usize,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
         let mut y_position = parent_bounds.top() + 1;
@@ -524,10 +515,10 @@ impl ChoiceRenderer {
         parent_bounds: &Bounds,
         choices: &[Choice],
         viewable_height: usize,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
         focused_choice_index: Option<usize>,
         buffer: &mut ScreenBuffer,
     ) {
@@ -583,11 +574,11 @@ impl ChoiceRenderer {
     fn get_choice_colors<'a>(
         &self,
         choice: &Choice,
-        menu_fg_color: &'a str,
-        menu_bg_color: &'a str,
-        selected_menu_fg_color: &'a str,
-        selected_menu_bg_color: &'a str,
-    ) -> (&'a str, &'a str) {
+        menu_fg_color: &'a Option<String>,
+        menu_bg_color: &'a Option<String>,
+        selected_menu_fg_color: &'a Option<String>,
+        selected_menu_bg_color: &'a Option<String>,
+    ) -> (&'a Option<String>, &'a Option<String>) {
         if choice.selected {
             (selected_menu_fg_color, selected_menu_bg_color)
         } else {

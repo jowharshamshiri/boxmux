@@ -148,10 +148,10 @@ impl SelectionStyleRenderer {
         bounds: &Bounds,
         y_position: usize,
         x_position: usize,
-        base_fg_color: &str,
-        base_bg_color: &str,
-        selected_fg_color: &str,
-        selected_bg_color: &str,
+        base_fg_color: &Option<String>,
+        base_bg_color: &Option<String>,
+        selected_fg_color: &Option<String>,
+        selected_bg_color: &Option<String>,
         is_focused: bool,
         buffer: &mut ScreenBuffer,
     ) {
@@ -189,22 +189,22 @@ impl SelectionStyleRenderer {
     pub fn calculate_style_colors_and_text(
         &self,
         choice: &Choice,
-        base_fg_color: &str,
-        base_bg_color: &str,
-        selected_fg_color: &str,
-        selected_bg_color: &str,
+        base_fg_color: &Option<String>,
+        base_bg_color: &Option<String>,
+        selected_fg_color: &Option<String>,
+        selected_bg_color: &Option<String>,
         is_focused: bool,
-    ) -> (String, String, String) {
+    ) -> (Option<String>, Option<String>, String) {
         let mut fg_color = if choice.selected {
-            selected_fg_color.to_string()
+            selected_fg_color.clone()
         } else {
-            base_fg_color.to_string()
+            base_fg_color.clone()
         };
 
         let mut bg_color = if choice.selected {
-            selected_bg_color.to_string()
+            selected_bg_color.clone()
         } else {
-            base_bg_color.to_string()
+            base_bg_color.clone()
         };
 
         let mut display_text = choice.content.as_ref().unwrap_or(&String::new()).clone();
@@ -335,8 +335,8 @@ impl SelectionStyleRenderer {
                 print_with_color_and_background_at(
                     y_position,
                     x_position - 1,
-                    "bright_yellow",
-                    "black",
+                    &Some("bright_yellow".to_string()),
+                    &Some("black".to_string()),
                     &border.vertical.to_string(),
                     buffer,
                 );
@@ -346,8 +346,8 @@ impl SelectionStyleRenderer {
                 print_with_color_and_background_at(
                     y_position,
                     x_position + text_length,
-                    "bright_yellow",
-                    "black",
+                    &Some("bright_yellow".to_string()),
+                    &Some("black".to_string()),
                     &border.vertical.to_string(),
                     buffer,
                 );
@@ -369,8 +369,8 @@ impl SelectionStyleRenderer {
             print_with_color_and_background_at(
                 y_position + 1,
                 x_position,
-                "bright_yellow",
-                "black",
+                &Some("bright_yellow".to_string()),
+                &Some("black".to_string()),
                 &underline,
                 buffer,
             );
@@ -392,8 +392,8 @@ impl SelectionStyleRenderer {
                 print_with_color_and_background_at(
                     y_position,
                     x_position - 1,
-                    "bright_cyan",
-                    "black",
+                    &Some("bright_cyan".to_string()),
+                    &Some("black".to_string()),
                     ":",
                     buffer,
                 );
@@ -403,8 +403,8 @@ impl SelectionStyleRenderer {
                 print_with_color_and_background_at(
                     y_position,
                     x_position + text_length,
-                    "bright_cyan",
-                    "black",
+                    &Some("bright_cyan".to_string()),
+                    &Some("black".to_string()),
                     ":",
                     buffer,
                 );
@@ -426,8 +426,8 @@ impl SelectionStyleRenderer {
             print_with_color_and_background_at(
                 y_position,
                 x_position - 1,
-                "bright_magenta",
-                "black",
+                &Some("bright_magenta".to_string()),
+                &Some("black".to_string()),
                 &indicators.focus_indicator,
                 buffer,
             );
@@ -446,8 +446,8 @@ impl SelectionStyleRenderer {
             print_with_color_and_background_at(
                 y_position,
                 x_position - 1,
-                "bright_white",
-                "black",
+                &Some("bright_white".to_string()),
+                &Some("black".to_string()),
                 "●",
                 buffer,
             );
@@ -455,22 +455,25 @@ impl SelectionStyleRenderer {
     }
 
     /// Make color brighter/more intense
-    fn make_color_bright(&self, color: &str) -> String {
+    fn make_color_bright(&self, color: &Option<String>) -> Option<String> {
         match color {
-            "red" => "bright_red".to_string(),
-            "green" => "bright_green".to_string(),
-            "blue" => "bright_blue".to_string(),
-            "yellow" => "bright_yellow".to_string(),
-            "magenta" => "bright_magenta".to_string(),
-            "cyan" => "bright_cyan".to_string(),
-            "white" => "bright_white".to_string(),
-            "black" => "bright_black".to_string(),
-            _ => color.to_string(), // Return as-is if already bright or unknown
+            Some(color_str) => match color_str.as_str() {
+                "red" => Some("bright_red".to_string()),
+                "green" => Some("bright_green".to_string()),
+                "blue" => Some("bright_blue".to_string()),
+                "yellow" => Some("bright_yellow".to_string()),
+                "magenta" => Some("bright_magenta".to_string()),
+                "cyan" => Some("bright_cyan".to_string()),
+                "white" => Some("bright_white".to_string()),
+                "black" => Some("bright_black".to_string()),
+                _ => Some(color_str.clone()), // Return as-is if already bright or unknown
+            }
+            None => None, // Transparent remains transparent
         }
     }
 
     /// Apply intensity factor to color
-    fn apply_intensity(&self, color: &str) -> String {
+    fn apply_intensity(&self, color: &Option<String>) -> Option<String> {
         // For now, just make it bright - could be enhanced with RGB manipulation
         self.make_color_bright(color)
     }
@@ -519,9 +522,10 @@ mod tests {
     #[test]
     fn test_color_bright_conversion() {
         let renderer = SelectionStyleRenderer::with_defaults("test".to_string());
-        assert_eq!(renderer.make_color_bright("red"), "bright_red");
-        assert_eq!(renderer.make_color_bright("green"), "bright_green");
-        assert_eq!(renderer.make_color_bright("bright_blue"), "bright_blue"); // Already bright
+        assert_eq!(renderer.make_color_bright(&Some("red".to_string())), Some("bright_red".to_string()));
+        assert_eq!(renderer.make_color_bright(&Some("green".to_string())), Some("bright_green".to_string()));
+        assert_eq!(renderer.make_color_bright(&Some("bright_blue".to_string())), Some("bright_blue".to_string())); // Already bright
+        assert_eq!(renderer.make_color_bright(&None), None); // Transparent stays transparent
     }
 
     #[test]
@@ -566,15 +570,15 @@ mod tests {
 
         let (fg, bg, text) = renderer.calculate_style_colors_and_text(
             &choice,
-            "white",
-            "black",
-            "bright_white",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("bright_white".to_string()),
+            &Some("blue".to_string()),
             false,
         );
 
-        assert_eq!(fg, "bright_white");
-        assert_eq!(bg, "blue");
+        assert_eq!(fg, Some("bright_white".to_string()));
+        assert_eq!(bg, Some("blue".to_string()));
         assert_eq!(text, "Test Choice");
     }
 
@@ -603,15 +607,15 @@ mod tests {
 
         let (fg, bg, text) = renderer.calculate_style_colors_and_text(
             &choice,
-            "white",
-            "black",
-            "bright_white",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("bright_white".to_string()),
+            &Some("blue".to_string()),
             false,
         );
 
-        assert_eq!(fg, "bright_white");
-        assert_eq!(bg, "blue");
+        assert_eq!(fg, Some("bright_white".to_string()));
+        assert_eq!(bg, Some("blue".to_string()));
         assert_eq!(text, "▶ Menu Item");
     }
 
@@ -636,16 +640,16 @@ mod tests {
 
         let (fg, bg, text) = renderer.calculate_style_colors_and_text(
             &choice,
-            "white",
-            "black",
-            "bright_white",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("bright_white".to_string()),
+            &Some("blue".to_string()),
             false,
         );
 
         // Colors should be swapped
-        assert_eq!(fg, "blue");
-        assert_eq!(bg, "bright_white");
+        assert_eq!(fg, Some("blue".to_string()));
+        assert_eq!(bg, Some("bright_white".to_string()));
         assert_eq!(text, "Inverted");
     }
 
@@ -665,10 +669,10 @@ mod tests {
 
         let (fg, bg, text) = renderer.calculate_style_colors_and_text(
             &choice,
-            "white",
-            "black",
-            "bright_white",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("bright_white".to_string()),
+            &Some("blue".to_string()),
             false,
         );
 
@@ -699,13 +703,13 @@ mod tests {
             &choice,
             "white",
             "black",
-            "red",
-            "blue",
+            &Some("red".to_string()),
+            &Some("blue".to_string()),
             true, // is_focused = true
         );
 
         // Should apply intensity to red -> bright_red
-        assert_eq!(fg, "bright_red");
-        assert_eq!(bg, "blue");
+        assert_eq!(fg, Some("bright_red".to_string()));
+        assert_eq!(bg, Some("blue".to_string()));
     }
 }

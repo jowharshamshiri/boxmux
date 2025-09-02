@@ -18,6 +18,27 @@ pub fn content_size(text: &str) -> (usize, usize) {
     (width, height)
 }
 
+/// Get foreground color code, returning empty string for transparent (None) colors
+pub fn get_fg_color_transparent(color: &Option<String>) -> String {
+    match color {
+        Some(color_str) => get_fg_color(color_str),
+        None => String::new(), // Transparent - no color change
+    }
+}
+
+/// Get background color code, returning empty string for transparent (None) colors  
+pub fn get_bg_color_transparent(color: &Option<String>) -> String {
+    match color {
+        Some(color_str) => get_bg_color(color_str),
+        None => String::new(), // Transparent - no color change
+    }
+}
+
+/// Check if color should be drawn (not transparent)
+pub fn should_draw_color(color: &Option<String>) -> bool {
+    color.is_some()
+}
+
 pub fn get_fg_color(color: &str) -> String {
     match color {
         "red" => format!("{}", SetForegroundColor(Color::Red)),
@@ -92,11 +113,10 @@ pub fn draw_layout(
     buffer: &mut ScreenBuffer,
 ) {
     let cloned_layout = layout.clone();
-    let bg_color = cloned_layout.bg_color.unwrap_or("black".to_string());
     let fill_char = cloned_layout.fill_char.unwrap_or(' ');
 
-    // Set the background for the layout
-    fill_muxbox(&screen_bounds(), false, &bg_color, fill_char, buffer);
+    // Set the background for the layout - None means transparent (no background drawing)
+    fill_muxbox(&screen_bounds(), false, &cloned_layout.bg_color, &cloned_layout.fg_color, fill_char, buffer);
 
     if let Some(layout_title) = &cloned_layout.title {
         if !layout_title.trim().is_empty() {
@@ -157,8 +177,8 @@ pub fn draw_muxbox(
 pub fn print_with_color_and_background_at(
     y: usize,
     x: usize,
-    fg_color: &str,
-    bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
     text: &str,
     buffer: &mut ScreenBuffer,
 ) {
@@ -171,8 +191,8 @@ pub fn print_with_color_and_background_at(
         }
     } else {
         // Original behavior for plain text
-        let fg_color_code = get_fg_color(fg_color);
-        let bg_color_code = get_bg_color(bg_color);
+        let fg_color_code = get_fg_color_transparent(fg_color);
+        let bg_color_code = get_bg_color_transparent(bg_color);
         for (i, ch) in text.chars().enumerate() {
             let cell = Cell {
                 fg_color: fg_color_code.clone(),
@@ -201,12 +221,12 @@ pub fn draw_horizontal_line(
     y: usize,
     x1: usize,
     x2: usize,
-    border_color: &str,
-    bg_color: &str,
+    border_color: &Option<String>,
+    bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
-    let border_color_code = get_fg_color(border_color);
-    let bg_color_code = get_bg_color(bg_color);
+    let border_color_code = get_fg_color_transparent(border_color);
+    let bg_color_code = get_bg_color_transparent(bg_color);
     for x in x1..=x2 {
         let cell = Cell {
             fg_color: border_color_code.clone(),
@@ -221,12 +241,12 @@ pub fn fill_horizontal_background(
     y: usize,
     x1: usize,
     x2: usize,
-    fg_color: &str,
-    bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
-    let fg_color_code = get_fg_color(fg_color);
-    let bg_color_code = get_bg_color(bg_color);
+    let fg_color_code = get_fg_color_transparent(fg_color);
+    let bg_color_code = get_bg_color_transparent(bg_color);
     for x in x1..=x2 {
         let cell = Cell {
             fg_color: fg_color_code.clone(),
@@ -241,12 +261,12 @@ pub fn draw_vertical_line(
     x: usize,
     y1: usize,
     y2: usize,
-    border_color: &str,
-    bg_color: &str,
+    border_color: &Option<String>,
+    bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
-    let border_color_code = get_fg_color(border_color);
-    let bg_color_code = get_bg_color(bg_color);
+    let border_color_code = get_fg_color_transparent(border_color);
+    let bg_color_code = get_bg_color_transparent(bg_color);
     for y in y1..=y2 {
         let cell = Cell {
             fg_color: border_color_code.clone(),
@@ -262,10 +282,10 @@ pub fn erase_to_background_color(
     y: usize,
     width: usize,
     height: usize,
-    bg_color: &str,
+    bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
-    let bg_color_code = get_bg_color(bg_color);
+    let bg_color_code = get_bg_color_transparent(bg_color);
     for y in y..y + height {
         for x in x..x + width {
             let cell = Cell {
@@ -282,13 +302,12 @@ pub fn draw_horizontal_line_with_title(
     y: usize,
     x1: usize,
     x2: usize,
-    fg_color: &str,
-    bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
     _title: Option<&str>,
-    title_fg_color: &str,
-    title_bg_color: &str,
+    title_fg_color: &Option<String>,
+    title_bg_color: &Option<String>,
     title_position: &str,
-    draw_border: bool,
     buffer: &mut ScreenBuffer,
 ) {
     let width = x2.saturating_sub(x1);
@@ -357,8 +376,8 @@ pub fn draw_horizontal_line_with_title(
                 buffer,
             );
 
-            // Draw borders if needed
-            if draw_border {
+            // Draw borders if border colors are not transparent
+            if should_draw_color(fg_color) || should_draw_color(bg_color) {
                 draw_horizontal_line(
                     y,
                     x1,
@@ -376,11 +395,11 @@ pub fn draw_horizontal_line_with_title(
                     buffer,
                 );
             }
-        } else if draw_border {
+        } else if should_draw_color(fg_color) || should_draw_color(bg_color) {
             // If the title is too long, just draw a line without the title
             draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
         }
-    } else if draw_border {
+    } else if should_draw_color(fg_color) || should_draw_color(bg_color) {
         // If there is no title, just draw a full horizontal line
         draw_horizontal_line(y, x1, x2, fg_color, bg_color, buffer);
     }
@@ -394,13 +413,12 @@ pub fn draw_horizontal_line_with_tabs(
     y: usize,
     x1: usize,
     x2: usize,
-    fg_color: &str,
-    bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
     _title: Option<&str>,
-    title_fg_color: &str,
-    title_bg_color: &str,
+    title_fg_color: &Option<String>,
+    title_bg_color: &Option<String>,
     title_position: &str,
-    draw_border: bool,
     tab_labels: &[String],
     tab_close_buttons: &[bool], // F0219: Close button info for each tab
     active_tab_index: usize,
@@ -423,7 +441,6 @@ pub fn draw_horizontal_line_with_tabs(
             tab_close_buttons,
             active_tab_index,
             tab_scroll_offset,
-            draw_border,
             buffer,
         );
     } else {
@@ -438,7 +455,6 @@ pub fn draw_horizontal_line_with_tabs(
             title_fg_color,
             title_bg_color,
             title_position,
-            draw_border,
             buffer,
         );
     }
@@ -452,7 +468,8 @@ pub fn calculate_tab_click_index(
     x2: usize,
     tab_labels: &[String],
     tab_scroll_offset: usize,
-    draw_border: bool,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
 ) -> Option<usize> {
     crate::components::TabBar::calculate_tab_click_index(
         click_x,
@@ -460,7 +477,8 @@ pub fn calculate_tab_click_index(
         x2,
         tab_labels,
         tab_scroll_offset,
-        draw_border,
+        fg_color,
+        bg_color,
     )
 }
 
@@ -470,7 +488,8 @@ pub fn calculate_tab_navigation_click(
     x2: usize,
     tab_labels: &[String],
     tab_scroll_offset: usize,
-    draw_border: bool,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
 ) -> Option<TabNavigationAction> {
     crate::components::TabBar::calculate_tab_navigation_click(
         click_x,
@@ -478,7 +497,8 @@ pub fn calculate_tab_navigation_click(
         x2,
         tab_labels,
         tab_scroll_offset,
-        draw_border,
+        fg_color,
+        bg_color,
     )
 }
 
@@ -490,7 +510,8 @@ pub fn calculate_tab_close_click(
     tab_labels: &[String],
     tab_close_buttons: &[bool],
     tab_scroll_offset: usize,
-    draw_border: bool,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
 ) -> Option<usize> {
     crate::components::TabBar::calculate_tab_close_click(
         click_x,
@@ -499,7 +520,8 @@ pub fn calculate_tab_close_click(
         tab_labels,
         tab_close_buttons,
         tab_scroll_offset,
-        draw_border,
+        fg_color,
+        bg_color,
     )
 }
 
@@ -516,12 +538,18 @@ pub use crate::components::TabNavigationAction;
 pub fn fill_muxbox(
     bounds: &Bounds,
     inside: bool,
-    bg_color: &str,
+    bg_color: &Option<String>,
+    fg_color: &Option<String>,
     fill_char: char,
     buffer: &mut ScreenBuffer,
 ) {
-    let fg_color_code = get_fg_color(bg_color);
-    let bg_color_code = get_bg_color(bg_color);
+    // Skip drawing entirely if both colors are transparent
+    if !should_draw_color(bg_color) && !should_draw_color(fg_color) {
+        return;
+    }
+
+    let fg_color_code = get_fg_color_transparent(fg_color);
+    let bg_color_code = get_bg_color_transparent(bg_color);
 
     let (top, bottom) = if inside {
         (bounds.top(), bounds.bottom())
@@ -537,12 +565,21 @@ pub fn fill_muxbox(
 
     for y in top..bottom {
         for x in left..right {
-            let cell = Cell {
-                fg_color: fg_color_code.clone(),
-                bg_color: bg_color_code.clone(),
-                ch: fill_char,
-            };
-            buffer.update(x, y, cell);
+            // Only update cells where we have colors to draw
+            if should_draw_color(bg_color) || should_draw_color(fg_color) {
+                let default_cell = Cell {
+                    fg_color: get_fg_color_transparent(&None),
+                    bg_color: get_bg_color_transparent(&None),
+                    ch: ' ',
+                };
+                let existing_cell = buffer.get(x, y).unwrap_or(&default_cell);
+                let cell = Cell {
+                    fg_color: if should_draw_color(fg_color) { fg_color_code.clone() } else { existing_cell.fg_color.clone() },
+                    bg_color: if should_draw_color(bg_color) { bg_color_code.clone() } else { existing_cell.bg_color.clone() },
+                    ch: fill_char,
+                };
+                buffer.update(x, y, cell);
+            }
         }
     }
 }
@@ -630,8 +667,8 @@ pub fn render_wrapped_content(
     wrapped_lines: &[String],
     bounds: &Bounds,
     vertical_scroll: f64,
-    fg_color: &str,
-    bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
     let viewable_height = bounds.height().saturating_sub(4);
@@ -713,10 +750,10 @@ pub fn render_wrapped_choices(
     choices: &[crate::model::muxbox::Choice],
     bounds: &Bounds,
     vertical_scroll: f64,
-    fg_color: &str,
-    bg_color: &str,
-    selected_choice_fg_color: &str,
-    selected_choice_bg_color: &str,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
+    selected_choice_fg_color: &Option<String>,
+    selected_choice_bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
     let viewable_width = bounds.width().saturating_sub(4);

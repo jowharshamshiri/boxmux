@@ -1,7 +1,7 @@
 use crate::model::common::{Bounds, ScreenBuffer, Cell};
 use crate::model::muxbox::Choice;
 use crate::draw_utils::{
-    get_bg_color, get_fg_color, fill_muxbox, wrap_text_to_width, wrap_choices_to_width,
+    get_bg_color_transparent, get_fg_color_transparent, fill_muxbox, wrap_text_to_width, wrap_choices_to_width,
     render_wrapped_content, render_wrapped_choices, print_with_color_and_background_at
 };
 use crate::components::vertical_scrollbar::VerticalScrollbar;
@@ -29,8 +29,6 @@ pub enum OverflowBehavior {
 pub struct OverflowConfig {
     /// Primary overflow behavior
     pub behavior: OverflowBehavior,
-    /// Whether to draw borders around overflow content
-    pub draw_border: bool,
     /// Custom fill character for Fill behavior
     pub fill_char: char,
     /// Cross-out pattern character
@@ -41,7 +39,6 @@ impl Default for OverflowConfig {
     fn default() -> Self {
         Self {
             behavior: OverflowBehavior::Clip,
-            draw_border: true,
             fill_char: '█',
             cross_char: 'X',
         }
@@ -138,10 +135,10 @@ impl OverflowRenderer {
         bounds: &Bounds,
         vertical_scroll: f64,
         horizontal_scroll: f64,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
-        parent_bg_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let content_lines: Vec<&str> = content.lines().collect();
@@ -163,7 +160,7 @@ impl OverflowRenderer {
 
         match &self.config.behavior {
             OverflowBehavior::Fill(fill_char) => {
-                fill_muxbox(bounds, true, bg_color, *fill_char, buffer);
+                fill_muxbox(bounds, true, bg_color, &None, *fill_char, buffer);
                 true
             }
             OverflowBehavior::CrossOut => {
@@ -171,7 +168,7 @@ impl OverflowRenderer {
                 true
             }
             OverflowBehavior::Removed => {
-                fill_muxbox(bounds, false, parent_bg_color, ' ', buffer);
+                fill_muxbox(bounds, false, parent_bg_color, &None, ' ', buffer);
                 true
             }
             OverflowBehavior::Scroll => {
@@ -207,12 +204,12 @@ impl OverflowRenderer {
         choices: &[Choice],
         bounds: &Bounds,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
-        parent_bg_color: &str,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let viewable_width = bounds.width().saturating_sub(4);
@@ -246,7 +243,7 @@ impl OverflowRenderer {
 
         match &self.config.behavior {
             OverflowBehavior::Fill(fill_char) => {
-                fill_muxbox(bounds, true, menu_bg_color, *fill_char, buffer);
+                fill_muxbox(bounds, true, menu_bg_color, &None, *fill_char, buffer);
                 true
             }
             OverflowBehavior::CrossOut => {
@@ -254,7 +251,7 @@ impl OverflowRenderer {
                 true
             }
             OverflowBehavior::Removed => {
-                fill_muxbox(bounds, false, parent_bg_color, ' ', buffer);
+                fill_muxbox(bounds, false, parent_bg_color, &None, ' ', buffer);
                 true
             }
             OverflowBehavior::Wrap => {
@@ -278,12 +275,12 @@ impl OverflowRenderer {
     fn render_cross_out_pattern(
         &self,
         bounds: &Bounds,
-        border_color: &str,
-        parent_bg_color: &str,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
-        let border_color_code = get_fg_color(border_color);
-        let parent_bg_color_code = get_bg_color(parent_bg_color);
+        let border_color_code = get_fg_color_transparent(border_color);
+        let parent_bg_color_code = get_bg_color_transparent(parent_bg_color);
 
         // Draw diagonal cross pattern
         let width = bounds.width();
@@ -323,9 +320,9 @@ impl OverflowRenderer {
         bounds: &Bounds,
         vertical_scroll: f64,
         horizontal_scroll: f64,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let content_lines: Vec<&str> = content.lines().collect();
@@ -377,7 +374,7 @@ impl OverflowRenderer {
 
         // Draw scrollbars if needed and borders are enabled
         let mut scrollbars_drawn = false;
-        if self.config.draw_border {
+        if crate::draw_utils::should_draw_color(border_color) {
             if content_height > viewable_height {
                 let vertical_scrollbar = VerticalScrollbar::new(format!("{}_text_vertical", self.id));
                 vertical_scrollbar.draw(
@@ -416,9 +413,9 @@ impl OverflowRenderer {
         content: &str,
         bounds: &Bounds,
         vertical_scroll: f64,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let viewable_width = bounds.width().saturating_sub(4);
@@ -437,7 +434,7 @@ impl OverflowRenderer {
         );
 
         // Draw vertical scrollbar if wrapped content overflows
-        if wrapped_overflows_vertically && self.config.draw_border {
+        if wrapped_overflows_vertically && crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_wrapped_text", self.id));
             vertical_scrollbar.draw(
                 bounds,
@@ -460,11 +457,11 @@ impl OverflowRenderer {
         choices: &[Choice],
         bounds: &Bounds,
         vertical_scroll: f64,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        border_color: &str,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let viewable_width = bounds.width().saturating_sub(4);
@@ -485,7 +482,7 @@ impl OverflowRenderer {
         );
 
         // Draw vertical scrollbar if wrapped choices overflow
-        if wrapped_overflows_vertically && self.config.draw_border {
+        if wrapped_overflows_vertically && crate::draw_utils::should_draw_color(border_color) {
             let vertical_scrollbar = VerticalScrollbar::new(format!("{}_wrapped_choices", self.id));
             vertical_scrollbar.draw(
                 bounds,

@@ -1886,7 +1886,8 @@ create_runnable!(
                                             muxbox_bounds.right(),
                                             &tab_labels,
                                             clicked_muxbox.tab_scroll_offset,
-                                            has_border,
+                                            &clicked_muxbox.calc_border_color(&app_context_unwrapped, &app_graph),
+                                            &clicked_muxbox.bg_color,
                                         )
                                     {
                                         log::info!(
@@ -1919,7 +1920,8 @@ create_runnable!(
                                             &tab_labels,
                                             &clicked_muxbox.get_tab_close_buttons(),
                                             clicked_muxbox.tab_scroll_offset,
-                                            has_border,
+                                            &clicked_muxbox.calc_border_color(&app_context_unwrapped, &app_graph),
+                                            &clicked_muxbox.bg_color,
                                         )
                                     {
                                         // T0323: Tab close integration with unified execution architecture
@@ -2030,7 +2032,8 @@ create_runnable!(
                                             muxbox_bounds.right(),
                                             &tab_labels,
                                             clicked_muxbox.tab_scroll_offset,
-                                            has_border,
+                                            &clicked_muxbox.calc_border_color(&app_context_unwrapped, &app_graph),
+                                            &clicked_muxbox.bg_color,
                                         )
                                     {
                                         log::info!(
@@ -2350,10 +2353,8 @@ create_runnable!(
                                                 muxbox_bounds.right(),
                                                 &tab_labels,
                                                 muxbox.tab_scroll_offset,
-                                                muxbox.calc_border(
-                                                    &app_context_unwrapped.clone(),
-                                                    &app_graph,
-                                                ),
+                                                &muxbox.calc_border_color(&app_context_unwrapped, &app_graph),
+                                                &muxbox.bg_color,
                                             )
                                         {
                                             log::trace!("Drag started on tab area for muxbox {} - skipping move operation", muxbox.id);

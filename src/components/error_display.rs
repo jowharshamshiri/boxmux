@@ -395,8 +395,8 @@ impl ErrorDisplay {
             print_with_color_and_background_at(
                 y_position,
                 bounds.left() + 1,
-                &text_color,
-                &self.config.background_color,
+                &Some(text_color),
+                &Some(self.config.background_color.clone()),
                 line,
                 buffer,
             );
@@ -439,8 +439,8 @@ impl ErrorDisplay {
             print_with_color_and_background_at(
                 y_position,
                 bounds.left() + 1,
-                &text_color,
-                &self.config.background_color,
+                &Some(text_color),
+                &Some(self.config.background_color.clone()),
                 line,
                 buffer,
             );
@@ -895,8 +895,8 @@ impl ErrorDisplay {
                 print_with_color_and_background_at(
                     y_position,
                     bounds.left() + 1,
-                    &text_color,
-                    &self.config.background_color,
+                    &Some(text_color),
+                    &Some(self.config.background_color.clone()),
                     line,
                     buffer,
                 );

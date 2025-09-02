@@ -3,7 +3,8 @@ use crate::components::{
     ChartComponent, ChartConfig, ChartType
 };
 use crate::draw_utils::{
-    get_fg_color, get_bg_color, fill_muxbox, draw_horizontal_line, draw_vertical_line,
+    get_fg_color_transparent, get_bg_color_transparent, 
+    should_draw_color, fill_muxbox, draw_horizontal_line, draw_vertical_line,
     print_with_color_and_background_at, content_size, draw_horizontal_line_with_tabs
 };
 use crate::model::common::{Cell, ContentStreamTrait, ChoicesStreamTrait, StreamType};
@@ -89,38 +90,38 @@ impl<'a> BoxRenderer<'a> {
 
         // Calculate all colors and properties (same logic as draw_muxbox)
         let muxbox_parent = app_graph.get_parent(&layout.id, &self.muxbox.id);
-        let bg_color = self.muxbox.calc_bg_color(app_context, app_graph).to_string();
+        let bg_color = self.muxbox.calc_bg_color(app_context, app_graph);
         let parent_bg_color = if muxbox_parent.is_none() {
-            layout.bg_color.clone().unwrap_or("black".to_string())
+            layout.bg_color.clone().map(|s| s.to_string())
         } else {
-            muxbox_parent.unwrap().calc_bg_color(app_context, app_graph).to_string()
+            muxbox_parent.unwrap().calc_bg_color(app_context, app_graph).map(|s| s.to_string())
         };
-        let fg_color = self.muxbox.calc_fg_color(app_context, app_graph).to_string();
-        let title_bg_color = self.muxbox.calc_title_bg_color(app_context, app_graph).to_string();
-        let title_fg_color = self.muxbox.calc_title_fg_color(app_context, app_graph).to_string();
+        let fg_color = self.muxbox.calc_fg_color(app_context, app_graph);
+        let title_bg_color = self.muxbox.calc_title_bg_color(app_context, app_graph);
+        let title_fg_color = self.muxbox.calc_title_fg_color(app_context, app_graph);
         let border = self.muxbox.calc_border(app_context, app_graph);
 
         // F0135: PTY Error States - Use different colors based on PTY status
         let border_color = if self.muxbox.execution_mode.is_pty() {
             if let Some(pty_manager) = &app_context.pty_manager {
                 if pty_manager.is_pty_dead(&self.muxbox.id) {
-                    "red".to_string()
+                    Some("red".to_string())
                 } else if pty_manager.is_pty_in_error_state(&self.muxbox.id) {
-                    "yellow".to_string()
+                    Some("yellow".to_string())
                 } else {
-                    "bright_cyan".to_string()
+                    Some("bright_cyan".to_string())
                 }
             } else {
-                "bright_cyan".to_string()
+                Some("bright_cyan".to_string())
             }
         } else {
-            self.muxbox.calc_border_color(app_context, app_graph).to_string()
+            self.muxbox.calc_border_color(app_context, app_graph).map(|s| s.to_string())
         };
 
         let fill_char = self.muxbox.calc_fill_char(app_context, app_graph);
 
         // Draw fill (same logic as draw_muxbox)
-        fill_muxbox(bounds, border, &bg_color, fill_char, buffer);
+        fill_muxbox(bounds, border, &bg_color, &None, fill_char, buffer);
 
         // Calculate overflow behavior (same logic as draw_muxbox)
         let mut overflow_behavior = self.muxbox.calc_overflow_behavior(app_context, app_graph);
@@ -169,20 +170,20 @@ impl<'a> BoxRenderer<'a> {
     fn render_box_contents(
         &self,
         bounds: &Bounds,
-        border_color: &str,
-        bg_color: &str,
-        parent_bg_color: &str,
+        border_color: &Option<String>,
+        bg_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         streams: &indexmap::IndexMap<String, crate::model::common::Stream>,
         active_tab_index: usize,
         tab_scroll_offset: usize,
-        title_fg_color: &str,
-        title_bg_color: &str,
+        title_fg_color: &Option<String>,
+        title_bg_color: &Option<String>,
         title_position: &str,
-        menu_fg_color: &str,
-        menu_bg_color: &str,
-        selected_menu_fg_color: &str,
-        selected_menu_bg_color: &str,
-        fg_color: &str,
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        fg_color: &Option<String>,
         overflow_behavior: &str,
         border: Option<&bool>,
         horizontal_scroll: f64,
@@ -245,7 +246,7 @@ impl<'a> BoxRenderer<'a> {
             None
         };
 
-        let draw_border = border.unwrap_or(&true);
+        // Border visibility now determined by transparent color support
         let mut _overflowing = false;
         let mut scrollbars_drawn = false;
 
@@ -265,19 +266,18 @@ impl<'a> BoxRenderer<'a> {
                 title_fg_color,
                 title_bg_color,
                 title_position,
-                *draw_border,
                 tab_labels,
                 tab_close_buttons,
                 active_tab_index,
                 tab_scroll_offset,
                 buffer,
             );
-        } else if *draw_border {
+        } else if crate::draw_utils::should_draw_color(border_color) || crate::draw_utils::should_draw_color(bg_color) {
             draw_horizontal_line(
                 bounds.top(),
                 bounds.left(),
                 bounds.right(),
-                border_color,
+                &border_color,
                 bg_color,
                 buffer,
             );
@@ -307,7 +307,6 @@ impl<'a> BoxRenderer<'a> {
                         selected_menu_fg_color,
                         selected_menu_bg_color,
                         border_color,
-                        *draw_border,
                         buffer,
                     );
                     
@@ -332,7 +331,6 @@ impl<'a> BoxRenderer<'a> {
                 overflow_behavior,
                 horizontal_scroll,
                 vertical_scroll,
-                *draw_border,
                 buffer,
             );
         }
@@ -383,7 +381,7 @@ impl<'a> BoxRenderer<'a> {
             }
         }
 
-        self.render_borders(&bounds, border_color, bg_color, *draw_border, scrollbars_drawn, locked, content, buffer);
+        self.render_borders(&bounds, &border_color, &bg_color, scrollbars_drawn, locked, content, buffer);
     }
 
     /// Render content with scrolling and overflow handling
@@ -391,14 +389,13 @@ impl<'a> BoxRenderer<'a> {
         &self,
         bounds: &Bounds,
         content: &str,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
-        parent_bg_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         overflow_behavior: &str,
         horizontal_scroll: f64,
         vertical_scroll: f64,
-        draw_border: bool,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let (content_width, content_height) = content_size(content);
@@ -428,7 +425,6 @@ impl<'a> BoxRenderer<'a> {
                 fg_color,
                 bg_color,
                 border_color,
-                draw_border,
                 buffer,
             );
             true
@@ -470,10 +466,9 @@ impl<'a> BoxRenderer<'a> {
         viewable_height: usize,
         horizontal_scroll: f64,
         vertical_scroll: f64,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
-        draw_border: bool,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
         let viewable_height = bounds.height().saturating_sub(1);
@@ -513,7 +508,7 @@ impl<'a> BoxRenderer<'a> {
             );
         }
 
-        if draw_border {
+        if crate::draw_utils::should_draw_color(border_color) || crate::draw_utils::should_draw_color(bg_color) {
             draw_horizontal_line(
                 bounds.bottom(),
                 bounds.left(),
@@ -563,10 +558,10 @@ impl<'a> BoxRenderer<'a> {
         bounds: &Bounds,
         content: &str,
         vertical_scroll: f64,
-        fg_color: &str,
-        bg_color: &str,
-        border_color: &str,
-        parent_bg_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let overflow_config = OverflowConfig::wrap();
@@ -596,8 +591,8 @@ impl<'a> BoxRenderer<'a> {
         max_content_width: usize,
         viewable_width: usize,
         viewable_height: usize,
-        fg_color: &str,
-        bg_color: &str,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
         let total_lines = content_lines.len();
@@ -621,24 +616,24 @@ impl<'a> BoxRenderer<'a> {
         }
     }
 
-    /// Render borders with proper corner handling
+    /// Render borders with proper corner handling - supports transparent colors
     fn render_borders(
         &self,
         bounds: &Bounds,
-        border_color: &str,
-        bg_color: &str,
-        draw_border: bool,
+        border_color: &Option<String>,
+        bg_color: &Option<String>,
         scrollbars_drawn: bool,
         locked: bool,
         content: Option<&str>,
         buffer: &mut ScreenBuffer,
     ) {
-        if !draw_border {
+        // Skip border drawing if border color is transparent
+        if !should_draw_color(border_color) {
             return;
         }
 
-        let border_color_code = get_fg_color(border_color);
-        let bg_color_code = get_bg_color(bg_color);
+        let border_color_code = get_fg_color_transparent(border_color);
+        let bg_color_code = get_bg_color_transparent(bg_color);
 
         // Check if we need horizontal scrollbar
         let has_horizontal_scrollbar = content.is_some() && {
