@@ -1,20 +1,57 @@
 use crate::components::{
-    VerticalScrollbar, HorizontalScrollbar, ChoiceRenderer, OverflowRenderer, OverflowConfig,
+    VerticalScrollbar, HorizontalScrollbar,
     ChartComponent, ChartConfig, ChartType
 };
-use crate::draw_utils::{
+use crate::components::choice_menu::ChoiceMenu;
+use crate::components::renderable_content::RenderableContent;
+use crate::color_utils::{
     get_fg_color_transparent, get_bg_color_transparent, 
-    should_draw_color, fill_muxbox, draw_horizontal_line, draw_vertical_line,
-    print_with_color_and_background_at, content_size, draw_horizontal_line_with_tabs
+    should_draw_color
+};
+use crate::draw_utils::{
+    fill_muxbox, draw_horizontal_line, draw_vertical_line,
+    print_with_color_and_background_at, content_size, draw_horizontal_line_with_tabs,
+    wrap_text_to_width, render_wrapped_content
 };
 use crate::model::common::{Cell, ContentStreamTrait, ChoicesStreamTrait, StreamType};
 use crate::{AppContext, AppGraph, MuxBox, ScreenBuffer, Bounds};
 use std::collections::HashMap;
 
-/// BoxRenderer - Visual rendering component for MuxBox
+/// Overflow behavior types for unified content rendering
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnifiedOverflowBehavior {
+    /// Standard scrolling with scrollbars
+    Scroll,
+    /// Text wrapping with line breaks
+    Wrap,
+    /// Fill entire box with solid pattern
+    Fill(char),
+    /// Cross out content with X pattern
+    CrossOut,
+    /// Remove/hide content completely
+    Removed,
+    /// Clip content without scrollbars (default)
+    Clip,
+}
+
+impl UnifiedOverflowBehavior {
+    /// Parse overflow behavior from string
+    pub fn from_str(behavior: &str) -> Self {
+        match behavior {
+            "scroll" => Self::Scroll,
+            "wrap" => Self::Wrap,
+            "fill" => Self::Fill('█'),
+            "cross_out" => Self::CrossOut,
+            "removed" => Self::Removed,
+            _ => Self::Clip,
+        }
+    }
+}
+
+/// BoxRenderer - Unified rendering component with integrated overflow handling
 /// 
-/// This component consolidates all box drawing logic that was scattered across
-/// draw_utils.rs and draw_loop.rs into a unified rendering orchestrator.
+/// This component consolidates ALL overflow logic from OverflowRenderer and provides
+/// unified content rendering for text, choices, and charts using existing scrollbar components.
 /// 
 /// **IMPORTANT**: This is a VISUAL COMPONENT ONLY - it does not replace the
 /// logical MuxBox struct. It queries the MuxBox for state and renders accordingly.
@@ -272,7 +309,7 @@ impl<'a> BoxRenderer<'a> {
                 tab_scroll_offset,
                 buffer,
             );
-        } else if crate::draw_utils::should_draw_color(border_color) || crate::draw_utils::should_draw_color(bg_color) {
+        } else if should_draw_color(border_color) || should_draw_color(bg_color) {
             draw_horizontal_line(
                 bounds.top(),
                 bounds.left(),
@@ -283,7 +320,7 @@ impl<'a> BoxRenderer<'a> {
             );
         }
 
-        // F0206: Render choices from streams if active stream is choices
+        // F0206: Render choices from streams as content using ChoiceMenu component
         if should_render_choices {
             let choices_stream = streams
                 .values()
@@ -291,28 +328,54 @@ impl<'a> BoxRenderer<'a> {
             if let Some(stream) = choices_stream {
                 let choices = stream.get_choices();
                 if !choices.is_empty() {
-                    let viewable_height = bounds.height().saturating_sub(2);
-                    let viewable_width = bounds.width().saturating_sub(4);
+                    // Create ChoiceMenu component to generate content and clickable zones
+                    let choice_menu = ChoiceMenu::new(
+                        format!("{}_choice_menu", self.component_id),
+                        &choices
+                    )
+                    .with_selection(self.muxbox.selected_choice_index())
+                    .with_focus(self.muxbox.focused_choice_index());
                     
-                    let choice_renderer = ChoiceRenderer::new("choices".to_string());
-                    let component_scrollbars_drawn = choice_renderer.draw(
+                    // Get choice content as string - treat it like any other content
+                    let choice_content = choice_menu.get_raw_content();
+                    
+                    // Use unified content rendering (same path as text content)
+                    let (content_width, content_height) = content_size(&choice_content);
+                    let viewable_width = bounds.width().saturating_sub(4);
+                    let viewable_height = bounds.height().saturating_sub(4);
+                    let choices_overflow = content_width > viewable_width || content_height > viewable_height;
+                    
+                    scrollbars_drawn = self.render_content(
                         &bounds,
-                        &choices,
-                        viewable_height,
-                        viewable_width,
-                        vertical_scroll,
-                        overflow_behavior,
+                        &choice_content,
                         menu_fg_color,
                         menu_bg_color,
-                        selected_menu_fg_color,
-                        selected_menu_bg_color,
                         border_color,
+                        parent_bg_color,
+                        overflow_behavior,
+                        horizontal_scroll,
+                        vertical_scroll,
                         buffer,
                     );
                     
-                    if component_scrollbars_drawn {
-                        scrollbars_drawn = true;
-                    }
+                    // Store clickable zones for mouse interaction handling
+                    let horizontal_offset = if content_width > viewable_width {
+                        ((content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    let vertical_offset = if content_height > viewable_height {
+                        ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
+                    } else {
+                        0
+                    };
+                    
+                    let _clickable_zones = choice_menu.get_clickable_zones(
+                        &bounds,
+                        horizontal_offset, 
+                        vertical_offset
+                    );
                 }
             }
         } else if let Some(content) = content {
@@ -335,53 +398,29 @@ impl<'a> BoxRenderer<'a> {
             );
         }
 
-        // Handle special overflow behaviors using OverflowRenderer component
-        if _overflowing && overflow_behavior != "scroll" && overflow_behavior != "wrap" {
-            let overflow_config = match overflow_behavior {
-                "fill" => OverflowConfig::fill('█'),
-                "cross_out" => OverflowConfig::cross_out(),
-                "removed" => OverflowConfig::removed(),
-                _ => OverflowConfig::default(),
-            };
-            
-            let overflow_renderer = OverflowRenderer::new(
-                format!("muxbox_special_overflow"), 
-                overflow_config
-            );
+        // Special overflow behaviors are now handled within the unified content rendering path
 
-            if let Some(content) = content {
-                if overflow_renderer.render_text_overflow(
-                    content,
-                    &bounds,
-                    vertical_scroll,
-                    0.0,
-                    fg_color,
-                    bg_color,
-                    border_color,
-                    parent_bg_color,
-                    buffer,
-                ) {
-                    return;
-                }
-            } else if let Some(ref choices) = choices {
-                if overflow_renderer.render_choice_overflow(
-                    choices,
-                    &bounds,
-                    vertical_scroll,
-                    menu_fg_color,
-                    menu_bg_color,
-                    selected_menu_fg_color,
-                    selected_menu_bg_color,
-                    border_color,
-                    parent_bg_color,
-                    buffer,
-                ) {
-                    return;
-                }
-            }
-        }
+        // Pass the actual rendered content for proper scrollbar detection
+        let rendered_content = if should_render_choices {
+            // For choices, use the choice content that was actually rendered
+            streams
+                .values()
+                .find(|s| matches!(s.stream_type, StreamType::Choices))
+                .map(|stream| {
+                    let choices = stream.get_choices();
+                    let choice_menu = ChoiceMenu::new(
+                        format!("{}_choice_menu", self.component_id),
+                        &choices
+                    )
+                    .with_selection(self.muxbox.selected_choice_index())
+                    .with_focus(self.muxbox.focused_choice_index());
+                    choice_menu.get_raw_content()
+                })
+        } else {
+            content.map(|s| s.to_string())
+        };
 
-        self.render_borders(&bounds, &border_color, &bg_color, scrollbars_drawn, locked, content, buffer);
+        self.render_borders(&bounds, &border_color, &bg_color, scrollbars_drawn, locked, rendered_content.as_deref(), buffer);
     }
 
     /// Render content with scrolling and overflow handling
@@ -427,7 +466,8 @@ impl<'a> BoxRenderer<'a> {
                 border_color,
                 buffer,
             );
-            true
+            // Return true if any scrollbar is drawn
+            max_content_height > viewable_height || max_content_width > viewable_width
         } else if _overflowing && overflow_behavior == "wrap" {
             self.render_wrapped_content(
                 bounds,
@@ -473,7 +513,7 @@ impl<'a> BoxRenderer<'a> {
     ) {
         let viewable_height = bounds.height().saturating_sub(1);
         
-        let max_horizontal_offset = max_content_width.saturating_sub(viewable_width) + 3;
+        let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
         let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
 
         let horizontal_offset = ((horizontal_scroll / 100.0) * max_horizontal_offset as f64).floor() as usize;
@@ -495,7 +535,7 @@ impl<'a> BoxRenderer<'a> {
             let visible_part = line
                 .chars()
                 .skip(horizontal_offset)
-                .take(viewable_width.saturating_sub(3))
+                .take(viewable_width)
                 .collect::<String>();
 
             print_with_color_and_background_at(
@@ -508,7 +548,7 @@ impl<'a> BoxRenderer<'a> {
             );
         }
 
-        if crate::draw_utils::should_draw_color(border_color) || crate::draw_utils::should_draw_color(bg_color) {
+        if should_draw_color(border_color) || should_draw_color(bg_color) {
             draw_horizontal_line(
                 bounds.bottom(),
                 bounds.left(),
@@ -528,31 +568,35 @@ impl<'a> BoxRenderer<'a> {
             );
         }
 
-        // Draw scrollbars using components
-        let vertical_scrollbar = VerticalScrollbar::new("content".to_string());
-        vertical_scrollbar.draw(
-            bounds,
-            max_content_height,
-            viewable_height,
-            vertical_scroll,
-            border_color,
-            bg_color,
-            buffer,
-        );
+        // Draw scrollbars using components only when needed
+        if max_content_height > viewable_height {
+            let vertical_scrollbar = VerticalScrollbar::new("content".to_string());
+            vertical_scrollbar.draw(
+                bounds,
+                max_content_height,
+                viewable_height,
+                vertical_scroll,
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
 
-        let horizontal_scrollbar = HorizontalScrollbar::new("content".to_string());
-        horizontal_scrollbar.draw(
-            bounds,
-            max_content_width,
-            viewable_width,
-            horizontal_scroll,
-            border_color,
-            bg_color,
-            buffer,
-        );
+        if max_content_width > viewable_width {
+            let horizontal_scrollbar = HorizontalScrollbar::new("content".to_string());
+            horizontal_scrollbar.draw(
+                bounds,
+                max_content_width,
+                viewable_width,
+                horizontal_scroll,
+                border_color,
+                bg_color,
+                buffer,
+            );
+        }
     }
 
-    /// Render wrapped content using OverflowRenderer
+    /// Render wrapped content using integrated overflow logic
     fn render_wrapped_content(
         &self,
         bounds: &Bounds,
@@ -561,26 +605,40 @@ impl<'a> BoxRenderer<'a> {
         fg_color: &Option<String>,
         bg_color: &Option<String>,
         border_color: &Option<String>,
-        parent_bg_color: &Option<String>,
+        _parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
-        let overflow_config = OverflowConfig::wrap();
-        let overflow_renderer = OverflowRenderer::new(
-            format!("muxbox_wrap_overflow"), 
-            overflow_config
-        );
+        let viewable_width = bounds.width().saturating_sub(4);
+        let wrapped_content = wrap_text_to_width(content, viewable_width);
 
-        overflow_renderer.render_text_overflow(
-            content,
+        let viewable_height = bounds.height().saturating_sub(4);
+        let wrapped_overflows_vertically = wrapped_content.len() > viewable_height;
+
+        render_wrapped_content(
+            &wrapped_content,
             bounds,
             vertical_scroll,
-            0.0,
             fg_color,
             bg_color,
-            border_color,
-            parent_bg_color,
             buffer,
-        )
+        );
+
+        // Draw vertical scrollbar if wrapped content overflows
+        if wrapped_overflows_vertically && should_draw_color(border_color) {
+            let vertical_scrollbar = VerticalScrollbar::new(format!("{}_wrapped_text", self.component_id));
+            vertical_scrollbar.draw(
+                bounds,
+                wrapped_content.len(),
+                viewable_height,
+                vertical_scroll,
+                border_color,
+                bg_color,
+                buffer,
+            );
+            true
+        } else {
+            false
+        }
     }
 
     /// Render normal (non-overflowing) content
@@ -692,7 +750,18 @@ impl<'a> BoxRenderer<'a> {
         );
 
         // Draw right border - skip if vertical scrollbars are drawn
-        if !scrollbars_drawn {
+        let has_vertical_scrollbar = content.is_some() && {
+            if let Some(content_str) = content {
+                let content_lines: Vec<&str> = content_str.lines().collect();
+                let content_height = content_lines.len();
+                let viewable_height = bounds.height().saturating_sub(4);
+                content_height > viewable_height
+            } else {
+                false
+            }
+        };
+
+        if !has_vertical_scrollbar {
             draw_vertical_line(
                 bounds.right(),
                 bounds.top() + 1,
@@ -742,5 +811,213 @@ impl<'a> BoxRenderer<'a> {
                 ch: if locked { '┘' } else { '⋱' },
             },
         );
+    }
+
+    /// Unified text overflow rendering with integrated overflow behaviors
+    fn render_unified_text_overflow(
+        &self,
+        content: &str,
+        bounds: &Bounds,
+        vertical_scroll: f64,
+        horizontal_scroll: f64,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
+        behavior: &UnifiedOverflowBehavior,
+        buffer: &mut ScreenBuffer,
+    ) -> bool {
+        let content_lines: Vec<&str> = content.lines().collect();
+        let content_height = content_lines.len();
+        let content_width = content_lines
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0);
+
+        let viewable_width = bounds.width().saturating_sub(4);
+        let viewable_height = bounds.height().saturating_sub(4);
+
+        let overflows = content_width > viewable_width || content_height > viewable_height;
+
+        if !overflows {
+            return false;
+        }
+
+        match behavior {
+            UnifiedOverflowBehavior::Fill(fill_char) => {
+                fill_muxbox(bounds, true, bg_color, &None, *fill_char, buffer);
+                true
+            }
+            UnifiedOverflowBehavior::CrossOut => {
+                self.render_cross_out_pattern(bounds, border_color, parent_bg_color, buffer);
+                true
+            }
+            UnifiedOverflowBehavior::Removed => {
+                fill_muxbox(bounds, false, parent_bg_color, &None, ' ', buffer);
+                true
+            }
+            UnifiedOverflowBehavior::Scroll => {
+                self.render_unified_scrollable_text(
+                    content,
+                    bounds,
+                    vertical_scroll,
+                    horizontal_scroll,
+                    fg_color,
+                    bg_color,
+                    border_color,
+                    buffer,
+                );
+                true
+            }
+            UnifiedOverflowBehavior::Wrap => {
+                self.render_wrapped_content(
+                    bounds,
+                    content,
+                    vertical_scroll,
+                    fg_color,
+                    bg_color,
+                    border_color,
+                    parent_bg_color,
+                    buffer,
+                )
+            }
+            UnifiedOverflowBehavior::Clip => false, // No special handling for clipping
+        }
+    }
+
+    /// Render cross-out pattern for disabled/removed content
+    fn render_cross_out_pattern(
+        &self,
+        bounds: &Bounds,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
+        buffer: &mut ScreenBuffer,
+    ) {
+        let border_color_code = get_fg_color_transparent(border_color);
+        let parent_bg_color_code = get_bg_color_transparent(parent_bg_color);
+        let cross_char = 'X';
+
+        // Draw diagonal cross pattern
+        let width = bounds.width();
+        let height = bounds.height();
+
+        for i in 0..width.min(height) {
+            // Draw main diagonal (top-left to bottom-right)
+            if i < height {
+                let cell = crate::model::common::Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: parent_bg_color_code.clone(),
+                    ch: cross_char,
+                };
+                buffer.update(bounds.left() + i, bounds.top() + i, cell);
+            }
+
+            // Draw anti-diagonal (top-right to bottom-left)
+            if i < height && (width.saturating_sub(1).saturating_sub(i)) < width {
+                let cell = crate::model::common::Cell {
+                    fg_color: border_color_code.clone(),
+                    bg_color: parent_bg_color_code.clone(),
+                    ch: cross_char,
+                };
+                buffer.update(
+                    bounds.left() + width.saturating_sub(1).saturating_sub(i),
+                    bounds.top() + i,
+                    cell,
+                );
+            }
+        }
+    }
+
+    /// Render scrollable text content using existing scrollbar components
+    fn render_unified_scrollable_text(
+        &self,
+        content: &str,
+        bounds: &Bounds,
+        vertical_scroll: f64,
+        horizontal_scroll: f64,
+        fg_color: &Option<String>,
+        bg_color: &Option<String>,
+        border_color: &Option<String>,
+        buffer: &mut ScreenBuffer,
+    ) {
+        let content_lines: Vec<&str> = content.lines().collect();
+        let content_height = content_lines.len();
+        let max_content_width = content_lines
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0);
+
+        let viewable_width = bounds.width().saturating_sub(4);
+        let viewable_height = bounds.height().saturating_sub(4);
+
+        // Calculate offsets
+        let y_offset = if content_height > viewable_height {
+            ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+
+        let x_offset = if max_content_width > viewable_width {
+            ((max_content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+
+        // Render visible content lines
+        for (display_y, &line) in content_lines
+            .iter()
+            .skip(y_offset)
+            .take(viewable_height)
+            .enumerate()
+        {
+            let visible_line = if line.len() > x_offset {
+                line.chars()
+                    .skip(x_offset)
+                    .take(viewable_width)
+                    .collect::<String>()
+            } else {
+                String::new()
+            };
+
+            print_with_color_and_background_at(
+                bounds.top() + 1 + display_y,
+                bounds.left() + 2,
+                fg_color,
+                bg_color,
+                &visible_line,
+                buffer,
+            );
+        }
+
+        // Draw scrollbars if needed using existing scrollbar components
+        if should_draw_color(border_color) {
+            if content_height > viewable_height {
+                let vertical_scrollbar = VerticalScrollbar::new(format!("{}_unified_vertical", self.component_id));
+                vertical_scrollbar.draw(
+                    bounds,
+                    content_height,
+                    viewable_height,
+                    vertical_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+            }
+
+            if max_content_width > viewable_width {
+                let horizontal_scrollbar = HorizontalScrollbar::new(format!("{}_unified_horizontal", self.component_id));
+                horizontal_scrollbar.draw(
+                    bounds,
+                    max_content_width,
+                    viewable_width,
+                    horizontal_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+            }
+        }
     }
 }

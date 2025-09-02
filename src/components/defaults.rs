@@ -142,13 +142,7 @@ SelectionStyleRenderer::default() provides:
 // ============================================================================
 
 /*
-OverflowConfig::default() provides:
-  - behavior: OverflowBehavior::Scroll - scrollable overflow handling
-  - fill_char: '·' - subtle fill indicator
-  - cross_out_char: '×' - clear removal indicator
-  - fill_color: "bright_black" - subtle fill color
-  - cross_out_color: "bright_red" - attention-grabbing removal color
-
-OverflowRenderer::default() -> OverflowRenderer { config: default }
-  - Uses default overflow configuration for consistent behavior
+// REMOVED: OverflowRenderer functionality integrated into BoxRenderer
+// UnifiedOverflowBehavior provides: Scroll, Wrap, Fill('█'), CrossOut, Removed, Clip
+// Overflow handling is now unified within BoxRenderer using existing scrollbar components
 */

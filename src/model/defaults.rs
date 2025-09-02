@@ -75,7 +75,7 @@ App::default() provides:
   - All optional fields None - minimal setup
 
 StreamType::default() -> StreamType::DefaultContent
-OverflowBehavior::default() -> OverflowBehavior::Scroll  
+// REMOVED: OverflowBehavior integrated into BoxRenderer as UnifiedOverflowBehavior  
 Anchor::default() -> Anchor::TopLeft
 TitlePosition::default() -> TitlePosition::Top
 */

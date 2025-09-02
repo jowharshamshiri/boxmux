@@ -2435,6 +2435,24 @@ impl MuxBox {
             self.title = terminal_title;
         }
     }
+
+    /// Get the index of the currently selected choice
+    pub fn selected_choice_index(&self) -> Option<usize> {
+        self.streams
+            .values()
+            .find(|s| matches!(s.stream_type, StreamType::Choices))
+            .and_then(|stream| {
+                let choices = stream.get_choices();
+                choices.iter().position(|choice| choice.selected)
+            })
+    }
+
+    /// Get the index of the currently focused choice for keyboard navigation
+    pub fn focused_choice_index(&self) -> Option<usize> {
+        // For now, focused choice is the same as selected choice
+        // This can be enhanced later to support separate focus management
+        self.selected_choice_index()
+    }
 }
 
 impl Choice {}

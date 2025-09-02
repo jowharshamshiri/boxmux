@@ -2,7 +2,7 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
 
 use crate::{
-    draw_utils::{get_bg_color, get_fg_color},
+    color_utils::{get_bg_color, get_fg_color},
     screen_bounds, screen_height, screen_width,
     utils::input_bounds_to_bounds,
     AppContext, AppGraph, Layout, Message, MuxBox,

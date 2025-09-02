@@ -13,6 +13,7 @@ pub mod thread_manager;
 pub mod ansi_processor;
 pub mod ansi_color_processor;
 pub mod circular_buffer;
+pub mod color_utils;
 pub mod components;
 pub mod defaults;
 pub mod draw_loop;

@@ -36,14 +36,14 @@ impl TabBar {
         // Space always reserved regardless of whether arrows are shown
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 4 } else { 0 }; // Leading + trailing borders
+        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 }; // Leading + trailing borders
 
         // Calculate tab area boundaries with fixed reservations
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations with fixed layout
-        let left_arrow_x = x1 + (if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -62,7 +62,7 @@ impl TabBar {
         let needs_scrolling = (total_tabs_width as f32) > (tab_area_width as f32 * 0.85);
 
         // Draw leading border if border colors are not transparent
-        if (crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color)) && x1 < x2 {
+        if (crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color)) && x1 < x2 {
             draw_horizontal_line(y, x1, x1 + 2, fg_color, bg_color, buffer);
         }
 
@@ -227,7 +227,7 @@ impl TabBar {
         }
 
         // Draw trailing border if border colors are not transparent
-        if (crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color)) && trailing_border_x < x2 {
+        if (crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color)) && trailing_border_x < x2 {
             draw_horizontal_line(y, trailing_border_x, x2, fg_color, bg_color, buffer);
         }
     }
@@ -340,12 +340,12 @@ impl TabBar {
         // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations matching draw_tab_bar
-        let left_arrow_x = x1 + (if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -486,12 +486,12 @@ impl TabBar {
         // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations matching draw_tab_bar
-        let left_arrow_x = x1 + (if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -557,11 +557,11 @@ impl TabBar {
         // Same space calculations as draw_tab_bar and calculate_tab_click_index
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
         let tab_area_width =
             total_width.saturating_sub(left_arrow_space + right_arrow_space + border_space);
 
-        let tab_area_start = x1 + if crate::draw_utils::should_draw_color(fg_color) || crate::draw_utils::should_draw_color(bg_color) { 2 } else { 0 } + left_arrow_space;
+        let tab_area_start = x1 + if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 } + left_arrow_space;
 
         // Calculate tab dimensions
         let max_tab_width = 16;
