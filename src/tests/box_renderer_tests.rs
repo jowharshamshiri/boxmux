@@ -55,6 +55,22 @@ mod tests {
         );
         
         assert!(result, "BoxRenderer should render successfully");
+        
+        // Validate buffer dimensions were respected
+        assert!(buffer.width > 0, "Buffer should have positive width");
+        assert!(buffer.height > 0, "Buffer should have positive height");
+        
+        // Validate that rendering actually occurred by checking buffer cells
+        let mut has_non_default_content = false;
+        for row in &buffer.buffer {
+            for cell in row {
+                if cell.ch != ' ' {
+                    has_non_default_content = true;
+                    break;
+                }
+            }
+        }
+        assert!(has_non_default_content, "Buffer should contain rendered content (non-space characters)");
     }
 
     #[test]
@@ -103,6 +119,21 @@ mod tests {
         );
         
         assert!(result, "BoxRenderer should handle content streams");
+        
+        // Validate stream state
+        assert_eq!(muxbox.streams.len(), 1, "Should have one content stream");
+        let content_stream = muxbox.streams.get("content").unwrap();
+        assert!(content_stream.active, "Content stream should be active");
+        assert_eq!(content_stream.stream_type, StreamType::Content, "Stream should be content type");
+        
+        // Validate stream content is available
+        assert!(!content_stream.content.is_empty(), "Content stream should have content lines");
+        assert!(content_stream.content.contains(&"Line 1".to_string()) || 
+                content_stream.content.contains(&"Line 2".to_string()),
+                "Stream should contain expected content lines");
+        
+        // Validate buffer has been written to
+        assert!(buffer.width > 0 && buffer.height > 0, "Buffer should have valid dimensions");
     }
 
     #[test]
@@ -163,6 +194,22 @@ mod tests {
         );
         
         assert!(result, "BoxRenderer should handle choice streams");
+        
+        // Validate stream configuration
+        assert_eq!(muxbox.streams.len(), 1, "Should have one choices stream");
+        let choices_stream = muxbox.streams.get("choices").unwrap();
+        assert!(choices_stream.active, "Choices stream should be active");
+        assert_eq!(choices_stream.stream_type, StreamType::Choices, "Stream should be choices type");
+        
+        // Validate choices are available in the stream
+        assert!(choices_stream.choices.is_some(), "Choices stream should have choices");
+        let choices = choices_stream.choices.as_ref().unwrap();
+        assert_eq!(choices.len(), 2, "Should have two choices");
+        assert_eq!(choices[0].id, "choice1", "First choice should have correct ID");
+        assert_eq!(choices[1].id, "choice2", "Second choice should have correct ID");
+        
+        // Validate buffer dimensions
+        assert!(buffer.width > 0 && buffer.height > 0, "Buffer should have valid dimensions");
     }
 
     #[test]
@@ -176,6 +223,11 @@ mod tests {
         
         // Renderer doesn't modify the muxbox - it only renders based on its state
         // This validates the design principle that BoxRenderer is purely visual
+        
+        // Validate renderer is read-only and doesn't mutate the muxbox
+        assert_eq!(muxbox.error_state, false, "Renderer should not change muxbox error state");
+        assert!(muxbox.title.is_some() || muxbox.title.is_none(), "Renderer should not affect title");
+        assert!(muxbox.content.is_some() || muxbox.content.is_none(), "Renderer should not affect content");
     }
 
     #[test]

@@ -833,8 +833,8 @@ app:
         // This should pass if schema files exist and are valid
         match result {
             Ok(_) => {
-                // Schema validation passed
-                assert!(true);
+                // Schema validation passed - verify it actually validated something
+                // This is acceptable - schema validation completed successfully
             }
             Err(errors) => {
                 // If schemas don't exist, that's expected - just verify the error is about missing schema files
@@ -870,8 +870,7 @@ app:
         match result {
             Ok(_) => {
                 // If schemas don't exist, the validation will skip JSON schema validation
-                // and this is expected behavior
-                assert!(true);
+                // and this is expected behavior - no assertion needed
             }
             Err(errors) => {
                 // Should contain validation errors or schema loading errors
@@ -911,7 +910,7 @@ app:
         match result {
             Ok(_) => {
                 // If schemas don't exist, validation is skipped
-                assert!(true);
+                // This is acceptable behavior - no assertion needed
             }
             Err(errors) => {
                 assert!(!errors.is_empty());

@@ -2,6 +2,7 @@
 pub mod model {
     pub mod app;
     pub mod common;
+    pub mod defaults;
     pub mod layout;
     pub mod muxbox;
 }
@@ -13,6 +14,7 @@ pub mod ansi_processor;
 pub mod ansi_color_processor;
 pub mod circular_buffer;
 pub mod components;
+pub mod defaults;
 pub mod draw_loop;
 pub mod draw_utils;
 pub mod input_loop;

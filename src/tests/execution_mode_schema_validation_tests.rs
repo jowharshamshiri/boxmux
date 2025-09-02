@@ -499,7 +499,7 @@ app:
         match result {
             Ok(_) => {
                 // Schema validation passed - ExecutionMode fields are properly supported
-                assert!(true);
+                // No assertion needed - successful validation is the test success
             }
             Err(errors) => {
                 // Check if errors are related to missing schema files vs actual validation failures
@@ -510,7 +510,7 @@ app:
                     || combined.contains("No such file")
                 {
                     // Schema files missing is acceptable for this test
-                    assert!(true);
+                    // No assertion needed - this is expected behavior
                 } else {
                     // Actual validation failures indicate schema issues
                     panic!(

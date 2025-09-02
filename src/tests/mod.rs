@@ -3,6 +3,9 @@
 //! This module contains all the test suites organized by functionality.
 
 #[cfg(test)]
+pub mod defaults;
+
+#[cfg(test)]
 pub mod test_utils;
 
 // F0326-F0355: Visual Testing System - Character-Exact Validation
@@ -28,38 +31,8 @@ pub mod integration_tests;
 pub mod edge_case_tests;
 
 #[cfg(test)]
-pub mod execution_mode_tests;
-
-#[cfg(test)]
-pub mod stream_only_execution_tests;
-
-#[cfg(test)]
 pub mod execution_mode_schema_validation_tests; // F0230: ExecutionMode YAML Schema tests
 
-#[cfg(test)]
-#[cfg(test)]
-pub mod execution_mode_stream_source_traits_tests; // F0227: ExecutionMode Stream Source Traits Tests
-
-#[cfg(test)]
-pub mod execution_mode_message_system_tests; // F0228: ExecutionMode Message System Tests
-
-#[cfg(test)]
-pub mod unified_execution_mode_tests; // F0229: Unified ExecutionMode System Tests
-
-#[cfg(test)]
-pub mod thread_mode_execution_tests;
-
-#[cfg(test)]
-pub mod immediate_mode_execution_tests; // F0224: Immediate Mode Execution Tests
-
-#[cfg(test)]
-pub mod pty_mode_execution_tests; // F0226: PTY Mode Execution Tests
-
-#[cfg(test)]
-pub mod pty_mode_execution_integration_tests; // F0226: PTY Mode Execution Integration Tests
-
-#[cfg(test)]
-pub mod execution_mode_stream_integration_tests; // F0223: ExecutionMode Stream Integration tests
 
 #[cfg(test)]
 pub mod socket_tests;

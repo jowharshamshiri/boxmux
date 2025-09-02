@@ -86,6 +86,28 @@ mod tests {
             muxbox_bounds.x1, muxbox_bounds.x2, muxbox_bounds.y1, muxbox_bounds.y2
         );
 
+        // Validate the calculations with proper assertions
+        assert_eq!(bx1, 0, "0% of width should be 0");
+        assert_eq!(bx2, screen.width() - 1, "100% of width maps to last column index (width-1)");
+        assert_eq!(by1, screen.height() / 10, "10% of height calculation");
+        assert_eq!(by2, screen.height() / 2, "50% of height calculation");
+        
+        // Validate absolute coordinates
+        assert_eq!(abs_x1, screen.x1, "Absolute x1 should be screen.x1 + 0");
+        assert_eq!(abs_x2, screen.x1 + screen.width() - 1, "Absolute x2 should be screen.x1 + (width-1)");
+        
+        // Validate both calculation methods produce identical results
+        assert_eq!(result_bounds.x1, muxbox_bounds.x1, "Both methods should calculate identical x1");
+        assert_eq!(result_bounds.x2, muxbox_bounds.x2, "Both methods should calculate identical x2");
+        assert_eq!(result_bounds.y1, muxbox_bounds.y1, "Both methods should calculate identical y1");
+        assert_eq!(result_bounds.y2, muxbox_bounds.y2, "Both methods should calculate identical y2");
+        
+        // Validate bounds make sense (x2 > x1, y2 > y1, positive dimensions)
+        assert!(result_bounds.x2 > result_bounds.x1, "Width should be positive");
+        assert!(result_bounds.y2 > result_bounds.y1, "Height should be positive");
+        assert!(result_bounds.width() > 0, "Calculated width should be positive");
+        assert!(result_bounds.height() > 0, "Calculated height should be positive");
+        
         // Check if they match
         if result_bounds.x2 != muxbox_bounds.x2 {
             println!(
