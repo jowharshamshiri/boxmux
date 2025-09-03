@@ -156,9 +156,6 @@ pub mod terminal_compatibility_tests; // F0319: Terminal Compatibility Testing
 pub mod terminal_100_width_reality_test;
 
 #[cfg(test)]
-pub mod debug_bounds_calculation;
-
-#[cfg(test)]
 pub mod yaml_persistence_integration_test;
 
 #[cfg(test)]

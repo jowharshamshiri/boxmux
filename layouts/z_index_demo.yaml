@@ -68,7 +68,7 @@ app:
               y2: 45%
             z_index: 1
             bg_color: cyan
-                content: "Child with z_index: 1"
+            content: "Child with z_index: 1"
             
           - id: child_front
             title: "Child Front"
@@ -79,4 +79,4 @@ app:
               y2: 90%
             z_index: 5
             bg_color: magenta
-                content: "Child with z_index: 5 (on top)"
+            content: "Child with z_index: 5 (on top)"
