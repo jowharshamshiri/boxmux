@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "8%"
-          border: true
           border_color: 'bright_cyan'
           bg_color: 'black'
           fg_color: 'bright_cyan'
@@ -38,7 +37,6 @@ app:
             x2: "20%"
             y2: "95%"
           tab_order: 1
-          border: true
           border_color: 'green'
           choices:
             - id: 'docker_status'
@@ -85,7 +83,6 @@ app:
             y1: "10%"
             x2: "60%"
             y2: "60%"
-          border: true
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
@@ -99,7 +96,6 @@ app:
             y1: "10%"
             x2: "99%"
             y2: "60%"
-          border: true
           border_color: 'magenta'
           refresh_interval: 3000
           script:
@@ -126,7 +122,6 @@ app:
             y1: "62%"
             x2: "99%"
             y2: "95%"
-          border: true
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_yellow'
@@ -158,7 +153,6 @@ app:
             x2: "20%"
             y2: "95%"
           tab_order: 2
-          border: true
           border_color: 'bright_red'
           choices:
             - id: 'system_info'

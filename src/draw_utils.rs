@@ -84,7 +84,7 @@ pub fn draw_muxbox(
 ) {
     // Create BoxRenderer component and delegate rendering to it
     // This preserves ALL existing functionality while using the component system
-    let box_renderer = BoxRenderer::new(muxbox, format!("muxbox_{}", muxbox.id));
+    let mut box_renderer = BoxRenderer::new(muxbox, format!("muxbox_{}", muxbox.id));
     
     if box_renderer.render(app_context, app_graph, adjusted_bounds, layout, buffer) {
         // Draw children sorted by z_index (same logic as before)

@@ -13,7 +13,6 @@ pub struct Layout {
     pub fill: Option<bool>,
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
-    pub border: Option<bool>,
     pub border_color: Option<String>,
     pub selected_border_color: Option<String>,
     pub bg_color: Option<String>,
@@ -61,7 +60,6 @@ impl Hash for Layout {
         self.fill.hash(state);
         self.fill_char.hash(state);
         self.selected_fill_char.hash(state);
-        self.border.hash(state);
         self.border_color.hash(state);
         self.selected_border_color.hash(state);
         self.bg_color.hash(state);
@@ -103,7 +101,6 @@ impl Layout {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
-            border: None,
             border_color: None,
             selected_border_color: None,
             bg_color: None,
@@ -542,7 +539,6 @@ impl Clone for Layout {
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
-            border: self.border,
             border_color: self.border_color.clone(),
             selected_border_color: self.selected_border_color.clone(),
             bg_color: self.bg_color.clone(),
@@ -640,16 +636,6 @@ impl Updatable for Layout {
             }
         }
 
-        if self.border != other.border {
-            if let Some(new_value) = other.border {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "border".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
 
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {
@@ -1015,11 +1001,6 @@ impl Updatable for Layout {
                 "selected_fill_char" => {
                     if let Some(new_selected_fill_char) = update.new_value.as_str() {
                         self.selected_fill_char = new_selected_fill_char.chars().next();
-                    }
-                }
-                "border" => {
-                    if let Some(new_border) = update.new_value.as_bool() {
-                        self.border = Some(new_border);
                     }
                 }
                 "border_color" => {

@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "6%"
-          border: true
           border_color: 'bright_magenta'
           bg_color: 'black'
           fg_color: 'bright_magenta'
@@ -38,7 +37,6 @@ app:
             x2: "30%"
             y2: "50%"
           tab_order: 1
-          border: true
           border_color: 'cyan'
           choices:
             - id: 'mysql_status'
@@ -183,7 +181,6 @@ app:
             y1: "8%"
             x2: "65%"
             y2: "50%"
-          border: true
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_yellow'
@@ -227,7 +224,6 @@ app:
             x2: "99%"
             y2: "50%"
           tab_order: 2
-          border: true
           border_color: 'green'
           choices:
             - id: 'backup_status'
@@ -382,7 +378,6 @@ app:
             y1: "52%"
             x2: "99%"
             y2: "95%"
-          border: true
           border_color: 'white'
           bg_color: 'black'
           fg_color: 'bright_white'

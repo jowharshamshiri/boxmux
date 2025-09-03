@@ -7,27 +7,22 @@ pub trait RenderableContent {
     /// Returns (width, height) in character cells
     fn get_dimensions(&self) -> (usize, usize);
 
-    /// Render content within a viewport with scroll offsets
-    /// - bounds: The available rendering area
-    /// - x_offset: Horizontal scroll offset (characters to skip from left)
-    /// - y_offset: Vertical scroll offset (lines to skip from top)
-    /// - buffer: Target screen buffer for rendering
+    /// Get the raw content as a string - for backward compatibility with existing text rendering
+    fn get_raw_content(&self) -> String;
+    
+    /// Get clickable zones in box-relative coordinates (0,0 = top-left of content area, ignoring borders)
+    /// BoxRenderer will translate these to absolute screen coordinates accounting for scroll/wrap/centering
+    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone>;
+    
+    /// Handle a click event on a specific clickable zone
+    /// Returns true if the click was handled and should not propagate further
+    fn handle_click(&mut self, zone_id: &str) -> bool;
+
+    // Legacy methods - for backward compatibility during transition
     fn render_viewport(&self, bounds: &Bounds, x_offset: usize, y_offset: usize, buffer: &mut ScreenBuffer);
-
-    /// Get clickable zones for this content accounting for scroll offsets
-    /// Returns all clickable areas mapped to content items
     fn get_clickable_zones(&self, bounds: &Bounds, x_offset: usize, y_offset: usize) -> Vec<ClickableZone>;
-
-    /// Get dimensions after applying wrapping transformation
-    /// Used for wrap overflow behavior - content is transformed to fit width
     fn get_wrapped_dimensions(&self, max_width: usize) -> (usize, usize);
-
-    /// Render wrapped content within viewport
-    /// Content is pre-wrapped to fit max_width, then rendered with scroll offsets
     fn render_wrapped_viewport(&self, bounds: &Bounds, max_width: usize, y_offset: usize, buffer: &mut ScreenBuffer);
-
-    /// Get clickable zones for wrapped content
-    /// Wrapped content may have multiple zones per item (multi-line choices)
     fn get_wrapped_clickable_zones(&self, bounds: &Bounds, max_width: usize, y_offset: usize) -> Vec<ClickableZone>;
 }
 

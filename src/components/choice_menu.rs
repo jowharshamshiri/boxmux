@@ -79,6 +79,69 @@ impl<'a> ChoiceMenu<'a> {
 }
 
 impl<'a> RenderableContent for ChoiceMenu<'a> {
+    /// Get the raw content as a string
+    fn get_raw_content(&self) -> String {
+        self.generate_choice_content()
+    }
+    
+    /// Get clickable zones in box-relative coordinates (0,0 = top-left of content area)
+    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone> {
+        let mut zones = Vec::new();
+        
+        for (index, choice) in self.choices.iter().enumerate() {
+            if let Some(content) = &choice.content {
+                // Box-relative coordinates: (0,0) is top-left of content area
+                let zone_bounds = Bounds::new(
+                    0, // Start at x=0 (left edge of content area)
+                    index, // y position based on choice index
+                    content.len().saturating_sub(1), // End x coordinate
+                    index, // Single line height, so y2 == y1
+                );
+
+                let metadata = ClickableMetadata {
+                    display_text: Some(content.clone()),
+                    tooltip: Some(format!("Choice {}: {}", index, content)),
+                    selected: choice.selected,
+                    enabled: !choice.waiting,
+                    original_line: Some(index),
+                    char_range: Some((0, content.len())),
+                };
+
+                zones.push(ClickableZone::with_metadata(
+                    zone_bounds,
+                    format!("choice_{}", index),
+                    ContentType::Choice,
+                    metadata,
+                ));
+            }
+        }
+        
+        zones
+    }
+    
+    
+    /// Handle a click event on a specific clickable zone
+    /// Note: This doesn't mutate the choices directly - that's handled at the MuxBox level
+    fn handle_click(&mut self, zone_id: &str) -> bool {
+        log::info!("CHOICE CLICK: ChoiceMenu handling click on zone '{}'", zone_id);
+        
+        if let Some(index_str) = zone_id.strip_prefix("choice_") {
+            if let Ok(choice_index) = index_str.parse::<usize>() {
+                if choice_index < self.choices.len() {
+                    // Store the clicked choice index for external handling
+                    self.selected_index = Some(choice_index);
+                    
+                    log::info!("CHOICE CLICK: Registered click on choice index {}", choice_index);
+                    
+                    // Return true to indicate the click was handled
+                    // The actual choice mutation happens at the MuxBox level
+                    return true;
+                }
+            }
+        }
+        
+        false
+    }
     /// Get the raw content dimensions before any transformations
     fn get_dimensions(&self) -> (usize, usize) {
         let content = self.generate_choice_content();
@@ -123,7 +186,7 @@ impl<'a> RenderableContent for ChoiceMenu<'a> {
     /// Get clickable zones for this content accounting for scroll offsets
     fn get_clickable_zones(&self, bounds: &Bounds, x_offset: usize, y_offset: usize) -> Vec<ClickableZone> {
         let mut zones = Vec::new();
-        let choices = self.choices;
+        let choices = &self.choices;
         let viewport_height = bounds.height().saturating_sub(2);
         let viewport_width = bounds.width().saturating_sub(4);
 
@@ -136,12 +199,13 @@ impl<'a> RenderableContent for ChoiceMenu<'a> {
                 let display_row = index - y_offset;
                 let choice_width = content.len().min(viewport_width);
 
-                let zone_bounds = Bounds::new(
-                    bounds.left() + 2, // Start at column 2 (inside border)
-                    bounds.top() + display_row + 1, // Start at row (inside border)
-                    choice_width,
-                    1, // Single line height
-                );
+                // Calculate correct bounds coordinates (x1, y1, x2, y2)
+                let x1 = bounds.left() + 2; // Start at column 2 (inside border)
+                let y1 = bounds.top() + display_row + 1; // Start at row (inside border)
+                let x2 = x1 + choice_width.saturating_sub(1); // End x coordinate
+                let y2 = y1; // Single line height, so y2 == y1
+                
+                let zone_bounds = Bounds::new(x1, y1, x2, y2);
 
                 let metadata = ClickableMetadata {
                     display_text: Some(content.clone()),
@@ -190,7 +254,7 @@ impl<'a> RenderableContent for ChoiceMenu<'a> {
     fn get_wrapped_clickable_zones(&self, bounds: &Bounds, max_width: usize, y_offset: usize) -> Vec<ClickableZone> {
         // For wrapped choices, we need to track which wrapped lines correspond to which original choices
         let mut zones = Vec::new();
-        let choices = self.choices;
+        let choices = &self.choices;
         let viewport_height = bounds.height().saturating_sub(2);
         let mut current_line = 0;
 

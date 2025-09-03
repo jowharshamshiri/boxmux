@@ -262,10 +262,6 @@
           "maxLength": 1,
           "description": "Fill character when box is selected"
         },
-        "border": {
-          "type": "boolean",
-          "description": "Whether to show border around box"
-        },
         "border_color": {
           "$ref": "#/definitions/color_name",
           "description": "Border color"

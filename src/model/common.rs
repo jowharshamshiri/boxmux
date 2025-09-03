@@ -2410,6 +2410,11 @@ impl Bounds {
     pub fn center_right(&self) -> (usize, usize) {
         (self.x2, (self.y1 + self.y2) / 2)
     }
+
+    /// Check if a point (x, y) is contained within these bounds (inclusive)
+    pub fn contains_point(&self, x: usize, y: usize) -> bool {
+        x >= self.x1 && x <= self.x2 && y >= self.y1 && y <= self.y2
+    }
 }
 
 pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {

@@ -11,7 +11,6 @@ app:
             y1: "5%"
             x2: "95%"
             y2: "60%"
-          border: true
           border_color: "cyan"
           selected_border_color: "bright_cyan"
           content: "This box will show multiple tabs when it has multiple input streams"
@@ -53,7 +52,6 @@ app:
             y1: "65%"
             x2: "45%"
             y2: "95%"
-          border: true
           border_color: "yellow"
           selected_border_color: "bright_yellow"
           tab_order: "1"
@@ -73,7 +71,6 @@ app:
             y1: "65%"
             x2: "95%"
             y2: "95%"
-          border: true
           border_color: "green"
           content: |
             F0203: Multi-Stream Input Tabs Demo

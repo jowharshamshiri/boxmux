@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "6%"
-          border: true
           border_color: 'bright_red'
           bg_color: 'black'
           fg_color: 'bright_red'
@@ -37,7 +36,6 @@ app:
             y1: "8%"
             x2: "33%"
             y2: "35%"
-          border: true
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_yellow'
@@ -72,7 +70,6 @@ app:
             y1: "8%"
             x2: "67%"
             y2: "35%"
-          border: true
           border_color: 'green'
           bg_color: 'black'
           fg_color: 'bright_green'
@@ -102,7 +99,6 @@ app:
             y1: "8%"
             x2: "99%"
             y2: "35%"
-          border: true
           border_color: 'blue'
           bg_color: 'black'
           fg_color: 'bright_blue'
@@ -133,7 +129,6 @@ app:
             y1: "37%"
             x2: "50%"
             y2: "65%"
-          border: true
           border_color: 'cyan'
           bg_color: 'black'
           fg_color: 'bright_cyan'
@@ -173,7 +168,6 @@ app:
             y1: "37%"
             x2: "99%"
             y2: "65%"
-          border: true
           border_color: 'magenta'
           bg_color: 'black'
           fg_color: 'bright_magenta'
@@ -204,7 +198,6 @@ app:
             x2: "33%"
             y2: "95%"
           tab_order: 1
-          border: true
           border_color: 'bright_yellow'
           choices:
             - id: 'system_health'
@@ -295,7 +288,6 @@ app:
             y1: "67%"
             x2: "99%"
             y2: "95%"
-          border: true
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_red'

@@ -8,7 +8,6 @@ app:
         - id: 'bar_chart'
           title: 'Sales Data (Bar Chart)'
           position: {x1: 5%, y1: 5%, x2: 48%, y2: 45%}
-          border: true
           border_color: 'cyan'
           fg_color: 'green'
           chart_type: 'bar'
@@ -22,7 +21,6 @@ app:
         - id: 'line_chart'
           title: 'Growth Trend (Line Chart)'
           position: {x1: 52%, y1: 5%, x2: 95%, y2: 45%}
-          border: true
           border_color: 'cyan'
           fg_color: 'yellow'
           chart_type: 'line'
@@ -38,7 +36,6 @@ app:
         - id: 'histogram'
           title: 'Distribution (Histogram)'
           position: {x1: 5%, y1: 50%, x2: 48%, y2: 90%}
-          border: true
           border_color: 'cyan'
           fg_color: 'blue'
           chart_type: 'histogram'
@@ -56,7 +53,6 @@ app:
         - id: 'line_detail'
           title: 'CPU Trend (Line Detail)'
           position: {x1: 52%, y1: 50%, x2: 95%, y2: 90%}
-          border: true
           border_color: 'cyan'
           fg_color: 'red'
           chart_type: 'line'

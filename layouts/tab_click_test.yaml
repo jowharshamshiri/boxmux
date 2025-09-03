@@ -12,7 +12,6 @@ app:
             y1: "10%"
             x2: "70%"
             y2: "60%"
-          border: true
           border_color: "red"
           content: "Box 1 content"
           choices:
@@ -30,7 +29,6 @@ app:
             y1: "20%"
             x2: "90%"
             y2: "70%"
-          border: true
           border_color: "green"  
           content: "Box 2 content"
           choices:
@@ -47,7 +45,6 @@ app:
             y1: "75%"
             x2: "90%"
             y2: "95%"
-          border: true
           border_color: "yellow"
           content: |
             Tab Click Test:

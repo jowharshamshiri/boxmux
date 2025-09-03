@@ -11,7 +11,6 @@ app:
             y1: "5%"
             x2: "50%"
             y2: "80%"
-          border: true
           border_color: white
           bg_color: black
           fg_color: white
@@ -25,7 +24,6 @@ app:
             y1: "5%"
             x2: "95%"
             y2: "80%"
-          border: true
           border_color: yellow
           bg_color: black
           fg_color: white
@@ -39,7 +37,6 @@ app:
             y1: "85%"
             x2: "80%"
             y2: "95%"
-          border: true
           border_color: green
           bg_color: black
           fg_color: white

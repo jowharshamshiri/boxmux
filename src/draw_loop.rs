@@ -2077,22 +2077,66 @@ create_runnable!(
                                 {
                                     log::trace!("Clicked on muxbox: {}", clicked_muxbox.id);
 
+                                    // NEW ARCHITECTURE: Use BoxRenderer for complete click detection and coordinate translation
+                                    log::info!("NEW CLICK ARCH: Processing click on muxbox '{}' at ({}, {})", 
+                                             clicked_muxbox.id, *x, *y);
+                                    
                                     // Check if muxbox has choices (menu items)
-                                    if let Some(choices) =
-                                        clicked_muxbox.get_active_stream_choices()
-                                    {
-                                        // Calculate which choice was clicked based on y and x offset within muxbox
-                                        if let Some(clicked_choice_idx) =
-                                            calculate_clicked_choice_index(
-                                                clicked_muxbox,
-                                                *x,
-                                                *y,
-                                                choices,
-                                            )
-                                        {
-                                            if let Some(clicked_choice) =
-                                                choices.get(clicked_choice_idx)
-                                            {
+                                    if let Some(choices) = clicked_muxbox.get_active_stream_choices() {
+                                        use crate::components::box_renderer::BoxRenderer;
+                                        use crate::components::choice_menu::ChoiceMenu;
+                                        use crate::components::renderable_content::RenderableContent;
+                                        
+                                        // Create BoxRenderer and ChoiceMenu to generate zones
+                                        let mut box_renderer = BoxRenderer::new(clicked_muxbox, format!("{}_click_renderer", clicked_muxbox.id));
+                                        let choice_menu = ChoiceMenu::new(
+                                            format!("{}_choice_menu", clicked_muxbox.id),
+                                            choices
+                                        )
+                                        .with_selection(clicked_muxbox.selected_choice_index())
+                                        .with_focus(clicked_muxbox.focused_choice_index());
+                                        
+                                        // Manually trigger zone translation (normally done during render)
+                                        let box_relative_zones = choice_menu.get_box_relative_clickable_zones();
+                                        let bounds = clicked_muxbox.bounds();
+                                        let (content_width, content_height) = choice_menu.get_dimensions();
+                                        let viewable_width = bounds.width().saturating_sub(4);
+                                        let viewable_height = bounds.height().saturating_sub(4);
+                                        let horizontal_scroll = clicked_muxbox.horizontal_scroll.unwrap_or(0.0);
+                                        let vertical_scroll = clicked_muxbox.vertical_scroll.unwrap_or(0.0);
+                                        
+                                        let translated_zones = box_renderer.translate_box_relative_zones_to_absolute(
+                                            &box_relative_zones,
+                                            &bounds,
+                                            content_width,
+                                            content_height,
+                                            viewable_width,
+                                            viewable_height,
+                                            horizontal_scroll,
+                                            vertical_scroll,
+                                            false
+                                        );
+                                        
+                                        box_renderer.store_translated_clickable_zones(translated_zones);
+                                        
+                                        // Now try to handle the click
+                                        if box_renderer.handle_click(*x as usize, *y as usize) {
+                                            log::info!("CLICK HANDLING: BoxRenderer handled click for muxbox '{}'", clicked_muxbox.id);
+                                            
+                                            // For now, we need to extract the old choice execution logic
+                                            // TODO: This should be moved into ChoiceMenu.handle_click() 
+                                            if let Some(choices) = clicked_muxbox.get_active_stream_choices() {
+                                                // Find which choice was clicked based on the zone that was hit
+                                                // This is temporary until we complete the RenderableContent.handle_click integration
+                                                let zones = box_renderer.get_clickable_zones();
+                                                let click_x = *x as usize;
+                                                let click_y = *y as usize;
+                                                
+                                                if let Some(clicked_zone) = zones.iter().find(|z| z.bounds.contains_point(click_x, click_y)) {
+                                                    if let Some(idx_str) = clicked_zone.content_id.strip_prefix("choice_") {
+                                                        if let Ok(clicked_choice_idx) = idx_str.parse::<usize>() {
+                                                            log::info!("CLICK HANDLING: Successfully detected click on choice index {}", clicked_choice_idx);
+                                                            if let Some(clicked_choice) = choices.get(clicked_choice_idx) {
                                                 log::trace!(
                                                     "Clicked on choice: {}",
                                                     clicked_choice.id
@@ -2252,32 +2296,17 @@ create_runnable!(
                                                         }
                                                     }
                                                 }
-                                            }
-                                        } else {
-                                            // Click was on muxbox with choices but not on any specific choice
-                                            // Only select the muxbox, don't activate any choice
-                                            if clicked_muxbox.tab_order.is_some()
-                                                || clicked_muxbox.has_scrollable_content()
-                                            {
-                                                log::trace!(
-                                                    "Selecting muxbox (clicked on empty area): {}",
-                                                    clicked_muxbox.id
-                                                );
-
-                                                // Deselect all muxboxes in the layout first
-                                                let layout = app_context_for_click
-                                                    .app
-                                                    .get_active_layout_mut()
-                                                    .unwrap();
-                                                layout.deselect_all_muxboxes();
-                                                layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                                inner.update_app_context(app_context_for_click);
-                                                inner.send_message(Message::RedrawAppDiff);
-                                            }
-                                        }
+                                            } // Close if let Some(clicked_choice)
+                                        } // Close if let Ok(clicked_choice_idx)
+                                    } // Close if let Some(idx_str)
+                                } // Close if let Some(clicked_zone)
+                            } // Close if let Some(choices) from line 2128
+                        } else {
+                            log::info!("NEW ARCH: Click at ({}, {}) did not hit any clickable zone", *x, *y);
+                        }
                                     } else {
                                         // MuxBox has no choices - just select it if it's selectable
+                                        log::info!("NEW ARCH: MuxBox '{}' has no choices, selecting if selectable", clicked_muxbox.id);
                                         if clicked_muxbox.tab_order.is_some()
                                             || clicked_muxbox.has_scrollable_content()
                                         {
@@ -2298,7 +2327,7 @@ create_runnable!(
                                             inner.send_message(Message::RedrawAppDiff);
                                         }
                                     }
-                                }
+                                } // End of clicked_muxbox
                             } // End of !handled_tab_click
                         }
                     }

@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "6%"
-          border: true
           border_color: 'bright_green'
           bg_color: 'black'
           fg_color: 'bright_green'
@@ -38,7 +37,6 @@ app:
             x2: "25%"
             y2: "50%"
           tab_order: 1
-          border: true
           border_color: 'blue'
           choices:
             - id: 'project_structure'
@@ -113,7 +111,6 @@ app:
             y1: "8%"
             x2: "75%"
             y2: "50%"
-          border: true
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
@@ -128,7 +125,6 @@ app:
             x2: "99%"
             y2: "50%"
           tab_order: 2
-          border: true
           border_color: 'magenta'
           choices:
             - id: 'build_project'
@@ -211,7 +207,6 @@ app:
             y1: "52%"
             x2: "48%"
             y2: "95%"
-          border: true
           border_color: 'cyan'
           refresh_interval: 10000
           script:
@@ -244,7 +239,6 @@ app:
             y1: "52%"
             x2: "99%"
             y2: "95%"
-          border: true
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_yellow'

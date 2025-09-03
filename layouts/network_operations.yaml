@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "6%"
-          border: true
           border_color: 'bright_cyan'
           bg_color: 'black'
           fg_color: 'bright_cyan'
@@ -39,7 +38,6 @@ app:
             y1: "8%"
             x2: "35%"
             y2: "50%"
-          border: true
           border_color: 'blue'
           bg_color: 'black'
           fg_color: 'bright_blue'
@@ -82,7 +80,6 @@ app:
             y1: "8%"
             x2: "70%"
             y2: "50%"
-          border: true
           border_color: 'green'
           bg_color: 'black'
           fg_color: 'bright_green'
@@ -122,7 +119,6 @@ app:
             x2: "99%"
             y2: "50%"
           tab_order: 1
-          border: true
           border_color: 'yellow'
           choices:
             - id: 'connectivity_test'
@@ -266,7 +262,6 @@ app:
             y1: "52%"
             x2: "50%"
             y2: "95%"
-          border: true
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_red'
@@ -321,7 +316,6 @@ app:
             y1: "52%"
             x2: "99%"
             y2: "95%"
-          border: true
           border_color: 'magenta'
           bg_color: 'black'
           fg_color: 'bright_magenta'

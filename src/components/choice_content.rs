@@ -128,7 +128,7 @@ impl<'a> ChoiceContent<'a> {
         
         // Use existing working wrap logic from draw_utils.rs
         let mut all_wrapped_lines = Vec::new();
-        for choice in self.choices {
+        for choice in self.choices.iter() {
             let (fg_color, bg_color) = self.get_choice_colors(choice);
             let formatted_content = self.format_choice_content(choice);
             let wrapped_lines = wrap_text_to_width(&formatted_content, max_width);
@@ -169,7 +169,7 @@ impl<'a> ChoiceContent<'a> {
         let mut total_wrapped_lines = 0;
         let mut max_wrapped_width = 0;
 
-        for choice in self.choices {
+        for choice in self.choices.iter() {
             let formatted_content = self.format_choice_content(choice);
             let wrapped_lines = wrap_text_to_width(&formatted_content, max_width);
             total_wrapped_lines += wrapped_lines.len();
@@ -303,6 +303,46 @@ impl<'a> RenderableContent for ChoiceContent<'a> {
         let max_width = self.get_max_choice_width();
         let height = self.choices.len();
         (max_width, height)
+    }
+
+    /// Get raw content string for choices
+    fn get_raw_content(&self) -> String {
+        self.choices.iter()
+            .map(|choice| choice.id.clone())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Get box-relative clickable zones for choices - raw row/col positions
+    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone> {
+        let mut zones = Vec::new();
+        
+        for (idx, choice) in self.choices.iter().enumerate() {
+            zones.push(ClickableZone {
+                bounds: Bounds::new(0, idx, choice.id.len(), 1), // Raw content: col 0, row idx, width=choice length, height=1
+                content_id: format!("choice_{}", idx),
+                content_type: crate::components::renderable_content::ContentType::Choice,
+                metadata: Default::default(),
+            });
+        }
+        
+        zones
+    }
+
+
+    /// Handle click events on choices
+    /// Note: Choice mutation happens at MuxBox level, this just validates the click
+    fn handle_click(&mut self, zone_id: &str) -> bool {
+        if let Some(idx_str) = zone_id.strip_prefix("choice_") {
+            if let Ok(choice_idx) = idx_str.parse::<usize>() {
+                if choice_idx < self.choices.len() {
+                    // Just validate the click is on a valid choice
+                    // Actual mutation happens at the MuxBox level
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// FIXED: Render choices with proper horizontal scrolling support

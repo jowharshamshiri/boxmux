@@ -14,7 +14,6 @@ app:
           y2: 90%
         z_index: -1
         bg_color: blue
-        border: true
         border_color: blue
         content: "This is the background layer (z_index: -1)"
 
@@ -27,7 +26,6 @@ app:
           x2: 80%
           y2: 80%
         bg_color: green  
-        border: true
         border_color: green
         content: "This is the middle layer (default z_index: 0)"
 
@@ -41,7 +39,6 @@ app:
           y2: 70%
         z_index: 10
         bg_color: red
-        border: true
         border_color: red
         content: "This is the foreground layer (z_index: 10) - click me!"
         choices:
@@ -60,7 +57,6 @@ app:
           y2: 50%
         z_index: 5
         bg_color: yellow
-        border: true
         border_color: yellow
         children:
           - id: child_behind
@@ -72,8 +68,7 @@ app:
               y2: 45%
             z_index: 1
             bg_color: cyan
-            border: true
-            content: "Child with z_index: 1"
+                content: "Child with z_index: 1"
             
           - id: child_front
             title: "Child Front"
@@ -84,5 +79,4 @@ app:
               y2: 90%
             z_index: 5
             bg_color: magenta
-            border: true
-            content: "Child with z_index: 5 (on top)"
+                content: "Child with z_index: 5 (on top)"

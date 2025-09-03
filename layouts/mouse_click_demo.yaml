@@ -19,7 +19,6 @@ app:
             3. Click on any element with keypress enter defined → Triggers enter action
             
             Try clicking on boxes and menu items below to see the features in action!
-          border: true
           border_color: 'bright_cyan'
 
         # Selectable boxes for testing box selection
@@ -37,7 +36,6 @@ app:
             Click anywhere on this box to select it.
             
             Notice how the selection changes when you click different boxes.
-          border: true
           border_color: 'green'
           selected_border_color: 'bright_green'
 
@@ -55,7 +53,6 @@ app:
             Click here to select this box instead.
             
             Selected boxes have different border colors.
-          border: true
           border_color: 'yellow'
           selected_border_color: 'bright_yellow'
 
@@ -73,7 +70,6 @@ app:
             Mouse clicks provide intuitive selection.
             
             Much faster than Tab navigation!
-          border: true
           border_color: 'cyan'
           selected_border_color: 'bright_cyan'
 
@@ -114,7 +110,6 @@ app:
               script: ["echo 'Output cleared!'"]
               redirect_output: "output_box"
 
-          border: true
           border_color: 'magenta'
           selected_border_color: 'bright_magenta'
 
@@ -139,6 +134,5 @@ app:
             
             Click away!
           auto_scroll_bottom: true
-          border: true
           border_color: 'blue'
           selected_border_color: 'bright_blue'

@@ -1,4 +1,5 @@
 use crate::model::common::*;
+use crate::color_utils::should_draw_color;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
@@ -176,7 +177,6 @@ pub struct MuxBox {
     pub fill: Option<bool>,
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
-    pub border: Option<bool>,
     pub border_color: Option<String>,
     pub selected_border_color: Option<String>,
     pub bg_color: Option<String>,
@@ -269,7 +269,6 @@ impl Hash for MuxBox {
         self.fill.hash(state);
         self.fill_char.hash(state);
         self.selected_fill_char.hash(state);
-        self.border.hash(state);
         self.border_color.hash(state);
         self.selected_border_color.hash(state);
         self.bg_color.hash(state);
@@ -368,8 +367,7 @@ impl Default for MuxBox {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
-            border: None,
-            border_color: None,
+                border_color: None,
             selected_border_color: None,
             bg_color: None,
             selected_bg_color: None,
@@ -444,7 +442,6 @@ impl PartialEq for MuxBox {
             && self.fill == other.fill
             && self.fill_char == other.fill_char
             && self.selected_fill_char == other.selected_fill_char
-            && self.border == other.border
             && self.border_color == other.border_color
             && self.selected_border_color == other.selected_border_color
             && self.bg_color == other.bg_color
@@ -520,7 +517,6 @@ impl Clone for MuxBox {
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
-            border: self.border,
             border_color: self.border_color.clone(),
             selected_border_color: self.selected_border_color.clone(),
             bg_color: self.bg_color.clone(),
@@ -1145,17 +1141,8 @@ impl MuxBox {
     }
 
     pub fn calc_border(&self, app_context: &AppContext, app_graph: &AppGraph) -> bool {
-        let parent_border = self.get_parent_clone(app_graph).and_then(|p| p.border);
-        let parent_layout_border = self
-            .get_parent_layout_clone(app_context)
-            .and_then(|pl| pl.border);
-
-        inherit_bool(
-            self.border.as_ref(),
-            parent_border.as_ref(),
-            parent_layout_border.as_ref(),
-            true,
-        )
+        // Border visibility is now determined by color transparency
+        should_draw_color(&self.calc_border_color(app_context, app_graph))
     }
 
     pub fn calc_overflow_behavior(&self, app_context: &AppContext, app_graph: &AppGraph) -> String {
@@ -2376,7 +2363,7 @@ impl MuxBox {
         let mut rows = bounds.height() as u16;
         
         // Account for border space if present
-        if self.border.unwrap_or(false) {
+        if should_draw_color(&self.border_color) {
             // Borders take 2 characters (left + right) and 2 rows (top + bottom)
             cols = cols.saturating_sub(2);
             rows = rows.saturating_sub(2);
@@ -2400,8 +2387,8 @@ impl MuxBox {
         let final_cols = cols.max(min_cols);
         let final_rows = rows.max(min_rows);
         
-        log::debug!("Terminal dimension calculation for box {}: bounds={}x{}, border={}, title_present={}, streams={} -> {}x{} characters", 
-            self.id, bounds.width(), bounds.height(), self.border.unwrap_or(false), self.title.as_ref().map_or(false, |t| !t.is_empty()), stream_count, final_cols, final_rows);
+        log::debug!("Terminal dimension calculation for box {}: bounds={}x{}, border_visible={}, title_present={}, streams={} -> {}x{} characters", 
+            self.id, bounds.width(), bounds.height(), should_draw_color(&self.border_color), self.title.as_ref().map_or(false, |t| !t.is_empty()), stream_count, final_cols, final_rows);
         
         (final_cols, final_rows)
     }
@@ -2611,14 +2598,6 @@ impl Updatable for MuxBox {
             }
         }
 
-        if self.border != other.border {
-            updates.push(FieldUpdate {
-                entity_type: EntityType::MuxBox,
-                entity_id: Some(self.id.clone()), // Use clone to break the lifetime dependency
-                field_name: "border".to_string(),
-                new_value: serde_json::to_value(other.border).unwrap(),
-            });
-        }
 
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {
@@ -3132,13 +3111,6 @@ impl Updatable for MuxBox {
                         serde_json::from_value::<Option<char>>(update.new_value.clone())
                     {
                         self.selected_fill_char = new_selected_fill_char;
-                    }
-                }
-                "border" => {
-                    if let Ok(new_border) =
-                        serde_json::from_value::<Option<bool>>(update.new_value.clone())
-                    {
-                        self.border = new_border;
                     }
                 }
                 "border_color" => {

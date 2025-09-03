@@ -1,4 +1,4 @@
-use crate::components::renderable_content::{RenderableContent, ClickableZone, ContentType, ClickableMetadata, ContentDimensions};
+use crate::components::renderable_content::{RenderableContent, ClickableZone};
 use crate::{ScreenBuffer, Bounds};
 use crate::draw_utils::{print_with_color_and_background_at, wrap_text_to_width, content_size};
 
@@ -150,6 +150,22 @@ impl<'a> RenderableContent for TextContent<'a> {
     /// Get raw content dimensions using existing content_size logic
     fn get_dimensions(&self) -> (usize, usize) {
         self.calculate_dimensions()
+    }
+
+    /// Get raw content string
+    fn get_raw_content(&self) -> String {
+        self.text.to_string()
+    }
+
+    /// Get box-relative clickable zones
+    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone> {
+        Vec::new() // Text content typically doesn't have clickable zones
+    }
+
+
+    /// Handle click events
+    fn handle_click(&mut self, _zone_id: &str) -> bool {
+        false // Text content doesn't handle clicks
     }
 
     /// Render text content within viewport using existing rendering logic

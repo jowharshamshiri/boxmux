@@ -28,7 +28,6 @@ app:
             Line 15
             This content does not auto-scroll.
             Use arrow keys to scroll manually.
-          border: true
           
         - id: "auto_scroll_box"
           title: "Auto-Scroll Logs (auto_scroll_bottom: true)"
@@ -44,7 +43,6 @@ app:
             - "echo 'Processing...'"
             - "echo 'Status: Running'"
             - "echo '---'"
-          border: true
           
         - id: "auto_scroll"
           title: "Auto-Scroll with Script"
@@ -61,4 +59,3 @@ app:
                 echo "$(date '+%H:%M:%S') - line $i"
                 sleep 0.5
               done
-          border: true

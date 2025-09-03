@@ -18,7 +18,6 @@ app:
             y1: "0"
             x2: "40"
             y2: "100"
-          border: true
           choices:
             # F0081: These choices can be triggered by hot keys
             - id: "deploy"
@@ -52,7 +51,6 @@ app:
             y1: "0"  
             x2: "100"
             y2: "70"
-          border: true
           content: "Press Ctrl+d, F2, F3, or Ctrl+r to trigger commands\nOutput will appear here"
           auto_scroll_bottom: true  # Auto-scroll to see new output
           
@@ -63,7 +61,6 @@ app:
             y1: "70"
             x2: "100" 
             y2: "100"
-          border: true
           content: |
             FEATURES DEMONSTRATED:
             

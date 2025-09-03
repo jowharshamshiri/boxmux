@@ -8,7 +8,6 @@ app:
         - id: 'custom_component'
           title: 'Custom Plugin Component'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 50%}
-          border: true
           border_color: 'magenta'
           fg_color: 'white'
           plugin_component: 'custom_chart'
@@ -21,7 +20,6 @@ app:
         - id: 'plugin_status'
           title: 'Plugin Status'
           position: {x1: 10%, y1: 55%, x2: 45%, y2: 90%}
-          border: true
           border_color: 'cyan'
           fg_color: 'green'
           content: |
@@ -36,7 +34,6 @@ app:
         - id: 'security_info'
           title: 'Security Settings'
           position: {x1: 50%, y1: 55%, x2: 90%, y2: 90%}
-          border: true
           border_color: 'yellow'
           fg_color: 'white'
           content: |

@@ -2,6 +2,7 @@
 // Captures exact terminal output character-by-character for validation
 
 use crate::{App, Message};
+use crate::color_utils::should_draw_color;
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -139,7 +140,7 @@ impl TerminalCapture {
         let bounds = self.calculate_muxbox_bounds(muxbox);
 
         // Render border if present
-        if muxbox.border.unwrap_or(true) {
+        if should_draw_color(&muxbox.border_color) {
             self.render_border_to_buffer(&bounds, buffer, muxbox);
         }
 

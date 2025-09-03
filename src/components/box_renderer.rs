@@ -15,6 +15,7 @@ use crate::draw_utils::{
 };
 use crate::model::common::{Cell, ContentStreamTrait, ChoicesStreamTrait, StreamType};
 use crate::{AppContext, AppGraph, MuxBox, ScreenBuffer, Bounds};
+use crate::components::renderable_content::ClickableZone;
 use std::collections::HashMap;
 
 /// Overflow behavior types for unified content rendering
@@ -60,6 +61,8 @@ pub struct BoxRenderer<'a> {
     muxbox: &'a MuxBox,
     /// Component ID for this renderer instance
     component_id: String,
+    /// Translated clickable zones in absolute screen coordinates
+    clickable_zones: Vec<ClickableZone>,
 }
 
 impl<'a> BoxRenderer<'a> {
@@ -68,6 +71,7 @@ impl<'a> BoxRenderer<'a> {
         Self {
             muxbox,
             component_id,
+            clickable_zones: Vec::new(),
         }
     }
     
@@ -109,7 +113,7 @@ impl<'a> BoxRenderer<'a> {
     /// This replaces the logic that was in draw_muxbox() and render_muxbox()
     /// but preserves ALL existing functionality and behavior.
     pub fn render(
-        &self,
+        &mut self,
         app_context: &AppContext,
         app_graph: &AppGraph,
         adjusted_bounds: &HashMap<String, HashMap<String, Bounds>>,
@@ -205,7 +209,7 @@ impl<'a> BoxRenderer<'a> {
     /// This is essentially the render_muxbox() function but as a method of BoxRenderer
     /// Preserves ALL existing functionality and behavior.
     fn render_box_contents(
-        &self,
+        &mut self,
         bounds: &Bounds,
         border_color: &Option<String>,
         bg_color: &Option<String>,
@@ -336,8 +340,12 @@ impl<'a> BoxRenderer<'a> {
                     .with_selection(self.muxbox.selected_choice_index())
                     .with_focus(self.muxbox.focused_choice_index());
                     
+                    log::info!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}", 
+                             self.muxbox.id, choices.len(), choice_menu.get_dimensions());
+                    
                     // Get choice content as string - treat it like any other content
                     let choice_content = choice_menu.get_raw_content();
+                    log::info!("CHOICE RENDER: Generated choice content length: {} chars", choice_content.len());
                     
                     // Use unified content rendering (same path as text content)
                     let (content_width, content_height) = content_size(&choice_content);
@@ -358,24 +366,22 @@ impl<'a> BoxRenderer<'a> {
                         buffer,
                     );
                     
-                    // Store clickable zones for mouse interaction handling
-                    let horizontal_offset = if content_width > viewable_width {
-                        ((content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
-                    } else {
-                        0
-                    };
-                    
-                    let vertical_offset = if content_height > viewable_height {
-                        ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
-                    } else {
-                        0
-                    };
-                    
-                    let _clickable_zones = choice_menu.get_clickable_zones(
+                    // Get box-relative clickable zones and translate to absolute coordinates
+                    let box_relative_zones = choice_menu.get_box_relative_clickable_zones();
+                    let translated_zones = self.translate_box_relative_zones_to_absolute(
+                        &box_relative_zones,
                         &bounds,
-                        horizontal_offset, 
-                        vertical_offset
+                        content_width,
+                        content_height,
+                        viewable_width,
+                        viewable_height,
+                        horizontal_scroll,
+                        vertical_scroll,
+                        false // not wrapped
                     );
+                    
+                    // Store translated zones for click detection
+                    self.store_translated_clickable_zones(translated_zones);
                 }
             }
         } else if let Some(content) = content {
@@ -414,6 +420,8 @@ impl<'a> BoxRenderer<'a> {
                     )
                     .with_selection(self.muxbox.selected_choice_index())
                     .with_focus(self.muxbox.focused_choice_index());
+                    
+                    log::info!("CHOICE RENDER: Secondary ChoiceMenu created for content only, muxbox '{}'", self.muxbox.id);
                     choice_menu.get_raw_content()
                 })
         } else {
@@ -1019,5 +1027,105 @@ impl<'a> BoxRenderer<'a> {
                 );
             }
         }
+    }
+    
+    /// Translate box-relative clickable zones to absolute screen coordinates
+    /// This handles centering, scroll offsets, and coordinate translation
+    pub fn translate_box_relative_zones_to_absolute(
+        &self,
+        box_relative_zones: &[ClickableZone],
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+        is_wrapped: bool,
+    ) -> Vec<ClickableZone> {
+        let mut translated_zones = Vec::new();
+        
+        // Calculate same offsets as render_normal_content
+        let vertical_padding = (viewable_height.saturating_sub(content_height)) / 2;
+        let horizontal_padding = (viewable_width.saturating_sub(content_width)) / 2;
+        
+        // Calculate scroll offsets
+        let horizontal_offset = if content_width > viewable_width {
+            ((content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        let vertical_offset = if content_height > viewable_height {
+            ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        log::info!("TRANSLATE ZONES: content={}x{}, viewable={}x{}, padding={}x{}, scroll_offset={}x{}", 
+                   content_width, content_height, viewable_width, viewable_height, 
+                   horizontal_padding, vertical_padding, horizontal_offset, vertical_offset);
+        
+        for zone in box_relative_zones {
+            // Skip zones that are scrolled out of view
+            if zone.bounds.y1 < vertical_offset || zone.bounds.y1 >= vertical_offset + viewable_height {
+                continue;
+            }
+            if zone.bounds.x1 < horizontal_offset || zone.bounds.x1 >= horizontal_offset + viewable_width {
+                continue;
+            }
+            
+            // Translate box-relative coordinates to absolute screen coordinates
+            // Box-relative (0,0) maps to (bounds.left + 2 + horizontal_padding, bounds.top + 2 + vertical_padding)
+            let absolute_x1 = bounds.left() + 2 + horizontal_padding + zone.bounds.x1 - horizontal_offset;
+            let absolute_y1 = bounds.top() + 2 + vertical_padding + zone.bounds.y1 - vertical_offset;
+            let absolute_x2 = bounds.left() + 2 + horizontal_padding + zone.bounds.x2 - horizontal_offset;
+            let absolute_y2 = bounds.top() + 2 + vertical_padding + zone.bounds.y2 - vertical_offset;
+            
+            let translated_bounds = Bounds::new(absolute_x1, absolute_y1, absolute_x2, absolute_y2);
+            
+            log::info!("TRANSLATE ZONE: '{}' box_rel=({},{} to {},{}) -> abs=({},{} to {},{})",
+                       zone.content_id, zone.bounds.x1, zone.bounds.y1, zone.bounds.x2, zone.bounds.y2,
+                       absolute_x1, absolute_y1, absolute_x2, absolute_y2);
+            
+            let mut translated_zone = zone.clone();
+            translated_zone.bounds = translated_bounds;
+            translated_zones.push(translated_zone);
+        }
+        
+        translated_zones
+    }
+    
+    /// Store translated clickable zones for click detection
+    pub fn store_translated_clickable_zones(&mut self, zones: Vec<ClickableZone>) {
+        self.clickable_zones = zones;
+        log::info!("STORE ZONES: Stored {} translated clickable zones for muxbox '{}'", 
+                   self.clickable_zones.len(), self.muxbox.id);
+    }
+    
+    /// Get clickable zones in absolute screen coordinates
+    pub fn get_clickable_zones(&self) -> &[ClickableZone] {
+        &self.clickable_zones
+    }
+    
+    /// Handle click at absolute screen coordinates
+    /// Returns true if click was handled by a renderable content
+    pub fn handle_click(&mut self, click_x: usize, click_y: usize) -> bool {
+        log::info!("BOX CLICK: Checking click at ({}, {}) against {} zones for muxbox '{}'", 
+                   click_x, click_y, self.clickable_zones.len(), self.muxbox.id);
+        
+        for zone in &self.clickable_zones {
+            if zone.bounds.contains_point(click_x, click_y) {
+                log::info!("BOX CLICK: Found zone '{}' contains click ({}, {})", zone.content_id, click_x, click_y);
+                
+                // For now, return the zone info - later this will delegate to RenderableContent.handle_click()
+                // TODO: Get mutable reference to the RenderableContent and call its handle_click method
+                log::info!("BOX CLICK: Would handle click on zone '{}' - implementation needed", zone.content_id);
+                return true;
+            }
+        }
+        
+        log::info!("BOX CLICK: No zone found for click ({}, {})", click_x, click_y);
+        false
     }
 }

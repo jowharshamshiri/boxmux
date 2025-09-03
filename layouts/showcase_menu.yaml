@@ -21,7 +21,6 @@ app:
             y1: "0%"
             x2: "100%"
             y2: "12%"
-          border: true
           border_color: 'bright_white'
           bg_color: 'black'
           fg_color: 'bright_white'
@@ -36,7 +35,6 @@ app:
             x2: "50%"
             y2: "90%"
           tab_order: 1
-          border: true
           border_color: 'bright_cyan'
           choices:
             - id: 'devops_center'
@@ -230,7 +228,6 @@ app:
             y1: "15%"
             x2: "95%"
             y2: "90%"
-          border: true
           border_color: 'bright_yellow'
           bg_color: 'black'
           fg_color: 'bright_white'

@@ -11,7 +11,6 @@ app:
             y1: "5%"
             x2: "45%"
             y2: "45%"
-          border: true
           border_color: "cyan"
           content: |
             This is a very long line that should trigger horizontal scrolling because it exceeds the muxbox width significantly.
@@ -38,7 +37,6 @@ app:
             y1: "5%"
             x2: "95%"
             y2: "45%"
-          border: true
           border_color: "yellow"
           script:
             - "for i in {1..20}; do echo \"Script output line $i - this is a very long line that should trigger horizontal scrolling because it exceeds the box width\"; done"
@@ -52,7 +50,6 @@ app:
             y1: "55%"
             x2: "45%"
             y2: "95%"
-          border: true
           border_color: "green"
           choices:
             - id: "choice1"
@@ -84,7 +81,6 @@ app:
             y1: "55%"
             x2: "95%"
             y2: "95%"
-          border: true
           border_color: "magenta"
           content: |
             SCROLLBAR TEST:

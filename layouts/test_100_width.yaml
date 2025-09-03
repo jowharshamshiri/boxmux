@@ -8,7 +8,6 @@ app:
         - id: 'full_width_panel'
           title: 'Full Width Panel (should be resizable at right edge)'
           position: {x1: 0%, y1: 10%, x2: 100%, y2: 60%}
-          border: true
           border_color: 'cyan'
           fg_color: 'white'
           content: |
@@ -22,7 +21,6 @@ app:
         - id: 'normal_panel'
           title: 'Normal Panel (for comparison)'
           position: {x1: 10%, y1: 70%, x2: 90%, y2: 90%}
-          border: true
           border_color: 'green'
           fg_color: 'yellow'
           content: |

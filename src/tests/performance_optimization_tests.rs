@@ -222,7 +222,7 @@ fn test_pty_terminal_dimension_calculation() {
     let mut muxbox = MuxBox::default();
     muxbox.id = "test_pty_box".to_string();
     muxbox.title = Some("PTY Test Box".to_string());
-    muxbox.border = Some(true);
+    muxbox.border_color = Some("white".to_string());
     muxbox.execution_mode = ExecutionMode::Pty;
     
     // Test various bound scenarios for terminal dimension calculation
