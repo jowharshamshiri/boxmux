@@ -2120,7 +2120,17 @@ create_runnable!(
                                         box_renderer.store_translated_clickable_zones(translated_zones);
                                         
                                         // Now try to handle the click
-                                        if box_renderer.handle_click(*x as usize, *y as usize) {
+                                        if box_renderer.handle_click(
+                                            *x as usize, 
+                                            *y as usize,
+                                            &bounds,
+                                            content_width,
+                                            content_height,
+                                            viewable_width,
+                                            viewable_height,
+                                            horizontal_scroll,
+                                            vertical_scroll,
+                                        ) {
                                             log::info!("CLICK HANDLING: BoxRenderer handled click for muxbox '{}'", clicked_muxbox.id);
                                             
                                             // For now, we need to extract the old choice execution logic

@@ -1075,16 +1075,19 @@ impl<'a> BoxRenderer<'a> {
                 continue;
             }
             
-            // Translate box-relative coordinates to absolute screen coordinates
-            // Box-relative (0,0) maps to (bounds.left + 2 + horizontal_padding, bounds.top + 2 + vertical_padding)
-            let absolute_x1 = bounds.left() + 2 + horizontal_padding + zone.bounds.x1 - horizontal_offset;
-            let absolute_y1 = bounds.top() + 2 + vertical_padding + zone.bounds.y1 - vertical_offset;
-            let absolute_x2 = bounds.left() + 2 + horizontal_padding + zone.bounds.x2 - horizontal_offset;
-            let absolute_y2 = bounds.top() + 2 + vertical_padding + zone.bounds.y2 - vertical_offset;
+            // Use isolated coordinate translation methods
+            let (absolute_x1, absolute_y1) = self.translate_inbox_to_screen_coordinates(
+                zone.bounds.x1, zone.bounds.y1, bounds, content_width, content_height, 
+                viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+            );
+            let (absolute_x2, absolute_y2) = self.translate_inbox_to_screen_coordinates(
+                zone.bounds.x2, zone.bounds.y2, bounds, content_width, content_height, 
+                viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+            );
             
             let translated_bounds = Bounds::new(absolute_x1, absolute_y1, absolute_x2, absolute_y2);
             
-            log::info!("TRANSLATE ZONE: '{}' box_rel=({},{} to {},{}) -> abs=({},{} to {},{})",
+            log::info!("TRANSLATE ZONE: '{}' inbox=({},{} to {},{}) -> screen=({},{} to {},{})",
                        zone.content_id, zone.bounds.x1, zone.bounds.y1, zone.bounds.x2, zone.bounds.y2,
                        absolute_x1, absolute_y1, absolute_x2, absolute_y2);
             
@@ -1108,9 +1111,110 @@ impl<'a> BoxRenderer<'a> {
         &self.clickable_zones
     }
     
+    /// Translate inbox coordinates to screen coordinates
+    /// Inbox coordinates: content-local (0,0 = top-left of content area)
+    /// Screen coordinates: absolute terminal coordinates
+    pub fn translate_inbox_to_screen_coordinates(
+        &self,
+        inbox_x: usize,
+        inbox_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> (usize, usize) {
+        // Calculate padding offsets
+        let vertical_padding = (viewable_height.saturating_sub(content_height)) / 2;
+        let horizontal_padding = (viewable_width.saturating_sub(content_width)) / 2;
+        
+        // Calculate scroll offsets
+        let horizontal_offset = if content_width > viewable_width {
+            ((content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        let vertical_offset = if content_height > viewable_height {
+            ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        // Forward translate: inbox coordinates -> screen coordinates
+        let screen_x = bounds.left() + 2 + horizontal_padding + inbox_x - horizontal_offset;
+        let screen_y = bounds.top() + 2 + vertical_padding + inbox_y - vertical_offset;
+        
+        (screen_x, screen_y)
+    }
+
+    /// Translate screen coordinates to inbox coordinates
+    /// Screen coordinates: absolute terminal coordinates
+    /// Inbox coordinates: content-local (0,0 = top-left of content area)
+    pub fn translate_screen_to_inbox_coordinates(
+        &self,
+        screen_x: usize,
+        screen_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> Option<(usize, usize)> {
+        // Calculate padding offsets
+        let vertical_padding = (viewable_height.saturating_sub(content_height)) / 2;
+        let horizontal_padding = (viewable_width.saturating_sub(content_width)) / 2;
+        
+        // Calculate scroll offsets
+        let horizontal_offset = if content_width > viewable_width {
+            ((content_width - viewable_width + 3) as f64 * horizontal_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        let vertical_offset = if content_height > viewable_height {
+            ((content_height - viewable_height) as f64 * vertical_scroll / 100.0).round() as usize
+        } else {
+            0
+        };
+        
+        // Calculate content area bounds
+        let content_left = bounds.left() + 2 + horizontal_padding;
+        let content_top = bounds.top() + 2 + vertical_padding;
+        let content_right = content_left + viewable_width;
+        let content_bottom = content_top + viewable_height;
+        
+        // Check if click is within content area
+        if screen_x < content_left || screen_x >= content_right || 
+           screen_y < content_top || screen_y >= content_bottom {
+            return None;
+        }
+        
+        // Reverse translate: screen coordinates -> inbox coordinates
+        let inbox_x = (screen_x - content_left) + horizontal_offset;
+        let inbox_y = (screen_y - content_top) + vertical_offset;
+        
+        Some((inbox_x, inbox_y))
+    }
+
     /// Handle click at absolute screen coordinates
     /// Returns true if click was handled by a renderable content
-    pub fn handle_click(&mut self, click_x: usize, click_y: usize) -> bool {
+    pub fn handle_click(
+        &mut self, 
+        click_x: usize, 
+        click_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> bool {
         log::info!("BOX CLICK: Checking click at ({}, {}) against {} zones for muxbox '{}'", 
                    click_x, click_y, self.clickable_zones.len(), self.muxbox.id);
         
@@ -1118,14 +1222,144 @@ impl<'a> BoxRenderer<'a> {
             if zone.bounds.contains_point(click_x, click_y) {
                 log::info!("BOX CLICK: Found zone '{}' contains click ({}, {})", zone.content_id, click_x, click_y);
                 
-                // For now, return the zone info - later this will delegate to RenderableContent.handle_click()
-                // TODO: Get mutable reference to the RenderableContent and call its handle_click method
-                log::info!("BOX CLICK: Would handle click on zone '{}' - implementation needed", zone.content_id);
-                return true;
+                // Translate screen coordinates to inbox coordinates before passing to renderable content
+                if let Some((inbox_x, inbox_y)) = self.translate_screen_to_inbox_coordinates(
+                    click_x, click_y, bounds, content_width, content_height, 
+                    viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+                ) {
+                    log::info!("BOX CLICK: Translated screen coords ({}, {}) to inbox coords ({}, {}) for zone '{}'", 
+                               click_x, click_y, inbox_x, inbox_y, zone.content_id);
+                    
+                    // TODO: Create ContentEvent with inbox coordinates and pass to RenderableContent
+                    // let event = ContentEvent::new_click(Some((inbox_x, inbox_y)), Some(zone.content_id.clone()));
+                    // let result = renderable_content.handle_event(&event);
+                    
+                    log::info!("BOX CLICK: Would handle click on zone '{}' with inbox coords ({}, {}) - implementation needed", 
+                               zone.content_id, inbox_x, inbox_y);
+                    return true;
+                } else {
+                    log::warn!("BOX CLICK: Failed to translate screen coordinates to inbox coordinates");
+                    return false;
+                }
             }
         }
         
         log::info!("BOX CLICK: No zone found for click ({}, {})", click_x, click_y);
+        false
+    }
+
+    /// Handle mouse move at absolute screen coordinates
+    /// Returns true if move was handled by a renderable content
+    pub fn handle_mouse_move(
+        &mut self, 
+        screen_x: usize, 
+        screen_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> bool {
+        // Translate screen coordinates to inbox coordinates before passing to renderable content
+        if let Some((inbox_x, inbox_y)) = self.translate_screen_to_inbox_coordinates(
+            screen_x, screen_y, bounds, content_width, content_height, 
+            viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+        ) {
+            log::info!("BOX MOUSE_MOVE: Translated screen coords ({}, {}) to inbox coords ({}, {})", 
+                       screen_x, screen_y, inbox_x, inbox_y);
+            
+            // TODO: Create ContentEvent with inbox coordinates and pass to RenderableContent
+            // let event = ContentEvent::new_mouse_move(None, (inbox_x, inbox_y), None);
+            // let result = renderable_content.handle_event(&event);
+            
+            log::info!("BOX MOUSE_MOVE: Would handle mouse move with inbox coords ({}, {}) - implementation needed", 
+                       inbox_x, inbox_y);
+            return true;
+        }
+        
+        false
+    }
+
+    /// Handle mouse hover at absolute screen coordinates
+    /// Returns true if hover was handled by a renderable content
+    pub fn handle_mouse_hover(
+        &mut self, 
+        screen_x: usize, 
+        screen_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> bool {
+        for zone in &self.clickable_zones {
+            if zone.bounds.contains_point(screen_x, screen_y) {
+                // Translate screen coordinates to inbox coordinates before passing to renderable content
+                if let Some((inbox_x, inbox_y)) = self.translate_screen_to_inbox_coordinates(
+                    screen_x, screen_y, bounds, content_width, content_height, 
+                    viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+                ) {
+                    log::info!("BOX HOVER: Translated screen coords ({}, {}) to inbox coords ({}, {}) for zone '{}'", 
+                               screen_x, screen_y, inbox_x, inbox_y, zone.content_id);
+                    
+                    // TODO: Create ContentEvent with inbox coordinates and pass to RenderableContent
+                    // let event = ContentEvent::new_hover((inbox_x, inbox_y), Some(zone.content_id.clone()));
+                    // let result = renderable_content.handle_event(&event);
+                    
+                    log::info!("BOX HOVER: Would handle hover on zone '{}' with inbox coords ({}, {}) - implementation needed", 
+                               zone.content_id, inbox_x, inbox_y);
+                    return true;
+                }
+            }
+        }
+        
+        false
+    }
+
+    /// Handle mouse drag from screen coordinates to screen coordinates
+    /// Returns true if drag was handled by a renderable content
+    pub fn handle_mouse_drag(
+        &mut self, 
+        from_screen_x: usize, 
+        from_screen_y: usize, 
+        to_screen_x: usize, 
+        to_screen_y: usize,
+        bounds: &Bounds,
+        content_width: usize,
+        content_height: usize,
+        viewable_width: usize,
+        viewable_height: usize,
+        horizontal_scroll: f64,
+        vertical_scroll: f64,
+    ) -> bool {
+        // Translate both from and to coordinates to inbox coordinates
+        if let (Some((from_inbox_x, from_inbox_y)), Some((to_inbox_x, to_inbox_y))) = (
+            self.translate_screen_to_inbox_coordinates(
+                from_screen_x, from_screen_y, bounds, content_width, content_height, 
+                viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+            ),
+            self.translate_screen_to_inbox_coordinates(
+                to_screen_x, to_screen_y, bounds, content_width, content_height, 
+                viewable_width, viewable_height, horizontal_scroll, vertical_scroll
+            ),
+        ) {
+            log::info!("BOX DRAG: Translated screen coords ({}, {}) -> ({}, {}) to inbox coords ({}, {}) -> ({}, {})", 
+                       from_screen_x, from_screen_y, to_screen_x, to_screen_y,
+                       from_inbox_x, from_inbox_y, to_inbox_x, to_inbox_y);
+            
+            // TODO: Create ContentEvent with inbox coordinates and pass to RenderableContent
+            // let event = ContentEvent::new_mouse_drag((from_inbox_x, from_inbox_y), (to_inbox_x, to_inbox_y), MouseButton::Left, None);
+            // let result = renderable_content.handle_event(&event);
+            
+            log::info!("BOX DRAG: Would handle drag with inbox coords ({}, {}) -> ({}, {}) - implementation needed", 
+                       from_inbox_x, from_inbox_y, to_inbox_x, to_inbox_y);
+            return true;
+        }
+        
         false
     }
 }

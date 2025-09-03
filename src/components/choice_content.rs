@@ -414,28 +414,4 @@ impl<'a> RenderableContent for ChoiceContent<'a> {
         }
     }
 
-    /// FIXED: Render choices with proper horizontal scrolling support
-    fn render_viewport(&self, bounds: &Bounds, x_offset: usize, y_offset: usize, buffer: &mut ScreenBuffer) {
-        self.render_scrollable_choices_fixed(bounds, x_offset, y_offset, buffer);
-    }
-
-    /// Generate clickable zones for regular choices
-    fn get_clickable_zones(&self, bounds: &Bounds, x_offset: usize, y_offset: usize) -> Vec<ClickableZone> {
-        self.generate_clickable_zones(bounds, x_offset, y_offset, false, None)
-    }
-
-    /// PRESERVED: Get wrapped choice dimensions using working logic
-    fn get_wrapped_dimensions(&self, max_width: usize) -> (usize, usize) {
-        self.calculate_wrapped_dimensions(max_width)
-    }
-
-    /// PRESERVED: Render wrapped choices using working wrap logic from draw_utils.rs
-    fn render_wrapped_viewport(&self, bounds: &Bounds, max_width: usize, y_offset: usize, buffer: &mut ScreenBuffer) {
-        self.render_wrapped_choices_preserved(bounds, max_width, y_offset, buffer);
-    }
-
-    /// Generate clickable zones for wrapped choices with multiple zones per choice
-    fn get_wrapped_clickable_zones(&self, bounds: &Bounds, _max_width: usize, y_offset: usize) -> Vec<ClickableZone> {
-        self.generate_clickable_zones(bounds, 0, y_offset, true, Some(_max_width))
-    }
 }

@@ -25,6 +25,9 @@ pub mod visual_animation_demo;
 pub mod box_renderer_tests;
 
 #[cfg(test)]
+pub mod coordinate_translation_tests;
+
+#[cfg(test)]
 pub mod integration_tests;
 
 #[cfg(test)]

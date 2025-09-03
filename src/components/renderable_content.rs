@@ -560,23 +560,7 @@ pub trait RenderableContent {
     /// Returns EventResult indicating how the event was processed
     fn handle_event(&mut self, event: &ContentEvent) -> EventResult;
 
-    /// DEPRECATED: Handle a click event on a specific clickable zone
-    /// Use handle_event() with EventType::Click instead
-    /// Returns true if the click was handled and should not propagate further
-    fn handle_click(&mut self, zone_id: &str) -> bool {
-        let event = ContentEvent::new_click(None, Some(zone_id.to_string()));
-        match self.handle_event(&event) {
-            EventResult::Handled | EventResult::StateChanged => true,
-            _ => false,
-        }
-    }
 
-    // Legacy methods - for backward compatibility during transition
-    fn render_viewport(&self, bounds: &Bounds, x_offset: usize, y_offset: usize, buffer: &mut ScreenBuffer);
-    fn get_clickable_zones(&self, bounds: &Bounds, x_offset: usize, y_offset: usize) -> Vec<ClickableZone>;
-    fn get_wrapped_dimensions(&self, max_width: usize) -> (usize, usize);
-    fn render_wrapped_viewport(&self, bounds: &Bounds, max_width: usize, y_offset: usize, buffer: &mut ScreenBuffer);
-    fn get_wrapped_clickable_zones(&self, bounds: &Bounds, max_width: usize, y_offset: usize) -> Vec<ClickableZone>;
 }
 
 /// Clickable zone representing an interactive area on screen
