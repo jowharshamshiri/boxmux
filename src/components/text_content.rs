@@ -1,4 +1,7 @@
-use crate::components::renderable_content::{RenderableContent, ClickableZone};
+use crate::components::renderable_content::{
+    RenderableContent, ClickableZone, ContentEvent, EventResult, EventType,
+    HoverState, TitleChangeSource
+};
 use crate::{ScreenBuffer, Bounds};
 use crate::draw_utils::{print_with_color_and_background_at, wrap_text_to_width, content_size};
 
@@ -163,9 +166,76 @@ impl<'a> RenderableContent for TextContent<'a> {
     }
 
 
-    /// Handle click events
-    fn handle_click(&mut self, _zone_id: &str) -> bool {
-        false // Text content doesn't handle clicks
+    /// Handle content events on text 
+    fn handle_event(&mut self, event: &ContentEvent) -> EventResult {
+        match event.event_type {
+            EventType::Click => {
+                // Text content generally doesn't handle clicks unless it has links
+                EventResult::NotHandled
+            }
+            EventType::KeyPress => {
+                // Text could handle copy operations, search, etc.
+                if let Some(key_info) = event.key_info() {
+                    match key_info.key.as_str() {
+                        "c" if key_info.modifiers.contains(&crate::components::renderable_content::KeyModifier::Ctrl) => {
+                            // Ctrl+C for copy - could be handled here or at higher level
+                            EventResult::NotHandled
+                        }
+                        "/" | "f" if key_info.modifiers.contains(&crate::components::renderable_content::KeyModifier::Ctrl) => {
+                            // Search functionality
+                            EventResult::NotHandled  
+                        }
+                        _ => EventResult::NotHandled
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            EventType::Scroll => {
+                // Scroll events could be handled for text navigation
+                EventResult::HandledContinue // Let scrollbars handle but continue propagation
+            }
+            EventType::MouseMove => {
+                // Handle mouse movement over text for cursor changes, selection
+                if let Some(mouse_move) = event.mouse_move_info() {
+                    if mouse_move.is_dragging {
+                        // Text selection via drag
+                        EventResult::NotHandled // Could be handled for text selection
+                    } else {
+                        // Normal movement - change cursor, show position
+                        EventResult::NotHandled
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            EventType::Hover => {
+                // Handle hover over text for tooltips, word highlighting
+                if let Some(hover_info) = event.hover_info() {
+                    match hover_info.state {
+                        HoverState::Enter | HoverState::Move => {
+                            // Could show word definitions, tooltips
+                            EventResult::NotHandled
+                        }
+                        HoverState::Leave => {
+                            // Hide tooltips
+                            EventResult::NotHandled
+                        }
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            EventType::BoxResize => {
+                // Text content needs to reflow on resize
+                EventResult::StateChanged // Trigger re-render with new dimensions
+            }
+            EventType::TitleChange => {
+                // Text content doesn't typically handle title changes
+                EventResult::NotHandled
+            }
+            _ => EventResult::NotHandled
+        }
     }
 
     /// Render text content within viewport using existing rendering logic

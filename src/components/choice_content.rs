@@ -1,4 +1,7 @@
-use crate::components::renderable_content::{RenderableContent, ClickableZone, ContentType, ClickableMetadata};
+use crate::components::renderable_content::{
+    RenderableContent, ClickableZone, ContentType, ClickableMetadata, 
+    ContentEvent, EventResult, EventType, HoverState
+};
 use crate::{ScreenBuffer, Bounds};
 use crate::draw_utils::{print_with_color_and_background_at, wrap_text_to_width};
 use crate::model::muxbox::Choice;
@@ -330,19 +333,85 @@ impl<'a> RenderableContent for ChoiceContent<'a> {
     }
 
 
-    /// Handle click events on choices
-    /// Note: Choice mutation happens at MuxBox level, this just validates the click
-    fn handle_click(&mut self, zone_id: &str) -> bool {
-        if let Some(idx_str) = zone_id.strip_prefix("choice_") {
-            if let Ok(choice_idx) = idx_str.parse::<usize>() {
-                if choice_idx < self.choices.len() {
-                    // Just validate the click is on a valid choice
-                    // Actual mutation happens at the MuxBox level
-                    return true;
+    /// Handle content events on choices (click, hover, keypress, etc.)
+    /// Note: Choice mutation happens at MuxBox level, this validates and processes events
+    fn handle_event(&mut self, event: &ContentEvent) -> EventResult {
+        match event.event_type {
+            EventType::Click => {
+                if let Some(zone_id) = &event.zone_id {
+                    if let Some(idx_str) = zone_id.strip_prefix("choice_") {
+                        if let Ok(choice_idx) = idx_str.parse::<usize>() {
+                            if choice_idx < self.choices.len() {
+                                // Valid choice click - actual mutation happens at MuxBox level
+                                return EventResult::Handled;
+                            }
+                        }
+                    }
+                }
+                EventResult::NotHandled
+            }
+            EventType::Hover => {
+                // Handle hover events for choice highlighting
+                if let Some(hover_info) = event.hover_info() {
+                    match hover_info.state {
+                        HoverState::Enter => {
+                            // Choice gained hover - could trigger visual feedback
+                            EventResult::HandledContinue // Allow tooltips
+                        }
+                        HoverState::Leave => {
+                            // Choice lost hover - remove visual feedback
+                            EventResult::HandledContinue
+                        }
+                        HoverState::Move => {
+                            // Mouse moving within choice - check for tooltip timing
+                            if hover_info.hover_duration.is_some() {
+                                EventResult::HandledContinue // Show tooltip
+                            } else {
+                                EventResult::NotHandled
+                            }
+                        }
+                    }
+                } else {
+                    EventResult::NotHandled
                 }
             }
+            EventType::MouseMove => {
+                // Handle mouse movement over choices
+                if let Some(mouse_move) = event.mouse_move_info() {
+                    if mouse_move.is_dragging {
+                        // Dragging over choices - could be selection
+                        EventResult::NotHandled // Let higher level handle drag selection
+                    } else {
+                        // Normal mouse movement - update hover state
+                        EventResult::HandledContinue
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            EventType::KeyPress => {
+                // Handle keyboard navigation within choices
+                if let Some(key_info) = event.key_info() {
+                    match key_info.key.as_str() {
+                        "ArrowUp" | "ArrowDown" | "Enter" | "Space" => {
+                            EventResult::Handled // Navigation keys are handled
+                        }
+                        _ => EventResult::NotHandled
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            EventType::Focus => {
+                // Choice gained focus
+                EventResult::StateChanged
+            }
+            EventType::Blur => {
+                // Choice lost focus
+                EventResult::StateChanged  
+            }
+            _ => EventResult::NotHandled
         }
-        false
     }
 
     /// FIXED: Render choices with proper horizontal scrolling support

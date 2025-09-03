@@ -1,5 +1,5 @@
 use crate::model::muxbox::Choice;
-use crate::components::renderable_content::{RenderableContent, ClickableZone, ContentType, ClickableMetadata};
+use crate::components::renderable_content::{RenderableContent, ClickableZone, ContentType, ClickableMetadata, ContentEvent, EventResult, EventType};
 use crate::{ScreenBuffer, Bounds};
 
 /// ChoiceMenu component - generates choice content and clickable zones for BoxRenderer
@@ -120,27 +120,63 @@ impl<'a> RenderableContent for ChoiceMenu<'a> {
     }
     
     
-    /// Handle a click event on a specific clickable zone
+    /// Handle content events on choice menu
     /// Note: This doesn't mutate the choices directly - that's handled at the MuxBox level
-    fn handle_click(&mut self, zone_id: &str) -> bool {
-        log::info!("CHOICE CLICK: ChoiceMenu handling click on zone '{}'", zone_id);
-        
-        if let Some(index_str) = zone_id.strip_prefix("choice_") {
-            if let Ok(choice_index) = index_str.parse::<usize>() {
-                if choice_index < self.choices.len() {
-                    // Store the clicked choice index for external handling
-                    self.selected_index = Some(choice_index);
+    fn handle_event(&mut self, event: &ContentEvent) -> EventResult {
+        match event.event_type {
+            EventType::Click => {
+                if let Some(zone_id) = &event.zone_id {
+                    log::info!("CHOICE CLICK: ChoiceMenu handling click on zone '{}'", zone_id);
                     
-                    log::info!("CHOICE CLICK: Registered click on choice index {}", choice_index);
-                    
-                    // Return true to indicate the click was handled
-                    // The actual choice mutation happens at the MuxBox level
-                    return true;
+                    if let Some(index_str) = zone_id.strip_prefix("choice_") {
+                        if let Ok(choice_index) = index_str.parse::<usize>() {
+                            if choice_index < self.choices.len() {
+                                // Store the clicked choice index for external handling
+                                self.selected_index = Some(choice_index);
+                                
+                                log::info!("CHOICE CLICK: Registered click on choice index {}", choice_index);
+                                
+                                // Actual choice mutation happens at the MuxBox level
+                                return EventResult::Handled;
+                            }
+                        }
+                    }
+                }
+                EventResult::NotHandled
+            }
+            EventType::Hover => {
+                // Handle hover for choice highlighting
+                if event.zone_id.is_some() {
+                    EventResult::HandledContinue
+                } else {
+                    EventResult::NotHandled
                 }
             }
+            EventType::KeyPress => {
+                // Handle keyboard navigation
+                if let Some(key_info) = event.key_info() {
+                    match key_info.key.as_str() {
+                        "ArrowUp" | "ArrowDown" | "Enter" | "Space" => {
+                            EventResult::Handled
+                        }
+                        _ => EventResult::NotHandled
+                    }
+                } else {
+                    EventResult::NotHandled
+                }
+            }
+            _ => EventResult::NotHandled
         }
-        
-        false
+    }
+
+    /// DEPRECATED: Handle a click event on a specific clickable zone
+    /// Use handle_event() with EventType::Click instead
+    fn handle_click(&mut self, zone_id: &str) -> bool {
+        let event = ContentEvent::new_click(None, Some(zone_id.to_string()));
+        match self.handle_event(&event) {
+            EventResult::Handled | EventResult::StateChanged => true,
+            _ => false,
+        }
     }
     /// Get the raw content dimensions before any transformations
     fn get_dimensions(&self) -> (usize, usize) {

@@ -20,6 +20,9 @@ pub mod renderable_content;
 pub mod text_content;
 pub mod choice_content;
 
+#[cfg(test)]
+pub mod event_system_tests;
+
 pub use vertical_scrollbar::VerticalScrollbar;
 pub use horizontal_scrollbar::HorizontalScrollbar;
 pub use tab_bar::{TabBar, TabNavigationAction};
@@ -35,6 +38,11 @@ pub use box_renderer::{BoxRenderer, UnifiedOverflowBehavior};
 pub use chart_component::{ChartComponent, ChartConfig, ChartType, DataPoint};
 pub use table_component::{TableComponent, TableComponentConfig};
 pub use progress_bar::{ProgressBar, ProgressBarConfig, ProgressState, ProgressBarOrientation};
-pub use renderable_content::{RenderableContent, ClickableZone, ContentType, ClickableMetadata, ContentDimensions};
+pub use renderable_content::{
+    RenderableContent, ClickableZone, ContentType, ClickableMetadata, ContentDimensions,
+    ContentEvent, EventType, EventResult, EventData, MouseButton, KeyInfo, KeyModifier, 
+    ScrollInfo, ScrollDirection, MouseMoveInfo, HoverInfo, HoverState, BoxResizeInfo,
+    BoxResizeType, ResizeAnchor, ResizeState, TitleChangeInfo, TitleChangeSource
+};
 pub use text_content::TextContent;
 pub use choice_content::ChoiceContent;
