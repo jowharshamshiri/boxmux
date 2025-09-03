@@ -199,7 +199,8 @@ mod tests {
             &tab_labels,
             &tab_close_buttons,
             0,    // tab_scroll_offset
-            true, // draw_border
+            &Some("white".to_string()), // fg_color
+            &Some("black".to_string()), // bg_color
         );
 
         // The exact click detection depends on the tab width calculation

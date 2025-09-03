@@ -494,7 +494,7 @@ impl SelectionStyleRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::common::{Bounds, ScreenBuffer};
+    use crate::model::common::ScreenBuffer;
 
     #[test]
     fn test_selection_style_renderer_creation() {
@@ -701,8 +701,8 @@ mod tests {
 
         let (fg, bg, text) = renderer.calculate_style_colors_and_text(
             &choice,
-            "white",
-            "black",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
             &Some("red".to_string()),
             &Some("blue".to_string()),
             true, // is_focused = true

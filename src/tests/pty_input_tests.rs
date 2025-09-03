@@ -56,7 +56,6 @@ mod pty_input_tests {
                 x2: "100%".to_string(),
                 y2: "100%".to_string(),
             },
-            border: Some(true),
             execution_mode: crate::model::common::ExecutionMode::Pty, // F0226: ExecutionMode determines PTY usage
             script: Some(vec!["echo 'PTY test'".to_string()]),
             ..Default::default()

@@ -20,7 +20,7 @@ app:
             y1: "0" 
             x2: "30"
             y2: "10"
-          border: true
+          border_color: "white"
           content: "Hello Visual Testing!"
 "#;
 

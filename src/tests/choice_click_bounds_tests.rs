@@ -21,7 +21,7 @@ app:
             y1: '10%' 
             x2: '90%'
             y2: '80%'
-          border: true
+          border_color: "white"
           title: 'Choices'
           choices:
             - id: 'build'
@@ -153,7 +153,7 @@ app:
             y1: '10%'
             x2: '90%'
             y2: '80%'
-          border: true
+          border_color: "white"
           title: 'X'
           choices:
             - id: 'x'
@@ -199,7 +199,7 @@ app:
             y1: '10%'
             x2: '90%' 
             y2: '80%'
-          border: true
+          border_color: "white"
           title: 'Deploy'
           choices:
             - id: 'deploy'

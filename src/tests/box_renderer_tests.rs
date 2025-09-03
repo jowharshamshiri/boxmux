@@ -15,7 +15,7 @@ mod tests {
     #[test]
     fn test_box_renderer_creation() {
         let muxbox = TestDataFactory::create_test_muxbox("test_box");
-        let renderer = BoxRenderer::new(&muxbox, "test_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "test_renderer".to_string());
         
         // BoxRenderer created successfully - component encapsulates muxbox reference
         assert_eq!(muxbox.id, "test_box");
@@ -42,7 +42,7 @@ mod tests {
         );
         adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
-        let renderer = BoxRenderer::new(&muxbox, "test_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "test_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         // Should render without errors
@@ -107,7 +107,7 @@ mod tests {
         );
         adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
-        let renderer = BoxRenderer::new(&muxbox, "content_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "content_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         let result = renderer.render(
@@ -182,7 +182,7 @@ mod tests {
         );
         adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
-        let renderer = BoxRenderer::new(&muxbox, "choice_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "choice_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         let result = renderer.render(
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_box_renderer_preserves_muxbox_state() {
         let muxbox = TestDataFactory::create_test_muxbox("state_box");
-        let renderer = BoxRenderer::new(&muxbox, "state_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "state_renderer".to_string());
         
         // BoxRenderer preserves muxbox state - it's a read-only rendering component
         assert_eq!(muxbox.id, "state_box");
@@ -240,7 +240,7 @@ mod tests {
         // Empty adjusted bounds - should handle gracefully
         let adjusted_bounds = HashMap::new();
         
-        let renderer = BoxRenderer::new(&muxbox, "missing_bounds_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "missing_bounds_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         let result = renderer.render(
@@ -294,7 +294,7 @@ mod tests {
         );
         adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
-        let renderer = BoxRenderer::new(&muxbox, "integration_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "integration_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         let result = renderer.render(
@@ -330,7 +330,7 @@ mod tests {
         );
         adjusted_bounds.insert("test_layout".to_string(), layout_bounds);
         
-        let renderer = BoxRenderer::new(&muxbox, "pty_renderer".to_string());
+        let mut renderer = BoxRenderer::new(&muxbox, "pty_renderer".to_string());
         let mut buffer = crate::ScreenBuffer::new();
         
         let result = renderer.render(

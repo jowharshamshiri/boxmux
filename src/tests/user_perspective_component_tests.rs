@@ -20,7 +20,7 @@ app:
         - id: "multi_tab_box"
           title: "Multiple Tabs"
           position: { x1: "0", y1: "0", x2: "60", y2: "15" }
-          border: true
+          border_color: "white"
           content: "Default content"
           choices:
             - id: "choice1"
@@ -79,7 +79,7 @@ app:
         - id: "closeable_box"
           title: "Box with Closeable Tabs"
           position: { x1: "0", y1: "0", x2: "70", y2: "15" }
-          border: true
+          border_color: "white"
           content: "Main content"
           choices:
             - id: "create_closeable"
@@ -135,7 +135,7 @@ app:
         - id: "precise_box"
           title: "Precision Click Test"
           position: { x1: "0", y1: "0", x2: "60", y2: "12" }
-          border: true
+          border_color: "white"
           content: "Click precision matters"
           choices:
             - id: "make_tab"
@@ -181,7 +181,7 @@ app:
         - id: "scrollable_box"
           title: "Long Content Box"
           position: { x1: "0", y1: "0", x2: "50", y2: "10" }
-          border: true
+          border_color: "white"
           overflow_behavior: "scroll"
           content: |
             Line 1 of very long content
@@ -242,7 +242,7 @@ app:
         - id: "drag_scrollable"
           title: "Draggable Scroll Test"
           position: { x1: "0", y1: "0", x2: "40", y2: "8" }
-          border: true
+          border_color: "white"
           overflow_behavior: "scroll"
           content: |
             Content Line 1
@@ -301,7 +301,7 @@ app:
         - id: "menu_box"
           title: "Menu Execution Test"
           position: { x1: "0", y1: "0", x2: "50", y2: "12" }
-          border: true
+          border_color: "white"
           choices:
             - id: "executable_choice"
               content: "Click me to see result"
@@ -349,7 +349,7 @@ app:
         - id: "nav_menu"
           title: "Navigation Menu"
           position: { x1: "0", y1: "0", x2: "40", y2: "10" }
-          border: true
+          border_color: "white"
           choices:
             - id: "nav_option1"
               content: "First option"
@@ -399,7 +399,7 @@ app:
         - id: "resizable_box"
           title: "Resizable Box"
           position: { x1: "10", y1: "5", x2: "40", y2: "12" }
-          border: true
+          border_color: "white"
           content: "Drag the corner to resize me"
 "#;
 
@@ -434,7 +434,7 @@ app:
         - id: "stable_box"
           title: "Stable Box"
           position: { x1: "5", y1: "3", x2: "35", y2: "10" }
-          border: true
+          border_color: "white"
           content: "Clicking in content area should not resize"
 "#;
 
@@ -472,7 +472,7 @@ app:
         - id: "error_box"
           title: "Error Display Test" 
           position: { x1: "0", y1: "0", x2: "60", y2: "12" }
-          border: true
+          border_color: "white"
           choices:
             - id: "cause_error"
               content: "Trigger an error"
@@ -518,7 +518,7 @@ app:
         - id: "progress_box"
           title: "Progress Test"
           position: { x1: "0", y1: "0", x2: "50", y2: "8" }
-          border: true
+          border_color: "white"
           choices:
             - id: "long_task"
               content: "Start long running task"

@@ -23,7 +23,7 @@ app:
             y1: 0%
             x2: 30%
             y2: 50%
-          border: true
+          border_color: "white"
           content: "Hello World"
 "#;
 
@@ -91,7 +91,7 @@ app:
             y1: 0%
             x2: 50%
             y2: 70%
-          border: true
+          border_color: "white"
           children:
             - id: "inner"
               title: "Inner Box"
@@ -100,7 +100,7 @@ app:
                 y1: 15%
                 x2: 40%
                 y2: 50%
-              border: true
+              border_color: "white"
               content: "Nested content"
 "#;
 
@@ -153,7 +153,7 @@ app:
             y1: 0%
             x2: 55%
             y2: 25%
-          border: true
+          border_color: "white"
           content: "Content with border"
 "#;
 
@@ -197,7 +197,7 @@ app:
             y1: 0%
             x2: 18%
             y2: 25%
-          border: true
+          border_color: "white"
           content: "Short title test"
         - id: "long_title"
           title: "Very Long Title That Might Be Truncated"
@@ -206,7 +206,7 @@ app:
             y1: 0%
             x2: 43%
             y2: 25%
-          border: true
+          border_color: "white"
           content: "Long title test"
 "#;
 
@@ -246,7 +246,7 @@ app:
             y1: 0%
             x2: 25%
             y2: 40%
-          border: true
+          border_color: "white"
         - id: "empty_no_border"
           position:
             x1: 30%
@@ -261,7 +261,7 @@ app:
             y1: 50%
             x2: 25%
             y2: 90%
-          border: true
+          border_color: "white"
 "#;
 
         let mut tester = BoxMuxTester::new();
@@ -314,7 +314,7 @@ app:
             y1: 0%
             x2: 5%
             y2: 15%
-          border: true
+          border_color: "white"
           content: "X"
         - id: "one_char_box"
           position:

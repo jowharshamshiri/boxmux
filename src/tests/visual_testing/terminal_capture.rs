@@ -4,6 +4,7 @@
 use crate::{App, Message};
 use crate::color_utils::should_draw_color;
 use std::collections::VecDeque;
+use std::fmt::{Display, Formatter};
 use std::time::{Duration, Instant};
 
 /// F0326: Represents a single terminal frame capture
@@ -405,5 +406,22 @@ impl TerminalCapture {
     /// Set terminal dimensions
     pub fn set_dimensions(&mut self, width: u16, height: u16) {
         self.dimensions = (width, height);
+    }
+}
+
+impl Display for TerminalFrame {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut result = String::new();
+        for row in &self.buffer {
+            for cell in row {
+                result.push(cell.ch);
+            }
+            result.push('\n');
+        }
+        // Remove trailing newline
+        if result.ends_with('\n') {
+            result.pop();
+        }
+        write!(f, "{}", result)
     }
 }

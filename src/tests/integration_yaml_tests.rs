@@ -189,7 +189,7 @@ app:
         - id: 'test_muxbox'
           title: 'Test MuxBox'
           position: {x1: 5%, y1: 5%, x2: 95%, y2: 95%}
-          border: true
+          border_color: "white"
           variables:
             LOCAL_VAR: "local_value"
           script:

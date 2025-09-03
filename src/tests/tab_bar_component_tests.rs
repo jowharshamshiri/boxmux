@@ -15,15 +15,14 @@ mod tests {
             5,
             0,
             50,
-            "white",
-            "black",
-            "cyan",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
             &tab_labels,
             &tab_close_buttons,
             0,
             0,
-            true,
             &mut buffer,
         );
 
@@ -53,15 +52,14 @@ mod tests {
             5,
             0,
             50,
-            "white",
-            "black",
-            "cyan",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
             &tab_labels,
             &tab_close_buttons,
             0,
             0,
-            true,
             &mut buffer,
         );
 
@@ -88,19 +86,19 @@ mod tests {
         let tab_labels = vec!["Tab1".to_string(), "Tab2".to_string(), "Tab3".to_string()];
         
         // Click in first tab area - validate specific tab detection
-        let result = TabBar::calculate_tab_click_index(15, 0, 60, &tab_labels, 0, true);
+        let result = TabBar::calculate_tab_click_index(15, 0, 60, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
         assert!(result.is_some(), "Should detect tab click in valid tab area");
         if let Some(tab_index) = result {
             assert!(tab_index < tab_labels.len(), "Detected tab index should be within valid range");
         }
         
         // Click outside tab area - should return None
-        let result = TabBar::calculate_tab_click_index(5, 0, 60, &tab_labels, 0, true);
+        let result = TabBar::calculate_tab_click_index(5, 0, 60, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
         // For very early coordinates, should not detect tab click
         // Note: Result may vary based on tab positioning logic, but should be deterministic
         
         // Click in second tab area
-        let result = TabBar::calculate_tab_click_index(35, 0, 60, &tab_labels, 0, true);
+        let result = TabBar::calculate_tab_click_index(35, 0, 60, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
         if let Some(tab_index) = result {
             assert!(tab_index < tab_labels.len(), "Second tab click should also be within valid range");
             assert!(tab_index >= 0, "Tab index should be non-negative");
@@ -116,14 +114,14 @@ mod tests {
         let tab_labels = vec!["Tab1".to_string(), "Tab2".to_string(), "Tab3".to_string(), "Tab4".to_string(), "Tab5".to_string()];
         
         // Test navigation when scrolling is needed (narrow width forces scrolling)
-        let result = TabBar::calculate_tab_navigation_click(3, 0, 30, &tab_labels, 1, true);
+        let result = TabBar::calculate_tab_navigation_click(3, 0, 30, &tab_labels, 1, &Some("white".to_string()), &Some("black".to_string()));
         // Should detect left arrow when scroll offset > 0
         if result.is_some() {
             assert_eq!(result.unwrap(), TabNavigationAction::ScrollLeft);
         }
         
         // Test right arrow 
-        let result = TabBar::calculate_tab_navigation_click(27, 0, 30, &tab_labels, 0, true);
+        let result = TabBar::calculate_tab_navigation_click(27, 0, 30, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
         // May detect right arrow if scrolling needed
         if result.is_some() {
             assert_eq!(result.unwrap(), TabNavigationAction::ScrollRight);
@@ -136,7 +134,7 @@ mod tests {
         let tab_close_buttons = vec![true, false];
         
         // Test close button detection
-        let result = TabBar::calculate_tab_close_click(45, 0, 50, &tab_labels, &tab_close_buttons, 0, true);
+        let result = TabBar::calculate_tab_close_click(45, 0, 50, &tab_labels, &tab_close_buttons, 0, &Some("white".to_string()), &Some("black".to_string()));
         // Validate close button click detection logic
         // Note: The exact behavior depends on coordinate system and tab positioning
         if let Some(tab_index) = result {
@@ -150,7 +148,7 @@ mod tests {
         assert!(!tab_close_buttons[1], "Second tab should not have close button for this test");
         
         // Test click on tab without close button - should return None
-        let no_close_result = TabBar::calculate_tab_close_click(35, 0, 50, &tab_labels, &tab_close_buttons, 0, true);
+        let no_close_result = TabBar::calculate_tab_close_click(35, 0, 50, &tab_labels, &tab_close_buttons, 0, &Some("white".to_string()), &Some("black".to_string()));
         // This should be None since second tab has no close button
     }
 
@@ -160,9 +158,9 @@ mod tests {
         let tab_close_buttons: Vec<bool> = vec![];
         
         // All functions should handle empty inputs gracefully
-        assert_eq!(TabBar::calculate_tab_click_index(10, 0, 50, &tab_labels, 0, true), None);
-        assert_eq!(TabBar::calculate_tab_navigation_click(10, 0, 50, &tab_labels, 0, true), None);
-        assert_eq!(TabBar::calculate_tab_close_click(10, 0, 50, &tab_labels, &tab_close_buttons, 0, true), None);
+        assert_eq!(TabBar::calculate_tab_click_index(10, 0, 50, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string())), None);
+        assert_eq!(TabBar::calculate_tab_navigation_click(10, 0, 50, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string())), None);
+        assert_eq!(TabBar::calculate_tab_close_click(10, 0, 50, &tab_labels, &tab_close_buttons, 0, &Some("white".to_string()), &Some("black".to_string())), None);
     }
 
     #[test]
@@ -183,15 +181,14 @@ mod tests {
             5,
             0,
             40, // Narrow width to force scrolling
-            "white",
-            "black",
-            "cyan",
-            "blue",
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
             &tab_labels,
             &tab_close_buttons,
             2,  // Active tab index
             1,  // Scroll offset
-            true,
             &mut buffer,
         );
 

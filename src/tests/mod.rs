@@ -81,6 +81,11 @@ pub mod mouse_click_tests;
 #[cfg(test)]
 pub mod choice_click_bounds_tests;
 
+// Removed: choice_click_comprehensive_test - broken API usage, functionality covered by choice_click_bounds_tests
+
+#[cfg(test)]
+pub mod choice_click_regression_test;
+
 #[cfg(test)]
 pub mod clickable_scrollbar_tests;
 

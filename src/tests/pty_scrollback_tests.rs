@@ -202,7 +202,6 @@ mod pty_scrollback_tests {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
-            border: None,
             border_color: None,
             selected_border_color: None,
             bg_color: None,

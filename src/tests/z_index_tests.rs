@@ -22,7 +22,6 @@ mod tests {
                 y2: y2.to_string(),
             },
             z_index,
-            border: Some(true),
             content: Some(format!("Content {}", id)),
             ..Default::default()
         };

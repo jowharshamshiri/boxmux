@@ -3,9 +3,8 @@
 
 use super::terminal_capture::{TerminalCapture, TerminalFrame};
 use crate::model::app::load_app_from_yaml;
-use crate::{App, AppContext, Message};
+use crate::{App, AppContext};
 use std::path::Path;
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 /// F0336: Core testing harness for visual validation workflows

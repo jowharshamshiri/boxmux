@@ -71,7 +71,7 @@ app:
             y1: "0"
             x2: "40"
             y2: "6"
-          border: true
+          border_color: "white"
           content: "Loading: [####      ] 40%"
 "#;
 

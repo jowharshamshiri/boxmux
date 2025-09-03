@@ -22,7 +22,7 @@ app:
             y1: "0"
             x2: "40"
             y2: "15"
-          border: true
+          border_color: "white"
           choices:
             - id: "option1"
               content: "Click me first"
@@ -74,7 +74,7 @@ app:
             y1: "0" 
             x2: "50"
             y2: "12"
-          border: true
+          border_color: "white"
           choices:
             - id: "nav1"
               content: "Navigate to me with arrows"
@@ -119,7 +119,7 @@ app:
             y1: "5"
             x2: "60"
             y2: "15"
-          border: true
+          border_color: "white"
           content: "This box can be resized by dragging the bottom-right corner"
 "#;
 
@@ -160,7 +160,7 @@ app:
             y1: "0"
             x2: "40" 
             y2: "10"
-          border: true
+          border_color: "white"
           choices:
             - id: "action1"
               content: "Step 1: Click me first"
@@ -175,7 +175,7 @@ app:
             y1: "0"
             x2: "80"
             y2: "10"
-          border: true
+          border_color: "white"
           content: "Results will appear here"
 "#;
 
@@ -219,7 +219,7 @@ app:
             y1: "0"
             x2: "50"
             y2: "10"
-          border: true
+          border_color: "white"
           content: "Status: Ready"
           choices:
             - id: "trigger"
@@ -269,7 +269,7 @@ app:
             y1: "0"
             x2: "30"
             y2: "8"
-          border: true
+          border_color: "white"
           content: "Clicks: 0"
           choices:
             - id: "increment"
@@ -320,7 +320,7 @@ app:
             y1: "0"
             x2: "60"
             y2: "15"
-          border: true
+          border_color: "white"
           choices:
             - id: "rapid1"
               content: "Rapid action 1"
