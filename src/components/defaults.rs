@@ -1,9 +1,9 @@
 //! Default implementations for component structs
-//! 
+//!
 //! This module centralizes all Default trait implementations for UI component types,
 //! providing easy visibility into default component configurations and styling.
 //!
-//! Note: This module contains reference implementations - actual implementations 
+//! Note: This module contains reference implementations - actual implementations
 //! remain in their original files to avoid circular dependencies.
 
 // ============================================================================
@@ -40,7 +40,7 @@ ErrorDisplay::default() provides:
 SyntaxHighlightConfig::default() provides terminal-optimized colors:
   - enabled: true - syntax highlighting active
   - keywords_color: "bright_blue" - language keywords
-  - strings_color: "bright_green" - string literals  
+  - strings_color: "bright_green" - string literals
   - numbers_color: "bright_cyan" - numeric values
   - comments_color: "bright_black" - code comments
   - functions_color: "bright_yellow" - function names
@@ -69,7 +69,7 @@ ProgressBar::default() provides:
   - text_color: "white" - readable text overlay
   - show_percentage: true - display numeric percentage
   - show_progress_text: true - display progress information
-  - show_border: false - clean borderless appearance
+  - background_color: None - transparent appearance by default
   - animate: false - static display by default
   - animation_speed: 100 - moderate animation when enabled
 */
@@ -80,7 +80,7 @@ ProgressBar::default() provides:
 
 /*
 TableComponent::default() provides:
-  - headers: [] - no headers initially  
+  - headers: [] - no headers initially
   - rows: [] - no data rows initially
   - current_page: 0 - start at first page
   - rows_per_page: 10 - manageable page size
@@ -110,7 +110,7 @@ ChartComponent::default() provides:
   - chart_type: Bar - most terminal-friendly chart type
   - title: None - no title by default
   - data: [] - empty dataset initially
-  - labels: [] - no data labels initially  
+  - labels: [] - no data labels initially
   - colors: [] - uses default color palette
   - width: 40 - reasonable terminal width
   - height: 10 - compact vertical size

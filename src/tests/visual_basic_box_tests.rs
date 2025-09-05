@@ -144,7 +144,6 @@ app:
             y1: 0%
             x2: 25%
             y2: 25%
-          border: false
           content: "Content without border"
         - id: "with_border"
           title: "With Border"
@@ -253,7 +252,6 @@ app:
             y1: 0%
             x2: 55%
             y2: 40%
-          border: false
         - id: "empty_with_title"
           title: "Empty Box"
           position:
@@ -322,7 +320,6 @@ app:
             y1: 0%
             x2: 12%
             y2: 5%
-          border: false
           content: "A"
 "#;
 

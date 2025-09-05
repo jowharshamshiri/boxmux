@@ -5,6 +5,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+// Type aliases for complex plugin function signatures
+type RenderFunction = fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>;
+type UpdateFunction = fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>;
+type EventHandler = fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>;
+
+// Type aliases for Symbol<> function signatures
+type RenderSymbol<'a> = Symbol<'a, RenderFunction>;
+type UpdateSymbol<'a> = Symbol<'a, UpdateFunction>;
+type EventSymbol<'a> = Symbol<'a, EventHandler>;
+
 /// Plugin manifest structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
@@ -38,10 +48,9 @@ pub enum PluginPermission {
 /// Plugin component definition
 pub struct PluginComponent {
     pub component_type: String,
-    pub render_fn: fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>,
-    pub update_fn:
-        Option<fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>>,
-    pub event_handler: Option<fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>>,
+    pub render_fn: RenderFunction,
+    pub update_fn: Option<UpdateFunction>,
+    pub event_handler: Option<EventHandler>,
 }
 
 /// Plugin execution context
@@ -140,6 +149,12 @@ struct PluginSecurityManager {
     allowed_hosts: Vec<String>,
     allowed_commands: Vec<String>,
     _sandbox_enabled: bool,
+}
+
+impl Default for PluginRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginRegistry {
@@ -304,28 +319,25 @@ impl PluginRegistry {
                 let event_fn_name = format!("{}_event", component_type);
 
                 // Load render function (required)
-                let render_symbol: Symbol<
-                    fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>,
-                > = library.get(render_fn_name.as_bytes()).map_err(|e| {
-                    PluginError::InitializationFailed(format!(
-                        "Failed to load render function '{}': {}",
-                        render_fn_name, e
-                    ))
-                })?;
+                let render_symbol: RenderSymbol =
+                    library.get(render_fn_name.as_bytes()).map_err(|e| {
+                        PluginError::InitializationFailed(format!(
+                            "Failed to load render function '{}': {}",
+                            render_fn_name, e
+                        ))
+                    })?;
 
                 // Load update function (optional)
-                let update_fn = library.get(update_fn_name.as_bytes()).ok().map(
-                    |symbol: Symbol<
-                        fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>,
-                    >| { *symbol.into_raw() },
-                );
+                let update_fn = library
+                    .get(update_fn_name.as_bytes())
+                    .ok()
+                    .map(|symbol: UpdateSymbol| *symbol.into_raw());
 
                 // Load event handler (optional)
-                let event_handler = library.get(event_fn_name.as_bytes()).ok().map(
-                    |symbol: Symbol<
-                        fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>,
-                    >| { *symbol.into_raw() },
-                );
+                let event_handler = library
+                    .get(event_fn_name.as_bytes())
+                    .ok()
+                    .map(|symbol: EventSymbol| *symbol.into_raw());
 
                 let component = PluginComponent {
                     component_type: component_type.clone(),
@@ -449,11 +461,8 @@ fn mock_update_function(
 }
 
 fn mock_event_handler(_context: &PluginContext, event: &PluginEvent) -> Result<(), PluginError> {
-    match event {
-        PluginEvent::KeyPress(key) => {
-            log::debug!("Plugin received key press: {}", key);
-        }
-        _ => {}
+    if let PluginEvent::KeyPress(key) = event {
+        log::debug!("Plugin received key press: {}", key);
     }
     Ok(())
 }

@@ -1,5 +1,5 @@
-use crate::model::common::*;
 use crate::color_utils::should_draw_color;
+use crate::model::common::*;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
@@ -218,6 +218,10 @@ pub struct MuxBox {
     pub save_in_file: Option<String>,
     #[serde(skip, default)]
     pub streams: IndexMap<String, Stream>,
+    /// Selected stream ID - determines which stream is currently displayed in the muxbox
+    /// Different from Stream.active which indicates if the source is still live/active
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_stream_id: Option<String>,
     pub chart_type: Option<String>,
     pub chart_data: Option<String>,
     pub plugin_component: Option<String>,
@@ -367,7 +371,7 @@ impl Default for MuxBox {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
-                border_color: None,
+            border_color: None,
             selected_border_color: None,
             bg_color: None,
             selected_bg_color: None,
@@ -420,6 +424,7 @@ impl Default for MuxBox {
             parent_layout_id: None,
             error_state: false,
             streams: IndexMap::new(),
+            selected_stream_id: None,
         }
     }
 }
@@ -570,6 +575,7 @@ impl Clone for MuxBox {
             parent_layout_id: self.parent_layout_id.clone(),
             error_state: self.error_state,
             streams: self.streams.clone(),
+            selected_stream_id: self.selected_stream_id.clone(),
         }
     }
 }
@@ -615,7 +621,7 @@ impl MuxBox {
         app_context.app.get_layout_by_id(layout_id).cloned()
     }
 
-    pub fn calc_fg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_fg_color(app_context, app_graph);
         }
@@ -656,7 +662,7 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_bg_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
         if self.error_state {
             return self.calc_error_bg_color(app_context, app_graph);
         }
@@ -697,7 +703,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_border_color<'a>(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_border_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         if self.error_state {
             return self.calc_error_border_color(app_context, app_graph);
         }
@@ -738,7 +748,7 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_title_bg_color<'a>(
+    pub fn calc_title_bg_color(
         &self,
         app_context: &AppContext,
         app_graph: &AppGraph,
@@ -783,7 +793,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_title_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_title_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         if self.error_state {
             return self.calc_error_title_fg_color(app_context, app_graph);
         }
@@ -840,7 +854,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_menu_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_menu_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.menu_fg_color.clone());
@@ -856,7 +874,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_menu_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_menu_bg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         let parent_position = self
             .get_parent_clone(app_graph)
             .and_then(|p| p.menu_bg_color.clone());
@@ -912,7 +934,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_error_fg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_error_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_fg_color.clone()
@@ -949,7 +975,11 @@ impl MuxBox {
         )
     }
 
-    pub fn calc_error_bg_color(&self, app_context: &AppContext, app_graph: &AppGraph) -> Option<String> {
+    pub fn calc_error_bg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
         let parent_color = self.get_parent_clone(app_graph).and_then(|p| {
             if self.selected.unwrap_or(false) {
                 p.error_selected_bg_color.clone()
@@ -1110,13 +1140,7 @@ impl MuxBox {
     }
 
     pub fn calc_fill_char(&self, app_context: &AppContext, app_graph: &AppGraph) -> char {
-        let parent_fill_char = self.get_parent_clone(app_graph).and_then(|p| {
-            if self.selected.unwrap_or(false) {
-                p.fill_char
-            } else {
-                p.fill_char
-            }
-        });
+        let parent_fill_char = self.get_parent_clone(app_graph).and_then(|p| p.fill_char);
 
         let parent_layout_fill_char = self.get_parent_layout_clone(app_context).and_then(|pl| {
             if self.selected.unwrap_or(false) {
@@ -1216,8 +1240,8 @@ impl MuxBox {
 
         // Check text content for overflow from streams (F0214: Stream-based scrollbar fix)
         let content = {
-            // Use get_active_stream_content() to match how scrollbars are drawn in draw_utils.rs
-            if let Some(stream) = self.get_active_stream() {
+            // Use get_selected_stream_content() to match how scrollbars are drawn in draw_utils.rs
+            if let Some(stream) = self.get_selected_stream() {
                 match stream.stream_type {
                     crate::model::common::StreamType::Content
                     | crate::model::common::StreamType::RedirectedOutput(_)
@@ -1237,7 +1261,8 @@ impl MuxBox {
                     Some(self.output.as_str())
                 } else {
                     self.content.as_deref()
-                }.map(|s| s.to_string())
+                }
+                .map(|s| s.to_string())
             }
         };
 
@@ -1310,6 +1335,16 @@ impl MuxBox {
         self.horizontal_scroll.unwrap_or(0.0)
     }
 
+    /// Set horizontal scroll percentage (0-100)
+    pub fn set_horizontal_scroll(&mut self, scroll: f64) {
+        self.horizontal_scroll = Some(scroll.clamp(0.0, 100.0));
+    }
+
+    /// Set vertical scroll percentage (0-100)
+    pub fn set_vertical_scroll(&mut self, scroll: f64) {
+        self.vertical_scroll = Some(scroll.clamp(0.0, 100.0));
+    }
+
     fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
         let mut updates = Vec::new();
 
@@ -1359,9 +1394,11 @@ impl MuxBox {
             }
             if let Some(entity_id) = &update.entity_id {
                 // Check if the update is for a child muxbox
-                if self.children.as_ref().map_or(false, |children| {
-                    children.iter().any(|p| p.id == *entity_id)
-                }) {
+                if self
+                    .children
+                    .as_ref()
+                    .is_some_and(|children| children.iter().any(|p| p.id == *entity_id))
+                {
                     // Find the child muxbox and apply the update
                     if let Some(child_muxbox) = self
                         .children
@@ -1417,8 +1454,8 @@ impl MuxBox {
 
     pub fn update_content(&mut self, new_content: &str, append_content: bool, success: bool) {
         // Update active stream content
-        if let Some(active_stream) = self.get_active_stream_mut() {
-            let current_content = active_stream.content.join("\n");
+        if let Some(selected_stream) = self.get_selected_stream_mut() {
+            let current_content = selected_stream.content.join("\n");
             let formatted_content = if append_content {
                 format!(
                     "[{}]\n\n{}\n\n\n\n{}",
@@ -1429,7 +1466,7 @@ impl MuxBox {
             } else {
                 format!("[{}]\n\n{}", chrono::Local::now().to_rfc2822(), new_content)
             };
-            active_stream.content = formatted_content.lines().map(|s| s.to_string()).collect();
+            selected_stream.content = formatted_content.lines().map(|s| s.to_string()).collect();
             self.error_state = !success;
             return;
         }
@@ -1623,7 +1660,7 @@ impl MuxBox {
             }
             "data_table" => {
                 if let Some(config) = &self.plugin_config {
-                    let mut content = format!("Mock Plugin: data_table\n");
+                    let mut content = "Mock Plugin: data_table\n".to_string();
 
                     // Check for columns configuration
                     if let Some(columns) = config.get("columns") {
@@ -1675,7 +1712,6 @@ impl MuxBox {
             }
         }
     }
-
 
     /// Generate table content for the muxbox
     pub fn generate_table_content(&self, bounds: &Bounds) -> Option<String> {
@@ -1839,21 +1875,14 @@ impl MuxBox {
         if tab_index < stream_ids.len() {
             let target_stream_id = &stream_ids[tab_index];
 
-            // Deactivate all streams
-            for stream in self.streams.values_mut() {
-                stream.active = false;
-            }
-
-            // Activate target stream
-            if let Some(target_stream) = self.streams.get_mut(target_stream_id) {
-                target_stream.active = true;
-                log::info!(
-                    "Successfully switched to tab {} (stream {})",
-                    tab_index,
-                    target_stream_id
-                );
-                return true;
-            }
+            // Set target stream as selected
+            self.selected_stream_id = Some(target_stream_id.clone());
+            log::info!(
+                "Successfully switched to tab {} (stream {})",
+                tab_index,
+                target_stream_id
+            );
+            return true;
         }
         log::warn!(
             "Failed to switch to tab {} - index out of range or stream not found",
@@ -1893,13 +1922,14 @@ impl MuxBox {
         self.streams.clear();
 
         // F0229: Check if content was defined in YAML vs populated by redirect
-        let has_yaml_content = self.content.as_ref().map_or(false, |c| {
-            !c.trim().is_empty() && self.is_yaml_defined_content(c)
-        });
+        let has_yaml_content = self
+            .content
+            .as_ref()
+            .is_some_and(|c| !c.trim().is_empty() && self.is_yaml_defined_content(c));
         let has_choices = self
             .choices
             .as_ref()
-            .map_or(false, |choices| !choices.is_empty());
+            .is_some_and(|choices| !choices.is_empty());
 
         // F0229: Check if this is an action-only box (choices but no YAML content)
         let is_action_only_box = has_choices && !has_yaml_content;
@@ -1932,9 +1962,12 @@ impl MuxBox {
                     },
                 )),
             );
-            content_stream.active = true;
-            self.streams
-                .insert(content_stream.id.clone(), content_stream);
+            let content_stream_id = content_stream.id.clone();
+            self.streams.insert(content_stream_id.clone(), content_stream);
+            // Set content stream as initially selected if no stream is selected yet
+            if self.selected_stream_id.is_none() {
+                self.selected_stream_id = Some(content_stream_id);
+            }
         }
 
         // Create choices stream only if choices exist and are non-empty
@@ -1963,7 +1996,11 @@ impl MuxBox {
 
             // If no content stream exists (action-only box), choices stream becomes active
             if is_action_only_box || !has_yaml_content {
-                choices_stream.active = true;
+                // Set choices stream as selected if no stream is selected yet
+                let choices_stream_id = choices_stream.id.clone();
+                if self.selected_stream_id.is_none() {
+                    self.selected_stream_id = Some(choices_stream_id);
+                }
             }
 
             self.streams
@@ -2040,12 +2077,8 @@ impl MuxBox {
 
     /// F0212: Remove stream and return its source for cleanup
     pub fn remove_stream(&mut self, stream_id: &str) -> Option<crate::model::common::StreamSource> {
-        // Check if the stream being removed is currently active
-        let was_active = self
-            .streams
-            .get(stream_id)
-            .map(|stream| stream.active)
-            .unwrap_or(false);
+        // Check if the stream being removed is currently selected
+        let was_selected = self.selected_stream_id.as_ref() == Some(&stream_id.to_string());
 
         // Remove the stream and get its source
         let removed_source = self
@@ -2053,15 +2086,15 @@ impl MuxBox {
             .shift_remove(stream_id)
             .and_then(|stream| stream.source);
 
-        // If the removed stream was active, switch to the first remaining stream
-        if was_active && !self.streams.is_empty() {
-            // Set the first remaining stream as active
-            if let Some((_, first_stream)) = self.streams.get_index_mut(0) {
-                first_stream.active = true;
+        // If the removed stream was selected, switch to the first remaining stream
+        if was_selected && !self.streams.is_empty() {
+            // Set the first remaining stream as selected
+            if let Some((first_stream_id, _)) = self.streams.get_index(0) {
+                self.selected_stream_id = Some(first_stream_id.clone());
                 log::info!(
-                    "Stream '{}' was active and removed, switched to first remaining stream: '{}'",
+                    "Stream '{}' was selected and removed, switched to first remaining stream: '{}'",
                     stream_id,
-                    first_stream.id
+                    first_stream_id
                 );
             }
         }
@@ -2112,38 +2145,45 @@ impl MuxBox {
         self.streams.iter().map(|(_, s)| s.label.clone()).collect()
     }
 
-    /// Get the active stream (unified approach)
-    pub fn get_active_stream(&self) -> Option<&crate::model::common::Stream> {
-        self.streams.values().find(|s| s.active)
+    /// Get the selected stream for display (based on selected_stream_id)
+    /// Falls back to first stream if no selection or selection not found
+    pub fn get_selected_stream(&self) -> Option<&crate::model::common::Stream> {
+        if let Some(selected_id) = &self.selected_stream_id {
+            if let Some(stream) = self.streams.get(selected_id) {
+                return Some(stream);
+            }
+        }
+        // Fallback to first stream if no selection
+        self.streams.values().next()
     }
 
-    /// Get mutable active stream (unified approach)
-    pub fn get_active_stream_mut(&mut self) -> Option<&mut crate::model::common::Stream> {
-        self.streams.values_mut().find(|s| s.active)
+    /// Get mutable selected stream (based on selected_stream_id)  
+    /// Falls back to first stream if no selection or selection not found
+    pub fn get_selected_stream_mut(&mut self) -> Option<&mut crate::model::common::Stream> {
+        if let Some(selected_id) = &self.selected_stream_id {
+            if self.streams.contains_key(selected_id) {
+                return self.streams.get_mut(selected_id);
+            }
+        }
+        // Fallback to first stream if no selection
+        self.streams.values_mut().next()
     }
 
-    /// Get active stream content (deprecated - use get_active_stream + ContentStreamTrait)
-    pub fn get_active_stream_content(&self) -> Vec<String> {
-        self.streams
-            .values()
-            .find(|s| s.active)
+    /// Get selected stream content (deprecated - use get_selected_stream + ContentStreamTrait)
+    pub fn get_selected_stream_content(&self) -> Vec<String> {
+        self.get_selected_stream()
             .map(|s| s.content.clone())
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(std::vec::Vec::new)
     }
 
-    /// Get active stream choices (deprecated - use get_active_stream + ChoicesStreamTrait)
-    pub fn get_active_stream_choices(&self) -> Option<&Vec<Choice>> {
-        self.streams
-            .values()
-            .find(|s| s.active)
-            .and_then(|s| s.choices.as_ref())
+    /// Get selected stream choices (deprecated - use get_selected_stream + ChoicesStreamTrait)
+    pub fn get_selected_stream_choices(&self) -> Option<&Vec<Choice>> {
+        self.get_selected_stream().and_then(|s| s.choices.as_ref())
     }
 
-    /// Get mutable active stream choices (deprecated - use get_active_stream_mut + ChoicesStreamTrait)
-    pub fn get_active_stream_choices_mut(&mut self) -> Option<&mut Vec<Choice>> {
-        self.streams
-            .values_mut()
-            .find(|s| s.active)
+    /// Get mutable selected stream choices (deprecated - use get_selected_stream_mut + ChoicesStreamTrait)
+    pub fn get_selected_stream_choices_mut(&mut self) -> Option<&mut Vec<Choice>> {
+        self.get_selected_stream_mut()
             .and_then(|s| s.choices.as_mut())
     }
 
@@ -2156,19 +2196,10 @@ impl MuxBox {
             return false;
         }
 
-        // Set all streams to inactive
-        for stream in self.streams.values_mut() {
-            stream.active = false;
-        }
-
-        // Activate the selected stream
+        // Update selected stream ID instead of using active flag
         let target_id = &stream_ids[stream_index];
-        if let Some(stream) = self.streams.get_mut(target_id) {
-            stream.active = true;
-            return true;
-        }
-
-        false
+        self.selected_stream_id = Some(target_id.clone());
+        true
     }
 
     /// Update content for a specific stream
@@ -2187,10 +2218,10 @@ impl MuxBox {
         // Use exact same ordering as get_tab_labels() and switch_to_tab() - IndexMap insertion order
         let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
 
-        // Find the index of the active stream
-        for (index, stream_id) in stream_ids.iter().enumerate() {
-            if let Some(stream) = self.streams.get(stream_id) {
-                if stream.active {
+        // Find the index of the selected stream
+        if let Some(selected_id) = &self.selected_stream_id {
+            for (index, stream_id) in stream_ids.iter().enumerate() {
+                if stream_id == selected_id {
                     return index;
                 }
             }
@@ -2206,27 +2237,15 @@ impl MuxBox {
             return false;
         }
 
-        // Set all streams to inactive
-        for stream in self.streams.values_mut() {
-            stream.active = false;
-        }
-
-        // Activate the specified stream
-        if let Some(stream) = self.streams.get_mut(stream_id) {
-            stream.active = true;
-            return true;
-        }
-
-        false
+        // Update selected stream ID instead of using active flag
+        self.selected_stream_id = Some(stream_id.to_string());
+        true
     }
 
     /// Get current active stream ID
     pub fn get_current_stream_id(&self) -> Option<String> {
         // F0218: Stream Tab Integration - Get from streams architecture
-        self.streams
-            .values()
-            .find(|s| s.active)
-            .map(|s| s.id.clone())
+        self.selected_stream_id.clone()
     }
 
     /// All boxes need streams - check if they're missing
@@ -2361,41 +2380,45 @@ impl MuxBox {
         // Convert inclusive bounds to character dimensions with proper adjustments
         let mut cols = bounds.width() as u16;
         let mut rows = bounds.height() as u16;
-        
+
         // Account for border space if present
         if should_draw_color(&self.border_color) {
             // Borders take 2 characters (left + right) and 2 rows (top + bottom)
             cols = cols.saturating_sub(2);
             rows = rows.saturating_sub(2);
         }
-        
+
         // Account for title bar space (1 row for title)
-        if self.title.as_ref().map_or(false, |t| !t.is_empty()) {
+        if self.title.as_ref().is_some_and(|t| !t.is_empty()) {
             rows = rows.saturating_sub(1);
         }
-        
+
         // Account for tab bar space if multiple streams exist
         let stream_count = self.streams.len();
         if stream_count > 1 {
             rows = rows.saturating_sub(1); // Tab bar takes 1 row
         }
-        
+
         // Ensure minimum viable terminal size (htop/terminal applications need reasonable space)
-        let min_cols = 40u16;  // Minimum for readable terminal applications
-        let min_rows = 10u16;  // Minimum for practical terminal usage
-        
+        let min_cols = 40u16; // Minimum for readable terminal applications
+        let min_rows = 10u16; // Minimum for practical terminal usage
+
         let final_cols = cols.max(min_cols);
         let final_rows = rows.max(min_rows);
-        
+
         log::debug!("Terminal dimension calculation for box {}: bounds={}x{}, border_visible={}, title_present={}, streams={} -> {}x{} characters", 
-            self.id, bounds.width(), bounds.height(), should_draw_color(&self.border_color), self.title.as_ref().map_or(false, |t| !t.is_empty()), stream_count, final_cols, final_rows);
-        
+            self.id, bounds.width(), bounds.height(), should_draw_color(&self.border_color), self.title.as_ref().is_some_and(|t| !t.is_empty()), stream_count, final_cols, final_rows);
+
         (final_cols, final_rows)
     }
 
     /// Update MuxBox bounds and resize associated PTY to match
     /// F0317: When PTY box resizes, the underlying PTY terminal should resize too
-    pub fn update_bounds_with_pty_resize(&mut self, bounds: &Bounds, pty_manager: &mut crate::pty_manager::PtyManager) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn update_bounds_with_pty_resize(
+        &mut self,
+        bounds: &Bounds,
+        pty_manager: &mut crate::pty_manager::PtyManager,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Only handle PTY boxes - others use normal bounds update
         if !matches!(self.execution_mode, ExecutionMode::Pty) {
             return Ok(()); // Non-PTY boxes don't need PTY resize
@@ -2403,13 +2426,18 @@ impl MuxBox {
 
         // Calculate terminal dimensions from new bounds
         let (cols, rows) = self.calculate_terminal_dimensions(bounds);
-        
+
         // Resize the PTY to match the new terminal dimensions
         if let Err(e) = pty_manager.resize_pty(&self.id, rows, cols) {
             log::warn!("PTY resize failed for box {}: {}", self.id, e);
             // Don't fail the operation - PTY might not exist yet or might be finished
         } else {
-            log::debug!("PTY resized for box {} to {}x{} characters", self.id, cols, rows);
+            log::debug!(
+                "PTY resized for box {} to {}x{} characters",
+                self.id,
+                cols,
+                rows
+            );
         }
 
         Ok(())
@@ -2597,7 +2625,6 @@ impl Updatable for MuxBox {
                 });
             }
         }
-
 
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {

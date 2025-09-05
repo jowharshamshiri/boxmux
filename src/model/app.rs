@@ -1,7 +1,7 @@
+use crate::components::{ErrorDisplay, ErrorInfo, ErrorSeverity};
 use crate::live_yaml_sync::LiveYamlSync;
 use crate::model::muxbox::*;
 use crate::{model::layout::Layout, Bounds};
-use crate::components::{ErrorDisplay, ErrorInfo, ErrorSeverity};
 
 use std::fs::File;
 use std::io::Read;
@@ -1072,7 +1072,8 @@ pub fn load_app_from_yaml_with_lock(
                     if let Some(location) = app_error.location() {
                         let line_num = location.line();
                         let col_num = location.column();
-                        let error_display = ErrorDisplay::with_terminal_config("app_parser".to_string());
+                        let error_display =
+                            ErrorDisplay::with_terminal_config("app_parser".to_string());
                         let error_info = ErrorInfo {
                             message: format!("{}", app_error),
                             file_path: file_path.to_string(),
@@ -1118,7 +1119,6 @@ pub fn load_app_from_yaml_with_lock(
     }
 }
 
-
 /// Apply variable substitution to all fields in the parsed App structure
 fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // Create variable context with app-level variables
@@ -1150,7 +1150,7 @@ fn apply_layout_variable_substitution(
     // Apply to all child muxboxes
     if let Some(ref mut children) = layout.children {
         for child in children {
-            apply_muxbox_variable_substitution(child, &layout_context, &[])?;
+            apply_muxbox_variable_substitution(child, layout_context, &[])?;
         }
     }
 
@@ -2438,22 +2438,20 @@ pub fn save_active_layout_to_yaml(
 
     // Update active layout in all layouts
     if let Some(root_map) = yaml_value.as_mapping_mut() {
-        if let Some(app_map) = root_map.get_mut(&Value::String("app".to_string())) {
-            if let Value::Mapping(app_map) = app_map {
-                if let Some(layouts_seq) = app_map.get_mut(&Value::String("layouts".to_string())) {
-                    if let Value::Sequence(layouts_seq) = layouts_seq {
-                        for layout_value in layouts_seq.iter_mut() {
-                            if let Value::Mapping(layout_map) = layout_value {
-                                if let Some(Value::String(layout_id)) =
-                                    layout_map.get(&Value::String("id".to_string()))
-                                {
-                                    let is_active = layout_id == active_layout_id;
-                                    layout_map.insert(
-                                        Value::String("active".to_string()),
-                                        Value::Bool(is_active),
-                                    );
-                                }
-                            }
+        if let Some(Value::Mapping(app_map)) = root_map.get_mut(Value::String("app".to_string())) {
+            if let Some(Value::Sequence(layouts_seq)) =
+                app_map.get_mut(Value::String("layouts".to_string()))
+            {
+                for layout_value in layouts_seq.iter_mut() {
+                    if let Value::Mapping(layout_map) = layout_value {
+                        if let Some(Value::String(layout_id)) =
+                            layout_map.get(Value::String("id".to_string()))
+                        {
+                            let is_active = layout_id == active_layout_id;
+                            layout_map.insert(
+                                Value::String("active".to_string()),
+                                Value::Bool(is_active),
+                            );
                         }
                     }
                 }
@@ -2583,7 +2581,7 @@ fn update_muxbox_field_recursive(
     match value {
         Value::Mapping(map) => {
             // Check if this is the target muxbox
-            if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
+            if let Some(Value::String(id)) = map.get(Value::String("id".to_string())) {
                 if id == target_muxbox_id {
                     map.insert(Value::String(field_name.to_string()), new_value.clone());
                     return Ok(true);
@@ -2628,31 +2626,29 @@ pub fn update_muxbox_bounds_recursive(
     match value {
         Value::Mapping(map) => {
             // Check if this is the muxbox we're looking for
-            if let Some(Value::String(id)) = map.get(&Value::String("id".to_string())) {
+            if let Some(Value::String(id)) = map.get(Value::String("id".to_string())) {
                 if id == target_muxbox_id {
                     // Update the bounds in the position field
-                    if let Some(position_value) =
-                        map.get_mut(&Value::String("position".to_string()))
+                    if let Some(Value::Mapping(position_map)) =
+                        map.get_mut(Value::String("position".to_string()))
                     {
-                        if let Value::Mapping(position_map) = position_value {
-                            position_map.insert(
-                                Value::String("x1".to_string()),
-                                Value::String(new_bounds.x1.clone()),
-                            );
-                            position_map.insert(
-                                Value::String("y1".to_string()),
-                                Value::String(new_bounds.y1.clone()),
-                            );
-                            position_map.insert(
-                                Value::String("x2".to_string()),
-                                Value::String(new_bounds.x2.clone()),
-                            );
-                            position_map.insert(
-                                Value::String("y2".to_string()),
-                                Value::String(new_bounds.y2.clone()),
-                            );
-                            return Ok(true);
-                        }
+                        position_map.insert(
+                            Value::String("x1".to_string()),
+                            Value::String(new_bounds.x1.clone()),
+                        );
+                        position_map.insert(
+                            Value::String("y1".to_string()),
+                            Value::String(new_bounds.y1.clone()),
+                        );
+                        position_map.insert(
+                            Value::String("x2".to_string()),
+                            Value::String(new_bounds.x2.clone()),
+                        );
+                        position_map.insert(
+                            Value::String("y2".to_string()),
+                            Value::String(new_bounds.y2.clone()),
+                        );
+                        return Ok(true);
                     }
                     // If no position field exists, create one
                     let mut position_map = serde_yaml::Mapping::new();

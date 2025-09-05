@@ -1,9 +1,7 @@
 use crate::components::renderable_content::{
-    RenderableContent, ClickableZone, ContentEvent, EventResult, EventType,
-    HoverState, TitleChangeSource
+    ClickableZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
 };
-use crate::{ScreenBuffer, Bounds};
-use crate::draw_utils::{print_with_color_and_background_at, wrap_text_to_width, content_size};
+use crate::draw_utils::content_size;
 
 /// TextContent implementation of RenderableContent trait
 /// Preserves all existing text rendering logic from draw_utils.rs
@@ -11,9 +9,9 @@ pub struct TextContent<'a> {
     /// The raw text content to render
     text: &'a str,
     /// Text foreground color
-    fg_color: &'a Option<String>,
+    _fg_color: &'a Option<String>,
     /// Text background color  
-    bg_color: &'a Option<String>,
+    _bg_color: &'a Option<String>,
 }
 
 impl<'a> TextContent<'a> {
@@ -21,131 +19,14 @@ impl<'a> TextContent<'a> {
     pub fn new(text: &'a str, fg_color: &'a Option<String>, bg_color: &'a Option<String>) -> Self {
         Self {
             text,
-            fg_color,
-            bg_color,
+            _fg_color: fg_color,
+            _bg_color: bg_color,
         }
     }
 
     /// Calculate content dimensions using existing logic
     fn calculate_dimensions(&self) -> (usize, usize) {
         content_size(self.text)
-    }
-
-    /// Get text lines for rendering
-    fn get_text_lines(&self) -> Vec<&str> {
-        self.text.lines().collect()
-    }
-
-    /// Calculate scroll offsets using existing logic (from box_renderer.rs)
-    fn calculate_scroll_offset(&self, vertical_scroll: f64, viewable_height: usize, content_height: usize) -> usize {
-        let max_vertical_offset = content_height.saturating_sub(viewable_height);
-        ((vertical_scroll / 100.0) * max_vertical_offset as f64).floor() as usize
-    }
-
-    /// Calculate horizontal scroll offset
-    fn calculate_horizontal_scroll_offset(&self, horizontal_scroll: f64, viewable_width: usize, content_width: usize) -> usize {
-        let max_horizontal_offset = content_width.saturating_sub(viewable_width);
-        ((horizontal_scroll / 100.0) * max_horizontal_offset as f64).floor() as usize
-    }
-
-    /// Render scrollable content using existing logic from box_renderer.rs:render_scrollable_content
-    fn render_scrollable_content(
-        &self,
-        bounds: &Bounds,
-        x_offset: usize,
-        y_offset: usize,
-        buffer: &mut ScreenBuffer,
-    ) {
-        let content_lines = self.get_text_lines();
-        let viewable_width = bounds.width().saturating_sub(4);
-        let viewable_height = bounds.height().saturating_sub(4);
-
-        // Apply vertical scroll offset
-        let visible_lines = content_lines
-            .iter()
-            .skip(y_offset)
-            .take(viewable_height);
-
-        let content_start_x = bounds.left() + 2;
-        let content_start_y = bounds.top() + 2;
-
-        for (i, line) in visible_lines.enumerate() {
-            let render_y = content_start_y + i;
-            if render_y >= bounds.bottom() {
-                break;
-            }
-
-            // Apply horizontal scroll offset
-            let visible_line = if x_offset < line.len() {
-                &line[x_offset..]
-            } else {
-                ""
-            };
-
-            // Truncate to viewable width
-            let truncated_line = if visible_line.len() > viewable_width {
-                &visible_line[..viewable_width]
-            } else {
-                visible_line
-            };
-
-            // Use existing print function - preserves all text rendering logic
-            print_with_color_and_background_at(
-                render_y,
-                content_start_x,
-                self.fg_color,
-                self.bg_color,
-                truncated_line,
-                buffer,
-            );
-        }
-    }
-
-    /// Render normal (non-scrollable) content using existing logic from box_renderer.rs:render_normal_content
-    fn render_normal_content(
-        &self,
-        bounds: &Bounds,
-        buffer: &mut ScreenBuffer,
-    ) {
-        let content_lines = self.get_text_lines();
-        let viewable_width = bounds.width().saturating_sub(4);
-        let viewable_height = bounds.height().saturating_sub(4);
-
-        let max_content_width = content_lines
-            .iter()
-            .map(|line| line.len())
-            .max()
-            .unwrap_or(0);
-
-        // Use existing centering logic
-        let total_lines = content_lines.len();
-        let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
-        let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
-
-        for (i, line) in content_lines.iter().enumerate().take(viewable_height) {
-            let visible_line = if line.len() > viewable_width {
-                &line[..viewable_width]
-            } else {
-                line
-            };
-
-            let render_x = bounds.left() + 2 + horizontal_padding;
-            let render_y = bounds.top() + 2 + vertical_padding + i;
-
-            if render_y >= bounds.bottom() {
-                break;
-            }
-
-            // Use existing print function - preserves all text rendering logic
-            print_with_color_and_background_at(
-                render_y,
-                render_x,
-                self.fg_color,
-                self.bg_color,
-                visible_line,
-                buffer,
-            );
-        }
     }
 }
 
@@ -165,8 +46,7 @@ impl<'a> RenderableContent for TextContent<'a> {
         Vec::new() // Text content typically doesn't have clickable zones
     }
 
-
-    /// Handle content events on text 
+    /// Handle content events on text
     fn handle_event(&mut self, event: &ContentEvent) -> EventResult {
         match event.event_type {
             EventType::Click => {
@@ -177,15 +57,22 @@ impl<'a> RenderableContent for TextContent<'a> {
                 // Text could handle copy operations, search, etc.
                 if let Some(key_info) = event.key_info() {
                     match key_info.key.as_str() {
-                        "c" if key_info.modifiers.contains(&crate::components::renderable_content::KeyModifier::Ctrl) => {
+                        "c" if key_info.modifiers.contains(
+                            &crate::components::renderable_content::KeyModifier::Ctrl,
+                        ) =>
+                        {
                             // Ctrl+C for copy - could be handled here or at higher level
                             EventResult::NotHandled
                         }
-                        "/" | "f" if key_info.modifiers.contains(&crate::components::renderable_content::KeyModifier::Ctrl) => {
+                        "/" | "f"
+                            if key_info.modifiers.contains(
+                                &crate::components::renderable_content::KeyModifier::Ctrl,
+                            ) =>
+                        {
                             // Search functionality
-                            EventResult::NotHandled  
+                            EventResult::NotHandled
                         }
-                        _ => EventResult::NotHandled
+                        _ => EventResult::NotHandled,
                     }
                 } else {
                     EventResult::NotHandled
@@ -234,8 +121,7 @@ impl<'a> RenderableContent for TextContent<'a> {
                 // Text content doesn't typically handle title changes
                 EventResult::NotHandled
             }
-            _ => EventResult::NotHandled
+            _ => EventResult::NotHandled,
         }
     }
-
 }

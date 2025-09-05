@@ -1,11 +1,11 @@
-use crate::color_utils::{get_fg_color_transparent, get_bg_color_transparent, should_draw_color};
+use crate::color_utils::{get_bg_color_transparent, get_fg_color_transparent, should_draw_color};
 use crate::{set_terminal_title, AppContext, AppGraph, Bounds, Layout, MuxBox, ScreenBuffer};
 use std::collections::HashMap;
 
+use crate::ansi_color_processor::{contains_ansi_sequences, process_ansi_text};
+use crate::components::BoxRenderer;
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
-use crate::ansi_color_processor::{process_ansi_text, contains_ansi_sequences};
-use crate::components::BoxRenderer;
 
 pub fn content_size(text: &str) -> (usize, usize) {
     let mut width = 0;
@@ -48,7 +48,14 @@ pub fn draw_layout(
     let fill_char = cloned_layout.fill_char.unwrap_or(' ');
 
     // Set the background for the layout - None means transparent (no background drawing)
-    fill_muxbox(&screen_bounds(), false, &cloned_layout.bg_color, &cloned_layout.fg_color, fill_char, buffer);
+    fill_muxbox(
+        &screen_bounds(),
+        false,
+        &cloned_layout.bg_color,
+        &cloned_layout.fg_color,
+        fill_char,
+        buffer,
+    );
 
     if let Some(layout_title) = &cloned_layout.title {
         if !layout_title.trim().is_empty() {
@@ -85,7 +92,7 @@ pub fn draw_muxbox(
     // Create BoxRenderer component and delegate rendering to it
     // This preserves ALL existing functionality while using the component system
     let mut box_renderer = BoxRenderer::new(muxbox, format!("muxbox_{}", muxbox.id));
-    
+
     if box_renderer.render(app_context, app_graph, adjusted_bounds, layout, buffer) {
         // Draw children sorted by z_index (same logic as before)
         if let Some(children) = &muxbox.children {
@@ -137,12 +144,7 @@ pub fn print_with_color_and_background_at(
 }
 
 /// Render ANSI text with embedded color codes at specific position
-pub fn print_ansi_text_at(
-    y: usize,
-    x: usize,
-    text: &str,
-    buffer: &mut ScreenBuffer,
-) {
+pub fn print_ansi_text_at(y: usize, x: usize, text: &str, buffer: &mut ScreenBuffer) {
     let cells = process_ansi_text(text);
     for (i, cell) in cells.iter().enumerate() {
         buffer.update(x + i, y, cell.clone());
@@ -469,7 +471,7 @@ pub use crate::components::TabNavigationAction;
 
 pub fn fill_muxbox(
     bounds: &Bounds,
-    inside: bool,
+    _inside: bool,
     bg_color: &Option<String>,
     fg_color: &Option<String>,
     fill_char: char,
@@ -483,17 +485,8 @@ pub fn fill_muxbox(
     let fg_color_code = get_fg_color_transparent(fg_color);
     let bg_color_code = get_bg_color_transparent(bg_color);
 
-    let (top, bottom) = if inside {
-        (bounds.top(), bounds.bottom())
-    } else {
-        (bounds.top(), bounds.bottom())
-    };
-
-    let (left, right) = if inside {
-        (bounds.left(), bounds.right())
-    } else {
-        (bounds.left(), bounds.right())
-    };
+    let (top, bottom) = (bounds.top(), bounds.bottom());
+    let (left, right) = (bounds.left(), bounds.right());
 
     for y in top..bottom {
         for x in left..right {
@@ -506,8 +499,16 @@ pub fn fill_muxbox(
                 };
                 let existing_cell = buffer.get(x, y).unwrap_or(&default_cell);
                 let cell = Cell {
-                    fg_color: if should_draw_color(fg_color) { fg_color_code.clone() } else { existing_cell.fg_color.clone() },
-                    bg_color: if should_draw_color(bg_color) { bg_color_code.clone() } else { existing_cell.bg_color.clone() },
+                    fg_color: if should_draw_color(fg_color) {
+                        fg_color_code.clone()
+                    } else {
+                        existing_cell.fg_color.clone()
+                    },
+                    bg_color: if should_draw_color(bg_color) {
+                        bg_color_code.clone()
+                    } else {
+                        existing_cell.bg_color.clone()
+                    },
                     ch: fill_char,
                 };
                 buffer.update(x, y, cell);

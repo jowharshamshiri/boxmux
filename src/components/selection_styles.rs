@@ -1,6 +1,6 @@
+use crate::draw_utils::print_with_color_and_background_at;
 use crate::model::common::{Bounds, ScreenBuffer};
 use crate::model::muxbox::Choice;
-use crate::draw_utils::print_with_color_and_background_at;
 
 /// Selection highlighting styles for choice menus
 #[derive(Debug, Clone, PartialEq)]
@@ -176,7 +176,14 @@ impl SelectionStyleRenderer {
 
         // Apply additional styling based on selection style
         if choice.selected {
-            self.apply_selection_style(choice, bounds, y_position, x_position, &display_text, buffer);
+            self.apply_selection_style(
+                choice,
+                bounds,
+                y_position,
+                x_position,
+                &display_text,
+                buffer,
+            );
         }
 
         // Apply focus indicators if focused
@@ -223,7 +230,11 @@ impl SelectionStyleRenderer {
                 SelectionStyle::PointerIndicator => {
                     // Add pointer symbol prefix
                     let default_indicators = SelectionIndicators::default();
-                    let indicators = self.config.custom_indicators.as_ref().unwrap_or(&default_indicators);
+                    let indicators = self
+                        .config
+                        .custom_indicators
+                        .as_ref()
+                        .unwrap_or(&default_indicators);
                     display_text = format!("{} {}", indicators.pointer_symbol, display_text);
                 }
                 SelectionStyle::Combined(styles) => {
@@ -238,8 +249,13 @@ impl SelectionStyleRenderer {
                             }
                             SelectionStyle::PointerIndicator => {
                                 let default_indicators = SelectionIndicators::default();
-                                let indicators = self.config.custom_indicators.as_ref().unwrap_or(&default_indicators);
-                                display_text = format!("{} {}", indicators.pointer_symbol, display_text);
+                                let indicators = self
+                                    .config
+                                    .custom_indicators
+                                    .as_ref()
+                                    .unwrap_or(&default_indicators);
+                                display_text =
+                                    format!("{} {}", indicators.pointer_symbol, display_text);
                             }
                             _ => {} // Other styles handled separately
                         }
@@ -274,17 +290,41 @@ impl SelectionStyleRenderer {
     ) {
         match &self.config.selection_style {
             SelectionStyle::BorderHighlight => {
-                self.draw_selection_border(bounds, y_position, x_position, display_text.len(), buffer);
+                self.draw_selection_border(
+                    bounds,
+                    y_position,
+                    x_position,
+                    display_text.len(),
+                    buffer,
+                );
             }
             SelectionStyle::UnderlineHighlight => {
-                self.draw_selection_underline(bounds, y_position, x_position, display_text.len(), buffer);
+                self.draw_selection_underline(
+                    bounds,
+                    y_position,
+                    x_position,
+                    display_text.len(),
+                    buffer,
+                );
             }
             SelectionStyle::Combined(styles) => {
                 if styles.contains(&SelectionStyle::BorderHighlight) {
-                    self.draw_selection_border(bounds, y_position, x_position, display_text.len(), buffer);
+                    self.draw_selection_border(
+                        bounds,
+                        y_position,
+                        x_position,
+                        display_text.len(),
+                        buffer,
+                    );
                 }
                 if styles.contains(&SelectionStyle::UnderlineHighlight) {
-                    self.draw_selection_underline(bounds, y_position, x_position, display_text.len(), buffer);
+                    self.draw_selection_underline(
+                        bounds,
+                        y_position,
+                        x_position,
+                        display_text.len(),
+                        buffer,
+                    );
                 }
             }
             _ => {}
@@ -302,7 +342,13 @@ impl SelectionStyleRenderer {
     ) {
         match &self.config.focus_style {
             FocusStyle::DottedBorder => {
-                self.draw_dotted_focus_border(bounds, y_position, x_position, display_text.len(), buffer);
+                self.draw_dotted_focus_border(
+                    bounds,
+                    y_position,
+                    x_position,
+                    display_text.len(),
+                    buffer,
+                );
             }
             FocusStyle::AnimatedCursor => {
                 self.draw_animated_cursor(bounds, y_position, x_position, buffer);
@@ -325,7 +371,11 @@ impl SelectionStyleRenderer {
         buffer: &mut ScreenBuffer,
     ) {
         let default_indicators = SelectionIndicators::default();
-        let indicators = self.config.custom_indicators.as_ref().unwrap_or(&default_indicators);
+        let indicators = self
+            .config
+            .custom_indicators
+            .as_ref()
+            .unwrap_or(&default_indicators);
         let border = &indicators.border_chars;
 
         // Only draw border if we have space and are within bounds
@@ -341,8 +391,8 @@ impl SelectionStyleRenderer {
                     buffer,
                 );
             }
-            
-            if x_position + text_length + 1 <= bounds.right() {
+
+            if x_position + text_length < bounds.right() {
                 print_with_color_and_background_at(
                     y_position,
                     x_position + text_length,
@@ -364,7 +414,7 @@ impl SelectionStyleRenderer {
         text_length: usize,
         buffer: &mut ScreenBuffer,
     ) {
-        if y_position + 1 <= bounds.bottom() {
+        if y_position < bounds.bottom() {
             let underline = "─".repeat(text_length);
             print_with_color_and_background_at(
                 y_position + 1,
@@ -386,7 +436,10 @@ impl SelectionStyleRenderer {
         text_length: usize,
         buffer: &mut ScreenBuffer,
     ) {
-        if y_position >= bounds.top() && y_position <= bounds.bottom() && x_position >= bounds.left() {
+        if y_position >= bounds.top()
+            && y_position <= bounds.bottom()
+            && x_position >= bounds.left()
+        {
             // Draw dotted indicators
             if x_position > 0 {
                 print_with_color_and_background_at(
@@ -398,8 +451,8 @@ impl SelectionStyleRenderer {
                     buffer,
                 );
             }
-            
-            if x_position + text_length + 1 <= bounds.right() {
+
+            if x_position + text_length < bounds.right() {
                 print_with_color_and_background_at(
                     y_position,
                     x_position + text_length,
@@ -420,9 +473,14 @@ impl SelectionStyleRenderer {
         x_position: usize,
         buffer: &mut ScreenBuffer,
     ) {
-        if y_position >= bounds.top() && y_position <= bounds.bottom() && x_position > bounds.left() {
+        if y_position >= bounds.top() && y_position <= bounds.bottom() && x_position > bounds.left()
+        {
             let default_indicators = SelectionIndicators::default();
-            let indicators = self.config.custom_indicators.as_ref().unwrap_or(&default_indicators);
+            let indicators = self
+                .config
+                .custom_indicators
+                .as_ref()
+                .unwrap_or(&default_indicators);
             print_with_color_and_background_at(
                 y_position,
                 x_position - 1,
@@ -442,7 +500,8 @@ impl SelectionStyleRenderer {
         x_position: usize,
         buffer: &mut ScreenBuffer,
     ) {
-        if y_position >= bounds.top() && y_position <= bounds.bottom() && x_position > bounds.left() {
+        if y_position >= bounds.top() && y_position <= bounds.bottom() && x_position > bounds.left()
+        {
             print_with_color_and_background_at(
                 y_position,
                 x_position - 1,
@@ -467,7 +526,7 @@ impl SelectionStyleRenderer {
                 "white" => Some("bright_white".to_string()),
                 "black" => Some("bright_black".to_string()),
                 _ => Some(color_str.clone()), // Return as-is if already bright or unknown
-            }
+            },
             None => None, // Transparent remains transparent
         }
     }
@@ -500,7 +559,10 @@ mod tests {
     fn test_selection_style_renderer_creation() {
         let renderer = SelectionStyleRenderer::with_defaults("test".to_string());
         assert_eq!(renderer.id, "test");
-        assert_eq!(renderer.config.selection_style, SelectionStyle::ColorHighlight);
+        assert_eq!(
+            renderer.config.selection_style,
+            SelectionStyle::ColorHighlight
+        );
     }
 
     #[test]
@@ -513,18 +575,30 @@ mod tests {
             intensity_factor: 2.0,
             custom_indicators: Some(SelectionIndicators::default()),
         };
-        
+
         let renderer = SelectionStyleRenderer::new("custom".to_string(), config);
-        assert!(matches!(renderer.config.selection_style, SelectionStyle::PointerIndicator));
+        assert!(matches!(
+            renderer.config.selection_style,
+            SelectionStyle::PointerIndicator
+        ));
         assert!(matches!(renderer.config.focus_style, FocusStyle::Intensity));
     }
 
     #[test]
     fn test_color_bright_conversion() {
         let renderer = SelectionStyleRenderer::with_defaults("test".to_string());
-        assert_eq!(renderer.make_color_bright(&Some("red".to_string())), Some("bright_red".to_string()));
-        assert_eq!(renderer.make_color_bright(&Some("green".to_string())), Some("bright_green".to_string()));
-        assert_eq!(renderer.make_color_bright(&Some("bright_blue".to_string())), Some("bright_blue".to_string())); // Already bright
+        assert_eq!(
+            renderer.make_color_bright(&Some("red".to_string())),
+            Some("bright_red".to_string())
+        );
+        assert_eq!(
+            renderer.make_color_bright(&Some("green".to_string())),
+            Some("bright_green".to_string())
+        );
+        assert_eq!(
+            renderer.make_color_bright(&Some("bright_blue".to_string())),
+            Some("bright_blue".to_string())
+        ); // Already bright
         assert_eq!(renderer.make_color_bright(&None), None); // Transparent stays transparent
     }
 
@@ -543,7 +617,7 @@ mod tests {
             SelectionStyle::BoldHighlight,
             SelectionStyle::BorderHighlight,
         ]);
-        
+
         if let SelectionStyle::Combined(styles) = combined {
             assert_eq!(styles.len(), 3);
             assert!(styles.contains(&SelectionStyle::PointerIndicator));
@@ -592,7 +666,7 @@ mod tests {
             intensity_factor: 1.0,
             custom_indicators: Some(SelectionIndicators::default()),
         };
-        
+
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
             id: "menu_item".to_string(),
@@ -625,7 +699,7 @@ mod tests {
             selection_style: SelectionStyle::InvertColors,
             ..SelectionStyleConfig::default()
         };
-        
+
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
             id: "inverted".to_string(),
@@ -686,7 +760,7 @@ mod tests {
             focus_style: FocusStyle::Intensity,
             ..SelectionStyleConfig::default()
         };
-        
+
         let renderer = SelectionStyleRenderer::new("test".to_string(), config);
         let choice = Choice {
             id: "focused".to_string(),

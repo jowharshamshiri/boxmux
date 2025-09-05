@@ -85,7 +85,7 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
     if value.ends_with('%') {
         match value.trim_end_matches('%').parse::<f64>() {
             Ok(percentage) => {
-                let normalized = percentage.max(0.0).min(100.0) / 100.0;
+                let normalized = percentage.clamp(0.0, 100.0) / 100.0;
                 // Fix: Map 0-100% to coordinate space 0 to (total-1)
                 // This ensures 100% maps to the last displayable coordinate
                 if total == 0 {
@@ -99,10 +99,7 @@ pub fn parse_percentage(value: &str, total: usize) -> usize {
             Err(_) => 0, // Default to 0 for invalid percentage values
         }
     } else {
-        match value.parse::<usize>() {
-            Ok(val) => val,
-            Err(_) => 0, // Default to 0 for invalid absolute values
-        }
+        value.parse::<usize>().unwrap_or_default()
     }
 }
 
@@ -441,13 +438,10 @@ pub fn calculate_tab_order(layout: &Layout) -> Vec<String> {
     if let Some(children) = &layout.children {
         for muxbox in children {
             let tab_order = muxbox.tab_order.clone();
-            if tab_order.is_some() {
+            if let Some(order) = tab_order {
                 result.insert(
                     muxbox.id.clone(),
-                    tab_order
-                        .unwrap()
-                        .parse::<i32>()
-                        .expect("Invalid tab order"),
+                    order.parse::<i32>().expect("Invalid tab order"),
                 );
             }
         }
@@ -545,51 +539,50 @@ pub fn run_script_with_pty_and_redirect(
     )>,
     redirect_target: Option<String>,
 ) -> io::Result<String> {
-    if execution_mode.is_pty()
-        && pty_manager.is_some()
-        && muxbox_id.is_some()
-        && message_sender.is_some()
-    {
-        let pty_mgr = pty_manager.unwrap();
-        let pid = muxbox_id.unwrap();
-
-        // Check if we should avoid PTY due to recent failures
-        if pty_mgr.should_avoid_pty(&pid) {
-            log::warn!(
-                "Avoiding PTY for muxbox {} due to recent failures, using regular execution",
-                pid
-            );
-            return run_script_regular(libs_paths, script);
-        }
-
-        // Use PTY for script execution
-        let (sender, thread_uuid) = message_sender.unwrap();
-
-        match pty_mgr.spawn_pty_script_with_redirect(
-            pid.clone(),
-            script,
-            libs_paths.clone(),
-            sender,
-            thread_uuid,
-            redirect_target,
-            None, // Use default stream ID generation
-        ) {
-            Ok(_) => {
-                // PTY started successfully - clear any previous failures
-                pty_mgr.clear_pty_failures(&pid);
-                log::info!("PTY started for muxbox: {}", pid);
-                // Return empty string - actual output will come through messages
-                Ok(String::new())
-            }
-            Err(e) => {
-                // Fall back to regular execution on PTY failure
+    if execution_mode.is_pty() {
+        if let (Some(pty_mgr), Some(pid), Some((sender, thread_uuid))) =
+            (pty_manager, muxbox_id, message_sender)
+        {
+            // Check if we should avoid PTY due to recent failures
+            if pty_mgr.should_avoid_pty(&pid) {
                 log::warn!(
-                    "PTY execution failed for muxbox {}, falling back to regular execution: {}",
-                    pid,
-                    e
+                    "Avoiding PTY for muxbox {} due to recent failures, using regular execution",
+                    pid
                 );
-                run_script_regular(libs_paths, script)
+                return run_script_regular(libs_paths, script);
             }
+
+            // Use PTY for script execution
+            match pty_mgr.spawn_pty_script_with_redirect(
+                pid.clone(),
+                script,
+                libs_paths.clone(),
+                sender,
+                thread_uuid,
+                redirect_target,
+                None, // Use default stream ID generation
+                None, // No bounds available in utils.rs context
+            ) {
+                Ok(_) => {
+                    // PTY started successfully - clear any previous failures
+                    pty_mgr.clear_pty_failures(&pid);
+                    log::info!("PTY started for muxbox: {}", pid);
+                    // Return empty string - actual output will come through messages
+                    Ok(String::new())
+                }
+                Err(e) => {
+                    // Fall back to regular execution on PTY failure
+                    log::warn!(
+                        "PTY execution failed for muxbox {}, falling back to regular execution: {}",
+                        pid,
+                        e
+                    );
+                    run_script_regular(libs_paths, script)
+                }
+            }
+        } else {
+            // Use regular script execution if any required parameter is missing
+            run_script_regular(libs_paths, script)
         }
     } else {
         // Use regular script execution
@@ -636,27 +629,27 @@ fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> 
                 } else {
                     combined_output
                 };
-                Err(io::Error::new(io::ErrorKind::Other, error_message))
+                Err(io::Error::other(error_message))
             }
         }
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
 
 /// F0226: ExecutionMode-based PTY check - replaces legacy muxbox.pty boolean  
 pub fn should_use_pty(muxbox: &crate::model::muxbox::MuxBox) -> bool {
-    match muxbox.execution_mode {
-        crate::model::common::ExecutionMode::Pty => true,
-        _ => false,
-    }
+    matches!(
+        muxbox.execution_mode,
+        crate::model::common::ExecutionMode::Pty
+    )
 }
 
 /// F0226: ExecutionMode-based PTY check - replaces legacy choice.pty boolean
 pub fn should_use_pty_for_choice(choice: &crate::model::muxbox::Choice) -> bool {
-    match choice.execution_mode {
-        crate::model::common::ExecutionMode::Pty => true,
-        _ => false,
-    }
+    matches!(
+        choice.execution_mode,
+        crate::model::common::ExecutionMode::Pty
+    )
 }
 
 pub fn normalize_key_str(key_str: &str) -> String {

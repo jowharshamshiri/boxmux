@@ -74,7 +74,7 @@ pub struct LiveYamlSync {
 
 #[derive(Debug)]
 enum YamlSyncMessage {
-    SaveComplete(AppContext),
+    SaveComplete(Box<AppContext>),
     SaveBounds(String, crate::model::common::InputBounds),
     SaveContent(String, String),
     SaveScroll(String, usize, usize),
@@ -194,25 +194,24 @@ impl LiveYamlSync {
         muxbox_id: &str,
         bounds: &crate::model::common::InputBounds,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(muxbox) = Self::find_muxbox_mut(yaml_value, muxbox_id) {
-            if let serde_yaml::Value::Mapping(map) = muxbox {
-                map.insert(
-                    serde_yaml::Value::String("x1".to_string()),
-                    serde_yaml::Value::String(bounds.x1.clone()),
-                );
-                map.insert(
-                    serde_yaml::Value::String("y1".to_string()),
-                    serde_yaml::Value::String(bounds.y1.clone()),
-                );
-                map.insert(
-                    serde_yaml::Value::String("x2".to_string()),
-                    serde_yaml::Value::String(bounds.x2.clone()),
-                );
-                map.insert(
-                    serde_yaml::Value::String("y2".to_string()),
-                    serde_yaml::Value::String(bounds.y2.clone()),
-                );
-            }
+        if let Some(serde_yaml::Value::Mapping(map)) = Self::find_muxbox_mut(yaml_value, muxbox_id)
+        {
+            map.insert(
+                serde_yaml::Value::String("x1".to_string()),
+                serde_yaml::Value::String(bounds.x1.clone()),
+            );
+            map.insert(
+                serde_yaml::Value::String("y1".to_string()),
+                serde_yaml::Value::String(bounds.y1.clone()),
+            );
+            map.insert(
+                serde_yaml::Value::String("x2".to_string()),
+                serde_yaml::Value::String(bounds.x2.clone()),
+            );
+            map.insert(
+                serde_yaml::Value::String("y2".to_string()),
+                serde_yaml::Value::String(bounds.y2.clone()),
+            );
         }
         Ok(())
     }
@@ -223,13 +222,12 @@ impl LiveYamlSync {
         muxbox_id: &str,
         content: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(muxbox) = Self::find_muxbox_mut(yaml_value, muxbox_id) {
-            if let serde_yaml::Value::Mapping(map) = muxbox {
-                map.insert(
-                    serde_yaml::Value::String("output".to_string()),
-                    serde_yaml::Value::String(content.to_string()),
-                );
-            }
+        if let Some(serde_yaml::Value::Mapping(map)) = Self::find_muxbox_mut(yaml_value, muxbox_id)
+        {
+            map.insert(
+                serde_yaml::Value::String("output".to_string()),
+                serde_yaml::Value::String(content.to_string()),
+            );
         }
         Ok(())
     }
@@ -241,17 +239,16 @@ impl LiveYamlSync {
         scroll_x: usize,
         scroll_y: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(muxbox) = Self::find_muxbox_mut(yaml_value, muxbox_id) {
-            if let serde_yaml::Value::Mapping(map) = muxbox {
-                map.insert(
-                    serde_yaml::Value::String("scroll_x".to_string()),
-                    serde_yaml::Value::Number(serde_yaml::Number::from(scroll_x)),
-                );
-                map.insert(
-                    serde_yaml::Value::String("scroll_y".to_string()),
-                    serde_yaml::Value::Number(serde_yaml::Number::from(scroll_y)),
-                );
-            }
+        if let Some(serde_yaml::Value::Mapping(map)) = Self::find_muxbox_mut(yaml_value, muxbox_id)
+        {
+            map.insert(
+                serde_yaml::Value::String("scroll_x".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(scroll_x)),
+            );
+            map.insert(
+                serde_yaml::Value::String("scroll_y".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(scroll_y)),
+            );
         }
         Ok(())
     }
@@ -276,15 +273,14 @@ impl LiveYamlSync {
                         );
 
                         // Set target layout to true
-                        if let Some(id_val) = map.get(&serde_yaml::Value::String("id".to_string()))
+                        if let Some(serde_yaml::Value::String(id)) =
+                            map.get(&serde_yaml::Value::String("id".to_string()))
                         {
-                            if let serde_yaml::Value::String(id) = id_val {
-                                if id == layout_id {
-                                    map.insert(
-                                        serde_yaml::Value::String("active".to_string()),
-                                        serde_yaml::Value::Bool(true),
-                                    );
-                                }
+                            if id == layout_id {
+                                map.insert(
+                                    serde_yaml::Value::String("active".to_string()),
+                                    serde_yaml::Value::Bool(true),
+                                );
                             }
                         }
                     }
@@ -301,15 +297,12 @@ impl LiveYamlSync {
     ) -> Option<&'a mut serde_yaml::Value> {
         // Search in layouts -> children
         if let Some(app) = yaml_value.get_mut("app") {
-            if let Some(layouts) = app.get_mut("layouts") {
-                if let serde_yaml::Value::Sequence(layout_list) = layouts {
-                    for layout in layout_list.iter_mut() {
-                        if let Some(children) = layout.get_mut("children") {
-                            if let Some(found) =
-                                Self::find_muxbox_in_children_mut(children, muxbox_id)
-                            {
-                                return Some(found);
-                            }
+            if let Some(serde_yaml::Value::Sequence(layout_list)) = app.get_mut("layouts") {
+                for layout in layout_list.iter_mut() {
+                    if let Some(children) = layout.get_mut("children") {
+                        if let Some(found) = Self::find_muxbox_in_children_mut(children, muxbox_id)
+                        {
+                            return Some(found);
                         }
                     }
                 }
@@ -327,17 +320,17 @@ impl LiveYamlSync {
             for child in child_list.iter_mut() {
                 if let serde_yaml::Value::Mapping(map) = child {
                     // Check if this is the target muxbox
-                    if let Some(id_val) = map.get(&serde_yaml::Value::String("id".to_string())) {
-                        if let serde_yaml::Value::String(id) = id_val {
-                            if id == muxbox_id {
-                                return Some(child);
-                            }
+                    if let Some(serde_yaml::Value::String(id)) =
+                        map.get(&serde_yaml::Value::String("id".to_string()))
+                    {
+                        if id == muxbox_id {
+                            return Some(child);
                         }
                     }
 
                     // Search in nested children
                     if let Some(nested_children) =
-                        child.get_mut(&serde_yaml::Value::String("children".to_string()))
+                        child.get_mut(serde_yaml::Value::String("children".to_string()))
                     {
                         if let Some(found) =
                             Self::find_muxbox_in_children_mut(nested_children, muxbox_id)
@@ -355,7 +348,7 @@ impl LiveYamlSync {
     pub fn save_complete_state(&self, app_context: &AppContext) {
         let _ = self
             .sender
-            .send(YamlSyncMessage::SaveComplete(app_context.clone()));
+            .send(YamlSyncMessage::SaveComplete(Box::new(app_context.clone())));
     }
 
     pub fn save_bounds(&self, muxbox_id: &str, bounds: &crate::model::common::InputBounds) {

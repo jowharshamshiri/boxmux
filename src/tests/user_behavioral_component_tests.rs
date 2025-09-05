@@ -4,18 +4,18 @@
 
 #[cfg(test)]
 mod user_behavioral_component_tests {
-    use crate::model::common::{StreamType, Stream, StreamSource};
+    use crate::model::common::{Stream, StreamSource, StreamType};
     use crate::model::muxbox::Choice;
     use std::time::SystemTime;
 
     // ===== TAB SYSTEM USER BEHAVIORAL TESTS =====
-    
+
     /// USER EXPECTATION: Active tab should show as selected/highlighted
     #[test]
     fn user_expects_active_tab_appears_selected() {
         // Create mock streams representing tabs
         let mut streams = Vec::new();
-        
+
         // Tab 1 - Active
         streams.push(Stream {
             id: "tab1".to_string(),
@@ -29,8 +29,8 @@ mod user_behavioral_component_tests {
             last_updated: SystemTime::now(),
             created_at: SystemTime::now(),
         });
-        
-        // Tab 2 - Inactive  
+
+        // Tab 2 - Inactive
         streams.push(Stream {
             id: "tab2".to_string(),
             stream_type: StreamType::RedirectedOutput("tab2_redirect".to_string()),
@@ -47,16 +47,16 @@ mod user_behavioral_component_tests {
         // USER EXPECTATION: Active tab should be visually distinct
         let active_tab = streams.iter().find(|s| s.active).unwrap();
         let inactive_tab = streams.iter().find(|s| !s.active).unwrap();
-        
+
         assert_eq!(active_tab.label, "Tab 1");
         assert_eq!(inactive_tab.label, "Tab 2");
         assert!(active_tab.active);
         assert!(!inactive_tab.active);
-        
+
         // USER EXPECTATION: Only one tab should be active at a time
         let active_count = streams.iter().filter(|s| s.active).count();
         assert_eq!(active_count, 1, "User expects exactly one active tab");
-        
+
         println!("✓ User behavioral test: Active tab appears selected");
     }
 
@@ -64,7 +64,7 @@ mod user_behavioral_component_tests {
     #[test]
     fn user_expects_tab_switching_changes_active_tab() {
         let mut streams = Vec::new();
-        
+
         streams.push(Stream {
             id: "tab1".to_string(),
             stream_type: StreamType::Content,
@@ -77,7 +77,7 @@ mod user_behavioral_component_tests {
             last_updated: SystemTime::now(),
             created_at: SystemTime::now(),
         });
-        
+
         streams.push(Stream {
             id: "tab2".to_string(),
             stream_type: StreamType::RedirectedOutput("tab2_redirect".to_string()),
@@ -104,18 +104,18 @@ mod user_behavioral_component_tests {
         let active_tab = streams.iter().find(|s| s.active).unwrap();
         assert_eq!(active_tab.id, "tab2");
         assert_eq!(active_tab.label, "Tab 2");
-        
+
         // USER EXPECTATION: Tab 1 should no longer be active
         let tab1 = streams.iter().find(|s| s.id == "tab1").unwrap();
         assert!(!tab1.active);
-        
+
         println!("✓ User behavioral test: Tab switching changes active tab");
     }
 
     // ===== CLOSE BUTTON USER BEHAVIORAL TESTS =====
-    
+
     /// USER EXPECTATION: Close button should exist for closeable streams
-    #[test]  
+    #[test]
     fn user_expects_closeable_streams_have_close_button() {
         // Create closeable stream (redirected output)
         let closeable_stream = Stream {
@@ -146,13 +146,18 @@ mod user_behavioral_component_tests {
         };
 
         // USER EXPECTATION: Closeable streams can be closed
-        assert!(closeable_stream.stream_type != StreamType::Content, 
-               "User expects redirected streams to be closeable");
-        
+        assert!(
+            closeable_stream.stream_type != StreamType::Content,
+            "User expects redirected streams to be closeable"
+        );
+
         // USER EXPECTATION: Default content streams cannot be closed
-        assert_eq!(non_closeable_stream.stream_type, StreamType::Content,
-                  "User expects default content stream to always be present");
-        
+        assert_eq!(
+            non_closeable_stream.stream_type,
+            StreamType::Content,
+            "User expects default content stream to always be present"
+        );
+
         println!("✓ User behavioral test: Closeable streams have close capability");
     }
 
@@ -192,14 +197,18 @@ mod user_behavioral_component_tests {
         streams.retain(|stream| stream.stream_type == StreamType::Content);
 
         // USER EXPECTATION: Only non-closeable streams remain
-        assert_eq!(streams.len(), 1, "User expects closeable stream to be removed");
+        assert_eq!(
+            streams.len(),
+            1,
+            "User expects closeable stream to be removed"
+        );
         assert_eq!(streams[0].stream_type, StreamType::Content);
-        
+
         println!("✓ User behavioral test: Closing stream removes it");
     }
 
     // ===== CHOICE/MENU USER BEHAVIORAL TESTS =====
-    
+
     /// USER EXPECTATION: Clicking a choice should execute its script
     #[test]
     fn user_expects_choice_click_executes_script() {
@@ -212,12 +221,18 @@ mod user_behavioral_component_tests {
         };
 
         // USER EXPECTATION: Choice has executable script
-        assert!(choice.script.is_some(), "User expects choice to have executable action");
+        assert!(
+            choice.script.is_some(),
+            "User expects choice to have executable action"
+        );
         assert_eq!(choice.script.unwrap(), vec!["echo 'Choice executed'"]);
-        
+
         // USER EXPECTATION: Choice is not in waiting state initially
-        assert!(!choice.waiting, "User expects choice to be ready for execution");
-        
+        assert!(
+            !choice.waiting,
+            "User expects choice to be ready for execution"
+        );
+
         println!("✓ User behavioral test: Choice click executes script");
     }
 
@@ -236,40 +251,57 @@ mod user_behavioral_component_tests {
         choice.waiting = true;
 
         // USER EXPECTATION: Waiting choice should be visually distinct
-        assert!(choice.waiting, "User expects waiting choice to be marked as waiting");
-        
+        assert!(
+            choice.waiting,
+            "User expects waiting choice to be marked as waiting"
+        );
+
         // USER EXPECTATION: Choice content should indicate what it does
-        assert_eq!(choice.content, Some("Long Running Task".to_string()),
-               "User expects choice content to describe its purpose");
-        
+        assert_eq!(
+            choice.content,
+            Some("Long Running Task".to_string()),
+            "User expects choice content to describe its purpose"
+        );
+
         println!("✓ User behavioral test: Waiting choice shows indicator");
     }
 
     // ===== SCROLLBAR USER BEHAVIORAL TESTS =====
-    
+
     /// USER EXPECTATION: Scrollbar appears when content is longer than container
     #[test]
     fn user_expects_scrollbar_appears_for_long_content() {
         let container_height = 5;
-        
+
         // Short content (fits in container)
         let short_content = vec!["Line 1".to_string(), "Line 2".to_string()];
         let short_needs_scrollbar = short_content.len() > (container_height - 2); // -2 for borders
-        
-        // Long content (exceeds container)  
+
+        // Long content (exceeds container)
         let long_content = vec![
-            "Line 1".to_string(), "Line 2".to_string(), "Line 3".to_string(),
-            "Line 4".to_string(), "Line 5".to_string(), "Line 6".to_string(),
-            "Line 7".to_string(), "Line 8".to_string(),
+            "Line 1".to_string(),
+            "Line 2".to_string(),
+            "Line 3".to_string(),
+            "Line 4".to_string(),
+            "Line 5".to_string(),
+            "Line 6".to_string(),
+            "Line 7".to_string(),
+            "Line 8".to_string(),
         ];
         let long_needs_scrollbar = long_content.len() > (container_height - 2);
 
         // USER EXPECTATION: Short content doesn't need scrollbar
-        assert!(!short_needs_scrollbar, "User expects no scrollbar for content that fits");
-        
+        assert!(
+            !short_needs_scrollbar,
+            "User expects no scrollbar for content that fits"
+        );
+
         // USER EXPECTATION: Long content needs scrollbar
-        assert!(long_needs_scrollbar, "User expects scrollbar when content exceeds container");
-        
+        assert!(
+            long_needs_scrollbar,
+            "User expects scrollbar when content exceeds container"
+        );
+
         println!("✓ User behavioral test: Scrollbar appears for long content");
     }
 
@@ -297,11 +329,11 @@ mod user_behavioral_component_tests {
 
         // USER EXPECTATION: Content should be updated
         assert_eq!(stream.content, vec!["Updated content"]);
-        
+
         // USER EXPECTATION: Stream should still be the same stream
         assert_eq!(stream.id, "updatable_stream");
         assert_eq!(stream.label, "Updatable Stream");
-        
+
         println!("✓ User behavioral test: Stream content updates correctly");
     }
 }

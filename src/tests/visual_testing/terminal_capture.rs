@@ -1,8 +1,8 @@
 // F0326: Terminal Frame Capture - Core visual testing infrastructure
 // Captures exact terminal output character-by-character for validation
 
-use crate::{App, Message};
 use crate::color_utils::should_draw_color;
+use crate::{App, Message};
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 use std::time::{Duration, Instant};
@@ -160,20 +160,28 @@ impl TerminalCapture {
         muxbox: &crate::model::muxbox::MuxBox,
     ) -> (u16, u16, u16, u16) {
         let (term_width, term_height) = self.dimensions;
-        
+
         // Parse the InputBounds from the muxbox position
         let position = &muxbox.position;
-        
+
         // Simple parsing of position strings - in real implementation this would use proper bounds calculation
         let x1 = position.x1.parse::<u16>().unwrap_or(0).min(term_width - 1);
         let y1 = position.y1.parse::<u16>().unwrap_or(0).min(term_height - 1);
-        let x2 = position.x2.parse::<u16>().unwrap_or(x1 + 30).min(term_width);
-        let y2 = position.y2.parse::<u16>().unwrap_or(y1 + 10).min(term_height);
-        
+        let x2 = position
+            .x2
+            .parse::<u16>()
+            .unwrap_or(x1 + 30)
+            .min(term_width);
+        let y2 = position
+            .y2
+            .parse::<u16>()
+            .unwrap_or(y1 + 10)
+            .min(term_height);
+
         // Ensure we have at least minimal size
         let width = (x2.saturating_sub(x1)).max(2);
         let height = (y2.saturating_sub(y1)).max(2);
-        
+
         (x1, y1, width, height)
     }
 
@@ -318,10 +326,13 @@ impl TerminalCapture {
         // First check if there are any active streams
         if !muxbox.streams.is_empty() {
             // Look for active stream first, or fall back to first stream
-            let stream = muxbox.streams.iter().find(|(_, s)| s.active)
+            let stream = muxbox
+                .streams
+                .iter()
+                .find(|(_, s)| s.active)
                 .or_else(|| muxbox.streams.iter().next())
                 .map(|(_, s)| s);
-                
+
             if let Some(stream) = stream {
                 // Handle different stream types
                 match &stream.stream_type {

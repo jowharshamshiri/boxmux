@@ -127,14 +127,30 @@ mod tests {
 
         // Test clicking with scroll offset 0 - click near center where tabs should be
         // With centering, tabs will be positioned differently, so click more centrally
-        let clicked_tab = calculate_tab_click_index(25, 0, 50, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
+        let clicked_tab = calculate_tab_click_index(
+            25,
+            0,
+            50,
+            &tab_labels,
+            0,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+        );
         assert!(
             clicked_tab.is_some(),
             "Should be able to click centered tabs with no scrolling"
         );
 
         // Test clicking with scroll offset 2 - tabs should fill available space when scrolling
-        let clicked_tab = calculate_tab_click_index(25, 0, 50, &tab_labels, 2, &Some("white".to_string()), &Some("black".to_string()));
+        let clicked_tab = calculate_tab_click_index(
+            25,
+            0,
+            50,
+            &tab_labels,
+            2,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+        );
         assert!(
             clicked_tab.is_some(),
             "Should be able to click tabs with scrolling"
@@ -164,14 +180,30 @@ mod tests {
         ];
 
         // Should detect left arrow when scroll offset > 0
-        let nav_action = calculate_tab_navigation_click(3, 0, 60, &tab_labels, 2, &Some("white".to_string()), &Some("black".to_string()));
+        let nav_action = calculate_tab_navigation_click(
+            3,
+            0,
+            60,
+            &tab_labels,
+            2,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+        );
         assert!(
             matches!(nav_action, Some(TabNavigationAction::ScrollLeft)),
             "Should detect left arrow click with scroll offset > 0"
         );
 
         // Should detect right arrow when more tabs are hidden
-        let nav_action = calculate_tab_navigation_click(57, 0, 60, &tab_labels, 0, &Some("white".to_string()), &Some("black".to_string()));
+        let nav_action = calculate_tab_navigation_click(
+            57,
+            0,
+            60,
+            &tab_labels,
+            0,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+        );
         assert!(
             matches!(nav_action, Some(TabNavigationAction::ScrollRight)),
             "Should detect right arrow click when tabs are hidden on right"
@@ -179,7 +211,15 @@ mod tests {
 
         // Should return None when no scrolling needed
         let few_tabs = vec!["Tab1".to_string(), "Tab2".to_string()];
-        let nav_action = calculate_tab_navigation_click(30, 0, 100, &few_tabs, 0, &Some("white".to_string()), &Some("black".to_string()));
+        let nav_action = calculate_tab_navigation_click(
+            30,
+            0,
+            100,
+            &few_tabs,
+            0,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+        );
         assert!(
             nav_action.is_none(),
             "Should return None when no scrolling needed"

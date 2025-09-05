@@ -122,7 +122,6 @@ impl BoxMuxTester {
         Ok(self)
     }
 
-
     /// F0336: Simulate keyboard input
     pub fn send_key(&mut self, key: crossterm::event::KeyCode) -> Result<&mut Self, TestError> {
         self.send_key_with_modifiers(key, crossterm::event::KeyModifiers::empty())
@@ -141,9 +140,10 @@ impl BoxMuxTester {
             kind: crossterm::event::KeyEventKind::Press,
             state: crossterm::event::KeyEventState::empty(),
         };
-        
-        self.pending_events.push(SimulatedEvent::KeyPress(key_event));
-        
+
+        self.pending_events
+            .push(SimulatedEvent::KeyPress(key_event));
+
         // Process the event immediately for testing
         self.process_pending_events()?;
 
@@ -159,9 +159,10 @@ impl BoxMuxTester {
             row: y,
             modifiers: crossterm::event::KeyModifiers::empty(),
         };
-        
-        self.pending_events.push(SimulatedEvent::MouseEvent(mouse_event));
-        
+
+        self.pending_events
+            .push(SimulatedEvent::MouseEvent(mouse_event));
+
         // Process the event immediately for testing
         self.process_pending_events()?;
 
@@ -185,30 +186,54 @@ impl BoxMuxTester {
     }
 
     /// F0336: Simulate mouse drag operation
-    pub fn drag_from_to(&mut self, from_x: u16, from_y: u16, to_x: u16, to_y: u16) -> Result<&mut Self, TestError> {
+    pub fn drag_from_to(
+        &mut self,
+        from_x: u16,
+        from_y: u16,
+        to_x: u16,
+        to_y: u16,
+    ) -> Result<&mut Self, TestError> {
         // Send mouse down
-        self.send_mouse_event(crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left), from_x, from_y)?;
-        
+        self.send_mouse_event(
+            crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            from_x,
+            from_y,
+        )?;
+
         // Send drag event
-        self.send_mouse_event(crossterm::event::MouseEventKind::Drag(crossterm::event::MouseButton::Left), to_x, to_y)?;
-        
+        self.send_mouse_event(
+            crossterm::event::MouseEventKind::Drag(crossterm::event::MouseButton::Left),
+            to_x,
+            to_y,
+        )?;
+
         // Send mouse up
-        self.send_mouse_event(crossterm::event::MouseEventKind::Up(crossterm::event::MouseButton::Left), to_x, to_y)?;
-        
+        self.send_mouse_event(
+            crossterm::event::MouseEventKind::Up(crossterm::event::MouseButton::Left),
+            to_x,
+            to_y,
+        )?;
+
         Ok(self)
     }
 
     /// F0336: Send specific mouse event
-    pub fn send_mouse_event(&mut self, kind: crossterm::event::MouseEventKind, x: u16, y: u16) -> Result<&mut Self, TestError> {
+    pub fn send_mouse_event(
+        &mut self,
+        kind: crossterm::event::MouseEventKind,
+        x: u16,
+        y: u16,
+    ) -> Result<&mut Self, TestError> {
         let mouse_event = crossterm::event::MouseEvent {
             kind,
             column: x,
             row: y,
             modifiers: crossterm::event::KeyModifiers::empty(),
         };
-        
-        self.pending_events.push(SimulatedEvent::MouseEvent(mouse_event));
-        
+
+        self.pending_events
+            .push(SimulatedEvent::MouseEvent(mouse_event));
+
         // Process the event immediately for testing
         self.process_pending_events()?;
 
@@ -216,12 +241,16 @@ impl BoxMuxTester {
     }
 
     /// F0336: Wait for specific condition to be met
-    pub fn wait_until<F>(&mut self, mut condition: F, timeout: Duration) -> Result<&mut Self, TestError> 
-    where 
+    pub fn wait_until<F>(
+        &mut self,
+        mut condition: F,
+        timeout: Duration,
+    ) -> Result<&mut Self, TestError>
+    where
         F: FnMut(&TerminalFrame) -> bool,
     {
         let start_time = Instant::now();
-        
+
         while start_time.elapsed() < timeout {
             if let Ok(frame) = self.wait_for_frame_with_timeout(Duration::from_millis(100)) {
                 if condition(frame) {
@@ -230,24 +259,31 @@ impl BoxMuxTester {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
-        
-        Err(TestError::Timeout(format!("Condition not met within {:?}", timeout)))
+
+        Err(TestError::Timeout(format!(
+            "Condition not met within {:?}",
+            timeout
+        )))
     }
 
     /// F0336: Assert that frame matches expected state after interaction
-    pub fn assert_interaction_result<F>(&mut self, interaction: F, assertion: Box<dyn Fn(&TerminalFrame) -> Result<(), String>>) -> Result<&mut Self, TestError>
+    pub fn assert_interaction_result<F>(
+        &mut self,
+        interaction: F,
+        assertion: Box<dyn Fn(&TerminalFrame) -> Result<(), String>>,
+    ) -> Result<&mut Self, TestError>
     where
         F: FnOnce(&mut Self) -> Result<&mut Self, TestError>,
     {
         // Perform interaction
         interaction(self)?;
-        
+
         // Capture frame
         let frame = self.wait_for_frame()?;
-        
+
         // Assert result
         assertion(frame).map_err(|e| TestError::MessageSend(format!("Assertion failed: {}", e)))?;
-        
+
         Ok(self)
     }
 
@@ -255,10 +291,10 @@ impl BoxMuxTester {
     fn process_pending_events(&mut self) -> Result<(), TestError> {
         // For now, we simulate the effects of user interactions
         // In a full implementation, this would integrate with the input handling system
-        
+
         // Clear pending events (they've been "processed")
         let events = std::mem::take(&mut self.pending_events);
-        
+
         // Log the simulated interactions
         for event in &events {
             match event {
@@ -268,27 +304,37 @@ impl BoxMuxTester {
                     self.simulate_key_effect(key_event)?;
                 }
                 SimulatedEvent::MouseEvent(mouse_event) => {
-                    log::debug!("Simulated mouse event: {:?} at ({}, {})", 
-                        mouse_event.kind, mouse_event.column, mouse_event.row);
+                    log::debug!(
+                        "Simulated mouse event: {:?} at ({}, {})",
+                        mouse_event.kind,
+                        mouse_event.column,
+                        mouse_event.row
+                    );
                     // Here we could simulate mouse clicks on choices, scrollbars, etc.
                     self.simulate_mouse_effect(mouse_event)?;
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Simulate the effect of a key press on the app state
-    fn simulate_key_effect(&mut self, _key_event: &crossterm::event::KeyEvent) -> Result<(), TestError> {
+    fn simulate_key_effect(
+        &mut self,
+        _key_event: &crossterm::event::KeyEvent,
+    ) -> Result<(), TestError> {
         // This would simulate navigation, choice execution, etc.
         // For now, we just allow the visual system to capture the current state
         std::thread::sleep(Duration::from_millis(10));
         Ok(())
     }
-    
+
     /// Simulate the effect of a mouse event on the app state
-    fn simulate_mouse_effect(&mut self, _mouse_event: &crossterm::event::MouseEvent) -> Result<(), TestError> {
+    fn simulate_mouse_effect(
+        &mut self,
+        _mouse_event: &crossterm::event::MouseEvent,
+    ) -> Result<(), TestError> {
         // This would simulate clicking on choices, dragging scrollbars, etc.
         // For now, we just allow the visual system to capture the current state
         std::thread::sleep(Duration::from_millis(10));
@@ -341,7 +387,6 @@ impl BoxMuxTester {
 
         Ok(frames)
     }
-
 
     /// F0326: Get current captured frame
     pub fn current_frame(&self) -> Option<&TerminalFrame> {

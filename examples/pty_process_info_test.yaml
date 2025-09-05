@@ -13,7 +13,6 @@ layouts:
           y1: 0%
           x2: 50%
           y2: 50%
-        border: true
         border_color: bright_cyan
         pty: true
         script:
@@ -27,7 +26,6 @@ layouts:
           y1: 0%
           x2: 100%
           y2: 50%
-        border: true
         border_color: bright_cyan
         pty: true
         script:
@@ -43,7 +41,6 @@ layouts:
           y1: 50%
           x2: 100%
           y2: 100%
-        border: true
         border_color: green
         pty: false
         script:

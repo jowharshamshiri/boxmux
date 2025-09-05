@@ -51,14 +51,17 @@ mod tests {
                 "Click at ({}, {}) - {} columns from right edge: {:?}",
                 test_x, test_y, x_offset, result
             );
-            
+
             if result.is_some() {
                 resize_detected_count += 1;
             }
         }
 
         // Should detect resize at least once within tolerance range
-        assert!(resize_detected_count > 0, "Should detect resize within 3-pixel tolerance of right edge");
+        assert!(
+            resize_detected_count > 0,
+            "Should detect resize within 3-pixel tolerance of right edge"
+        );
 
         // Test if clicking AT the exact coordinate works
         let exact_click = detect_resize_edge(&muxbox, bounds.x2 as u16, bounds.y2 as u16);
@@ -66,9 +69,12 @@ mod tests {
             "Exact corner click at ({}, {}): {:?}",
             bounds.x2, bounds.y2, exact_click
         );
-        
+
         // For 100% width panels, corner clicks should be detectable within tolerance
-        assert!(exact_click.is_some() || bounds.x2 > 0, "Corner should be detectable or bounds should be valid");
+        assert!(
+            exact_click.is_some() || bounds.x2 > 0,
+            "Corner should be detectable or bounds should be valid"
+        );
 
         // Test if clicking one pixel left works (should work due to tolerance)
         if bounds.x2 > 0 {
@@ -79,9 +85,12 @@ mod tests {
                 bounds.y2,
                 one_left
             );
-            
+
             // One pixel left should be detectable with tolerance
-            assert!(one_left.is_some(), "Should detect resize one pixel left of corner");
+            assert!(
+                one_left.is_some(),
+                "Should detect resize one pixel left of corner"
+            );
         }
     }
 
@@ -99,10 +108,14 @@ mod tests {
                 "{}% of {} columns maps to coordinate {}",
                 percent, terminal_width, coord
             );
-            
+
             // Validate percentage calculation makes sense
             let expected = (percent * terminal_width / 100).saturating_sub(1);
-            assert_eq!(coord, expected, "{}% should map to coordinate {}", percent, expected);
+            assert_eq!(
+                coord, expected,
+                "{}% should map to coordinate {}",
+                percent, expected
+            );
         }
 
         println!("\n=== Screen Bounds Analysis ===");
@@ -146,11 +159,14 @@ mod tests {
                     }
                 }
             }
-            
+
             // Should detect resize somewhere near the edge for wider panels
             if bounds.width() > 20 {
-                assert!(detections > 0 || corner_click.is_some(), 
-                    "Should detect resize near right edge for panel with x2={}", x2_percent);
+                assert!(
+                    detections > 0 || corner_click.is_some(),
+                    "Should detect resize near right edge for panel with x2={}",
+                    x2_percent
+                );
             }
         }
     }
@@ -218,18 +234,25 @@ mod tests {
                 "  Click at last visible column ({}): {:?}",
                 last_visible_column, click_at_visible
             );
-            
+
             // For full-width panels, should be able to resize via click detection
-            assert!(click_at_x2.is_some() || click_at_visible.is_some(), 
-                "Full-width panel should be resizable at right edge coordinates");
-            
+            assert!(
+                click_at_x2.is_some() || click_at_visible.is_some(),
+                "Full-width panel should be resizable at right edge coordinates"
+            );
+
             // Validate the bounds make sense for a full-width panel
-            assert_eq!(bounds.x1, screen.x1, "Full-width panel should start at screen left");
-            assert!(bounds.x2 >= screen.x2.saturating_sub(1), 
-                "Full-width panel should extend to screen right edge");
+            assert_eq!(
+                bounds.x1, screen.x1,
+                "Full-width panel should start at screen left"
+            );
+            assert!(
+                bounds.x2 >= screen.x2.saturating_sub(1),
+                "Full-width panel should extend to screen right edge"
+            );
             assert!(bounds.width() > 0, "Panel should have positive width");
         }
-        
+
         // Validate screen bounds are reasonable
         assert!(screen.width() > 0, "Screen should have positive width");
         assert!(screen.height() > 0, "Screen should have positive height");

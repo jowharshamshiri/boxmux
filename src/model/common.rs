@@ -11,20 +11,15 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 // F0220: ExecutionMode Enum Definition - Replace thread+pty boolean flags with single enum
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq, Default)]
 pub enum ExecutionMode {
     /// Synchronous execution on UI thread but still flowing through stream architecture
+    #[default]
     Immediate,
     /// Background execution in thread pool with stream updates when complete
     Thread,
     /// Real-time PTY execution with continuous stream updates
     Pty,
-}
-
-impl Default for ExecutionMode {
-    fn default() -> Self {
-        ExecutionMode::Immediate
-    }
 }
 
 impl ExecutionMode {
@@ -98,6 +93,7 @@ pub struct ExecuteScript {
     pub redirect_output: Option<String>, // Optional output redirection
     pub append_output: bool,             // Append vs replace mode
     pub stream_id: String,               // Stream ID from source registry
+    pub target_bounds: Option<Bounds>,   // Target muxbox bounds for PTY sizing
 }
 
 /// T0301: ExecutionSource and SourceType enums - Track what triggered the execution
@@ -304,7 +300,6 @@ pub struct Stream {
     pub label: String,
     pub content: Vec<String>,
     pub choices: Option<Vec<crate::model::muxbox::Choice>>, // For choices stream
-    pub active: bool,
     // F0212: Stream Source Tracking - enable stream termination when tabs closed
     pub source: Option<StreamSource>,
     // F0216: Stream Change Detection - track content changes for efficient updates
@@ -1162,7 +1157,7 @@ impl StreamSource {
                 let thread_id = additional_params
                     .as_ref()
                     .and_then(|p| p.get("thread_id"))
-                    .map(|s| s.clone());
+                    .cloned();
                 let timeout_seconds = additional_params
                     .as_ref()
                     .and_then(|p| p.get("timeout_seconds"))
@@ -1189,7 +1184,7 @@ impl StreamSource {
                 let working_dir = additional_params
                     .as_ref()
                     .and_then(|p| p.get("working_dir"))
-                    .map(|s| s.clone());
+                    .cloned();
                 let terminal_size = additional_params
                     .as_ref()
                     .and_then(|p| {
@@ -1264,7 +1259,6 @@ impl Stream {
             label,
             content,
             choices,
-            active: false,
             source,
             content_hash: 0,
             last_updated: now,
@@ -1323,13 +1317,13 @@ impl Stream {
 
     /// F0219: Check if stream can be closed (has close button)
     pub fn is_closeable(&self) -> bool {
-        match &self.stream_type {
+        matches!(
+            &self.stream_type,
             StreamType::RedirectedOutput(_)
-            | StreamType::ChoiceExecution(_)
-            | StreamType::PtySession(_)
-            | StreamType::ExternalSocket => true,
-            _ => false,
-        }
+                | StreamType::ChoiceExecution(_)
+                | StreamType::PtySession(_)
+                | StreamType::ExternalSocket
+        )
     }
 }
 
@@ -1825,6 +1819,7 @@ pub fn run_socket_function(
                     redirect_output,
                     append_output: false,
                     stream_id,
+                    target_bounds: None, // Socket commands don't have direct access to bounds - will use defaults
                 });
 
             // Add ExecuteScript message to be sent via ThreadManager
@@ -2041,7 +2036,7 @@ impl InputBounds {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 pub struct Bounds {
     pub x1: usize,
     pub y1: usize,
@@ -2049,13 +2044,7 @@ pub struct Bounds {
     pub y2: usize,
 }
 
-impl PartialEq for Bounds {
-    fn eq(&self, other: &Self) -> bool {
-        self.x1 == other.x1 && self.y1 == other.y1 && self.x2 == other.x2 && self.y2 == other.y2
-    }
-}
-
-impl Eq for Bounds {}
+// PartialEq and Eq now derived automatically
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq, Default)]
 pub enum Anchor {
@@ -2099,10 +2088,6 @@ impl Bounds {
     pub fn height(&self) -> usize {
         // For inclusive coordinate bounds, height is y2 - y1 + 1
         self.y2.saturating_sub(self.y1).saturating_add(1)
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("({}, {}), ({}, {})", self.x1, self.y1, self.x2, self.y2)
     }
 
     pub fn extend(&mut self, horizontal_amount: usize, vertical_amount: usize, anchor: Anchor) {
@@ -2417,12 +2402,18 @@ impl Bounds {
     }
 }
 
+impl std::fmt::Display for Bounds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}), ({}, {})", self.x1, self.y1, self.x2, self.y2)
+    }
+}
+
 pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
     let mut bounds_map = HashMap::new();
 
     fn dfs(
-        app_graph: &AppGraph,
-        layout_id: &str,
+        _app_graph: &AppGraph,
+        _layout_id: &str,
         muxbox: &MuxBox,
         parent_bounds: Bounds,
         bounds_map: &mut HashMap<String, Bounds>,
@@ -2432,7 +2423,7 @@ pub fn calculate_initial_bounds(app_graph: &AppGraph, layout: &Layout) -> HashMa
 
         if let Some(children) = &muxbox.children {
             for child in children {
-                dfs(app_graph, layout_id, child, bounds.clone(), bounds_map);
+                dfs(_app_graph, _layout_id, child, bounds.clone(), bounds_map);
             }
         }
     }

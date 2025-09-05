@@ -38,13 +38,19 @@ app:
         let mut tester = BoxMuxTester::new();
 
         // Load configuration and capture initial frame
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
-        
-        let initial_frame = tester.wait_for_frame().expect("Failed to capture initial frame");
-        
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
+
+        let initial_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture initial frame");
+
         // Verify choices are displayed
         assert!(initial_frame.assert_contains_text("Click me first").is_ok());
-        assert!(initial_frame.assert_contains_text("Click me second").is_ok());
+        assert!(initial_frame
+            .assert_contains_text("Click me second")
+            .is_ok());
         assert!(initial_frame.assert_contains_text("Click me third").is_ok());
 
         // Test clicking on first choice (approximate position inside box)
@@ -52,8 +58,10 @@ app:
         assert!(click_result.is_ok(), "Failed to click on first choice");
 
         // Wait for potential state changes
-        let after_click_frame = tester.wait_for_frame().expect("Failed to capture frame after click");
-        
+        let after_click_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture frame after click");
+
         // Verify interaction was processed (this would depend on actual choice execution)
         println!("Interactive choice click test completed successfully!");
     }
@@ -85,19 +93,27 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
+
         // Load configuration
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
-        
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
+
         // Test arrow key navigation
-        tester.send_key(crossterm::event::KeyCode::Down).expect("Failed to send down arrow");
+        tester
+            .send_key(crossterm::event::KeyCode::Down)
+            .expect("Failed to send down arrow");
         let after_down_frame = tester.wait_for_frame().expect("Failed to capture frame");
-        
-        tester.send_key(crossterm::event::KeyCode::Up).expect("Failed to send up arrow");  
+
+        tester
+            .send_key(crossterm::event::KeyCode::Up)
+            .expect("Failed to send up arrow");
         let after_up_frame = tester.wait_for_frame().expect("Failed to capture frame");
 
         // Test tab navigation
-        tester.send_key(crossterm::event::KeyCode::Tab).expect("Failed to send tab key");
+        tester
+            .send_key(crossterm::event::KeyCode::Tab)
+            .expect("Failed to send tab key");
         let after_tab_frame = tester.wait_for_frame().expect("Failed to capture frame");
 
         println!("Keyboard navigation test completed successfully!");
@@ -124,22 +140,30 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
+
         // Load configuration and capture initial state
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
-        let initial_frame = tester.wait_for_frame().expect("Failed to capture initial frame");
-        
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
+        let initial_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture initial frame");
+
         // Verify initial content
         assert!(initial_frame.assert_contains_text("Drag to Resize").is_ok());
-        assert!(initial_frame.assert_contains_text("This box can be resized").is_ok());
+        assert!(initial_frame
+            .assert_contains_text("This box can be resized")
+            .is_ok());
 
         // Test mouse drag resize (from bottom-right corner to new position)
         let drag_result = tester.drag_from_to(59, 14, 70, 18);
         assert!(drag_result.is_ok(), "Failed to perform resize drag");
 
         // Capture frame after resize
-        let after_resize_frame = tester.wait_for_frame().expect("Failed to capture frame after resize");
-        
+        let after_resize_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture frame after resize");
+
         // Verify box was potentially resized (this depends on actual resize implementation)
         println!("Box resizing test completed successfully!");
     }
@@ -180,26 +204,40 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
+
         // Load and verify initial state
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
-        let initial_frame = tester.wait_for_frame().expect("Failed to capture initial frame");
-        
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
+        let initial_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture initial frame");
+
         // Verify both boxes are present
-        assert!(initial_frame.assert_contains_text("Interactive Input").is_ok());
+        assert!(initial_frame
+            .assert_contains_text("Interactive Input")
+            .is_ok());
         assert!(initial_frame.assert_contains_text("Output Display").is_ok());
-        assert!(initial_frame.assert_contains_text("Step 1: Click me first").is_ok());
+        assert!(initial_frame
+            .assert_contains_text("Step 1: Click me first")
+            .is_ok());
 
         // Complex workflow: click -> navigate -> type -> verify
         tester.click_at(5, 3).expect("Failed to click first action");
-        
-        tester.send_key(crossterm::event::KeyCode::Down).expect("Failed to navigate down");
-        
-        tester.send_key(crossterm::event::KeyCode::Enter).expect("Failed to press enter");
-        
+
+        tester
+            .send_key(crossterm::event::KeyCode::Down)
+            .expect("Failed to navigate down");
+
+        tester
+            .send_key(crossterm::event::KeyCode::Enter)
+            .expect("Failed to press enter");
+
         // Wait for all processing to complete
-        let final_frame = tester.wait_for_frame().expect("Failed to capture final frame");
-        
+        let final_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture final frame");
+
         println!("Complex interaction workflow test completed successfully!");
     }
 
@@ -228,12 +266,16 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
+
         // Load configuration
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
-        
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
+
         // Verify initial state
-        let initial_frame = tester.wait_for_frame().expect("Failed to capture initial frame");
+        let initial_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture initial frame");
         assert!(initial_frame.assert_contains_text("Status: Ready").is_ok());
 
         // Click to trigger status change
@@ -242,19 +284,21 @@ app:
         // Wait for specific condition - status change
         let wait_result = tester.wait_until(
             |frame| frame.assert_contains_text("Complete").is_ok(),
-            Duration::from_secs(5)
+            Duration::from_secs(5),
         );
-        
+
         match wait_result {
             Ok(_) => println!("Status change detected successfully!"),
-            Err(_) => println!("Status change not detected within timeout (expected in test environment)"),
+            Err(_) => {
+                println!("Status change not detected within timeout (expected in test environment)")
+            }
         }
 
         println!("Condition-based interaction test completed!");
     }
 
     /// Test assertion-based interactions - verify expected outcomes
-    #[test] 
+    #[test]
     fn test_assertion_based_interactions() {
         let yaml_config = r#"
 app:
@@ -277,8 +321,10 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
+
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
 
         // Test assertion-based interaction
         let assertion_result = tester.assert_interaction_result(
@@ -293,7 +339,7 @@ app:
                 } else {
                     Err("Counter title not found".to_string())
                 }
-            })
+            }),
         );
 
         match assertion_result {
@@ -333,19 +379,27 @@ app:
 "#;
 
         let mut tester = BoxMuxTester::new();
-        
-        tester.load_config_from_string(yaml_config).expect("Failed to load config");
+
+        tester
+            .load_config_from_string(yaml_config)
+            .expect("Failed to load config");
 
         // Perform rapid sequence of interactions
         for i in 0..4 {
             let y_pos = 3 + i; // Approximate choice positions
-            tester.click_at(5, y_pos).expect(&format!("Failed rapid click {}", i));
-            tester.send_key(crossterm::event::KeyCode::Down).expect(&format!("Failed rapid nav {}", i));
+            tester
+                .click_at(5, y_pos)
+                .expect(&format!("Failed rapid click {}", i));
+            tester
+                .send_key(crossterm::event::KeyCode::Down)
+                .expect(&format!("Failed rapid nav {}", i));
         }
 
         // Capture final state
-        let final_frame = tester.wait_for_frame().expect("Failed to capture final frame");
-        
+        let final_frame = tester
+            .wait_for_frame()
+            .expect("Failed to capture final frame");
+
         // Verify all choices are still present
         assert!(final_frame.assert_contains_text("Rapid action 1").is_ok());
         assert!(final_frame.assert_contains_text("Rapid action 4").is_ok());

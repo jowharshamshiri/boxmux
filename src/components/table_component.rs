@@ -5,7 +5,7 @@
 //! into a reusable component following the established component architecture.
 
 use crate::model::common::Bounds;
-use crate::table::{TableData, TableConfig, TablePagination, render_table};
+use crate::table::{render_table, TableConfig, TableData, TablePagination};
 use crossterm::style::Color;
 
 /// Configuration for table component styling
@@ -66,11 +66,7 @@ impl TableComponent {
     }
 
     /// Create table component with custom styling
-    pub fn with_colors(
-        border_color: Color,
-        header_color: Color,
-        row_color: Color,
-    ) -> Self {
+    pub fn with_colors(border_color: Color, header_color: Color, row_color: Color) -> Self {
         Self {
             config: TableComponentConfig {
                 border_color,
@@ -95,16 +91,16 @@ impl TableComponent {
 
         // Generate base table content using existing table system
         let table_content = render_table(table_data, &adjusted_config);
-        
+
         // Split content into lines and apply component styling
         let mut lines: Vec<String> = table_content.lines().map(|s| s.to_string()).collect();
-        
+
         // Apply component-specific styling and formatting
         self.apply_component_styling(&mut lines, &adjusted_config);
-        
+
         // Ensure lines fit within bounds
         self.fit_to_bounds(&mut lines, bounds);
-        
+
         lines
     }
 
@@ -116,13 +112,13 @@ impl TableComponent {
         bounds: &Bounds,
     ) -> Vec<String> {
         let mut lines = self.render(table_data, table_config, bounds);
-        
+
         // Add pagination info if pagination is enabled
         if let Some(pagination) = &table_config.pagination {
             if pagination.show_page_info {
                 let page_info = self.generate_page_info(table_data, pagination);
                 lines.push(page_info);
-                
+
                 // Add navigation indicators if enabled
                 if self.config.show_navigation {
                     let nav_line = self.generate_navigation_line(pagination);
@@ -130,22 +126,22 @@ impl TableComponent {
                 }
             }
         }
-        
+
         lines
     }
 
     /// Apply component-specific styling to table lines
-    fn apply_component_styling(&self, lines: &mut Vec<String>, config: &TableConfig) {
+    fn apply_component_styling(&self, lines: &mut [String], config: &TableConfig) {
         // Apply zebra striping background colors
         if config.zebra_striping {
             self.apply_zebra_styling(lines);
         }
-        
+
         // Apply row highlighting
         if let Some(highlight_row) = config.highlight_row {
             self.apply_row_highlighting(lines, highlight_row);
         }
-        
+
         // Apply header styling
         if config.show_headers && !lines.is_empty() {
             self.apply_header_styling(lines);
@@ -153,10 +149,10 @@ impl TableComponent {
     }
 
     /// Apply zebra striping background colors
-    fn apply_zebra_styling(&self, lines: &mut Vec<String>) {
+    fn apply_zebra_styling(&self, lines: &mut [String]) {
         // Skip border and header lines when applying zebra striping
         let data_start = self.find_data_row_start(lines);
-        
+
         for (index, line) in lines.iter_mut().enumerate().skip(data_start) {
             if self.is_data_row(line) && (index - data_start) % 2 == 1 {
                 // Apply zebra background to every other data row
@@ -166,10 +162,10 @@ impl TableComponent {
     }
 
     /// Apply highlighting to specific row
-    fn apply_row_highlighting(&self, lines: &mut Vec<String>, highlight_row: usize) {
+    fn apply_row_highlighting(&self, lines: &mut [String], highlight_row: usize) {
         let data_start = self.find_data_row_start(lines);
         let target_index = data_start + highlight_row;
-        
+
         if let Some(line) = lines.get_mut(target_index) {
             if self.is_data_row(line) {
                 // Apply highlight background
@@ -179,7 +175,7 @@ impl TableComponent {
     }
 
     /// Apply header styling
-    fn apply_header_styling(&self, lines: &mut Vec<String>) {
+    fn apply_header_styling(&self, lines: &mut [String]) {
         // Find header row (typically after top border)
         for (index, line) in lines.iter_mut().enumerate() {
             if self.is_header_row(line, index) {
@@ -216,8 +212,8 @@ impl TableComponent {
     /// Generate pagination info string
     fn generate_page_info(&self, table_data: &TableData, pagination: &TablePagination) -> String {
         let total_rows = table_data.rows.len();
-        let total_pages = (total_rows + pagination.page_size - 1) / pagination.page_size;
-        
+        let total_pages = total_rows.div_ceil(pagination.page_size);
+
         self.config
             .page_info_format
             .replace("{current}", &pagination.current_page.to_string())
@@ -228,18 +224,18 @@ impl TableComponent {
     /// Generate navigation line with indicators
     fn generate_navigation_line(&self, pagination: &TablePagination) -> String {
         let mut nav_line = String::new();
-        
+
         // Previous page indicator
         if pagination.current_page > 1 {
             nav_line.push_str("◄ Prev  ");
         } else {
             nav_line.push_str("       ");
         }
-        
+
         // Page numbers (show current ± 2 pages)
         let start_page = pagination.current_page.saturating_sub(2).max(1);
         let end_page = (pagination.current_page + 2).min(10); // Assume reasonable page limit
-        
+
         for page in start_page..=end_page {
             if page == pagination.current_page {
                 nav_line.push_str(&format!("[{}] ", page));
@@ -247,10 +243,10 @@ impl TableComponent {
                 nav_line.push_str(&format!("{} ", page));
             }
         }
-        
+
         // Next page indicator
         nav_line.push_str("  Next ►");
-        
+
         nav_line
     }
 
@@ -272,12 +268,12 @@ impl TableComponent {
                 }
             }
         }
-        
+
         // Limit number of lines to bounds height
         if lines.len() > bounds.height() {
             lines.truncate(bounds.height());
         }
-        
+
         // Pad with empty lines if needed
         while lines.len() < bounds.height() {
             lines.push(" ".repeat(bounds.width()));
@@ -312,7 +308,11 @@ mod tests {
             rows: vec![
                 vec!["Alice".to_string(), "25".to_string(), "Active".to_string()],
                 vec!["Bob".to_string(), "30".to_string(), "Inactive".to_string()],
-                vec!["Charlie".to_string(), "35".to_string(), "Active".to_string()],
+                vec![
+                    "Charlie".to_string(),
+                    "35".to_string(),
+                    "Active".to_string(),
+                ],
             ],
             metadata: HashMap::new(),
         }
@@ -337,7 +337,7 @@ mod tests {
             row_text_color: Color::Green,
             ..Default::default()
         };
-        
+
         let component = TableComponent::with_config(config.clone());
         assert_eq!(component.config.border_color, Color::Red);
         assert_eq!(component.config.header_text_color, Color::Yellow);
@@ -360,10 +360,10 @@ mod tests {
         let bounds = create_test_bounds();
 
         let lines = component.render(&table_data, &table_config, &bounds);
-        
+
         assert!(!lines.is_empty());
         assert!(lines.len() <= bounds.height());
-        
+
         // Check that all lines fit within width bounds
         for line in &lines {
             assert!(line.chars().count() <= bounds.width());
@@ -383,9 +383,9 @@ mod tests {
         let bounds = create_test_bounds();
 
         let lines = component.render_with_pagination(&table_data, &table_config, &bounds);
-        
+
         assert!(!lines.is_empty());
-        
+
         // Should have pagination info
         let has_page_info = lines.iter().any(|line| line.contains("Page"));
         assert!(has_page_info);
@@ -394,7 +394,7 @@ mod tests {
     #[test]
     fn test_zebra_striping_detection() {
         let component = TableComponent::new();
-        
+
         // Test data row detection
         assert!(component.is_data_row("│ Alice   │ 25  │ Active   │"));
         assert!(!component.is_data_row("├─────────┼─────┼──────────┤"));
@@ -412,7 +412,7 @@ mod tests {
         };
 
         let page_info = component.generate_page_info(&table_data, &pagination);
-        
+
         assert!(page_info.contains("Page 2"));
         assert!(page_info.contains("3 rows"));
     }
@@ -427,7 +427,7 @@ mod tests {
         };
 
         let nav_line = component.generate_navigation_line(&pagination);
-        
+
         assert!(nav_line.contains("◄ Prev"));
         assert!(nav_line.contains("[2]")); // Current page in brackets
         assert!(nav_line.contains("Next ►"));
@@ -441,7 +441,7 @@ mod tests {
         let small_bounds = Bounds::new(0, 0, 20, 5);
 
         let lines = component.render(&table_data, &table_config, &small_bounds);
-        
+
         assert_eq!(lines.len(), small_bounds.height());
         for line in &lines {
             assert!(line.chars().count() <= small_bounds.width());
@@ -452,12 +452,12 @@ mod tests {
     fn test_config_update() {
         let mut component = TableComponent::new();
         let original_color = component.config.border_color;
-        
+
         let mut new_config = component.config.clone();
         new_config.border_color = Color::Red;
-        
+
         component.update_config(new_config);
-        
+
         assert_ne!(component.config.border_color, original_color);
         assert_eq!(component.config.border_color, Color::Red);
     }

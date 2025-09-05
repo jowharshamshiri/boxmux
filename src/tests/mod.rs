@@ -3,6 +3,9 @@
 //! This module contains all the test suites organized by functionality.
 
 #[cfg(test)]
+pub mod debug_coord_test;
+
+#[cfg(test)]
 pub mod defaults;
 
 #[cfg(test)]
@@ -28,6 +31,9 @@ pub mod box_renderer_tests;
 pub mod coordinate_translation_tests;
 
 #[cfg(test)]
+pub mod box_dimensions_tests;
+
+#[cfg(test)]
 pub mod integration_tests;
 
 #[cfg(test)]
@@ -35,7 +41,6 @@ pub mod edge_case_tests;
 
 #[cfg(test)]
 pub mod execution_mode_schema_validation_tests; // F0230: ExecutionMode YAML Schema tests
-
 
 #[cfg(test)]
 pub mod socket_tests;
@@ -51,7 +56,6 @@ pub mod comprehensive_variable_tests;
 
 #[cfg(test)]
 pub mod hierarchical_variable_tests;
-
 
 #[cfg(test)]
 pub mod plugin_integration_tests;
@@ -83,6 +87,15 @@ pub mod mouse_click_tests;
 
 #[cfg(test)]
 pub mod choice_click_bounds_tests;
+
+#[cfg(test)]
+pub mod coordinate_system_validation;
+
+#[cfg(test)]
+pub mod choice_execution_debug_test;
+
+#[cfg(test)]
+pub mod choice_redirect_debug;
 
 // Removed: choice_click_comprehensive_test - broken API usage, functionality covered by choice_click_bounds_tests
 

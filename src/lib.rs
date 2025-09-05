@@ -10,8 +10,8 @@ pub mod model {
 #[macro_use]
 pub mod thread_manager;
 // pub mod choice_threads; // T311: Removed with ChoiceThreadManager unification
-pub mod ansi_processor;
 pub mod ansi_color_processor;
+pub mod ansi_processor;
 pub mod circular_buffer;
 pub mod color_utils;
 pub mod components;
@@ -31,9 +31,14 @@ pub mod validation;
 #[cfg(test)]
 pub mod tests;
 
-pub use ansi_processor::*;
 pub use ansi_color_processor::*;
-pub use components::*;
+pub use ansi_processor::*;
+// Re-export components selectively to avoid ambiguous MouseButton re-export
+pub use components::{
+    Border, BoxRenderer, ChartComponent, ChoiceContent, ChoiceMenu, ErrorDisplay,
+    HorizontalScrollbar, ProgressBar, RenderableContent, SelectionStyle, TabBar, TableComponent,
+    TextContent, VerticalScrollbar,
+};
 pub use draw_loop::*;
 pub use input_loop::*;
 pub use model::app::*;

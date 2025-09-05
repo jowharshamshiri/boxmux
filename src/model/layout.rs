@@ -376,11 +376,7 @@ impl Layout {
     }
 
     pub fn find_muxbox_at_coordinates(&self, x: u16, y: u16) -> Option<&MuxBox> {
-        fn find_in_muxboxes_at_coords<'a>(
-            muxboxes: &'a [MuxBox],
-            x: u16,
-            y: u16,
-        ) -> Option<&'a MuxBox> {
+        fn find_in_muxboxes_at_coords(muxboxes: &[MuxBox], x: u16, y: u16) -> Option<&MuxBox> {
             // Collect matching boxes and their children, then sort by z_index (highest first)
             let mut candidates: Vec<&MuxBox> = Vec::new();
 
@@ -399,8 +395,8 @@ impl Layout {
             // Sort candidates by z_index (highest first for click priority)
             candidates.sort_by_key(|muxbox| std::cmp::Reverse(muxbox.effective_z_index()));
 
-            // Check candidates in z_index order (highest z_index first)
-            for muxbox in candidates {
+            // Get the highest priority candidate (first after sorting by z_index)
+            if let Some(muxbox) = candidates.into_iter().next() {
                 // Check children first (they take priority over parent)
                 if let Some(ref children) = muxbox.children {
                     if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y) {
@@ -467,9 +463,11 @@ impl Layout {
             }
             if let Some(entity_id) = &update.entity_id {
                 // Check if the update is for a child muxbox
-                if self.children.as_ref().map_or(false, |children| {
-                    children.iter().any(|p| p.id == *entity_id)
-                }) {
+                if self
+                    .children
+                    .as_ref()
+                    .is_some_and(|children| children.iter().any(|p| p.id == *entity_id))
+                {
                     // Find the child muxbox and apply the update
                     if let Some(child_muxbox) = self
                         .children
@@ -635,7 +633,6 @@ impl Updatable for Layout {
                 });
             }
         }
-
 
         if self.border_color != other.border_color {
             if let Some(new_value) = &other.border_color {

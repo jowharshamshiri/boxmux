@@ -34,7 +34,7 @@ impl StatusType {
     pub fn get_indicator(&self) -> &str {
         match self {
             StatusType::PtyNormal => "⚡",
-            StatusType::PtyDead => "💀", 
+            StatusType::PtyDead => "💀",
             StatusType::PtyError => "⚠️",
             StatusType::ScriptRunning => "▶️",
             StatusType::ScriptCompleted => "✅",
@@ -66,8 +66,7 @@ impl StatusIndicator {
                 StatusType::PtyNormal
             };
 
-            let process_info = pty_manager
-                .and_then(|pm| pm.get_process_status_summary(&muxbox.id));
+            let process_info = pty_manager.and_then(|pm| pm.get_process_status_summary(&muxbox.id));
 
             Self {
                 indicator_type,
@@ -134,7 +133,10 @@ impl StatusIndicator {
         // Add original title if it exists
         if let Some(title) = original_title {
             title_parts.push(title.to_string());
-        } else if matches!(self.indicator_type, StatusType::PtyNormal | StatusType::PtyDead | StatusType::PtyError) {
+        } else if matches!(
+            self.indicator_type,
+            StatusType::PtyNormal | StatusType::PtyDead | StatusType::PtyError
+        ) {
             title_parts.push("PTY".to_string());
         }
 
@@ -199,7 +201,8 @@ mod tests {
 
     #[test]
     fn test_custom_status_indicator() {
-        let indicator = StatusIndicator::new_custom("🎯".to_string(), Some("Custom Status".to_string()));
+        let indicator =
+            StatusIndicator::new_custom("🎯".to_string(), Some("Custom Status".to_string()));
         assert_eq!(indicator.get_indicator(), "🎯");
         assert_eq!(indicator.custom_text, Some("Custom Status".to_string()));
         assert!(indicator.is_visible());
@@ -207,27 +210,27 @@ mod tests {
 
     #[test]
     fn test_status_indicator_with_process_info() {
-        let indicator = StatusIndicator::new(StatusType::PtyNormal)
-            .with_process_info("bash:1234".to_string());
-        
+        let indicator =
+            StatusIndicator::new(StatusType::PtyNormal).with_process_info("bash:1234".to_string());
+
         assert_eq!(indicator.get_indicator(), "⚡");
         assert_eq!(indicator.process_info, Some("bash:1234".to_string()));
     }
 
     #[test]
     fn test_render_for_title() {
-        let indicator = StatusIndicator::new(StatusType::PtyNormal)
-            .with_process_info("bash:1234".to_string());
-        
+        let indicator =
+            StatusIndicator::new(StatusType::PtyNormal).with_process_info("bash:1234".to_string());
+
         let result = indicator.render_for_title(Some("My Terminal"));
         assert_eq!(result, Some("⚡ [bash:1234] My Terminal".to_string()));
     }
 
     #[test]
     fn test_render_for_title_no_original() {
-        let indicator = StatusIndicator::new(StatusType::PtyNormal)
-            .with_process_info("bash:1234".to_string());
-        
+        let indicator =
+            StatusIndicator::new(StatusType::PtyNormal).with_process_info("bash:1234".to_string());
+
         let result = indicator.render_for_title(None);
         assert_eq!(result, Some("⚡ [bash:1234] PTY".to_string()));
     }
@@ -244,7 +247,7 @@ mod tests {
         let indicator = StatusIndicator::new(StatusType::PtyError)
             .with_process_info("failed_cmd".to_string())
             .with_custom_text("Connection Lost".to_string());
-        
+
         let result = indicator.get_full_status();
         assert_eq!(result, "⚠️ [failed_cmd] Connection Lost");
     }

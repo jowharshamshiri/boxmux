@@ -72,8 +72,8 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 )
                             };
 
-                            let sender_for_pty = inner.get_message_sender().clone();
-                            let thread_uuid = inner.get_uuid();
+                            let _sender_for_pty = inner.get_message_sender();
+                            let _thread_uuid = inner.get_uuid();
 
                             // T0600: UNIFIED ARCHITECTURE - Convert background scripts to use ExecuteScript messages
                             log::info!("T0600: Background script using unified ExecuteScript architecture for muxbox {} (mode: {:?})", muxbox_id, execution_mode);
@@ -107,6 +107,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 redirect_output: None,
                                 append_output: false,
                                 stream_id,
+                                target_bounds: None, // CLI-initiated scripts don't have specific target bounds
                             };
 
                             // Send ExecuteScript message instead of direct execution
@@ -142,7 +143,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                  -> bool { true },
                 move |inner: &mut RunnableImpl,
                       app_context: AppContext,
-                      messages: Vec<Message>,
+                      _messages: Vec<Message>,
                       vec: Vec<String>|
                       -> (bool, AppContext) {
                     let mut app_context_unwrapped = app_context.clone();
@@ -174,7 +175,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
 
                         if last_execution_time.elapsed() >= Duration::from_millis(refresh_interval)
                         {
-                            let _sender_for_pty = inner.get_message_sender().clone();
+                            let _sender_for_pty = inner.get_message_sender();
                             let _thread_uuid = inner.get_uuid();
 
                             // T0319: UNIFIED ARCHITECTURE - Use pre-registered periodic refresh sources
@@ -210,6 +211,7 @@ fn run_muxbox_threads(manager: &mut ThreadManager, app_context: &AppContext) {
                                 redirect_output: None, // Periodic refresh updates self, no redirection
                                 append_output: false,  // CRITICAL: Replace content, don't append
                                 stream_id,
+                                target_bounds: None, // CLI-initiated scripts don't have specific target bounds
                             };
 
                             // Send ExecuteScript message instead of direct execution
@@ -249,7 +251,7 @@ fn setup_signal_handler() {
     let r = running.clone();
 
     thread::spawn(move || {
-        let mut signals = Signals::new(&[SIGINT]).expect("Error setting up signal handler");
+        let mut signals = Signals::new([SIGINT]).expect("Error setting up signal handler");
         if let Some(_sig) = signals.forever().next() {
             r.store(false, Ordering::SeqCst);
             cleanup_terminal();
@@ -298,7 +300,7 @@ fn initialize_logging(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::err
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&file_path)
+            .open(file_path)
         {
             Ok(file) => Box::new(file),
             Err(e) => {

@@ -1,5 +1,5 @@
-use crate::model::common::{Bounds, ScreenBuffer};
 use crate::draw_utils::print_with_color_and_background_at;
+use crate::model::common::{Bounds, ScreenBuffer};
 
 /// Error severity levels for display styling
 #[derive(Debug, Clone, PartialEq)]
@@ -281,8 +281,10 @@ impl ErrorDisplay {
 
     /// Create error display with custom syntax highlighting config
     pub fn with_custom_syntax_config(id: String, syntax_config: SyntaxHighlightConfig) -> Self {
-        let mut config = ErrorDisplayConfig::default();
-        config.syntax_highlighting = syntax_config;
+        let config = ErrorDisplayConfig {
+            syntax_highlighting: syntax_config,
+            ..Default::default()
+        };
         Self::new(id, config)
     }
 
@@ -296,19 +298,28 @@ impl ErrorDisplay {
         }
 
         let error_line = lines[error.line_number - 1];
-        let line_num_width = self.calculate_line_number_width(&error, &lines);
+        let line_num_width = self.calculate_line_number_width(error, &lines);
 
         let mut result = String::new();
-        
+
         // Error header with severity
-        result.push_str(&format!("{}: {}\n", self.severity_text(&error.severity), error.message));
-        
+        result.push_str(&format!(
+            "{}: {}\n",
+            self.severity_text(&error.severity),
+            error.message
+        ));
+
         // File location
-        result.push_str(&format!(" --> {}:{}:{}\n", error.file_path, error.line_number, error.column_number));
-        
+        result.push_str(&format!(
+            " --> {}:{}:{}\n",
+            error.file_path, error.line_number, error.column_number
+        ));
+
         // Context lines before error (if enabled)
         if self.config.show_context {
-            let start_line = error.line_number.saturating_sub(self.config.context_lines + 1);
+            let start_line = error
+                .line_number
+                .saturating_sub(self.config.context_lines + 1);
             for line_idx in start_line..(error.line_number - 1) {
                 if line_idx < lines.len() {
                     result.push_str(&format!(
@@ -323,7 +334,7 @@ impl ErrorDisplay {
 
         // Separator
         result.push_str(&format!("{}|\n", " ".repeat(line_num_width + 1)));
-        
+
         // Error line
         result.push_str(&format!(
             "{:width$} | {}\n",
@@ -412,10 +423,10 @@ impl ErrorDisplay {
         buffer: &mut ScreenBuffer,
     ) {
         let mut combined_output = String::new();
-        
+
         for (idx, error) in errors.iter().enumerate() {
             combined_output.push_str(&self.format_error(error, content));
-            
+
             // Add separator between errors
             if idx < errors.len() - 1 {
                 combined_output.push_str(&format!("\n{}\n\n", "-".repeat(50)));
@@ -460,7 +471,11 @@ impl ErrorDisplay {
             let color = self.get_token_color(&token_type);
             if color != "white" && !text.trim().is_empty() {
                 // Add ANSI color code for non-default colors
-                result.push_str(&format!("\x1b[{}m{}\x1b[0m", self.color_to_ansi(&color), text));
+                result.push_str(&format!(
+                    "\x1b[{}m{}\x1b[0m",
+                    self.color_to_ansi(&color),
+                    text
+                ));
             } else {
                 result.push_str(text);
             }
@@ -477,7 +492,7 @@ impl ErrorDisplay {
 
         while current_pos < chars.len() {
             let remaining = &line[current_pos..];
-            
+
             // Skip whitespace
             if chars[current_pos].is_whitespace() {
                 let whitespace_end = self.find_whitespace_end(&chars, current_pos);
@@ -596,7 +611,9 @@ impl ErrorDisplay {
     /// Find end of number literal
     fn find_number_end(&self, chars: &[char], start: usize) -> usize {
         let mut pos = start;
-        while pos < chars.len() && (chars[pos].is_ascii_digit() || chars[pos] == '.' || chars[pos] == '_') {
+        while pos < chars.len()
+            && (chars[pos].is_ascii_digit() || chars[pos] == '.' || chars[pos] == '_')
+        {
             pos += 1;
         }
         pos
@@ -615,14 +632,22 @@ impl ErrorDisplay {
     fn find_operator_end(&self, chars: &[char], start: usize) -> usize {
         let pos = start + 1;
         let first_char = chars[start];
-        
+
         // Handle multi-character operators
         if pos < chars.len() {
             let second_char = chars[pos];
             match (first_char, second_char) {
-                ('=', '=') | ('!', '=') | ('<', '=') | ('>', '=') | 
-                ('+', '=') | ('-', '=') | ('*', '=') | ('/', '=') |
-                ('-', '>') | (':', ':') | ('.', '.') => pos + 1,
+                ('=', '=')
+                | ('!', '=')
+                | ('<', '=')
+                | ('>', '=')
+                | ('+', '=')
+                | ('-', '=')
+                | ('*', '=')
+                | ('/', '=')
+                | ('-', '>')
+                | (':', ':')
+                | ('.', '.') => pos + 1,
                 _ => pos,
             }
         } else {
@@ -644,23 +669,25 @@ impl ErrorDisplay {
     fn classify_rust_word(&self, word: &str) -> SyntaxToken {
         match word {
             // Rust keywords
-            "fn" | "let" | "mut" | "const" | "static" | "impl" | "struct" | "enum" | "trait" |
-            "pub" | "use" | "mod" | "crate" | "super" | "self" | "Self" | "match" | "if" |
-            "else" | "while" | "for" | "loop" | "break" | "continue" | "return" | "async" |
-            "await" | "move" | "ref" | "as" | "in" | "where" | "unsafe" | "extern" => SyntaxToken::Keyword,
-            
+            "fn" | "let" | "mut" | "const" | "static" | "impl" | "struct" | "enum" | "trait"
+            | "pub" | "use" | "mod" | "crate" | "super" | "self" | "Self" | "match" | "if"
+            | "else" | "while" | "for" | "loop" | "break" | "continue" | "return" | "async"
+            | "await" | "move" | "ref" | "as" | "in" | "where" | "unsafe" | "extern" => {
+                SyntaxToken::Keyword
+            }
+
             // Common types
-            "String" | "str" | "Vec" | "Option" | "Result" | "Box" | "Rc" | "Arc" |
-            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" |
-            "f32" | "f64" | "bool" | "char" => SyntaxToken::Type,
-            
+            "String" | "str" | "Vec" | "Option" | "Result" | "Box" | "Rc" | "Arc" | "i8"
+            | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
+            | "usize" | "f32" | "f64" | "bool" | "char" => SyntaxToken::Type,
+
             _ => {
                 // Function detection (simple heuristic)
-                if word.chars().next().map_or(false, |c| c.is_lowercase()) && 
-                   word.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                if word.chars().next().is_some_and(|c| c.is_lowercase())
+                    && word.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
                     SyntaxToken::Function
-                } else if word.chars().next().map_or(false, |c| c.is_uppercase()) {
+                } else if word.chars().next().is_some_and(|c| c.is_uppercase()) {
                     SyntaxToken::Type
                 } else {
                     SyntaxToken::Variable
@@ -679,10 +706,45 @@ impl ErrorDisplay {
 
     /// Check if text is an operator
     fn is_operator(&self, text: &str) -> bool {
-        matches!(text, "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!=" | "<" | ">" | 
-                      "<=" | ">=" | "&&" | "||" | "!" | "&" | "|" | "^" | "<<" | ">>" |
-                      "+=" | "-=" | "*=" | "/=" | "%=" | "^=" | "&=" | "|=" | "<<=" | ">>=" |
-                      "->" | "::" | ".." | "..." | "?" | "@" | "#")
+        matches!(
+            text,
+            "+" | "-"
+                | "*"
+                | "/"
+                | "%"
+                | "="
+                | "=="
+                | "!="
+                | "<"
+                | ">"
+                | "<="
+                | ">="
+                | "&&"
+                | "||"
+                | "!"
+                | "&"
+                | "|"
+                | "^"
+                | "<<"
+                | ">>"
+                | "+="
+                | "-="
+                | "*="
+                | "/="
+                | "%="
+                | "^="
+                | "&="
+                | "|="
+                | "<<="
+                | ">>="
+                | "->"
+                | "::"
+                | ".."
+                | "..."
+                | "?"
+                | "@"
+                | "#"
+        )
     }
 
     /// Generate syntax-highlighted error display text
@@ -695,19 +757,28 @@ impl ErrorDisplay {
         }
 
         let error_line = lines[error.line_number - 1];
-        let line_num_width = self.calculate_line_number_width(&error, &lines);
+        let line_num_width = self.calculate_line_number_width(error, &lines);
 
         let mut result = String::new();
-        
+
         // Error header with severity
-        result.push_str(&format!("{}: {}\n", self.severity_text(&error.severity), error.message));
-        
+        result.push_str(&format!(
+            "{}: {}\n",
+            self.severity_text(&error.severity),
+            error.message
+        ));
+
         // File location
-        result.push_str(&format!(" --> {}:{}:{}\n", error.file_path, error.line_number, error.column_number));
-        
+        result.push_str(&format!(
+            " --> {}:{}:{}\n",
+            error.file_path, error.line_number, error.column_number
+        ));
+
         // Context lines before error (if enabled)
         if self.config.show_context {
-            let start_line = error.line_number.saturating_sub(self.config.context_lines + 1);
+            let start_line = error
+                .line_number
+                .saturating_sub(self.config.context_lines + 1);
             for line_idx in start_line..(error.line_number - 1) {
                 if line_idx < lines.len() {
                     let highlighted_line = self.apply_syntax_highlighting(lines[line_idx]);
@@ -723,7 +794,7 @@ impl ErrorDisplay {
 
         // Separator
         result.push_str(&format!("{}|\n", " ".repeat(line_num_width + 1)));
-        
+
         // Error line with syntax highlighting
         let highlighted_error_line = self.apply_syntax_highlighting(error_line);
         result.push_str(&format!(
@@ -798,9 +869,7 @@ impl ErrorDisplay {
             self.config.warning_color.clone()
         } else if line.starts_with("info:") {
             self.config.info_color.clone()
-        } else if line.starts_with("hint:") {
-            self.config.hint_color.clone()
-        } else if line.starts_with("help:") {
+        } else if line.starts_with("hint:") || line.starts_with("help:") {
             self.config.hint_color.clone()
         } else if line.starts_with("note:") {
             self.config.info_color.clone()
@@ -832,20 +901,16 @@ impl ErrorDisplay {
         file_path: &str,
         message: String,
     ) -> Option<ErrorInfo> {
-        if let Some(location) = yaml_error.location() {
-            Some(ErrorInfo {
-                message,
-                file_path: file_path.to_string(),
-                line_number: location.line(),
-                column_number: location.column(),
-                severity: ErrorSeverity::Error,
-                help: Some("Check YAML syntax and structure".to_string()),
-                note: None,
-                caret_positioning: None,
-            })
-        } else {
-            None
-        }
+        yaml_error.location().map(|location| ErrorInfo {
+            message,
+            file_path: file_path.to_string(),
+            line_number: location.line(),
+            column_number: location.column(),
+            severity: ErrorSeverity::Error,
+            help: Some("Check YAML syntax and structure".to_string()),
+            note: None,
+            caret_positioning: None,
+        })
     }
 
     /// Create ErrorInfo for configuration validation
@@ -876,7 +941,8 @@ impl ErrorDisplay {
         buffer: &mut ScreenBuffer,
     ) {
         if let Some(caret_positioning) = &error.caret_positioning {
-            let formatted_error = self.format_error_with_multi_line_carets(error, content, caret_positioning);
+            let formatted_error =
+                self.format_error_with_multi_line_carets(error, content, caret_positioning);
             let error_lines: Vec<&str> = formatted_error.lines().collect();
 
             let viewable_height = bounds.height().saturating_sub(2);
@@ -890,7 +956,8 @@ impl ErrorDisplay {
                 }
 
                 // Enhanced color determination for multi-line carets
-                let text_color = self.get_enhanced_line_color(line, &error.severity, caret_positioning);
+                let text_color =
+                    self.get_enhanced_line_color(line, &error.severity, caret_positioning);
 
                 print_with_color_and_background_at(
                     y_position,
@@ -915,13 +982,14 @@ impl ErrorDisplay {
         caret_positioning: &CaretPositioning,
     ) -> String {
         let mut result = String::new();
-        
+
         // Header with severity and message
-        let severity_color = self.get_severity_color(&error.severity);
-        result.push_str(&format!("{}: {}\n", 
+        let _severity_color = self.get_severity_color(&error.severity);
+        result.push_str(&format!(
+            "{}: {}\n",
             match error.severity {
                 ErrorSeverity::Error => "error",
-                ErrorSeverity::Warning => "warning", 
+                ErrorSeverity::Warning => "warning",
                 ErrorSeverity::Info => "info",
                 ErrorSeverity::Hint => "hint",
             },
@@ -929,8 +997,9 @@ impl ErrorDisplay {
         ));
 
         // File location
-        result.push_str(&format!(" --> {}:{}:{}\n", 
-            error.file_path, 
+        result.push_str(&format!(
+            " --> {}:{}:{}\n",
+            error.file_path,
             caret_positioning.primary_span.start_line,
             caret_positioning.primary_span.start_column
         ));
@@ -981,14 +1050,14 @@ impl ErrorDisplay {
     ) {
         let start_line = span.start_line.saturating_sub(1);
         let end_line = span.end_line.saturating_sub(1);
-        
+
         // Show context lines before if enabled
         let context_start = if self.config.show_context {
             start_line.saturating_sub(self.config.context_lines)
         } else {
             start_line
         };
-        
+
         let context_end = if self.config.show_context {
             (end_line + self.config.context_lines + 1).min(lines.len())
         } else {
@@ -999,24 +1068,24 @@ impl ErrorDisplay {
             if line_idx >= lines.len() {
                 break;
             }
-            
+
             let line_num = line_idx + 1;
             let is_error_line = line_idx >= start_line && line_idx <= end_line;
             let line_content = lines[line_idx];
-            
+
             // Format line number with proper padding
             let line_num_str = if is_error_line {
                 format!("{:width$}", line_num, width = line_number_width)
             } else {
                 " ".repeat(line_number_width)
             };
-            
+
             // Apply syntax highlighting
             let highlighted_content = self.apply_syntax_highlighting(line_content);
-            
+
             if is_error_line {
                 result.push_str(&format!("{} | {}\n", line_num_str, highlighted_content));
-                
+
                 // Add caret indicators for error lines
                 if span.start_line == span.end_line {
                     // Single line error - traditional caret
@@ -1028,30 +1097,43 @@ impl ErrorDisplay {
                         1
                     };
                     let carets = self.config.caret_char.to_string().repeat(caret_length);
-                    result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, carets));
+                    result.push_str(&format!(
+                        "{} | {}{}\n",
+                        spaces_before_pipe, spaces_before_caret, carets
+                    ));
                 } else {
                     // Multi-line error - enhanced carets
                     let spaces_before_pipe = " ".repeat(line_number_width);
-                    
+
                     if line_idx == start_line {
                         // Start line - show start character and line continuation
                         let spaces_before_caret = " ".repeat(span.start_column.saturating_sub(1));
-                        let continuation_length = line_content.len().saturating_sub(span.start_column.saturating_sub(1));
+                        let continuation_length = line_content
+                            .len()
+                            .saturating_sub(span.start_column.saturating_sub(1));
                         let continuation = if continuation_length > 0 {
                             format!("┌{}", "─".repeat(continuation_length.saturating_sub(1)))
                         } else {
                             "┌".to_string()
                         };
-                        result.push_str(&format!("{} | {}{}\n", spaces_before_pipe, spaces_before_caret, continuation));
+                        result.push_str(&format!(
+                            "{} | {}{}\n",
+                            spaces_before_pipe, spaces_before_caret, continuation
+                        ));
                     } else if line_idx == end_line {
                         // End line - show end character and end caret
                         let end_caret_length = span.end_column.saturating_sub(1);
                         let end_continuation = if end_caret_length > 0 {
-                            format!("{}└{}", "─".repeat(end_caret_length.saturating_sub(1)), self.config.caret_char)
+                            format!(
+                                "{}└{}",
+                                "─".repeat(end_caret_length.saturating_sub(1)),
+                                self.config.caret_char
+                            )
                         } else {
                             format!("└{}", self.config.caret_char)
                         };
-                        result.push_str(&format!("{} | {}\n", spaces_before_pipe, end_continuation));
+                        result
+                            .push_str(&format!("{} | {}\n", spaces_before_pipe, end_continuation));
                     } else {
                         // Middle line - show continuation character
                         result.push_str(&format!("{} | │\n", spaces_before_pipe));
@@ -1075,14 +1157,20 @@ impl ErrorDisplay {
     }
 
     /// Get enhanced line color for multi-line caret positioning
-    fn get_enhanced_line_color(&self, line: &str, severity: &ErrorSeverity, caret_positioning: &CaretPositioning) -> String {
+    fn get_enhanced_line_color(
+        &self,
+        line: &str,
+        severity: &ErrorSeverity,
+        caret_positioning: &CaretPositioning,
+    ) -> String {
         // Check for multi-line caret indicators
-        if line.contains(caret_positioning.multi_line_start_char) || 
-           line.contains(caret_positioning.multi_line_middle_char) ||
-           line.contains(caret_positioning.multi_line_end_char) {
+        if line.contains(caret_positioning.multi_line_start_char)
+            || line.contains(caret_positioning.multi_line_middle_char)
+            || line.contains(caret_positioning.multi_line_end_char)
+        {
             return self.config.caret_color.clone();
         }
-        
+
         // Standard line color determination
         self.get_line_color(line, severity)
     }
@@ -1104,7 +1192,7 @@ impl ErrorDisplay {
             end_column,
             message: message.clone(),
         };
-        
+
         ErrorInfo {
             message,
             file_path,
@@ -1164,7 +1252,8 @@ mod tests {
 
     #[test]
     fn test_error_display_with_syntax_highlighting() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         assert!(display.config.syntax_highlighting.enabled);
         assert_eq!(display.config.syntax_highlighting.language, "rust");
     }
@@ -1174,7 +1263,7 @@ mod tests {
         let mut syntax_config = SyntaxHighlightConfig::default();
         syntax_config.enabled = false;
         syntax_config.language = "yaml".to_string();
-        
+
         let display = ErrorDisplay::with_custom_syntax_config("test".to_string(), syntax_config);
         assert!(!display.config.syntax_highlighting.enabled);
         assert_eq!(display.config.syntax_highlighting.language, "yaml");
@@ -1182,57 +1271,62 @@ mod tests {
 
     #[test]
     fn test_tokenize_rust_line() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let tokens = display.tokenize_line("fn main() {");
-        
+
         assert!(tokens.len() >= 4);
         // Find keyword token
-        let keyword_token = tokens.iter().find(|(token_type, text)| {
-            *token_type == SyntaxToken::Keyword && *text == "fn"
-        });
+        let keyword_token = tokens
+            .iter()
+            .find(|(token_type, text)| *token_type == SyntaxToken::Keyword && *text == "fn");
         assert!(keyword_token.is_some());
     }
 
     #[test]
     fn test_tokenize_string_literal() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let tokens = display.tokenize_line("let msg = \"hello\";");
-        
+
         // Find string token
-        let string_token = tokens.iter().find(|(token_type, _)| {
-            *token_type == SyntaxToken::String
-        });
+        let string_token = tokens
+            .iter()
+            .find(|(token_type, _)| *token_type == SyntaxToken::String);
         assert!(string_token.is_some());
     }
 
     #[test]
     fn test_tokenize_number_literal() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let tokens = display.tokenize_line("let x = 42;");
-        
+
         // Find number token
-        let number_token = tokens.iter().find(|(token_type, text)| {
-            *token_type == SyntaxToken::Number && *text == "42"
-        });
+        let number_token = tokens
+            .iter()
+            .find(|(token_type, text)| *token_type == SyntaxToken::Number && *text == "42");
         assert!(number_token.is_some());
     }
 
     #[test]
     fn test_tokenize_comment() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let tokens = display.tokenize_line("// This is a comment");
-        
+
         // Should have comment token for the entire line
-        let comment_token = tokens.iter().find(|(token_type, _)| {
-            *token_type == SyntaxToken::Comment
-        });
+        let comment_token = tokens
+            .iter()
+            .find(|(token_type, _)| *token_type == SyntaxToken::Comment);
         assert!(comment_token.is_some());
     }
 
     #[test]
     fn test_classify_rust_keywords() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         assert_eq!(display.classify_rust_word("fn"), SyntaxToken::Keyword);
         assert_eq!(display.classify_rust_word("let"), SyntaxToken::Keyword);
         assert_eq!(display.classify_rust_word("impl"), SyntaxToken::Keyword);
@@ -1241,8 +1335,9 @@ mod tests {
 
     #[test]
     fn test_classify_rust_types() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         assert_eq!(display.classify_rust_word("String"), SyntaxToken::Type);
         assert_eq!(display.classify_rust_word("Vec"), SyntaxToken::Type);
         assert_eq!(display.classify_rust_word("i32"), SyntaxToken::Type);
@@ -1251,8 +1346,9 @@ mod tests {
 
     #[test]
     fn test_classify_yaml_keywords() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "yaml".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "yaml".to_string());
+
         assert_eq!(display.classify_yaml_word("true"), SyntaxToken::Keyword);
         assert_eq!(display.classify_yaml_word("false"), SyntaxToken::Keyword);
         assert_eq!(display.classify_yaml_word("null"), SyntaxToken::Keyword);
@@ -1261,8 +1357,9 @@ mod tests {
 
     #[test]
     fn test_is_operator() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         assert!(display.is_operator("="));
         assert!(display.is_operator("=="));
         assert!(display.is_operator("!="));
@@ -1273,8 +1370,9 @@ mod tests {
 
     #[test]
     fn test_color_to_ansi() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         assert_eq!(display.color_to_ansi("red"), "31");
         assert_eq!(display.color_to_ansi("green"), "32");
         assert_eq!(display.color_to_ansi("bright_red"), "91");
@@ -1286,7 +1384,7 @@ mod tests {
         let mut config = ErrorDisplayConfig::default();
         config.syntax_highlighting.enabled = false;
         let display = ErrorDisplay::new("test".to_string(), config);
-        
+
         let line = "fn main() {}";
         let highlighted = display.apply_syntax_highlighting(line);
         assert_eq!(highlighted, line); // Should be unchanged when disabled
@@ -1294,8 +1392,9 @@ mod tests {
 
     #[test]
     fn test_apply_syntax_highlighting_enabled() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         let line = "fn main() {}";
         let highlighted = display.apply_syntax_highlighting(line);
         assert!(highlighted.contains("\x1b[")); // Should contain ANSI codes
@@ -1304,8 +1403,9 @@ mod tests {
 
     #[test]
     fn test_format_error_with_highlighting() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         let error = ErrorInfo {
             message: "expected `;`".to_string(),
             file_path: "test.rs".to_string(),
@@ -1316,10 +1416,10 @@ mod tests {
             note: Some("syntax error".to_string()),
             caret_positioning: None,
         };
-        
+
         let content = "fn main() {\n    let x = 42\n}";
         let formatted = display.format_error_with_highlighting(&error, content);
-        
+
         assert!(formatted.contains("error: expected `;`"));
         assert!(formatted.contains(" --> test.rs:2:15"));
         assert!(formatted.contains("help: add semicolon"));
@@ -1330,66 +1430,76 @@ mod tests {
 
     #[test]
     fn test_find_string_end() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "\"hello world\"".chars().collect();
-        
+
         let end = display.find_string_end(&chars, 0);
         assert_eq!(end, 13); // Position after closing quote
     }
 
     #[test]
     fn test_find_string_end_unclosed() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "\"hello world".chars().collect();
-        
+
         let end = display.find_string_end(&chars, 0);
         assert_eq!(end, chars.len()); // Should return length for unclosed string
     }
 
     #[test]
     fn test_find_number_end() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "123.45_u32".chars().collect();
-        
+
         let end = display.find_number_end(&chars, 0);
         assert_eq!(end, 7); // Should include digits, dots, and underscores but not letters
     }
 
     #[test]
     fn test_find_word_end() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "hello_world123 ".chars().collect();
-        
+
         let end = display.find_word_end(&chars, 0);
         assert_eq!(end, 14); // Should include alphanumeric and underscores
     }
 
     #[test]
     fn test_find_operator_end_single_char() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "+ 1".chars().collect();
-        
+
         let end = display.find_operator_end(&chars, 0);
         assert_eq!(end, 1); // Single character operator
     }
 
     #[test]
     fn test_find_operator_end_multi_char() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
         let chars: Vec<char> = "== 1".chars().collect();
-        
+
         let end = display.find_operator_end(&chars, 0);
         assert_eq!(end, 2); // Multi-character operator
     }
 
     #[test]
     fn test_get_token_color() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+
         assert_eq!(display.get_token_color(&SyntaxToken::Keyword), "magenta");
         assert_eq!(display.get_token_color(&SyntaxToken::String), "green");
         assert_eq!(display.get_token_color(&SyntaxToken::Number), "yellow");
-        assert_eq!(display.get_token_color(&SyntaxToken::Comment), "bright_black");
+        assert_eq!(
+            display.get_token_color(&SyntaxToken::Comment),
+            "bright_black"
+        );
         assert_eq!(display.get_token_color(&SyntaxToken::Text), "white");
     }
 
@@ -1400,28 +1510,35 @@ mod tests {
     #[test]
     fn test_multi_language_support() {
         // Test Rust highlighting
-        let rust_display = ErrorDisplay::with_syntax_highlighting("rust_test".to_string(), "rust".to_string());
+        let rust_display =
+            ErrorDisplay::with_syntax_highlighting("rust_test".to_string(), "rust".to_string());
         assert_eq!(rust_display.config.syntax_highlighting.language, "rust");
         assert_eq!(rust_display.classify_rust_word("fn"), SyntaxToken::Keyword);
-        
+
         // Test YAML highlighting
-        let yaml_display = ErrorDisplay::with_syntax_highlighting("yaml_test".to_string(), "yaml".to_string());
+        let yaml_display =
+            ErrorDisplay::with_syntax_highlighting("yaml_test".to_string(), "yaml".to_string());
         assert_eq!(yaml_display.config.syntax_highlighting.language, "yaml");
-        assert_eq!(yaml_display.classify_yaml_word("true"), SyntaxToken::Keyword);
+        assert_eq!(
+            yaml_display.classify_yaml_word("true"),
+            SyntaxToken::Keyword
+        );
     }
 
     #[test]
     fn test_complex_tokenization() {
-        let display = ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
-        let tokens = display.tokenize_line("let result: Result<String, Error> = Ok(\"success\".to_string());");
-        
+        let display =
+            ErrorDisplay::with_syntax_highlighting("test".to_string(), "rust".to_string());
+        let tokens = display
+            .tokenize_line("let result: Result<String, Error> = Ok(\"success\".to_string());");
+
         // Verify we have various token types
         let has_keyword = tokens.iter().any(|(t, _)| *t == SyntaxToken::Keyword);
         let has_type = tokens.iter().any(|(t, _)| *t == SyntaxToken::Type);
         let has_string = tokens.iter().any(|(t, _)| *t == SyntaxToken::String);
         let has_operator = tokens.iter().any(|(t, _)| *t == SyntaxToken::Operator);
         let has_punctuation = tokens.iter().any(|(t, _)| *t == SyntaxToken::Punctuation);
-        
+
         assert!(has_keyword);
         assert!(has_type);
         assert!(has_string);
@@ -1438,7 +1555,7 @@ mod tests {
             end_column: 15,
             message: "Multi-line error span".to_string(),
         };
-        
+
         assert_eq!(span.start_line, 5);
         assert_eq!(span.start_column, 10);
         assert_eq!(span.end_line, 7);
@@ -1449,7 +1566,7 @@ mod tests {
     #[test]
     fn test_caret_positioning_default() {
         let caret_positioning = CaretPositioning::default();
-        
+
         assert_eq!(caret_positioning.primary_span.start_line, 1);
         assert_eq!(caret_positioning.primary_span.start_column, 1);
         assert_eq!(caret_positioning.primary_span.end_line, 1);
@@ -1473,13 +1590,13 @@ mod tests {
             8,
             ErrorSeverity::Error,
         );
-        
+
         assert_eq!(error.message, "Multi-line syntax error");
         assert_eq!(error.file_path, "test.rs");
         assert_eq!(error.line_number, 10);
         assert_eq!(error.column_number, 5);
         assert_eq!(error.severity, ErrorSeverity::Error);
-        
+
         let caret_positioning = error.caret_positioning.unwrap();
         assert_eq!(caret_positioning.primary_span.start_line, 10);
         assert_eq!(caret_positioning.primary_span.start_column, 5);
@@ -1499,19 +1616,12 @@ mod tests {
             20,
             ErrorSeverity::Error,
         );
-        
-        display.add_secondary_span(
-            &mut error,
-            8,
-            5,
-            8,
-            15,
-            "Related issue here".to_string(),
-        );
-        
+
+        display.add_secondary_span(&mut error, 8, 5, 8, 15, "Related issue here".to_string());
+
         let caret_positioning = error.caret_positioning.unwrap();
         assert_eq!(caret_positioning.secondary_spans.len(), 1);
-        
+
         let secondary = &caret_positioning.secondary_spans[0];
         assert_eq!(secondary.start_line, 8);
         assert_eq!(secondary.start_column, 5);
@@ -1534,11 +1644,12 @@ mod tests {
             15,
             ErrorSeverity::Error,
         );
-        
+
         let content = "line 1\nline 2\nthis is line 3 with error\nline 4";
         let caret_positioning = error.caret_positioning.as_ref().unwrap();
-        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
-        
+        let formatted =
+            display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+
         assert!(formatted.contains("error: Single line error"));
         assert!(formatted.contains("--> test.rs:3:10"));
         assert!(formatted.contains("this is line 3 with error"));
@@ -1559,11 +1670,12 @@ mod tests {
             10,
             ErrorSeverity::Warning,
         );
-        
+
         let content = "line 1\nstart error here\nmiddle line\nend error here\nline 5";
         let caret_positioning = error.caret_positioning.as_ref().unwrap();
-        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
-        
+        let formatted =
+            display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+
         assert!(formatted.contains("warning: Multi-line error"));
         assert!(formatted.contains("--> test.rs:2:5"));
         assert!(formatted.contains("start error here"));
@@ -1588,20 +1700,17 @@ mod tests {
             20,
             ErrorSeverity::Error,
         );
-        
-        display.add_secondary_span(
-            &mut error,
-            15,
-            5,
-            15,
-            12,
-            "Related definition".to_string(),
-        );
-        
-        let content = (1..=20).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+
+        display.add_secondary_span(&mut error, 15, 5, 15, 12, "Related definition".to_string());
+
+        let content = (1..=20)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let caret_positioning = error.caret_positioning.as_ref().unwrap();
-        let formatted = display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
-        
+        let formatted =
+            display.format_error_with_multi_line_carets(&error, &content, caret_positioning);
+
         assert!(formatted.contains("Primary error with context"));
         assert!(formatted.contains("line 10"));
         assert!(formatted.contains("Related definition"));
@@ -1612,15 +1721,20 @@ mod tests {
     fn test_enhanced_line_color_detection() {
         let display = ErrorDisplay::with_defaults("test".to_string());
         let caret_positioning = CaretPositioning::default();
-        
+
         // Test caret line detection
         let caret_line = format!("   | {}", caret_positioning.multi_line_start_char);
-        let color = display.get_enhanced_line_color(&caret_line, &ErrorSeverity::Error, &caret_positioning);
+        let color =
+            display.get_enhanced_line_color(&caret_line, &ErrorSeverity::Error, &caret_positioning);
         assert_eq!(color, "bright_red"); // Should use caret color
-        
+
         // Test normal line with line number format (contains " | ")
         let normal_line = "   | regular code line";
-        let color = display.get_enhanced_line_color(&normal_line, &ErrorSeverity::Error, &caret_positioning);
+        let color = display.get_enhanced_line_color(
+            &normal_line,
+            &ErrorSeverity::Error,
+            &caret_positioning,
+        );
         assert_eq!(color, "bright_blue"); // Should use line_number_color for lines with " | "
     }
 
@@ -1636,14 +1750,14 @@ mod tests {
             5,
             ErrorSeverity::Info,
         );
-        
+
         let content = "first line\nsecond line";
         let bounds = Bounds::new(0, 0, 80, 10);
         let mut buffer = create_test_buffer();
-        
+
         // Should not panic and should handle rendering gracefully
         display.render_with_enhanced_carets(&error, content, &bounds, &mut buffer);
-        
+
         // Test fallback to standard rendering when no caret positioning
         let standard_error = ErrorInfo {
             message: "Standard error".to_string(),
@@ -1655,7 +1769,7 @@ mod tests {
             note: None,
             caret_positioning: None,
         };
-        
+
         display.render_with_enhanced_carets(&standard_error, content, &bounds, &mut buffer);
     }
 
@@ -1669,18 +1783,35 @@ mod tests {
             end_column: 5,
             message: "Test span".to_string(),
         };
-        
-        let lines = vec!["line 1", "line 2 with error start", "line 3 middle", "line 4 error end", "line 5"];
+
+        let lines = vec![
+            "line 1",
+            "line 2 with error start",
+            "line 3 middle",
+            "line 4 error end",
+            "line 5",
+        ];
         let mut result = String::new();
-        
+
         display.render_multi_line_span(&mut result, &lines, &span, 3, true);
-        
+
         // Test content is present (may contain ANSI codes)
-        assert!(result.contains("line") && result.contains("2") && result.contains("with") && result.contains("error") && result.contains("start"));
+        assert!(
+            result.contains("line")
+                && result.contains("2")
+                && result.contains("with")
+                && result.contains("error")
+                && result.contains("start")
+        );
         assert!(result.contains("line") && result.contains("3") && result.contains("middle"));
-        assert!(result.contains("line") && result.contains("4") && result.contains("error") && result.contains("end"));
+        assert!(
+            result.contains("line")
+                && result.contains("4")
+                && result.contains("error")
+                && result.contains("end")
+        );
         assert!(result.contains("┌")); // Start indicator
-        assert!(result.contains("│")); // Middle indicator  
+        assert!(result.contains("│")); // Middle indicator
         assert!(result.contains("└")); // End indicator
     }
 }

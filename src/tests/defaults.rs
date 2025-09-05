@@ -1,9 +1,9 @@
 //! Default implementations for test infrastructure
-//! 
+//!
 //! This module centralizes all Default trait implementations for testing utilities
 //! and visual testing infrastructure, providing consistent test configurations.
 //!
-//! Note: This module contains reference implementations - actual implementations 
+//! Note: This module contains reference implementations - actual implementations
 //! remain in their original files to avoid circular dependencies.
 
 // ============================================================================

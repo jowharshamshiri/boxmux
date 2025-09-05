@@ -335,7 +335,7 @@ impl VisualAssertions for TerminalFrame {
     fn assert_has_border(&self) -> Result<(), AssertionError> {
         // Check for basic border characters at expected positions
         // This is a simplified check for demonstration
-        
+
         if self.buffer.is_empty() || self.buffer[0].is_empty() {
             return Err(AssertionError {
                 message: "Empty screen buffer".to_string(),
@@ -349,7 +349,10 @@ impl VisualAssertions for TerminalFrame {
         // Look for border-like characters in the first row
         let first_row: String = self.buffer[0].iter().map(|cell| cell.ch).collect();
         let has_border_chars = first_row.chars().any(|c| {
-            matches!(c, '┌' | '┐' | '└' | '┘' | '─' | '│' | '┬' | '┴' | '├' | '┤' | '┼')
+            matches!(
+                c,
+                '┌' | '┐' | '└' | '┘' | '─' | '│' | '┬' | '┴' | '├' | '┤' | '┼'
+            )
         });
 
         if has_border_chars {

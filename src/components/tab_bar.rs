@@ -1,7 +1,7 @@
-use crate::model::common::ScreenBuffer;
 use crate::draw_utils::{
-    draw_horizontal_line, print_with_color_and_background_at, fill_horizontal_background
+    draw_horizontal_line, fill_horizontal_background, print_with_color_and_background_at,
 };
+use crate::model::common::ScreenBuffer;
 
 /// Tab bar component for displaying stream tabs with scrolling support
 pub struct TabBar;
@@ -36,14 +36,27 @@ impl TabBar {
         // Space always reserved regardless of whether arrows are shown
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 }; // Leading + trailing borders
+        let border_space = if crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color)
+        {
+            4
+        } else {
+            0
+        }; // Leading + trailing borders
 
         // Calculate tab area boundaries with fixed reservations
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations with fixed layout
-        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1
+            + (if crate::color_utils::should_draw_color(fg_color)
+                || crate::color_utils::should_draw_color(bg_color)
+            {
+                2
+            } else {
+                0
+            });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -52,7 +65,7 @@ impl TabBar {
         // Determine if scrolling is needed (85% threshold for smooth transitions)
         let max_tab_width = 16;
         let min_tab_width = 6;
-        let ideal_tab_width = if tab_labels.len() > 0 {
+        let ideal_tab_width = if !tab_labels.is_empty() {
             tab_area_width / tab_labels.len()
         } else {
             max_tab_width
@@ -62,14 +75,24 @@ impl TabBar {
         let needs_scrolling = (total_tabs_width as f32) > (tab_area_width as f32 * 0.85);
 
         // Draw leading border if border colors are not transparent
-        if (crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color)) && x1 < x2 {
+        if (crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color))
+            && x1 < x2
+        {
             draw_horizontal_line(y, x1, x1 + 2, fg_color, bg_color, buffer);
         }
 
         // Draw left scroll arrow or border fill in reserved space
         if needs_scrolling && tab_scroll_offset > 0 {
             // Show left arrow when can scroll left
-            print_with_color_and_background_at(y, left_arrow_x, title_fg_color, bg_color, "◀", buffer);
+            print_with_color_and_background_at(
+                y,
+                left_arrow_x,
+                title_fg_color,
+                bg_color,
+                "◀",
+                buffer,
+            );
             print_with_color_and_background_at(
                 y,
                 left_arrow_x + 1,
@@ -195,7 +218,7 @@ impl TabBar {
         }
 
         // Draw right scroll arrow or border fill in reserved space
-        let max_scroll_offset = if tab_labels.len() > 0 {
+        let max_scroll_offset = if !tab_labels.is_empty() {
             tab_labels
                 .len()
                 .saturating_sub(tab_area_width / tab_width.max(1))
@@ -205,7 +228,14 @@ impl TabBar {
 
         if needs_scrolling && tab_scroll_offset < max_scroll_offset {
             // Show right arrow when can scroll right
-            print_with_color_and_background_at(y, right_arrow_x, title_fg_color, bg_color, " ", buffer);
+            print_with_color_and_background_at(
+                y,
+                right_arrow_x,
+                title_fg_color,
+                bg_color,
+                " ",
+                buffer,
+            );
             print_with_color_and_background_at(
                 y,
                 right_arrow_x + 1,
@@ -227,7 +257,10 @@ impl TabBar {
         }
 
         // Draw trailing border if border colors are not transparent
-        if (crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color)) && trailing_border_x < x2 {
+        if (crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color))
+            && trailing_border_x < x2
+        {
             draw_horizontal_line(y, trailing_border_x, x2, fg_color, bg_color, buffer);
         }
     }
@@ -340,12 +373,25 @@ impl TabBar {
         // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color)
+        {
+            4
+        } else {
+            0
+        };
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations matching draw_tab_bar
-        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1
+            + (if crate::color_utils::should_draw_color(fg_color)
+                || crate::color_utils::should_draw_color(bg_color)
+            {
+                2
+            } else {
+                0
+            });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -353,7 +399,7 @@ impl TabBar {
         // Determine if scrolling is needed (85% threshold)
         let max_tab_width = 16;
         let min_tab_width = 6;
-        let ideal_tab_width = if tab_labels.len() > 0 {
+        let ideal_tab_width = if !tab_labels.is_empty() {
             tab_area_width / tab_labels.len()
         } else {
             max_tab_width
@@ -373,7 +419,7 @@ impl TabBar {
             }
 
             // Right arrow click check
-            let max_scroll_offset = if tab_labels.len() > 0 {
+            let max_scroll_offset = if !tab_labels.is_empty() {
                 tab_labels
                     .len()
                     .saturating_sub(tab_area_width / tab_width.max(1))
@@ -486,12 +532,25 @@ impl TabBar {
         // FIXED SPACE RESERVATION ARCHITECTURE - matches draw_tab_bar
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color)
+        {
+            4
+        } else {
+            0
+        };
         let reserved_space = left_arrow_space + right_arrow_space + border_space;
         let tab_area_width = total_width.saturating_sub(reserved_space);
 
         // Position calculations matching draw_tab_bar
-        let left_arrow_x = x1 + (if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 });
+        let left_arrow_x = x1
+            + (if crate::color_utils::should_draw_color(fg_color)
+                || crate::color_utils::should_draw_color(bg_color)
+            {
+                2
+            } else {
+                0
+            });
         let tab_area_start = left_arrow_x + left_arrow_space;
         let tab_area_end = tab_area_start + tab_area_width;
         let right_arrow_x = tab_area_end;
@@ -499,7 +558,7 @@ impl TabBar {
         // Determine if scrolling is needed (85% threshold)
         let max_tab_width = 16;
         let min_tab_width = 6;
-        let ideal_tab_width = if tab_labels.len() > 0 {
+        let ideal_tab_width = if !tab_labels.is_empty() {
             tab_area_width / tab_labels.len()
         } else {
             max_tab_width
@@ -513,13 +572,15 @@ impl TabBar {
         }
 
         // Check left arrow click
-        if tab_scroll_offset > 0 && click_x >= left_arrow_x && click_x < left_arrow_x + left_arrow_space
+        if tab_scroll_offset > 0
+            && click_x >= left_arrow_x
+            && click_x < left_arrow_x + left_arrow_space
         {
             return Some(TabNavigationAction::ScrollLeft);
         }
 
         // Check right arrow click
-        let max_scroll_offset = if tab_labels.len() > 0 {
+        let max_scroll_offset = if !tab_labels.is_empty() {
             tab_labels
                 .len()
                 .saturating_sub(tab_area_width / tab_width.max(1))
@@ -557,16 +618,29 @@ impl TabBar {
         // Same space calculations as draw_tab_bar and calculate_tab_click_index
         let left_arrow_space = 2;
         let right_arrow_space = 2;
-        let border_space = if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 4 } else { 0 };
+        let border_space = if crate::color_utils::should_draw_color(fg_color)
+            || crate::color_utils::should_draw_color(bg_color)
+        {
+            4
+        } else {
+            0
+        };
         let tab_area_width =
             total_width.saturating_sub(left_arrow_space + right_arrow_space + border_space);
 
-        let tab_area_start = x1 + if crate::color_utils::should_draw_color(fg_color) || crate::color_utils::should_draw_color(bg_color) { 2 } else { 0 } + left_arrow_space;
+        let tab_area_start =
+            x1 + if crate::color_utils::should_draw_color(fg_color)
+                || crate::color_utils::should_draw_color(bg_color)
+            {
+                2
+            } else {
+                0
+            } + left_arrow_space;
 
         // Calculate tab dimensions
         let max_tab_width = 16;
         let min_tab_width = 6;
-        let ideal_tab_width = if tab_labels.len() > 0 {
+        let ideal_tab_width = if !tab_labels.is_empty() {
             tab_area_width / tab_labels.len()
         } else {
             max_tab_width
@@ -636,7 +710,8 @@ impl TabBar {
                 } else {
                     min_close_area
                 };
-                let close_area_width = preferred_close_area.min(adjusted_tab_width.saturating_sub(2));
+                let close_area_width =
+                    preferred_close_area.min(adjusted_tab_width.saturating_sub(2));
 
                 if close_area_width >= 3 {
                     // " ×" pattern - check both space and × positions

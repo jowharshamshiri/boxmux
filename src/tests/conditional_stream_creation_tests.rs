@@ -18,7 +18,7 @@ mod conditional_stream_creation_tests {
             "Box with no content and no choices should have no streams"
         );
         assert!(
-            muxbox.get_active_stream().is_none(),
+            muxbox.get_selected_stream().is_none(),
             "Box with no streams should have no active stream"
         );
         assert!(
@@ -41,7 +41,7 @@ mod conditional_stream_creation_tests {
             "Box with empty/whitespace content should have no streams"
         );
         assert!(
-            muxbox.get_active_stream().is_none(),
+            muxbox.get_selected_stream().is_none(),
             "Box with no streams should have no active stream"
         );
         assert!(
@@ -65,7 +65,7 @@ mod conditional_stream_creation_tests {
             "Box with only content should have exactly one stream"
         );
 
-        let stream = muxbox.get_active_stream().unwrap();
+        let stream = muxbox.get_selected_stream().unwrap();
         assert_eq!(stream.stream_type, StreamType::Content);
         assert_eq!(
             stream.label, "Content",
@@ -93,7 +93,7 @@ mod conditional_stream_creation_tests {
             "Box with only content should have exactly one stream"
         );
 
-        let stream = muxbox.get_active_stream().unwrap();
+        let stream = muxbox.get_selected_stream().unwrap();
         assert_eq!(stream.stream_type, StreamType::Content);
         assert_eq!(
             stream.label, "Content",
@@ -129,7 +129,7 @@ mod conditional_stream_creation_tests {
             "Box with only choices should have exactly one stream"
         );
 
-        let stream = muxbox.get_active_stream().unwrap();
+        let stream = muxbox.get_selected_stream().unwrap();
         assert_eq!(stream.stream_type, StreamType::Choices);
         assert_eq!(
             stream.label, "test_box",
@@ -166,7 +166,7 @@ mod conditional_stream_creation_tests {
             "Box with only choices should have exactly one stream"
         );
 
-        let stream = muxbox.get_active_stream().unwrap();
+        let stream = muxbox.get_selected_stream().unwrap();
         assert_eq!(stream.stream_type, StreamType::Choices);
         assert_eq!(
             stream.label, "My Box",
@@ -297,7 +297,7 @@ mod conditional_stream_creation_tests {
             "Box with empty choices array should only have content stream"
         );
 
-        let stream = muxbox.get_active_stream().unwrap();
+        let stream = muxbox.get_selected_stream().unwrap();
         assert_eq!(stream.stream_type, StreamType::Content);
         assert_eq!(stream.label, "Content");
 
@@ -315,13 +315,15 @@ mod conditional_stream_creation_tests {
 
         muxbox.initialize_streams();
 
-        let content = muxbox.get_active_stream_content();
+        let content = muxbox
+            .get_selected_stream()
+            .map_or(Vec::new(), |s| s.content.clone());
         assert!(
             content.is_empty(),
             "Box with no streams should return empty content"
         );
 
-        let choices = muxbox.get_active_stream_choices();
+        let choices = muxbox.get_selected_stream_choices();
         assert!(
             choices.is_none(),
             "Box with no streams should return None for choices"

@@ -1028,6 +1028,7 @@ create_runnable!(
                             redirect_output: None,
                             append_output: false,
                             stream_id,
+                            target_bounds: None, // App-level commands don't target specific muxboxes
                         };
 
                         inner.send_message(Message::ExecuteScriptMessage(execute_script));
@@ -1072,6 +1073,7 @@ create_runnable!(
                             redirect_output: None,
                             append_output: false,
                             stream_id,
+                            target_bounds: None, // App-level commands don't target specific muxboxes
                         };
 
                         inner.send_message(Message::ExecuteScriptMessage(execute_script));

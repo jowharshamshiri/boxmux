@@ -1,4 +1,4 @@
-use crate::{ScreenBuffer, Bounds};
+use crate::Bounds;
 
 /// Universal event system for RenderableContent interactions
 /// Replaces direct method calls with flexible event-based architecture
@@ -46,7 +46,7 @@ pub enum EventType {
 }
 
 /// Event-specific data payload
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EventData {
     /// Mouse button for click events
     pub mouse_button: Option<MouseButton>,
@@ -256,7 +256,11 @@ pub enum EventResult {
 
 impl ContentEvent {
     /// Create a new content event with current timestamp
-    pub fn new(event_type: EventType, position: Option<(usize, usize)>, zone_id: Option<String>) -> Self {
+    pub fn new(
+        event_type: EventType,
+        position: Option<(usize, usize)>,
+        zone_id: Option<String>,
+    ) -> Self {
         Self {
             event_type,
             position,
@@ -274,7 +278,11 @@ impl ContentEvent {
     }
 
     /// Create a click event with specific mouse button
-    pub fn new_click_with_button(position: Option<(usize, usize)>, zone_id: Option<String>, button: MouseButton) -> Self {
+    pub fn new_click_with_button(
+        position: Option<(usize, usize)>,
+        zone_id: Option<String>,
+        button: MouseButton,
+    ) -> Self {
         let mut event = Self::new(EventType::Click, position, zone_id);
         event.data.mouse_button = Some(button);
         event
@@ -324,10 +332,17 @@ impl ContentEvent {
     }
 
     /// Create a mouse move event
-    pub fn new_mouse_move(from_pos: Option<(usize, usize)>, to_pos: (usize, usize), zone_id: Option<String>) -> Self {
+    pub fn new_mouse_move(
+        from_pos: Option<(usize, usize)>,
+        to_pos: (usize, usize),
+        zone_id: Option<String>,
+    ) -> Self {
         let mut event = Self::new(EventType::MouseMove, Some(to_pos), zone_id);
         let delta = if let Some(from) = from_pos {
-            (to_pos.0 as i32 - from.0 as i32, to_pos.1 as i32 - from.1 as i32)
+            (
+                to_pos.0 as i32 - from.0 as i32,
+                to_pos.1 as i32 - from.1 as i32,
+            )
         } else {
             (0, 0)
         };
@@ -342,9 +357,17 @@ impl ContentEvent {
     }
 
     /// Create a mouse drag event
-    pub fn new_mouse_drag(from_pos: (usize, usize), to_pos: (usize, usize), button: MouseButton, zone_id: Option<String>) -> Self {
+    pub fn new_mouse_drag(
+        from_pos: (usize, usize),
+        to_pos: (usize, usize),
+        button: MouseButton,
+        zone_id: Option<String>,
+    ) -> Self {
         let mut event = Self::new(EventType::MouseMove, Some(to_pos), zone_id);
-        let delta = (to_pos.0 as i32 - from_pos.0 as i32, to_pos.1 as i32 - from_pos.1 as i32);
+        let delta = (
+            to_pos.0 as i32 - from_pos.0 as i32,
+            to_pos.1 as i32 - from_pos.1 as i32,
+        );
         event.data.mouse_move = Some(MouseMoveInfo {
             from_position: Some(from_pos),
             to_position: to_pos,
@@ -356,7 +379,11 @@ impl ContentEvent {
     }
 
     /// Create a hover enter event
-    pub fn new_hover_enter(position: (usize, usize), zone_id: String, previous_zone: Option<String>) -> Self {
+    pub fn new_hover_enter(
+        position: (usize, usize),
+        zone_id: String,
+        previous_zone: Option<String>,
+    ) -> Self {
         let mut event = Self::new(EventType::Hover, Some(position), Some(zone_id.clone()));
         event.data.hover = Some(HoverInfo {
             state: HoverState::Enter,
@@ -368,7 +395,11 @@ impl ContentEvent {
     }
 
     /// Create a hover leave event
-    pub fn new_hover_leave(position: (usize, usize), zone_id: String, new_zone: Option<String>) -> Self {
+    pub fn new_hover_leave(
+        position: (usize, usize),
+        zone_id: String,
+        new_zone: Option<String>,
+    ) -> Self {
         let mut event = Self::new(EventType::Hover, Some(position), Some(zone_id.clone()));
         event.data.hover = Some(HoverInfo {
             state: HoverState::Leave,
@@ -380,7 +411,11 @@ impl ContentEvent {
     }
 
     /// Create a hover move event (within same zone)
-    pub fn new_hover_move(position: (usize, usize), zone_id: String, duration: std::time::Duration) -> Self {
+    pub fn new_hover_move(
+        position: (usize, usize),
+        zone_id: String,
+        duration: std::time::Duration,
+    ) -> Self {
         let mut event = Self::new(EventType::Hover, Some(position), Some(zone_id.clone()));
         event.data.hover = Some(HoverInfo {
             state: HoverState::Move,
@@ -525,22 +560,6 @@ impl ContentEvent {
     }
 }
 
-impl Default for EventData {
-    fn default() -> Self {
-        Self {
-            mouse_button: None,
-            key: None,
-            scroll: None,
-            size: None,
-            mouse_move: None,
-            hover: None,
-            box_resize: None,
-            title_change: None,
-            custom_data: None,
-        }
-    }
-}
-
 /// Universal content interface for all content types in BoxMux
 /// Enables unified overflow handling for text, choices, charts, and any future content types
 pub trait RenderableContent {
@@ -550,17 +569,15 @@ pub trait RenderableContent {
 
     /// Get the raw content as a string - for backward compatibility with existing text rendering
     fn get_raw_content(&self) -> String;
-    
+
     /// Get clickable zones in box-relative coordinates (0,0 = top-left of content area, ignoring borders)
     /// BoxRenderer will translate these to absolute screen coordinates accounting for scroll/wrap/centering
     fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone>;
-    
+
     /// Handle a content event (click, hover, keypress, etc.)
     /// Event contains zone_id, position, and event-specific data
     /// Returns EventResult indicating how the event was processed
     fn handle_event(&mut self, event: &ContentEvent) -> EventResult;
-
-
 }
 
 /// Clickable zone representing an interactive area on screen
@@ -622,7 +639,12 @@ impl ClickableZone {
     }
 
     /// Create a clickable zone with metadata
-    pub fn with_metadata(bounds: Bounds, content_id: String, content_type: ContentType, metadata: ClickableMetadata) -> Self {
+    pub fn with_metadata(
+        bounds: Bounds,
+        content_id: String,
+        content_type: ContentType,
+        metadata: ClickableMetadata,
+    ) -> Self {
         Self {
             bounds,
             content_id,
@@ -638,7 +660,9 @@ impl ClickableZone {
 
     /// Get the display text for this zone
     pub fn display_text(&self) -> String {
-        self.metadata.display_text.clone()
+        self.metadata
+            .display_text
+            .clone()
             .unwrap_or_else(|| self.content_id.clone())
     }
 }

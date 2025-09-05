@@ -281,9 +281,7 @@ impl SchemaValidator {
 
         // Load and validate against app schema
         let app_schema_path = format!("{}/app_schema.json", schema_dir);
-        if let Err(e) = self.validate_against_schema_file(&yaml_value, &app_schema_path, "app") {
-            return Err(e);
-        }
+        self.validate_against_schema_file(&yaml_value, &app_schema_path, "app")?;
 
         if self.errors.is_empty() {
             Ok(())

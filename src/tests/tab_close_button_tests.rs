@@ -198,7 +198,7 @@ mod tests {
             40, // x2
             &tab_labels,
             &tab_close_buttons,
-            0,    // tab_scroll_offset
+            0,                          // tab_scroll_offset
             &Some("white".to_string()), // fg_color
             &Some("black".to_string()), // bg_color
         );

@@ -1,9 +1,9 @@
 //! Default implementations for core system structs
-//! 
+//!
 //! This module centralizes all Default trait implementations for core system types
 //! including ANSI processing, PTY management, and other infrastructure components.
 //!
-//! Note: This module contains reference implementations - actual implementations 
+//! Note: This module contains reference implementations - actual implementations
 //! remain in their original files to avoid circular dependencies.
 
 // ============================================================================
@@ -37,7 +37,7 @@ CursorState::default() provides:
 
 TerminalMode::default() provides:
   - application_cursor_keys: false - normal cursor key mode
-  - application_keypad: false - normal keypad mode  
+  - application_keypad: false - normal keypad mode
   - auto_wrap: true - wrap long lines automatically
   - origin_mode: false - absolute cursor positioning
   - insert_mode: false - overwrite mode by default
@@ -94,7 +94,7 @@ TableFormat::default() -> TableFormat::Csv
   - CSV format most commonly used for data tables
   - Other formats: Json, Custom - specialized formats
 
-TableSortOrder::default() -> TableSortOrder::Ascending  
+TableSortOrder::default() -> TableSortOrder::Ascending
   - Natural ascending sort order for most data
   - Alternative: Descending for reverse ordering
 

@@ -13,7 +13,6 @@ layouts:
           y1: 0%
           x2: 33%
           y2: 50%
-        border: true
         pty: true
         script:
           - echo "Normal PTY process"
@@ -28,7 +27,6 @@ layouts:
           y1: 0%
           x2: 66%
           y2: 50%
-        border: true
         pty: true
         script:
           - echo "This PTY will show error state"
@@ -43,7 +41,6 @@ layouts:
           y1: 0%
           x2: 100%
           y2: 50%
-        border: true
         pty: true
         script:
           - echo "This PTY will show dead state"
@@ -58,7 +55,6 @@ layouts:
           y1: 50%
           x2: 100%
           y2: 100%
-        border: true
         content: |
           PTY Error States Visual Indicators:
           

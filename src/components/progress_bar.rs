@@ -219,7 +219,11 @@ impl ProgressBar {
         let height = bounds.height();
 
         // Calculate progress bar dimensions
-        let border_width = if self.config.border_chars.is_some() { 2 } else { 0 };
+        let border_width = if self.config.border_chars.is_some() {
+            2
+        } else {
+            0
+        };
         let bar_width = width.saturating_sub(border_width);
         let filled_width = ((bar_width as f64) * self.state.progress).round() as usize;
         let remaining_width = bar_width.saturating_sub(filled_width);
@@ -251,7 +255,11 @@ impl ProgressBar {
         let height = bounds.height().max(self.config.min_height);
 
         // Calculate progress bar dimensions
-        let border_height = if self.config.border_chars.is_some() { 2 } else { 0 };
+        let border_height = if self.config.border_chars.is_some() {
+            2
+        } else {
+            0
+        };
         let bar_height = height.saturating_sub(border_height);
         let filled_height = ((bar_height as f64) * self.state.progress).round() as usize;
 
@@ -262,7 +270,13 @@ impl ProgressBar {
             } else if row == height.saturating_sub(1) && self.config.show_percentage {
                 self.generate_percentage_line(width)
             } else {
-                self.generate_vertical_bar_line(row, filled_height, bar_height, width, &border_height)
+                self.generate_vertical_bar_line(
+                    row,
+                    filled_height,
+                    bar_height,
+                    width,
+                    &border_height,
+                )
             };
             lines.push(line);
         }
@@ -296,7 +310,12 @@ impl ProgressBar {
     }
 
     /// Generate horizontal bar line
-    fn generate_bar_line(&self, filled_width: usize, remaining_width: usize, border_width: &usize) -> String {
+    fn generate_bar_line(
+        &self,
+        filled_width: usize,
+        remaining_width: usize,
+        _border_width: &usize,
+    ) -> String {
         let mut line = String::new();
 
         // Add left border
@@ -340,7 +359,11 @@ impl ProgressBar {
         let mut line = String::new();
 
         // Determine if this row should be filled (fill from bottom)
-        let effective_row = if *border_height > 0 { row.saturating_sub(1) } else { row };
+        let effective_row = if *border_height > 0 {
+            row.saturating_sub(1)
+        } else {
+            row
+        };
         let is_filled = effective_row >= bar_height.saturating_sub(filled_height);
 
         // Generate vertical bar character
@@ -466,7 +489,10 @@ mod tests {
     #[test]
     fn test_progress_bar_creation() {
         let progress_bar = ProgressBar::new();
-        assert_eq!(progress_bar.config.orientation, ProgressBarOrientation::Horizontal);
+        assert_eq!(
+            progress_bar.config.orientation,
+            ProgressBarOrientation::Horizontal
+        );
         assert_eq!(progress_bar.config.fill_char, '█');
         assert_eq!(progress_bar.state.progress, 0.0);
     }
@@ -489,7 +515,10 @@ mod tests {
     #[test]
     fn test_horizontal_progress_bar() {
         let progress_bar = ProgressBar::horizontal(Color::Green, Color::DarkGrey);
-        assert_eq!(progress_bar.config.orientation, ProgressBarOrientation::Horizontal);
+        assert_eq!(
+            progress_bar.config.orientation,
+            ProgressBarOrientation::Horizontal
+        );
         assert_eq!(progress_bar.config.fill_color, Color::Green);
         assert_eq!(progress_bar.config.background_color, Color::DarkGrey);
     }
@@ -497,7 +526,10 @@ mod tests {
     #[test]
     fn test_vertical_progress_bar() {
         let progress_bar = ProgressBar::vertical(Color::Yellow, Color::Black);
-        assert_eq!(progress_bar.config.orientation, ProgressBarOrientation::Vertical);
+        assert_eq!(
+            progress_bar.config.orientation,
+            ProgressBarOrientation::Vertical
+        );
         assert_eq!(progress_bar.config.fill_color, Color::Yellow);
         assert_eq!(progress_bar.config.background_color, Color::Black);
     }
@@ -505,12 +537,12 @@ mod tests {
     #[test]
     fn test_progress_updates() {
         let mut progress_bar = ProgressBar::new();
-        
+
         assert_eq!(progress_bar.get_progress(), 0.0);
-        
+
         progress_bar.set_progress(0.5);
         assert_eq!(progress_bar.get_progress(), 0.5);
-        
+
         progress_bar.set_progress(1.0);
         assert_eq!(progress_bar.get_progress(), 1.0);
         assert!(progress_bar.is_complete());
@@ -519,11 +551,11 @@ mod tests {
     #[test]
     fn test_progress_clamping() {
         let mut progress_bar = ProgressBar::new();
-        
+
         // Test values beyond valid range
         progress_bar.set_progress(-0.5);
         assert_eq!(progress_bar.get_progress(), 0.0);
-        
+
         progress_bar.set_progress(1.5);
         assert_eq!(progress_bar.get_progress(), 1.0);
     }
@@ -531,10 +563,13 @@ mod tests {
     #[test]
     fn test_progress_text() {
         let mut progress_bar = ProgressBar::new();
-        
+
         progress_bar.set_text("Loading files...".to_string());
-        assert_eq!(progress_bar.state.text, Some("Loading files...".to_string()));
-        
+        assert_eq!(
+            progress_bar.state.text,
+            Some("Loading files...".to_string())
+        );
+
         progress_bar.clear_text();
         assert_eq!(progress_bar.state.text, None);
     }
@@ -543,12 +578,12 @@ mod tests {
     fn test_horizontal_rendering() {
         let mut progress_bar = ProgressBar::new();
         progress_bar.set_progress(0.5);
-        
+
         let bounds = create_test_bounds();
         let lines = progress_bar.render(&bounds);
-        
+
         assert!(!lines.is_empty());
-        
+
         // Check that rendered lines fit within bounds
         for line in &lines {
             assert!(line.chars().count() <= bounds.width());
@@ -560,12 +595,12 @@ mod tests {
     fn test_vertical_rendering() {
         let mut progress_bar = ProgressBar::vertical(Color::Blue, Color::DarkGrey);
         progress_bar.set_progress(0.3);
-        
+
         let bounds = create_test_bounds();
         let lines = progress_bar.render(&bounds);
-        
+
         assert!(!lines.is_empty());
-        
+
         // Check that rendered lines fit within bounds
         for line in &lines {
             assert!(line.chars().count() <= bounds.width());
@@ -578,12 +613,12 @@ mod tests {
         let mut progress_bar = ProgressBar::new();
         progress_bar.set_progress(0.7);
         progress_bar.set_text("Almost done...".to_string());
-        
+
         assert_eq!(progress_bar.get_progress(), 0.7);
         assert!(progress_bar.state.text.is_some());
-        
+
         progress_bar.reset();
-        
+
         assert_eq!(progress_bar.get_progress(), 0.0);
         assert!(progress_bar.state.text.is_none());
         assert!(!progress_bar.is_complete());
@@ -592,11 +627,11 @@ mod tests {
     #[test]
     fn test_text_centering() {
         let progress_bar = ProgressBar::new();
-        
+
         let centered = progress_bar.center_text("Test", 10);
         assert_eq!(centered.len(), 10);
         assert!(centered.contains("Test"));
-        
+
         let long_text = progress_bar.center_text("This is a very long text", 10);
         assert_eq!(long_text.len(), 10);
         assert_eq!(&long_text, "This is a ");
@@ -605,7 +640,7 @@ mod tests {
     #[test]
     fn test_animated_fill_char() {
         let progress_bar = ProgressBar::new();
-        
+
         // Test that animation characters are valid
         let anim_char = progress_bar.get_animated_fill_char();
         assert!(anim_char != '\0');
@@ -615,12 +650,12 @@ mod tests {
     fn test_config_update() {
         let mut progress_bar = ProgressBar::new();
         let original_color = progress_bar.config.fill_color;
-        
+
         let mut new_config = progress_bar.config.clone();
         new_config.fill_color = Color::Red;
-        
+
         progress_bar.update_config(new_config);
-        
+
         assert_ne!(progress_bar.config.fill_color, original_color);
         assert_eq!(progress_bar.config.fill_color, Color::Red);
     }
@@ -628,19 +663,19 @@ mod tests {
     #[test]
     fn test_progress_state_methods() {
         let mut state = ProgressState::new();
-        
+
         assert_eq!(state.progress, 0.0);
         assert!(state.text.is_none());
-        
+
         state.set_progress(0.8);
         assert_eq!(state.progress, 0.8);
-        
+
         state.set_text("Processing...".to_string());
         assert_eq!(state.text, Some("Processing...".to_string()));
-        
+
         state.clear_text();
         assert!(state.text.is_none());
-        
+
         // Test elapsed time
         let elapsed = state.elapsed();
         assert!(elapsed.as_millis() >= 0);

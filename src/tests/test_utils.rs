@@ -93,6 +93,7 @@ impl TestDataFactory {
             scroll_y: 0,
             tab_scroll_offset: 0,
             streams: indexmap::IndexMap::new(),
+            selected_stream_id: None,
         }
     }
 
@@ -113,13 +114,14 @@ impl TestDataFactory {
 
     /// Create a test layout with muxboxes
     pub fn create_test_layout(id: &str, muxboxes: Option<Vec<MuxBox>>) -> Layout {
-        let mut boxes = muxboxes.unwrap_or_else(|| vec![Self::create_test_muxbox("default_muxbox")]);
-        
+        let mut boxes =
+            muxboxes.unwrap_or_else(|| vec![Self::create_test_muxbox("default_muxbox")]);
+
         // Set parent layout ID for all boxes
         for muxbox in &mut boxes {
             muxbox.parent_layout_id = Some(id.to_string());
         }
-        
+
         Layout {
             id: id.to_string(),
             title: Some(format!("Test Layout {}", id)),
@@ -182,9 +184,24 @@ impl TestDataFactory {
 
     /// Create an app with multiple layouts for testing layout switching
     pub fn create_multi_layout_app() -> App {
-        let layout1 = Self::create_root_layout("layout1", Some(vec![Self::create_test_muxbox_with_parent("muxbox1", "layout1")]));
-        let layout2 = Self::create_test_layout("layout2", Some(vec![Self::create_test_muxbox_with_parent("muxbox2", "layout2")]));
-        let layout3 = Self::create_test_layout("layout3", Some(vec![Self::create_test_muxbox_with_parent("muxbox3", "layout3")]));
+        let layout1 = Self::create_root_layout(
+            "layout1",
+            Some(vec![Self::create_test_muxbox_with_parent(
+                "muxbox1", "layout1",
+            )]),
+        );
+        let layout2 = Self::create_test_layout(
+            "layout2",
+            Some(vec![Self::create_test_muxbox_with_parent(
+                "muxbox2", "layout2",
+            )]),
+        );
+        let layout3 = Self::create_test_layout(
+            "layout3",
+            Some(vec![Self::create_test_muxbox_with_parent(
+                "muxbox3", "layout3",
+            )]),
+        );
 
         let mut app = App::new();
         app.layouts = vec![layout1, layout2, layout3];

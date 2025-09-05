@@ -186,7 +186,7 @@ pub enum TerminalModeType {
     AlternateScreen, // 1047/1049
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TerminalAttributes {
     pub fg_color: Option<TerminalColor>,
     pub bg_color: Option<TerminalColor>,
@@ -251,7 +251,7 @@ pub enum MouseButton {
     WheelRight,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct MouseModifiers {
     pub shift: bool,
     pub ctrl: bool,
@@ -267,31 +267,15 @@ pub enum CharacterSetType {
     G3,
 }
 
-impl Default for TerminalAttributes {
-    fn default() -> Self {
-        TerminalAttributes {
-            fg_color: None,
-            bg_color: None,
-            bold: false,
-            italic: false,
-            underline: false,
-            strikethrough: false,
-            reverse: false,
-            blink: false,
-            dim: false,
-        }
-    }
-}
-
-impl Default for MouseModifiers {
-    fn default() -> Self {
-        MouseModifiers {
-            shift: false,
-            ctrl: false,
-            alt: false,
-            meta: false,
-        }
-    }
+#[derive(Debug, Clone, Default)]
+pub struct TextFormatting {
+    pub fg: Option<u8>,
+    pub bg: Option<u8>,
+    pub bold: bool,
+    pub underline: bool,
+    pub italic: bool,
+    pub reverse: bool,
+    pub strikethrough: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -368,8 +352,9 @@ pub struct CursorState {
     pub style: CursorStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum CursorStyle {
+    #[default]
     Block,
     Underline,
     Bar,
@@ -378,29 +363,18 @@ pub enum CursorStyle {
     BlinkingBar,
 }
 
-impl Default for CursorStyle {
-    fn default() -> Self {
-        CursorStyle::Block
-    }
-}
-
 /// F0314: Line attributes for double-width and double-height lines
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum LineAttribute {
-    Normal,             // Standard single-width, single-height line
+    #[default]
+    Normal, // Standard single-width, single-height line
     DoubleWidth,        // DECDWL - Double-width line
     DoubleHeightTop,    // DECDHL - Double-height line (top half)
     DoubleHeightBottom, // DECDHL - Double-height line (bottom half)
 }
 
-impl Default for LineAttribute {
-    fn default() -> Self {
-        LineAttribute::Normal
-    }
-}
-
 /// F0306: SGR sequence state tracking for extended color support
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct SGRState {
     pub expecting_extended_fg: bool, // Expecting 38;5;n or 38;2;r;g;b sequence
     pub expecting_extended_bg: bool, // Expecting 48;5;n or 48;2;r;g;b sequence
@@ -408,19 +382,6 @@ pub struct SGRState {
     pub extended_bg_mode: Option<u8>, // 5 for palette, 2 for RGB
     pub rgb_components: Vec<u8>,     // RGB components being collected
     pub palette_index: Option<u8>,   // 256-color palette index
-}
-
-impl Default for SGRState {
-    fn default() -> Self {
-        SGRState {
-            expecting_extended_fg: false,
-            expecting_extended_bg: false,
-            extended_fg_mode: None,
-            extended_bg_mode: None,
-            rgb_components: Vec::new(),
-            palette_index: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -464,18 +425,10 @@ impl Default for TerminalMode {
 
 #[derive(Debug, Clone)]
 /// F0307: Scrolling region for DECSTBM (Set Top and Bottom Margins)
+#[derive(Default)]
 pub struct ScrollRegion {
     pub top: usize,    // Top margin (0-based, inclusive)
     pub bottom: usize, // Bottom margin (0-based, inclusive)
-}
-
-impl Default for ScrollRegion {
-    fn default() -> Self {
-        ScrollRegion {
-            top: 0,
-            bottom: 0, // Will be set to screen height - 1 during initialization
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -517,7 +470,7 @@ impl TerminalScreenBuffer {
 
     pub fn scroll_up_one_line(&mut self) {
         // Move top line to scrollback
-        if let Some(top_line) = self.content.get(0).cloned() {
+        if let Some(top_line) = self.content.first().cloned() {
             self.scrollback.push(top_line);
 
             // F0314: Move top line attribute to scrollback too
@@ -580,8 +533,8 @@ impl TerminalScreenBuffer {
         for y in self.cursor.y..self.height {
             let start_x = if y == self.cursor.y { self.cursor.x } else { 0 };
             if let Some(row) = self.content.get_mut(y) {
-                for x in start_x..row.len() {
-                    row[x] = TerminalCell::default();
+                for cell in row.iter_mut().skip(start_x) {
+                    *cell = TerminalCell::default();
                 }
             }
         }
@@ -726,15 +679,16 @@ impl TerminalScreenBuffer {
 
             // Apply formatting changes as ANSI escape codes
             if format_changed {
-                result.push_str(&self.generate_ansi_formatting(
-                    current_fg,
-                    current_bg,
-                    current_bold,
-                    current_underline,
-                    current_italic,
-                    current_reverse,
-                    current_strikethrough,
-                ));
+                let formatting = TextFormatting {
+                    fg: current_fg,
+                    bg: current_bg,
+                    bold: current_bold,
+                    underline: current_underline,
+                    italic: current_italic,
+                    reverse: current_reverse,
+                    strikethrough: current_strikethrough,
+                };
+                result.push_str(&self.generate_ansi_formatting(&formatting));
             }
 
             // Add the character
@@ -757,40 +711,31 @@ impl TerminalScreenBuffer {
     }
 
     /// Generate ANSI escape sequence for terminal formatting
-    fn generate_ansi_formatting(
-        &self,
-        fg: Option<u8>,
-        bg: Option<u8>,
-        bold: bool,
-        underline: bool,
-        italic: bool,
-        reverse: bool,
-        strikethrough: bool,
-    ) -> String {
+    fn generate_ansi_formatting(&self, formatting: &TextFormatting) -> String {
         let mut codes = Vec::new();
 
         // Reset first if any formatting is different
         codes.push("0".to_string()); // Reset all
 
         // Text attributes
-        if bold {
+        if formatting.bold {
             codes.push("1".to_string());
         }
-        if italic {
+        if formatting.italic {
             codes.push("3".to_string());
         }
-        if underline {
+        if formatting.underline {
             codes.push("4".to_string());
         }
-        if reverse {
+        if formatting.reverse {
             codes.push("7".to_string());
         }
-        if strikethrough {
+        if formatting.strikethrough {
             codes.push("9".to_string());
         }
 
         // Foreground color
-        if let Some(fg_color) = fg {
+        if let Some(fg_color) = formatting.fg {
             if fg_color < 8 {
                 codes.push(format!("{}", 30 + fg_color));
             } else if fg_color < 16 {
@@ -801,7 +746,7 @@ impl TerminalScreenBuffer {
         }
 
         // Background color
-        if let Some(bg_color) = bg {
+        if let Some(bg_color) = formatting.bg {
             if bg_color < 8 {
                 codes.push(format!("{}", 40 + bg_color));
             } else if bg_color < 16 {
@@ -1209,7 +1154,7 @@ impl TerminalState {
 
                     // Add a blank line at the bottom of the scrolling region
                     if bottom < buffer.content.len() {
-                        let width = if buffer.content.len() > 0 {
+                        let width = if !buffer.content.is_empty() {
                             buffer.content[0].len()
                         } else {
                             screen_width
@@ -1433,7 +1378,7 @@ impl TerminalState {
     /// F0312: Verify buffer isolation - ensure buffers don't share content
     pub fn verify_buffer_isolation(&self) -> bool {
         // Buffers should have independent content structures
-        self.primary_buffer.content.len() > 0 || self.alternate_buffer.content.len() > 0
+        !self.primary_buffer.content.is_empty() || !self.alternate_buffer.content.is_empty()
     }
 
     pub fn scroll_up(&mut self, lines: usize) {
@@ -1674,6 +1619,12 @@ pub struct TerminalMessageProcessor {
     pub ansi_processor: AnsiProcessor,
     pub message_queue: Vec<TerminalMessage>,
     pub pending_responses: Vec<String>,
+}
+
+impl Default for TerminalMessageProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TerminalMessageProcessor {
@@ -1936,7 +1887,7 @@ pub struct AnsiProcessor {
     pub alternate_screen_mode: bool, // Legacy compatibility
     // F0316: Performance Optimization - Dirty region tracking
     previous_screen_state: Option<Vec<Vec<TerminalCell>>>,
-    dirty_regions_cache: Vec<DirtyRegion>,
+    _dirty_regions_cache: Vec<DirtyRegion>,
     baseline_captured: bool,
 }
 
@@ -1953,7 +1904,7 @@ impl AnsiProcessor {
             alternate_screen_mode: false,
             // F0316: Performance Optimization - Initialize dirty region tracking
             previous_screen_state: None,
-            dirty_regions_cache: Vec::new(),
+            _dirty_regions_cache: Vec::new(),
             baseline_captured: false,
         }
     }
@@ -2128,7 +2079,11 @@ impl AnsiProcessor {
             let mut first_changed: Option<usize> = None;
             let mut last_changed: Option<usize> = None;
 
-            for x in 0..self.terminal_state.screen_width.min(current_line.len().min(previous_line.len())) {
+            for x in 0..self
+                .terminal_state
+                .screen_width
+                .min(current_line.len().min(previous_line.len()))
+            {
                 if current_line[x] != previous_line[x] {
                     if first_changed.is_none() {
                         first_changed = Some(x);
@@ -2145,7 +2100,11 @@ impl AnsiProcessor {
 
                 // Try to merge with existing region or create new one
                 match &mut current_region {
-                    Some(region) if region.y + region.height == y && region.x == first_x && region.width == width => {
+                    Some(region)
+                        if region.y + region.height == y
+                            && region.x == first_x
+                            && region.width == width =>
+                    {
                         // Extend current region vertically
                         region.height += 1;
                     }
@@ -2196,9 +2155,7 @@ impl AnsiProcessor {
             // F0308: Apply reverse video mode (DECSCNM) globally
             if reverse_video {
                 // Swap foreground and background colors for reverse video effect
-                let temp_fg = cell.fg_color;
-                cell.fg_color = cell.bg_color;
-                cell.bg_color = temp_fg;
+                std::mem::swap(&mut cell.fg_color, &mut cell.bg_color);
 
                 // If no explicit colors were set, use default reverse (white on black becomes black on white)
                 if cell.fg_color.is_none() && cell.bg_color.is_none() {
@@ -2220,7 +2177,7 @@ impl AnsiProcessor {
             let screen = self.terminal_state.get_active_screen_ref();
             for row in screen {
                 let line: String = row.iter().map(|cell| cell.character).collect();
-                content.push_str(&line.trim_end());
+                content.push_str(line.trim_end());
                 content.push('\n');
             }
             content
@@ -2246,7 +2203,7 @@ impl AnsiProcessor {
             let screen = self.terminal_state.get_active_screen_ref();
             for row in screen {
                 let line: String = row.iter().map(|cell| cell.character).collect();
-                content.push_str(&line.trim_end());
+                content.push_str(line.trim_end());
                 content.push('\n');
             }
             content.trim_end().to_string() // Remove trailing newline for consistency
@@ -2711,15 +2668,11 @@ impl Perform for AnsiProcessor {
         match c {
             'q' => {
                 // DCS sequences starting with 'q' - terminal queries
-                if intermediates.is_empty() && params.len() > 0 {
+                if intermediates.is_empty() && !params.is_empty() {
                     let query_type = Self::get_param(params, 0);
-                    match query_type {
-                        1 => {
-                            // Request terminal ID
-                            self.terminal_state.pending_response =
-                                Some("\x1b[>0;276;0c".to_string());
-                        }
-                        _ => {}
+                    if query_type == 1 {
+                        // Request terminal ID
+                        self.terminal_state.pending_response = Some("\x1b[>0;276;0c".to_string());
                     }
                 }
             }
@@ -2753,11 +2706,11 @@ impl Perform for AnsiProcessor {
     fn unhook(&mut self) {
         // End of DCS - Process accumulated DCS sequence
         // Extract data first to avoid borrow checker issues
-        let dcs_data = if let Some(buffer) = &self.terminal_state.dcs_buffer {
-            Some(String::from_utf8_lossy(buffer).to_string())
-        } else {
-            None
-        };
+        let dcs_data = self
+            .terminal_state
+            .dcs_buffer
+            .as_ref()
+            .map(|buffer| String::from_utf8_lossy(buffer).to_string());
 
         if let Some(dcs_type) = self.terminal_state.dcs_sequence_type {
             if let Some(data) = dcs_data {
@@ -2792,11 +2745,12 @@ impl Perform for AnsiProcessor {
         if params.len() >= 2 {
             let command = String::from_utf8_lossy(params[0]);
             // Concatenate all data parameters (in case of multiple semicolons in data)
-            let data_parts: Vec<String> = params[1..].iter()
+            let data_parts: Vec<String> = params[1..]
+                .iter()
                 .map(|p| String::from_utf8_lossy(p).to_string())
                 .collect();
             let data = data_parts.join(";");
-            
+
             match command.as_ref() {
                 "0" | "2" => {
                     // Set terminal title (0 = both icon and title, 2 = title)
@@ -2833,7 +2787,7 @@ impl Perform for AnsiProcessor {
             // Handle single parameter case (might contain semicolon-separated data)
             let first_param = String::from_utf8_lossy(params[0]);
             let parts: Vec<&str> = first_param.splitn(2, ';').collect();
-            
+
             if parts.len() >= 2 {
                 match parts[0] {
                     "0" | "2" => {
@@ -2866,7 +2820,7 @@ impl Perform for AnsiProcessor {
             }
             'H' | 'f' => {
                 // Cursor position - CUP or HVP
-                let row = if params.len() > 0 {
+                let row = if !params.is_empty() {
                     Self::get_param(params, 0).max(1)
                 } else {
                     1
@@ -2892,7 +2846,7 @@ impl Perform for AnsiProcessor {
             }
             'A' => {
                 // Cursor up - CUU
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0).max(1)
                 } else {
                     1
@@ -2902,7 +2856,7 @@ impl Perform for AnsiProcessor {
             }
             'B' => {
                 // Cursor down - CUD
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0).max(1)
                 } else {
                     1
@@ -2912,7 +2866,7 @@ impl Perform for AnsiProcessor {
             }
             'C' => {
                 // Cursor forward - CUF
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0).max(1)
                 } else {
                     1
@@ -2922,7 +2876,7 @@ impl Perform for AnsiProcessor {
             }
             'D' => {
                 // Cursor backward - CUB
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0).max(1)
                 } else {
                     1
@@ -2932,7 +2886,7 @@ impl Perform for AnsiProcessor {
             }
             'J' => {
                 // Erase in Display
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0)
                 } else {
                     0
@@ -2982,20 +2936,15 @@ impl Perform for AnsiProcessor {
                         }
                         _ => {}
                     }
-                } else {
-                    match n {
-                        2 => {
-                            self.processed_text.clear();
-                            self.terminal_state.get_cursor_mut().x = 0;
-                            self.terminal_state.get_cursor_mut().y = 0;
-                        }
-                        _ => {}
-                    }
+                } else if n == 2 {
+                    self.processed_text.clear();
+                    self.terminal_state.get_cursor_mut().x = 0;
+                    self.terminal_state.get_cursor_mut().y = 0;
                 }
             }
             'K' => {
                 // Erase in Line
-                let n = if params.len() > 0 {
+                let n = if !params.is_empty() {
                     Self::get_param(params, 0)
                 } else {
                     0
@@ -3035,7 +2984,7 @@ impl Perform for AnsiProcessor {
             }
             'h' => {
                 // Set Mode
-                if _intermediates.contains(&b'?') && params.len() > 0 {
+                if _intermediates.contains(&b'?') && !params.is_empty() {
                     // DEC private mode set
                     let mode = Self::get_param(params, 0);
                     match mode {
@@ -3125,7 +3074,7 @@ impl Perform for AnsiProcessor {
                             log::debug!("Unknown DEC private mode set: {}", mode);
                         }
                     }
-                } else if params.len() > 0 {
+                } else if !params.is_empty() {
                     // Standard mode set
                     let mode = Self::get_param(params, 0);
                     match mode {
@@ -3145,7 +3094,7 @@ impl Perform for AnsiProcessor {
             }
             'l' => {
                 // Reset Mode
-                if _intermediates.contains(&b'?') && params.len() > 0 {
+                if _intermediates.contains(&b'?') && !params.is_empty() {
                     // DEC private mode reset
                     let mode = Self::get_param(params, 0);
                     match mode {
@@ -3217,7 +3166,7 @@ impl Perform for AnsiProcessor {
                             log::debug!("Unknown DEC private mode reset: {}", mode);
                         }
                     }
-                } else if params.len() > 0 {
+                } else if !params.is_empty() {
                     // Standard mode reset
                     let mode = Self::get_param(params, 0);
                     match mode {
@@ -3237,7 +3186,7 @@ impl Perform for AnsiProcessor {
             }
             'L' => {
                 // Insert Lines (IL)
-                let count = if params.len() > 0 {
+                let count = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3246,7 +3195,7 @@ impl Perform for AnsiProcessor {
             }
             'M' => {
                 // Delete Lines (DL)
-                let count = if params.len() > 0 {
+                let count = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3255,7 +3204,7 @@ impl Perform for AnsiProcessor {
             }
             'P' => {
                 // Delete Characters (DCH)
-                let count = if params.len() > 0 {
+                let count = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3277,7 +3226,7 @@ impl Perform for AnsiProcessor {
             'S' => {
                 // SU - Scroll Up
                 // F0307: Scroll up within scrolling region
-                let lines = if params.len() > 0 {
+                let lines = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3287,7 +3236,7 @@ impl Perform for AnsiProcessor {
             'T' => {
                 // SD - Scroll Down
                 // F0307: Scroll down within scrolling region
-                let lines = if params.len() > 0 {
+                let lines = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3297,7 +3246,7 @@ impl Perform for AnsiProcessor {
             'r' => {
                 // DECSTBM - Set Top and Bottom Margins (Set Scrolling Region)
                 // F0307: Scrolling Region Support
-                let top = if params.len() > 0 {
+                let top = if !params.is_empty() {
                     Some(Self::get_param(params, 0) as usize)
                 } else {
                     None
@@ -3317,7 +3266,7 @@ impl Perform for AnsiProcessor {
             }
             'n' => {
                 // F0311: Device Status Report (DSR) - Enhanced with all standard reports
-                if params.len() > 0 {
+                if !params.is_empty() {
                     let report_type = Self::get_param(params, 0);
                     match report_type {
                         5 => {
@@ -3415,7 +3364,7 @@ impl Perform for AnsiProcessor {
             }
             'g' => {
                 // F0313: TBC - Tab Clear
-                let mode = if params.len() > 0 {
+                let mode = if !params.is_empty() {
                     Self::get_param(params, 0)
                 } else {
                     0
@@ -3442,7 +3391,7 @@ impl Perform for AnsiProcessor {
             }
             'I' => {
                 // F0313: CHT - Cursor Horizontal Tabulation (Tab Forward)
-                let count = if params.len() > 0 {
+                let count = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3454,7 +3403,7 @@ impl Perform for AnsiProcessor {
             }
             'Z' => {
                 // F0313: CBT - Cursor Backward Tabulation (Tab Backward)
-                let count = if params.len() > 0 {
+                let count = if !params.is_empty() {
                     Self::get_param(params, 0).max(1) as usize
                 } else {
                     1
@@ -3465,7 +3414,7 @@ impl Perform for AnsiProcessor {
                 }
             }
             _ => {
-                log::debug!("Unknown CSI sequence: {:?} '{}'", params, c as char);
+                log::debug!("Unknown CSI sequence: {:?} '{}'", params, { c });
             }
         }
     }

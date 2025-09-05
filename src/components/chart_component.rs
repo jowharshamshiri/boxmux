@@ -1,10 +1,10 @@
 //! Chart Component System - Unified chart rendering component with multiple chart types
-//! 
+//!
 //! This module provides a comprehensive chart rendering component that encapsulates
 //! all chart generation logic while providing a clean, reusable interface.
 
-use crate::model::common::{Bounds, ScreenBuffer};
 use crate::draw_utils::print_with_color_and_background_at;
+use crate::model::common::{Bounds, ScreenBuffer};
 
 /// Chart data point
 #[derive(Debug, Clone)]
@@ -89,7 +89,7 @@ struct ChartLayout {
 #[derive(Debug, Clone)]
 pub struct ChartComponent {
     /// Unique identifier for this chart component instance
-    id: String,
+    _id: String,
     /// Chart configuration
     config: ChartConfig,
     /// Chart data points
@@ -100,7 +100,7 @@ impl ChartComponent {
     /// Create a new ChartComponent with default configuration
     pub fn new(id: String) -> Self {
         Self {
-            id,
+            _id: id,
             config: ChartConfig::default(),
             data: Vec::new(),
         }
@@ -109,7 +109,7 @@ impl ChartComponent {
     /// Create a ChartComponent with custom configuration
     pub fn with_config(id: String, config: ChartConfig) -> Self {
         Self {
-            id,
+            _id: id,
             config,
             data: Vec::new(),
         }
@@ -117,7 +117,11 @@ impl ChartComponent {
 
     /// Create a ChartComponent with data and configuration
     pub fn with_data_and_config(id: String, data: Vec<DataPoint>, config: ChartConfig) -> Self {
-        Self { id, config, data }
+        Self {
+            _id: id,
+            config,
+            data,
+        }
     }
 
     /// Set chart data
@@ -169,18 +173,18 @@ impl ChartComponent {
         match effective_config.chart_type {
             ChartType::Bar => self.generate_bar_chart(&effective_config, &layout, muxbox_title),
             ChartType::Line => self.generate_line_chart(&effective_config, &layout, muxbox_title),
-            ChartType::Histogram => self.generate_histogram(&effective_config, &layout, muxbox_title),
+            ChartType::Histogram => {
+                self.generate_histogram(&effective_config, &layout, muxbox_title)
+            }
             ChartType::Pie => self.generate_pie_chart(&effective_config, &layout, muxbox_title),
-            ChartType::Scatter => self.generate_scatter_chart(&effective_config, &layout, muxbox_title),
+            ChartType::Scatter => {
+                self.generate_scatter_chart(&effective_config, &layout, muxbox_title)
+            }
         }
     }
 
     /// Render chart directly to screen buffer at specified bounds
-    pub fn render(
-        &self,
-        bounds: &Bounds,
-        buffer: &mut ScreenBuffer,
-    ) {
+    pub fn render(&self, bounds: &Bounds, buffer: &mut ScreenBuffer) {
         self.render_with_colors(bounds, &self.config.color, "black", buffer);
     }
 
@@ -221,7 +225,7 @@ impl ChartComponent {
             } else {
                 line.to_string()
             };
-            
+
             print_with_color_and_background_at(
                 y_pos,
                 bounds.left(),
@@ -264,14 +268,19 @@ impl ChartComponent {
     }
 
     /// Calculate optimal layout dimensions for chart
-    fn calculate_chart_layout(&self, config: &ChartConfig, muxbox_title: Option<&str>) -> ChartLayout {
+    fn calculate_chart_layout(
+        &self,
+        config: &ChartConfig,
+        muxbox_title: Option<&str>,
+    ) -> ChartLayout {
         let total_width = config.width.max(20); // Minimum width
         let total_height = config.height.max(5); // Minimum height
 
         // Reserve space for title if present and different from muxbox title
         let title_height = if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     2
                 } else {
@@ -287,7 +296,13 @@ impl ChartComponent {
         match config.chart_type {
             ChartType::Bar => {
                 // Calculate Y-axis label width based on data labels
-                let y_label_width = self.data.iter().map(|p| p.label.len()).max().unwrap_or(0).max(3); // Minimum for values
+                let y_label_width = self
+                    .data
+                    .iter()
+                    .map(|p| p.label.len())
+                    .max()
+                    .unwrap_or(0)
+                    .max(3); // Minimum for values
 
                 ChartLayout {
                     total_width,
@@ -331,8 +346,9 @@ impl ChartComponent {
             ChartType::Pie => {
                 // Pie charts need square space and legend area
                 let legend_width = 15; // Space for legend on the right
-                let chart_size = (total_width.saturating_sub(legend_width)).min(total_height.saturating_sub(title_height));
-                
+                let chart_size = (total_width.saturating_sub(legend_width))
+                    .min(total_height.saturating_sub(title_height));
+
                 ChartLayout {
                     total_width,
                     _total_height: total_height,
@@ -347,7 +363,7 @@ impl ChartComponent {
                 // Scatter plots need space for X and Y axis labels
                 let y_label_width = 8; // Space for Y-axis numeric values
                 let x_label_height = 2; // Space for X-axis labels
-                
+
                 ChartLayout {
                     total_width,
                     _total_height: total_height,
@@ -362,14 +378,20 @@ impl ChartComponent {
     }
 
     /// Generate bar chart
-    fn generate_bar_chart(&self, config: &ChartConfig, layout: &ChartLayout, muxbox_title: Option<&str>) -> String {
+    fn generate_bar_chart(
+        &self,
+        config: &ChartConfig,
+        layout: &ChartLayout,
+        muxbox_title: Option<&str>,
+    ) -> String {
         let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
         let mut result = String::new();
 
         // Only add title if it's different from the muxbox title
         if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     let title_centered = Self::center_text(title, layout.total_width);
                     result.push_str(&format!("{}\n", title_centered));
@@ -391,7 +413,7 @@ impl ChartComponent {
         };
         let total_lines_needed = self.data.len() * lines_per_bar;
 
-        for (_i, point) in self.data.iter().enumerate() {
+        for point in self.data.iter() {
             let bar_length = if max_value > 0.0 {
                 ((point.value / max_value) * bar_width as f64).round() as usize
             } else {
@@ -441,13 +463,22 @@ impl ChartComponent {
     }
 
     /// Generate line chart
-    fn generate_line_chart(&self, config: &ChartConfig, layout: &ChartLayout, muxbox_title: Option<&str>) -> String {
+    fn generate_line_chart(
+        &self,
+        config: &ChartConfig,
+        layout: &ChartLayout,
+        muxbox_title: Option<&str>,
+    ) -> String {
         if self.data.len() < 2 {
             return "Need at least 2 data points for line chart".to_string();
         }
 
         let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_value = self.data.iter().map(|p| p.value).fold(f64::INFINITY, f64::min);
+        let min_value = self
+            .data
+            .iter()
+            .map(|p| p.value)
+            .fold(f64::INFINITY, f64::min);
         let range = max_value - min_value;
 
         let mut result = String::new();
@@ -455,7 +486,8 @@ impl ChartComponent {
         // Only add title if it's different from the muxbox title
         if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     let title_centered = Self::center_text(title, layout.total_width);
                     result.push_str(&format!("{}\n", title_centered));
@@ -480,7 +512,8 @@ impl ChartComponent {
             let y = if range > 0.0 {
                 layout.chart_height
                     - 1
-                    - ((point.value - min_value) / range * (layout.chart_height - 1) as f64) as usize
+                    - ((point.value - min_value) / range * (layout.chart_height - 1) as f64)
+                        as usize
             } else {
                 layout.chart_height / 2
             };
@@ -532,7 +565,8 @@ impl ChartComponent {
             for (i, point) in self.data.iter().enumerate() {
                 if i % step == 0 || i == self.data.len() - 1 {
                     let x = if self.data.len() > 1 {
-                        (i as f64 / (self.data.len() - 1) as f64 * (layout.chart_width - 1) as f64) as usize
+                        (i as f64 / (self.data.len() - 1) as f64 * (layout.chart_width - 1) as f64)
+                            as usize
                     } else {
                         layout.chart_width / 2
                     };
@@ -559,17 +593,26 @@ impl ChartComponent {
     }
 
     /// Generate histogram
-    fn generate_histogram(&self, config: &ChartConfig, layout: &ChartLayout, muxbox_title: Option<&str>) -> String {
+    fn generate_histogram(
+        &self,
+        config: &ChartConfig,
+        layout: &ChartLayout,
+        muxbox_title: Option<&str>,
+    ) -> String {
         // Create bins based on value ranges
         let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_value = self.data.iter().map(|p| p.value).fold(f64::INFINITY, f64::min);
+        let min_value = self
+            .data
+            .iter()
+            .map(|p| p.value)
+            .fold(f64::INFINITY, f64::min);
 
         // Calculate optimal number of bins based on available width
         let max_bins = layout.chart_width / 2; // Each bin needs at least 2 chars width
         let bins = if self.data.len() <= max_bins {
             self.data.len() // Use one bin per data point if we have space
         } else {
-            max_bins.min(12).max(6) // Otherwise use traditional histogram bins
+            max_bins.clamp(6, 12) // Otherwise use traditional histogram bins
         };
 
         let bin_size = if max_value > min_value {
@@ -605,7 +648,8 @@ impl ChartComponent {
         // Only add title if it's different from the muxbox title
         if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     let title_centered = Self::center_text(title, layout.total_width);
                     result.push_str(&format!("{}\n", title_centered));
@@ -684,7 +728,8 @@ impl ChartComponent {
                     let data_idx = if labels_to_show == self.data.len() {
                         i // Show all labels
                     } else {
-                        (i * (self.data.len() - 1)) / (labels_to_show - 1).max(1) // Sample evenly
+                        (i * (self.data.len() - 1)) / (labels_to_show - 1).max(1)
+                        // Sample evenly
                     };
 
                     let point = &self.data[data_idx.min(self.data.len() - 1)];
@@ -782,7 +827,12 @@ impl ChartComponent {
     }
 
     /// Generate pie chart
-    fn generate_pie_chart(&self, config: &ChartConfig, layout: &ChartLayout, muxbox_title: Option<&str>) -> String {
+    fn generate_pie_chart(
+        &self,
+        config: &ChartConfig,
+        layout: &ChartLayout,
+        muxbox_title: Option<&str>,
+    ) -> String {
         let total_value: f64 = self.data.iter().map(|p| p.value).sum();
         if total_value == 0.0 {
             return "No data for pie chart".to_string();
@@ -793,7 +843,8 @@ impl ChartComponent {
         // Only add title if it's different from the muxbox title
         if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     let title_centered = Self::center_text(title, layout.total_width);
                     result.push_str(&format!("{}\n", title_centered));
@@ -815,25 +866,25 @@ impl ChartComponent {
         // Calculate angles for each slice
         let mut current_angle = 0.0;
         let pie_chars = ['█', '▓', '▒', '░', '●', '◐', '◑', '◒'];
-        
+
         for (slice_idx, point) in self.data.iter().enumerate() {
             let slice_angle = (point.value / total_value) * 2.0 * std::f64::consts::PI;
             let slice_char = pie_chars[slice_idx % pie_chars.len()];
-            
+
             // Fill the slice using simple sector approximation
             let angle_steps = (slice_angle * radius as f64 / 2.0).ceil() as usize;
             for step in 0..angle_steps.max(1) {
                 let angle = current_angle + (step as f64 / angle_steps.max(1) as f64) * slice_angle;
-                let end_angle = current_angle + slice_angle;
-                
+                let _end_angle = current_angle + slice_angle;
+
                 // Draw lines from center to edge for this slice
                 for r in 1..=radius {
                     let x = center_x as f64 + (r as f64 * angle.cos());
                     let y = center_y as f64 + (r as f64 * angle.sin() / 2.0); // Adjust for character aspect ratio
-                    
+
                     let grid_x = x.round() as usize;
                     let grid_y = y.round() as usize;
-                    
+
                     if grid_x < layout.chart_width && grid_y < layout.chart_height {
                         grid[grid_y][grid_x] = slice_char;
                     }
@@ -850,21 +901,29 @@ impl ChartComponent {
 
         // Add legend on the right side
         if layout.y_label_width > 0 {
-            let legend_lines: Vec<String> = result.lines().collect::<Vec<_>>().into_iter().map(|s| s.to_string()).collect();
+            let legend_lines: Vec<String> = result
+                .lines()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect();
             result.clear();
-            
+
             for (line_idx, line) in legend_lines.iter().enumerate() {
                 result.push_str(line);
-                
+
                 // Add legend entries
                 if line_idx < self.data.len() {
                     let point = &self.data[line_idx];
                     let percentage = (point.value / total_value) * 100.0;
                     let slice_char = pie_chars[line_idx % pie_chars.len()];
-                    let legend_text = format!(" {} {}: {:.1}%", slice_char, point.label, percentage);
-                    
+                    let legend_text =
+                        format!(" {} {}: {:.1}%", slice_char, point.label, percentage);
+
                     // Pad line to fit legend
-                    let padding = layout.total_width.saturating_sub(line.len() + legend_text.len());
+                    let padding = layout
+                        .total_width
+                        .saturating_sub(line.len() + legend_text.len());
                     result.push_str(&" ".repeat(padding));
                     result.push_str(&legend_text);
                 }
@@ -876,7 +935,12 @@ impl ChartComponent {
     }
 
     /// Generate scatter chart
-    fn generate_scatter_chart(&self, config: &ChartConfig, layout: &ChartLayout, muxbox_title: Option<&str>) -> String {
+    fn generate_scatter_chart(
+        &self,
+        config: &ChartConfig,
+        layout: &ChartLayout,
+        muxbox_title: Option<&str>,
+    ) -> String {
         if self.data.len() < 2 {
             return "Need at least 2 data points for scatter chart".to_string();
         }
@@ -884,10 +948,14 @@ impl ChartComponent {
         // For scatter plots, we need X and Y values. We'll use the index as X and value as Y
         // In a real implementation, DataPoint might have both x and y values
         let max_y = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_y = self.data.iter().map(|p| p.value).fold(f64::INFINITY, f64::min);
+        let min_y = self
+            .data
+            .iter()
+            .map(|p| p.value)
+            .fold(f64::INFINITY, f64::min);
         let max_x = self.data.len() as f64;
         let min_x = 0.0;
-        
+
         let x_range = max_x - min_x;
         let y_range = max_y - min_y;
 
@@ -896,7 +964,8 @@ impl ChartComponent {
         // Only add title if it's different from the muxbox title
         if config.show_title {
             if let Some(title) = &config.title {
-                let should_show_title = muxbox_title.map_or(true, |muxbox_title| muxbox_title != title);
+                let should_show_title =
+                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
                 if should_show_title {
                     let title_centered = Self::center_text(title, layout.total_width);
                     result.push_str(&format!("{}\n", title_centered));
@@ -909,13 +978,13 @@ impl ChartComponent {
 
         // Create grid for scatter plot
         let mut grid = vec![vec![' '; layout.chart_width]; layout.chart_height];
-        
+
         // Draw grid lines if enabled
         if config.show_grid {
             // Vertical grid lines
             for x in (0..layout.chart_width).step_by(layout.chart_width / 5) {
-                for y in 0..layout.chart_height {
-                    grid[y][x] = '│';
+                for row in grid.iter_mut().take(layout.chart_height) {
+                    row[x] = '│';
                 }
             }
             // Horizontal grid lines
@@ -928,17 +997,18 @@ impl ChartComponent {
 
         // Plot scatter points with different symbols for variety
         let scatter_symbols = ['●', '◆', '▲', '■', '♦', '✦', '⬢', '⬣'];
-        
+
         for (point_idx, point) in self.data.iter().enumerate() {
             let x_pos = if x_range > 0.0 {
                 ((point_idx as f64 - min_x) / x_range * (layout.chart_width - 1) as f64) as usize
             } else {
                 layout.chart_width / 2
             };
-            
+
             let y_pos = if y_range > 0.0 {
-                layout.chart_height - 1 - 
-                ((point.value - min_y) / y_range * (layout.chart_height - 1) as f64) as usize
+                layout.chart_height
+                    - 1
+                    - ((point.value - min_y) / y_range * (layout.chart_height - 1) as f64) as usize
             } else {
                 layout.chart_height / 2
             };
@@ -959,7 +1029,7 @@ impl ChartComponent {
                 } else {
                     min_y
                 };
-                
+
                 // Show labels at intervals
                 let label_interval = (layout.chart_height / 4).max(1);
                 if row_idx % label_interval == 0 || row_idx == layout.chart_height - 1 {
@@ -978,19 +1048,28 @@ impl ChartComponent {
         if layout.x_label_height > 0 && !self.data.is_empty() {
             let padding = " ".repeat(layout.y_label_width + 1);
             result.push_str(&padding);
-            
+
             // Show X labels (indices or labels)
-            let step = if self.data.len() > 10 { self.data.len() / 8 } else { 1 };
+            let step = if self.data.len() > 10 {
+                self.data.len() / 8
+            } else {
+                1
+            };
             for (i, point) in self.data.iter().enumerate().step_by(step) {
                 let x_pos = if x_range > 0.0 {
                     ((i as f64 - min_x) / x_range * (layout.chart_width - 1) as f64) as usize
                 } else {
                     layout.chart_width / 2
                 };
-                
+
                 // Position label under the point
                 let spaces_before = x_pos.saturating_sub(
-                    result.lines().last().unwrap_or("").len().saturating_sub(layout.y_label_width + 1)
+                    result
+                        .lines()
+                        .last()
+                        .unwrap_or("")
+                        .len()
+                        .saturating_sub(layout.y_label_width + 1),
                 );
                 if spaces_before < layout.chart_width {
                     result.push_str(&" ".repeat(spaces_before));
@@ -1027,16 +1106,25 @@ mod tests {
 
     fn create_test_data() -> Vec<DataPoint> {
         vec![
-            DataPoint { label: "Jan".to_string(), value: 10.0 },
-            DataPoint { label: "Feb".to_string(), value: 20.0 },
-            DataPoint { label: "Mar".to_string(), value: 15.0 },
+            DataPoint {
+                label: "Jan".to_string(),
+                value: 10.0,
+            },
+            DataPoint {
+                label: "Feb".to_string(),
+                value: 20.0,
+            },
+            DataPoint {
+                label: "Mar".to_string(),
+                value: 15.0,
+            },
         ]
     }
 
     #[test]
     fn test_chart_component_creation() {
         let chart = ChartComponent::new("test_chart".to_string());
-        assert_eq!(chart.id, "test_chart");
+        assert_eq!(chart._id, "test_chart");
         assert!(chart.data.is_empty());
         assert_eq!(chart.config.chart_type, ChartType::Bar);
     }
@@ -1053,7 +1141,7 @@ mod tests {
             show_values: false,
             show_grid: true,
         };
-        
+
         let chart = ChartComponent::with_config("test".to_string(), config.clone());
         assert_eq!(chart.config.chart_type, ChartType::Line);
         assert_eq!(chart.config.width, 60);
@@ -1067,7 +1155,7 @@ mod tests {
         let mut chart = ChartComponent::new("test".to_string());
         let content = "Jan,10\nFeb,20\nMar,15";
         chart.parse_data_from_content(content);
-        
+
         assert_eq!(chart.data.len(), 3);
         assert_eq!(chart.data[0].label, "Jan");
         assert_eq!(chart.data[0].value, 10.0);
@@ -1087,10 +1175,10 @@ mod tests {
             show_values: true,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         assert!(result.contains("Test Bar Chart"));
         assert!(result.contains("Jan"));
         assert!(result.contains("█")); // Bar characters
@@ -1110,10 +1198,10 @@ mod tests {
             show_values: true,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         assert!(result.contains("Test Line Chart"));
         assert!(result.contains("●")); // Data points
     }
@@ -1131,10 +1219,10 @@ mod tests {
             show_values: false,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         assert!(result.contains("Test Histogram"));
         assert!(result.contains("█")); // Histogram bars
     }
@@ -1143,7 +1231,10 @@ mod tests {
     fn test_chart_type_from_string() {
         assert_eq!("bar".parse::<ChartType>().unwrap(), ChartType::Bar);
         assert_eq!("line".parse::<ChartType>().unwrap(), ChartType::Line);
-        assert_eq!("histogram".parse::<ChartType>().unwrap(), ChartType::Histogram);
+        assert_eq!(
+            "histogram".parse::<ChartType>().unwrap(),
+            ChartType::Histogram
+        );
         assert_eq!("pie".parse::<ChartType>().unwrap(), ChartType::Pie);
         assert_eq!("scatter".parse::<ChartType>().unwrap(), ChartType::Scatter);
         assert!("invalid".parse::<ChartType>().is_err());
@@ -1162,10 +1253,10 @@ mod tests {
             show_values: true,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate_with_muxbox_title(Some("Same Title"));
-        
+
         // Title should be suppressed when it matches muxbox title
         let title_count = result.matches("Same Title").count();
         assert_eq!(title_count, 0);
@@ -1191,14 +1282,14 @@ mod tests {
             show_values: true,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let bounds = Bounds::new(5, 5, 30, 8);
         let mut buffer = create_test_buffer();
-        
+
         // Should not panic and should render without issues
         chart.render(&bounds, &mut buffer);
-        
+
         // Test rendering with custom colors
         chart.render_with_colors(&bounds, "red", "black", &mut buffer);
     }
@@ -1210,19 +1301,19 @@ mod tests {
         assert_eq!(data1.len(), 2);
         assert_eq!(data1[0].label, "A");
         assert_eq!(data1[0].value, 10.0);
-        
+
         // Test colon format
         let data2 = ChartComponent::parse_chart_data("C:30\nD:40");
         assert_eq!(data2.len(), 2);
         assert_eq!(data2[0].label, "C");
         assert_eq!(data2[0].value, 30.0);
-        
+
         // Test space format
         let data3 = ChartComponent::parse_chart_data("E 50\nF 60");
         assert_eq!(data3.len(), 2);
         assert_eq!(data3[0].label, "E");
         assert_eq!(data3[0].value, 50.0);
-        
+
         // Test comments and empty lines
         let data4 = ChartComponent::parse_chart_data("# Comment\n\nG,70\n");
         assert_eq!(data4.len(), 1);
@@ -1233,19 +1324,16 @@ mod tests {
     #[test]
     fn test_chart_layout_calculation() {
         let data = create_test_data();
-        let chart = ChartComponent::with_data_and_config(
-            "test".to_string(), 
-            data, 
-            ChartConfig::default()
-        );
-        
+        let chart =
+            ChartComponent::with_data_and_config("test".to_string(), data, ChartConfig::default());
+
         let config = ChartConfig {
             chart_type: ChartType::Bar,
             width: 50,
             height: 20,
             ..ChartConfig::default()
         };
-        
+
         let layout = chart.calculate_chart_layout(&config, None);
         assert_eq!(layout.total_width, 50);
         assert!(layout.chart_width < layout.total_width); // Should reserve space for labels
@@ -1265,13 +1353,15 @@ mod tests {
             show_values: true,
             show_grid: false,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         assert!(result.contains("Test Pie Chart"));
         // Should contain pie chart characters
-        assert!(result.chars().any(|c| matches!(c, '█' | '▓' | '▒' | '░' | '●')));
+        assert!(result
+            .chars()
+            .any(|c| matches!(c, '█' | '▓' | '▒' | '░' | '●')));
         // Should contain percentage in legend
         assert!(result.contains("%"));
     }
@@ -1289,10 +1379,10 @@ mod tests {
             show_values: false,
             show_grid: true,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         assert!(result.contains("Test Scatter Plot"));
         // Should contain scatter plot symbols
         assert!(result.chars().any(|c| matches!(c, '●' | '◆' | '▲' | '■')));
@@ -1307,7 +1397,7 @@ mod tests {
             ChartConfig {
                 chart_type: ChartType::Pie,
                 ..ChartConfig::default()
-            }
+            },
         );
         let result = chart.generate();
         assert_eq!(result, "No chart data");
@@ -1316,38 +1406,45 @@ mod tests {
     #[test]
     fn test_pie_chart_zero_values() {
         let data = vec![
-            DataPoint { label: "A".to_string(), value: 0.0 },
-            DataPoint { label: "B".to_string(), value: 0.0 },
+            DataPoint {
+                label: "A".to_string(),
+                value: 0.0,
+            },
+            DataPoint {
+                label: "B".to_string(),
+                value: 0.0,
+            },
         ];
-        
+
         let chart = ChartComponent::with_data_and_config(
             "test".to_string(),
             data,
             ChartConfig {
                 chart_type: ChartType::Pie,
                 ..ChartConfig::default()
-            }
+            },
         );
-        
+
         let result = chart.generate();
         assert_eq!(result, "No data for pie chart");
     }
 
     #[test]
     fn test_scatter_chart_insufficient_data() {
-        let data = vec![
-            DataPoint { label: "Single".to_string(), value: 10.0 },
-        ];
-        
+        let data = vec![DataPoint {
+            label: "Single".to_string(),
+            value: 10.0,
+        }];
+
         let chart = ChartComponent::with_data_and_config(
             "test".to_string(),
             data,
             ChartConfig {
                 chart_type: ChartType::Scatter,
                 ..ChartConfig::default()
-            }
+            },
         );
-        
+
         let result = chart.generate();
         assert_eq!(result, "Need at least 2 data points for scatter chart");
     }
@@ -1355,9 +1452,15 @@ mod tests {
     #[test]
     fn test_all_chart_types_with_same_data() {
         let data = create_test_data();
-        
-        let chart_types = [ChartType::Bar, ChartType::Line, ChartType::Histogram, ChartType::Pie, ChartType::Scatter];
-        
+
+        let chart_types = [
+            ChartType::Bar,
+            ChartType::Line,
+            ChartType::Histogram,
+            ChartType::Pie,
+            ChartType::Scatter,
+        ];
+
         for chart_type in &chart_types {
             let config = ChartConfig {
                 chart_type: chart_type.clone(),
@@ -1369,25 +1472,31 @@ mod tests {
                 show_values: true,
                 show_grid: false,
             };
-            
-            let chart = ChartComponent::with_data_and_config("test".to_string(), data.clone(), config);
+
+            let chart =
+                ChartComponent::with_data_and_config("test".to_string(), data.clone(), config);
             let result = chart.generate();
-            
+
             // All chart types should generate some content
-            assert!(!result.is_empty(), "Chart type {:?} generated empty content", chart_type);
-            assert!(result.contains(&format!("{:?} Chart", chart_type)), "Chart type {:?} missing title", chart_type);
+            assert!(
+                !result.is_empty(),
+                "Chart type {:?} generated empty content",
+                chart_type
+            );
+            assert!(
+                result.contains(&format!("{:?} Chart", chart_type)),
+                "Chart type {:?} missing title",
+                chart_type
+            );
         }
     }
 
     #[test]
     fn test_chart_layout_calculation_new_types() {
         let data = create_test_data();
-        let chart = ChartComponent::with_data_and_config(
-            "test".to_string(), 
-            data, 
-            ChartConfig::default()
-        );
-        
+        let chart =
+            ChartComponent::with_data_and_config("test".to_string(), data, ChartConfig::default());
+
         // Test pie chart layout
         let pie_config = ChartConfig {
             chart_type: ChartType::Pie,
@@ -1398,7 +1507,7 @@ mod tests {
         let pie_layout = chart.calculate_chart_layout(&pie_config, None);
         assert!(pie_layout.y_label_width > 0); // Should have legend space
         assert_eq!(pie_layout.chart_width, pie_layout.chart_height); // Should be square-ish
-        
+
         // Test scatter chart layout
         let scatter_config = ChartConfig {
             chart_type: ChartType::Scatter,
@@ -1425,12 +1534,15 @@ mod tests {
             show_values: false,
             show_grid: true,
         };
-        
+
         let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
         let result = chart.generate();
-        
+
         // Should contain grid characters when show_grid is true
-        assert!(result.contains('│') || result.contains('─'), "Scatter chart with grid should contain grid lines");
+        assert!(
+            result.contains('│') || result.contains('─'),
+            "Scatter chart with grid should contain grid lines"
+        );
     }
 
     #[test]
@@ -1444,16 +1556,16 @@ mod tests {
     fn test_data_setters_and_getters() {
         let mut chart = ChartComponent::new("test".to_string());
         let data = create_test_data();
-        
+
         chart.set_data(data.clone());
         assert_eq!(chart.get_data().len(), 3);
         assert_eq!(chart.get_data()[0].label, "Jan");
-        
+
         let new_config = ChartConfig {
             chart_type: ChartType::Histogram,
             ..ChartConfig::default()
         };
-        
+
         chart.set_config(new_config.clone());
         assert_eq!(chart.get_config().chart_type, ChartType::Histogram);
     }

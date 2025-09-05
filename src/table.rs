@@ -138,7 +138,7 @@ pub fn render_table(data: &TableData, config: &TableConfig) -> String {
 
     // Render data rows
     for (index, row) in paginated_rows.iter().enumerate() {
-        let is_highlighted = config.highlight_row.map_or(false, |h| h == index);
+        let is_highlighted = config.highlight_row == Some(index);
         let is_zebra = config.zebra_striping && index % 2 == 1;
         result.push_str(&render_data_row(
             row,
@@ -244,7 +244,7 @@ fn apply_pagination(
 ) -> (Vec<Vec<String>>, Option<String>) {
     if let Some(pag) = pagination {
         let total_rows = rows.len();
-        let total_pages = (total_rows + pag.page_size - 1) / pag.page_size;
+        let total_pages = total_rows.div_ceil(pag.page_size);
         let start_index = pag.current_page * pag.page_size;
         let end_index = std::cmp::min(start_index + pag.page_size, total_rows);
 
@@ -690,11 +690,9 @@ pub fn parse_table_data_from_json(content: &str) -> Result<TableData, serde_json
 
         // Extract headers from first object
         let mut headers = Vec::new();
-        if let Some(first_obj) = objects.first() {
-            if let serde_json::Value::Object(map) = first_obj {
-                for key in map.keys() {
-                    headers.push(key.clone());
-                }
+        if let Some(serde_json::Value::Object(map)) = objects.first() {
+            for key in map.keys() {
+                headers.push(key.clone());
             }
         }
 

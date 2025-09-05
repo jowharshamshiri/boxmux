@@ -290,7 +290,7 @@ mod tests {
         muxbox.streams = streams;
 
         // Verify initial state - redirected stream is active
-        let active_stream = muxbox.get_active_stream();
+        let active_stream = muxbox.get_selected_stream();
         assert!(active_stream.is_some(), "Should have an active stream");
         assert_eq!(
             active_stream.unwrap().id,
@@ -303,7 +303,7 @@ mod tests {
         assert!(removed.is_some(), "Should remove active redirected stream");
 
         // Verify that the content stream is now active
-        let new_active_stream = muxbox.get_active_stream();
+        let new_active_stream = muxbox.get_selected_stream();
         assert!(
             new_active_stream.is_some(),
             "Should have a new active stream"

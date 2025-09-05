@@ -91,6 +91,7 @@ impl PtyManager {
             thread_uuid,
             execute_script.redirect_output.clone(),
             Some(execute_script.stream_id.clone()),
+            execute_script.target_bounds.clone(),
         )
     }
 
@@ -112,6 +113,7 @@ impl PtyManager {
             thread_uuid,
             None,
             stream_id, // Pass provided stream_id
+            None,      // No bounds available for direct PTY script calls
         )
     }
 
@@ -125,6 +127,7 @@ impl PtyManager {
         thread_uuid: uuid::Uuid,
         redirect_target: Option<String>,
         stream_id: Option<String>, // Custom stream ID to use for all output
+        target_bounds: Option<crate::model::common::Bounds>, // Target muxbox bounds for PTY sizing
     ) -> Result<()> {
         // SOURCE OBJECT ARCHITECTURE: stream_id must be provided from source object - no fallbacks
         let pty_stream_id = stream_id.expect(
@@ -139,15 +142,39 @@ impl PtyManager {
             pty_stream_id
         );
 
-        // F0316: Performance Optimization - Create PTY with better initial size
-        // Start with larger default size to avoid initial constraint issues
-        let pty_size = PtySize {
-            rows: 40,   // Larger default to accommodate most terminal applications
-            cols: 120,  // Wider default for better compatibility
-            pixel_width: 0,
-            pixel_height: 0,
+        // Calculate PTY size from target muxbox bounds
+        let pty_size = if let Some(bounds) = &target_bounds {
+            // Calculate content area inside borders (subtract 4 for 2-pixel borders on each side)
+            let content_width = bounds.width().saturating_sub(4);
+            let content_height = bounds.height().saturating_sub(4);
+
+            // Use content area dimensions for PTY terminal size
+            let cols = content_width.max(20) as u16; // Minimum 20 columns
+            let rows = content_height.max(5) as u16; // Minimum 5 rows
+            log::debug!(
+                "Using content area for PTY size: {}x{} (content area of {}x{} total) for {}",
+                cols,
+                rows,
+                content_width,
+                content_height,
+                muxbox_id
+            );
+            PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            }
+        } else {
+            // Fallback to reasonable defaults if bounds not provided
+            log::warn!("No bounds provided for PTY {}, using defaults", muxbox_id);
+            PtySize {
+                rows: 40,  // Fallback default
+                cols: 120, // Fallback default
+                pixel_width: 0,
+                pixel_height: 0,
+            }
         };
-        log::debug!("F0316: PTY size configured with improved defaults: {}x{} (will be resized to match MuxBox bounds)", pty_size.cols, pty_size.rows);
 
         // Create PTY system on-demand for thread safety
         let pty_system = portable_pty::native_pty_system();
@@ -165,7 +192,7 @@ impl PtyManager {
                 // Track this failure for recovery purposes
                 self.record_pty_failure(muxbox_id.clone(), error_msg.clone());
 
-                return Err(e.into());
+                return Err(e);
             }
         };
         let reader = pty_pair.master;
@@ -204,7 +231,7 @@ impl PtyManager {
                 // Track this failure for recovery purposes
                 self.record_pty_failure(muxbox_id.clone(), error_msg.clone());
 
-                return Err(e.into());
+                return Err(e);
             }
         };
         let process_id = child.process_id();
@@ -243,6 +270,7 @@ impl PtyManager {
         let muxbox_id_clone = muxbox_id.clone();
         let _pty_stream_id_clone = pty_stream_id.clone();
         let thread_uuid_clone = thread_uuid; // Pass correct UUID to PTY reader thread
+        let pty_size_clone = pty_size; // Pass PTY size to reader thread
 
         thread::spawn(move || {
             log::info!(
@@ -252,8 +280,11 @@ impl PtyManager {
             );
 
             let mut buffer = [0u8; 4096];
-            // F0316: Performance Optimization - Use consistent larger default size
-            let mut ansi_processor = AnsiProcessor::with_screen_size(120, 40);
+            // Use actual PTY dimensions for AnsiProcessor to match terminal size
+            let mut ansi_processor = AnsiProcessor::with_screen_size(
+                pty_size_clone.cols as usize,
+                pty_size_clone.rows as usize,
+            );
             // Start in line mode - will auto-detect and switch to screen mode if needed
             ansi_processor.set_screen_mode(false);
             let mut bytes_processed = 0u64;
@@ -397,7 +428,7 @@ impl PtyManager {
 
                             // F0316: Capture length for debug logging before content is moved
                             let content_length = content_to_send.len();
-                            
+
                             // Create appropriate content update based on program behavior
                             let content_update = if should_replace {
                                 format!("REPLACE:{}", content_to_send) // Signal to replace, not append
@@ -573,7 +604,7 @@ impl PtyManager {
             return None;
         }
 
-        let mut cb = 0u8;
+        let mut cb;
 
         // Set button bits
         match (event_type, button) {
@@ -692,17 +723,23 @@ impl PtyManager {
         }
     }
 
-    /// Resize a PTY to match muxbox dimensions
+    /// Resize a PTY to match muxbox content area dimensions
     pub fn resize_pty(&mut self, muxbox_id: &str, rows: u16, cols: u16) -> Result<()> {
-        debug!("Resizing PTY for muxbox {} to {}x{}", muxbox_id, cols, rows);
+        // Subtract border space from dimensions to get content area
+        let content_cols = cols.saturating_sub(4).max(20);
+        let content_rows = rows.saturating_sub(4).max(5);
+        debug!(
+            "Resizing PTY for muxbox {} to content area {}x{} (from total {}x{})",
+            muxbox_id, content_cols, content_rows, cols, rows
+        );
 
         let active_ptys = self.active_ptys.lock().unwrap();
 
         if let Some(pty_process) = active_ptys.get(muxbox_id) {
             if let Some(master_pty_handle) = &pty_process.master_pty {
                 let pty_size = PtySize {
-                    rows,
-                    cols,
+                    rows: content_rows,
+                    cols: content_cols,
                     pixel_width: 0,
                     pixel_height: 0,
                 };
@@ -710,13 +747,13 @@ impl PtyManager {
                 match master_pty_handle.lock().unwrap().resize(pty_size) {
                     Ok(_) => {
                         debug!(
-                            "PTY successfully resized for muxbox {} to {}x{}",
-                            muxbox_id, cols, rows
+                            "PTY successfully resized for muxbox {} to content area {}x{}",
+                            muxbox_id, content_cols, content_rows
                         );
                     }
                     Err(e) => {
                         warn!("PTY resize failed for muxbox {}: {}", muxbox_id, e);
-                        return Err(e.into());
+                        return Err(e);
                     }
                 }
             } else {
@@ -845,10 +882,7 @@ impl PtyManager {
     /// Record a PTY failure for error recovery tracking
     fn record_pty_failure(&self, muxbox_id: String, error_msg: String) {
         let mut pty_failures = self.pty_failures.lock().unwrap();
-        pty_failures
-            .entry(muxbox_id)
-            .or_insert_with(Vec::new)
-            .push(error_msg);
+        pty_failures.entry(muxbox_id).or_default().push(error_msg);
     }
 
     /// Get PTY failure history for a muxbox
@@ -1121,11 +1155,11 @@ impl PtyManager {
                     // Kill the process using system kill command
                     let kill_result = if cfg!(target_os = "windows") {
                         std::process::Command::new("taskkill")
-                            .args(&["/F", "/PID", &pid.to_string()])
+                            .args(["/F", "/PID", &pid.to_string()])
                             .output()
                     } else {
                         std::process::Command::new("kill")
-                            .args(&["-9", &pid.to_string()])
+                            .args(["-9", &pid.to_string()])
                             .output()
                     };
 

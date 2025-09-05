@@ -541,7 +541,7 @@ impl Runnable for RunnableImpl {
     }
 
     fn send_message(&self, msg: Message) {
-        if let Some(ref message_sender) = self.get_message_sender() {
+        if let Some(message_sender) = self.get_message_sender() {
             if let Err(e) = message_sender.send((self.get_uuid(), msg)) {
                 error!("Failed to send message to main thread: {}", e);
             }
@@ -627,7 +627,7 @@ impl RunnableImpl {
 
         let stream_update = crate::model::common::StreamUpdate {
             stream_id: stream_id.clone(),
-            target_box_id: target_box_id,
+            target_box_id,
             content_update: content,
             source_state: crate::model::common::SourceState::Batch(
                 crate::model::common::BatchSourceState {
@@ -1054,8 +1054,8 @@ impl ThreadManager {
         };
 
         let stream_update = crate::model::common::StreamUpdate {
-            stream_id: stream_id,
-            target_box_id: target_box_id,
+            stream_id,
+            target_box_id,
             content_update: content,
             source_state: crate::model::common::SourceState::Batch(
                 crate::model::common::BatchSourceState {
@@ -1283,14 +1283,11 @@ create_runnable!(
         for message in messages {
             // T0325: ExecuteChoice message removed - Phase 5 cleanup complete
             // All message handling now goes through unified ExecuteScript architecture
-            match message {
-                // All legacy ExecuteChoice handling removed - use ExecuteScript instead
-                _ => {
-                    log::debug!(
-                        "ChoiceExecutionRunnable: Unhandled message type: {:?}",
-                        message
-                    );
-                }
+            {
+                log::debug!(
+                    "ChoiceExecutionRunnable: Unhandled message type: {:?}",
+                    message
+                );
             }
         }
 
@@ -1450,11 +1447,9 @@ pub fn run_script_in_thread(
             // T0330: Remove legacy thread/pty fields - use ExecutionMode
             let execution_mode = &choice.execution_mode;
             let pty_manager = app_context_unwrapped.pty_manager.as_ref();
-            let message_sender = if let Some(sender) = inner.get_message_sender() {
-                Some((sender.clone(), inner.get_uuid()))
-            } else {
-                None
-            };
+            let message_sender = inner
+                .get_message_sender()
+                .map(|sender| (sender.clone(), inner.get_uuid()));
 
             match crate::utils::run_script_with_pty(
                 libs,
