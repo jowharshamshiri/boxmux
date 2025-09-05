@@ -1,5 +1,6 @@
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::model::common::{Bounds, ScreenBuffer};
+use crate::components::ComponentDimensions;
 
 /// Error severity levels for display styling
 #[derive(Debug, Clone, PartialEq)]
@@ -390,13 +391,13 @@ impl ErrorDisplay {
         let formatted_error = self.format_error(error, content);
         let error_lines: Vec<&str> = formatted_error.lines().collect();
 
-        let viewable_height = bounds.height().saturating_sub(2);
-        let start_y = bounds.top() + 1;
+        let viewable_height = ComponentDimensions::new(*bounds).content_bounds().height();
+        let start_y = ComponentDimensions::new(*bounds).content_bounds().top();
 
         // Render error lines within bounds
         for (line_idx, &line) in error_lines.iter().take(viewable_height).enumerate() {
             let y_position = start_y + line_idx;
-            if y_position > bounds.bottom() - 1 {
+            if y_position > ComponentDimensions::new(*bounds).content_bounds().bottom() {
                 break;
             }
 
@@ -405,7 +406,7 @@ impl ErrorDisplay {
 
             print_with_color_and_background_at(
                 y_position,
-                bounds.left() + 1,
+                ComponentDimensions::new(*bounds).content_bounds().left(),
                 &Some(text_color),
                 &Some(self.config.background_color.clone()),
                 line,
@@ -434,13 +435,13 @@ impl ErrorDisplay {
         }
 
         let error_lines: Vec<&str> = combined_output.lines().collect();
-        let viewable_height = bounds.height().saturating_sub(2);
-        let start_y = bounds.top() + 1;
+        let viewable_height = ComponentDimensions::new(*bounds).content_bounds().height();
+        let start_y = ComponentDimensions::new(*bounds).content_bounds().top();
 
         // Render combined error lines within bounds
         for (line_idx, &line) in error_lines.iter().take(viewable_height).enumerate() {
             let y_position = start_y + line_idx;
-            if y_position > bounds.bottom() - 1 {
+            if y_position > ComponentDimensions::new(*bounds).content_bounds().bottom() {
                 break;
             }
 
@@ -449,7 +450,7 @@ impl ErrorDisplay {
 
             print_with_color_and_background_at(
                 y_position,
-                bounds.left() + 1,
+                ComponentDimensions::new(*bounds).content_bounds().left(),
                 &Some(text_color),
                 &Some(self.config.background_color.clone()),
                 line,
@@ -945,13 +946,13 @@ impl ErrorDisplay {
                 self.format_error_with_multi_line_carets(error, content, caret_positioning);
             let error_lines: Vec<&str> = formatted_error.lines().collect();
 
-            let viewable_height = bounds.height().saturating_sub(2);
-            let start_y = bounds.top() + 1;
+            let viewable_height = ComponentDimensions::new(*bounds).content_bounds().height();
+            let start_y = ComponentDimensions::new(*bounds).content_bounds().top();
 
             // Render error lines within bounds
             for (line_idx, &line) in error_lines.iter().take(viewable_height).enumerate() {
                 let y_position = start_y + line_idx;
-                if y_position > bounds.bottom() - 1 {
+                if y_position > ComponentDimensions::new(*bounds).content_bounds().bottom() {
                     break;
                 }
 
@@ -961,7 +962,7 @@ impl ErrorDisplay {
 
                 print_with_color_and_background_at(
                     y_position,
-                    bounds.left() + 1,
+                    ComponentDimensions::new(*bounds).content_bounds().left(),
                     &Some(text_color),
                     &Some(self.config.background_color.clone()),
                     line,

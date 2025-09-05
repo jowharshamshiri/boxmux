@@ -1,0 +1,533 @@
+diff --git a/src/draw_loop.rs b/src/draw_loop.rs
+index 00acb43..f4483f8 100755
+--- a/src/draw_loop.rs
++++ b/src/draw_loop.rs
+@@ -9,6 +9,7 @@ use crate::thread_manager::Runnable;
+ use crate::{
+     apply_buffer, apply_buffer_if_changed, handle_keypress, AppContext, MuxBox, ScreenBuffer,
+ };
++use crate::components::{ScrollDimensions, ComponentDimensions};
+ use crate::{thread_manager::*, FieldUpdate};
+ // use crossbeam_channel::Sender; // T311: Removed with ChoiceThreadManager
+ use crossterm::{
+@@ -65,14 +66,12 @@ pub fn detect_resize_edge(muxbox: &MuxBox, click_x: u16, click_y: u16) -> Option
+     let x = click_x as usize;
+     let y = click_y as usize;
+ 
+-    // Check for corner resize (bottom-right only) with tolerance for easier clicking
+-    // Allow clicking within 1 pixel of the exact corner to make it easier to grab
+-    let corner_tolerance = 1;
+-
+-    // Standard detection zone - same for all panels including 100% width
+-    if (x >= bounds.x2.saturating_sub(corner_tolerance) && x <= bounds.x2)
+-        && (y >= bounds.y2.saturating_sub(corner_tolerance) && y <= bounds.y2)
+-    {
++    // Use ComponentDimensions for proper corner detection (replaces ad-hoc math)
++    use crate::components::dimensions::ComponentDimensions;
++    use crate::components::dimensions::component_dimensions::Corner;
++    let component_dims = ComponentDimensions::new(bounds);
++    
++    if let Some(Corner::BottomRight) = component_dims.is_near_corner(x, y, 1) {
+         return Some(ResizeEdge::BottomRight);
+     }
+ 
+@@ -203,8 +202,9 @@ pub fn calculate_new_position(
+ // F0188: Helper functions to determine if click is on scroll knob (not just track)
+ fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
+     let muxbox_bounds = muxbox.bounds();
+-    let viewable_height = muxbox_bounds.height().saturating_sub(4);
+-
++    let component_dims = ComponentDimensions::new(muxbox_bounds);
++    let content_bounds = component_dims.content_bounds();
++    
+     // Get content dimensions to calculate knob position and size
+     // F0214: Stream-Based Scrollbar Calculations - Use active stream content
+     let stream_content = muxbox
+@@ -222,40 +222,31 @@ fn is_on_vertical_knob(muxbox: &MuxBox, click_y: usize) -> bool {
+     } else if let Some(choices) = stream_choices {
+         choices.len()
+     } else {
+-        viewable_height // No scrolling needed
++        content_bounds.height() // No scrolling needed
+     };
+ 
+-    if max_content_height <= viewable_height {
+-        return false; // No scrollbar needed
+-    }
++    // Use ScrollDimensions for all scrollbar calculations
++    let scroll_dims = ScrollDimensions::new(
++        (max_content_height, max_content_height), // content size
++        (content_bounds.width(), content_bounds.height()), // viewable size
++        (0.0, muxbox.vertical_scroll.unwrap_or(0.0)), // scroll position
++        muxbox_bounds,
++    );
+ 
+-    let track_height = viewable_height.saturating_sub(2);
+-    if track_height == 0 {
++    if !scroll_dims.is_scrollbar_needed(crate::components::dimensions::Orientation::Vertical) {
+         return false;
+     }
+ 
+-    // Calculate knob position and size (matching draw_utils.rs logic)
+-    let content_ratio = viewable_height as f64 / max_content_height as f64;
+-    let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
+-    let available_track = track_height.saturating_sub(knob_size);
+-
+-    let vertical_scroll = muxbox.vertical_scroll.unwrap_or(0.0);
+-    let knob_position = if available_track > 0 {
+-        ((vertical_scroll / 100.0) * available_track as f64).round() as usize
+-    } else {
+-        0
+-    };
+-
+-    // Check if click is within knob bounds
+-    let knob_start_y = muxbox_bounds.top() + 1 + knob_position;
+-    let knob_end_y = knob_start_y + knob_size;
+-
+-    click_y >= knob_start_y && click_y < knob_end_y
++    // Use ScrollDimensions for knob bounds calculation
++    let knob_bounds = scroll_dims.get_knob_bounds(crate::components::dimensions::Orientation::Vertical);
++    
++    click_y >= knob_bounds.y_start && click_y <= knob_bounds.y_end
+ }
+ 
+ fn is_on_horizontal_knob(muxbox: &MuxBox, click_x: usize) -> bool {
+     let muxbox_bounds = muxbox.bounds();
+-    let viewable_width = muxbox_bounds.width().saturating_sub(4);
++    let component_dims = ComponentDimensions::new(muxbox_bounds);
++    let content_bounds = component_dims.content_bounds();
+ 
+     // Get content width to calculate knob position and size
+     // F0214: Stream-Based Scrollbar Calculations - Use active stream content
+@@ -277,35 +268,25 @@ fn is_on_horizontal_knob(muxbox: &MuxBox, click_x: usize) -> bool {
+             .max()
+             .unwrap_or(0)
+     } else {
+-        viewable_width // No scrolling needed
++        content_bounds.width() // No scrolling needed
+     };
+ 
+-    if max_content_width <= viewable_width {
+-        return false; // No scrollbar needed
+-    }
++    // Use ScrollDimensions for all scrollbar calculations
++    let scroll_dims = ScrollDimensions::new(
++        (max_content_width, max_content_width), // content size
++        (content_bounds.width(), content_bounds.height()), // viewable size
++        (muxbox.horizontal_scroll.unwrap_or(0.0), 0.0), // scroll position
++        muxbox_bounds,
++    );
+ 
+-    let track_width = viewable_width.saturating_sub(2);
+-    if track_width == 0 {
++    if !scroll_dims.is_scrollbar_needed(crate::components::dimensions::Orientation::Horizontal) {
+         return false;
+     }
+ 
+-    // Calculate knob position and size (matching draw_utils.rs logic)
+-    let content_ratio = viewable_width as f64 / max_content_width as f64;
+-    let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
+-    let available_track = track_width.saturating_sub(knob_size);
+-
+-    let horizontal_scroll = muxbox.horizontal_scroll.unwrap_or(0.0);
+-    let knob_position = if available_track > 0 {
+-        ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
+-    } else {
+-        0
+-    };
+-
+-    // Check if click is within knob bounds
+-    let knob_start_x = muxbox_bounds.left() + 1 + knob_position;
+-    let knob_end_x = knob_start_x + knob_size;
+-
+-    click_x >= knob_start_x && click_x < knob_end_x
++    // Use ScrollDimensions for knob bounds calculation
++    let knob_bounds = scroll_dims.get_knob_bounds(crate::components::dimensions::Orientation::Horizontal);
++    
++    click_x >= knob_bounds.x && click_x <= (knob_bounds.x + knob_bounds.size)
+ }
+ 
+ lazy_static! {
+@@ -432,7 +413,7 @@ create_runnable!(
+                                 }
+                             };
+ 
+-                            let mut new_stream = crate::model::common::Stream::new(
++                            let new_stream = crate::model::common::Stream::new(
+                                 stream_id.clone(),
+                                 stream_type,
+                                 stream_label,
+@@ -2157,201 +2138,119 @@ create_runnable!(
+                                         box_renderer.store_translated_clickable_zones(translated_zones);
+ 
+                                         // Handle click using formalized coordinate system
+-                                        if box_renderer.handle_click_with_dimensions(
++                                        if let Some(clicked_choice_idx) = box_renderer.handle_click_with_dimensions(
+                                             *x as usize,
+                                             *y as usize,
+                                             &dimensions,
+                                         ) {
+-                                            log::info!("CLICK: BoxRenderer handled click for muxbox '{}' using formalized coordinates", clicked_muxbox.id);
++                                            log::info!("CLICK: BoxRenderer detected click on choice {} for muxbox '{}'", clicked_choice_idx, clicked_muxbox.id);
+ 
+-                                            // Extract choice execution using formalized coordinate translation
++                                            // Get the clicked choice using the index returned from BoxRenderer
+                                             if let Some(choices) = clicked_muxbox.get_selected_stream_choices() {
+-                                                // Find clicked choice using screen-to-inbox coordinate translation
+-                                                let zones = box_renderer.get_clickable_zones();
+-                                                let screen_x = *x as usize;
+-                                                let screen_y = *y as usize;
+-                                                
+-                                                // Convert to inbox coordinates for logging
+-                                                if let Some((inbox_x, inbox_y)) = dimensions.screen_to_inbox(screen_x, screen_y) {
+-                                                    log::info!("CLICK TRANSLATION: Screen ({},{}) -> Inbox ({},{})", 
+-                                                             screen_x, screen_y, inbox_x, inbox_y);
+-                                                }
+-
+-                                                // Find clicked zone using screen coordinates (zones are stored in screen coords)
+-                                                if let Some(clicked_zone) = zones.iter().find(|z| {
+-                                                    z.bounds.contains_point(screen_x, screen_y)
+-                                                }) {
+-                                                    if let Some(idx_str) = clicked_zone.content_id.strip_prefix("choice_") {
+-                                                        if let Ok(clicked_choice_idx) = idx_str.parse::<usize>() {
+-                                                            log::info!("CLICK HANDLING: Successfully detected click on choice index {}", clicked_choice_idx);
+-                                                            if let Some(clicked_choice) =
+-                                                                choices.get(clicked_choice_idx)
+-                                                            {
+-                                                                log::trace!(
+-                                                                    "Clicked on choice: {}",
+-                                                                    clicked_choice.id
+-                                                                );
++                                                if let Some(clicked_choice) = choices.get(clicked_choice_idx) {
++                                                    log::info!("CLICK HANDLING: Successfully detected click on choice index {}", clicked_choice_idx);
++                                                    log::trace!("Clicked on choice: {}", clicked_choice.id);
+ 
+-                                                                // First, select the parent muxbox if not already selected
+-                                                                let layout = app_context_for_click
+-                                                                    .app
+-                                                                    .get_active_layout_mut()
+-                                                                    .unwrap();
+-                                                                layout.deselect_all_muxboxes();
+-                                                                layout.select_only_muxbox(
+-                                                                    &clicked_muxbox.id,
+-                                                                );
++                                                    // First, select the parent muxbox if not already selected
++                                                    let layout = app_context_for_click
++                                                        .app
++                                                        .get_active_layout_mut()
++                                                        .unwrap();
++                                                    layout.deselect_all_muxboxes();
++                                                    layout.select_only_muxbox(&clicked_muxbox.id);
+ 
+-                                                                // Then select the clicked choice visually
+-                                                                let muxbox_to_update =
+-                                                                    app_context_for_click
+-                                                                        .app
+-                                                                        .get_muxbox_by_id_mut(
+-                                                                            &clicked_muxbox.id,
+-                                                                        )
+-                                                                        .unwrap();
+-                                                                if let Some(muxbox_choices) =
+-                                                    muxbox_to_update.get_selected_stream_choices_mut()
+-                                                {
+-                                                    // Deselect all choices first
+-                                                    for choice in muxbox_choices.iter_mut() {
+-                                                        choice.selected = false;
+-                                                    }
+-                                                    // Select only the clicked choice and set waiting state for visual feedback
+-                                                    if let Some(selected_choice) =
+-                                                        muxbox_choices.get_mut(clicked_choice_idx)
+-                                                    {
+-                                                        selected_choice.selected = true;
+-                                                        selected_choice.waiting = true;
+-                                                        // Visual feedback consistency with Enter key
++                                                    // Then select the clicked choice visually
++                                                    let muxbox_to_update = app_context_for_click
++                                                        .app
++                                                        .get_muxbox_by_id_mut(&clicked_muxbox.id)
++                                                        .unwrap();
++                                                    if let Some(muxbox_choices) = muxbox_to_update.get_selected_stream_choices_mut() {
++                                                        // Deselect all choices first
++                                                        for choice in muxbox_choices.iter_mut() {
++                                                            choice.selected = false;
++                                                        }
++                                                        // Select only the clicked choice and set waiting state for visual feedback
++                                                        if let Some(selected_choice) = muxbox_choices.get_mut(clicked_choice_idx) {
++                                                            selected_choice.selected = true;
++                                                            selected_choice.waiting = true;
++                                                        }
+                                                     }
+-                                                }
+ 
+-                                                                // Update the app context and immediately trigger redraw for responsiveness
+-                                                                inner.update_app_context(
+-                                                                    app_context_for_click.clone(),
+-                                                                );
+-                                                                inner.send_message(
+-                                                                    Message::RedrawAppDiff,
++                                                    // Update the app context and immediately trigger redraw for responsiveness
++                                                    inner.update_app_context(app_context_for_click.clone());
++                                                    inner.send_message(Message::RedrawAppDiff);
++
++                                                    // Then activate the clicked choice (same as pressing Enter)
++                                                    // F0224: Use ExecutionMode to determine execution path for mouse clicks too
++                                                    if let Some(script) = &clicked_choice.script {
++                                                        let libs = app_context_unwrapped.app.libs.clone();
++                                                        let script_clone = script.clone();
++                                                        let choice_id_clone = clicked_choice.id.clone();
++                                                        let muxbox_id_clone = clicked_muxbox.id.clone();
++                                                        let libs_clone = libs.clone();
++                                                        let execution_mode = clicked_choice.execution_mode.clone();
++                                                        let redirect_output = clicked_choice.redirect_output.clone();
++                                                        let _append_output = clicked_choice.append_output.unwrap_or(false);
++
++                                                        // T0315: UNIFIED ARCHITECTURE - Replace legacy mouse click execution with ExecuteScript message
++                                                        log::info!("T0315: Mouse click creating ExecuteScript for choice {} (mode: {:?})", choice_id_clone, execution_mode);
++
++                                                        // Create ExecuteScript message instead of direct execution or legacy message routing
++                                                        use crate::model::common::{
++                                                            ExecuteScript, ExecutionSource, SourceReference, SourceType,
++                                                        };
++
++                                                        // Create choice object for SourceReference
++                                                        let choice_for_reference = Choice {
++                                                            id: choice_id_clone.clone(),
++                                                            content: Some("".to_string()),
++                                                            selected: false,
++                                                            script: Some(script_clone.clone()),
++                                                            execution_mode: execution_mode.clone(),
++                                                            redirect_output: redirect_output.clone(),
++                                                            append_output: Some(_append_output),
++                                                            waiting: true,
++                                                        };
++
++                                                        // Register execution source and get stream_id
++                                                        let source_type = crate::model::common::ExecutionSourceType::ChoiceExecution {
++                                                            choice_id: choice_id_clone.clone(),
++                                                            script: script_clone.clone(),
++                                                            redirect_output: redirect_output.clone(),
++                                                        };
++                                                        let stream_id = app_context_unwrapped
++                                                            .app
++                                                            .register_execution_source(source_type, muxbox_id_clone.clone());
++
++                                                        let execute_script = ExecuteScript {
++                                                            script: script_clone.clone(),
++                                                            source: ExecutionSource {
++                                                                source_type: SourceType::Choice(choice_id_clone.clone()),
++                                                                source_id: format!("mouse_choice_{}", choice_id_clone),
++                                                                source_reference: SourceReference::Choice(choice_for_reference),
++                                                            },
++                                                            execution_mode: execution_mode.clone(),
++                                                            target_box_id: muxbox_id_clone.clone(),
++                                                            libs: libs_clone.unwrap_or_default(),
++                                                            redirect_output: redirect_output.clone(),
++                                                            append_output: _append_output,
++                                                            stream_id: stream_id.clone(),
++                                                            target_bounds: app_context_unwrapped.app.get_active_layout()
++                                                                .and_then(|layout| layout.children.as_ref()?.iter().find(|mb| mb.id == *muxbox_id_clone))
++                                                                .map(|mb| mb.bounds()),
++                                                        };
++
++                                                        // Route ExecuteScript based on execution mode
++                                                        match execution_mode {
++                                                            crate::model::common::ExecutionMode::Immediate |
++                                                            crate::model::common::ExecutionMode::Thread => {
++                                                                // Send to ThreadManager for Immediate/Thread execution
++                                                                inner.send_message(Message::ExecuteScriptMessage(execute_script));
++                                                                log::info!(
++                                                                    "T0315: ExecuteScript message sent to ThreadManager for mouse-clicked choice {} (mode: {:?})",
++                                                                    choice_id_clone, execution_mode
+                                                                 );
+-
+-                                                                // Then activate the clicked choice (same as pressing Enter)
+-                                                                // F0224: Use ExecutionMode to determine execution path for mouse clicks too
+-                                                                if let Some(script) =
+-                                                                    &clicked_choice.script
+-                                                                {
+-                                                                    let libs =
+-                                                                        app_context_unwrapped
+-                                                                            .app
+-                                                                            .libs
+-                                                                            .clone();
+-
+-                                                                    let script_clone =
+-                                                                        script.clone();
+-                                                                    let choice_id_clone =
+-                                                                        clicked_choice.id.clone();
+-                                                                    let muxbox_id_clone =
+-                                                                        clicked_muxbox.id.clone();
+-                                                                    let libs_clone = libs.clone();
+-                                                                    let execution_mode =
+-                                                                        clicked_choice
+-                                                                            .execution_mode
+-                                                                            .clone();
+-                                                                    let redirect_output =
+-                                                                        clicked_choice
+-                                                                            .redirect_output
+-                                                                            .clone();
+-                                                                    let _append_output =
+-                                                                        clicked_choice
+-                                                                            .append_output
+-                                                                            .unwrap_or(false);
+-
+-                                                                    // T0315: UNIFIED ARCHITECTURE - Replace legacy mouse click execution with ExecuteScript message
+-                                                                    log::info!("T0315: Mouse click creating ExecuteScript for choice {} (mode: {:?})", choice_id_clone, execution_mode);
+-
+-                                                                    // Create ExecuteScript message instead of direct execution or legacy message routing
+-                                                                    use crate::model::common::{
+-                                                                        ExecuteScript,
+-                                                                        ExecutionSource,
+-                                                                        SourceReference,
+-                                                                        SourceType,
+-                                                                    };
+-
+-                                                                    // Create choice object for SourceReference
+-                                                                    let choice_for_reference =
+-                                                                        Choice {
+-                                                                            id: choice_id_clone
+-                                                                                .clone(),
+-                                                                            content: Some(
+-                                                                                "".to_string(),
+-                                                                            ),
+-                                                                            selected: false,
+-                                                                            script: Some(
+-                                                                                script_clone
+-                                                                                    .clone(),
+-                                                                            ),
+-                                                                            execution_mode:
+-                                                                                execution_mode
+-                                                                                    .clone(),
+-                                                                            redirect_output:
+-                                                                                redirect_output
+-                                                                                    .clone(),
+-                                                                            append_output: Some(
+-                                                                                _append_output,
+-                                                                            ),
+-                                                                            waiting: true,
+-                                                                        };
+-
+-                                                                    // Register execution source and get stream_id
+-                                                                    let source_type = crate::model::common::ExecutionSourceType::ChoiceExecution {
+-                                                        choice_id: choice_id_clone.clone(),
+-                                                        script: script_clone.clone(),
+-                                                        redirect_output: redirect_output.clone(),
+-                                                    };
+-                                                                    let stream_id = app_context_unwrapped
+-                                                        .app
+-                                                        .register_execution_source(
+-                                                            source_type,
+-                                                            muxbox_id_clone.clone(),
+-                                                        );
+-
+-                                                                    let execute_script = ExecuteScript {
+-                                                        script: script_clone.clone(),
+-                                                        source: ExecutionSource {
+-                                                            source_type: SourceType::Choice(
+-                                                                choice_id_clone.clone(),
+-                                                            ),
+-                                                            source_id: format!(
+-                                                                "mouse_choice_{}",
+-                                                                choice_id_clone
+-                                                            ),
+-                                                            source_reference:
+-                                                                SourceReference::Choice(
+-                                                                    choice_for_reference,
+-                                                                ),
+-                                                        },
+-                                                        execution_mode: execution_mode.clone(),
+-                                                        target_box_id: muxbox_id_clone.clone(),
+-                                                        libs: libs_clone.unwrap_or_default(),
+-                                                        redirect_output: redirect_output.clone(),
+-                                                        append_output: _append_output,
+-                                                        stream_id: stream_id.clone(),
+-                                                        target_bounds: app_context_unwrapped.app.get_active_layout()
+-                                                            .and_then(|layout| layout.children.as_ref()?.iter().find(|mb| mb.id == *muxbox_id_clone))
+-                                                            .map(|mb| mb.bounds()),
+-                                                    };
+-
+-                                                                    // Route ExecuteScript based on execution mode
+-                                                                    match execution_mode {
+-                                                        crate::model::common::ExecutionMode::Immediate |
+-                                                        crate::model::common::ExecutionMode::Thread => {
+-                                                            // Send to ThreadManager for Immediate/Thread execution
+-                                                            inner.send_message(Message::ExecuteScriptMessage(execute_script));
+-                                                            log::info!(
+-                                                                "T0315: ExecuteScript message sent to ThreadManager for mouse-clicked choice {} (mode: {:?})",
+-                                                                choice_id_clone, execution_mode
+-                                                            );
+-                                                        }
++                                                            }
+                                                         crate::model::common::ExecutionMode::Pty => {
+                                                             // FIXED: Route PTY execution to PTYManager, never to ThreadManager
+                                                             log::info!(
+@@ -2383,39 +2282,27 @@ create_runnable!(
+                                                             }
+                                                         }
+                                                     }
+-                                                                }
+-                                                            } // Close if let Some(clicked_choice)
+-                                                        } // Close if let Ok(clicked_choice_idx)
+-                                                    } // Close if let Some(idx_str)
+-                                                } // Close if let Some(clicked_zone)
++                                                }
++                                            } else {
++                                                log::info!("NEW ARCH: Choice click not handled - no choices found");
++                                            }
+                                         } else {
+                                             log::info!("NEW ARCH: Click at ({}, {}) did not hit any clickable zone", *x, *y);
+                                         }
+-                                            } // Close if !choices.is_empty()
+-                                        } else {
+-                                            // Selected stream has empty choices - select muxbox
+-                                            log::info!("CLICK DEBUG: MuxBox '{}' selected stream has empty choices, selecting if selectable", clicked_muxbox.id);
+-                                            if clicked_muxbox.tab_order.is_some()
+-                                                || clicked_muxbox.has_scrollable_content()
+-                                            {
+-                                            log::trace!(
+-                                                "Selecting muxbox (no choices): {}",
+-                                                clicked_muxbox.id
+-                                            );
++                                    } else {
++                                        // Selected stream has empty choices - select muxbox
++                                        log::info!("CLICK DEBUG: MuxBox '{}' selected stream has empty choices, selecting if selectable", clicked_muxbox.id);
++                                        if clicked_muxbox.tab_order.is_some() || clicked_muxbox.has_scrollable_content() {
++                                            log::trace!("Selecting muxbox (no choices): {}", clicked_muxbox.id);
+ 
+                                             // Deselect all muxboxes in the layout first
+-                                            let layout = app_context_for_click
+-                                                .app
+-                                                .get_active_layout_mut()
+-                                                .unwrap();
++                                            let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                             layout.deselect_all_muxboxes();
+                                             layout.select_only_muxbox(&clicked_muxbox.id);
+ 
+                                             inner.update_app_context(app_context_for_click);
+                                             inner.send_message(Message::RedrawAppDiff);
+-                                            }
+                                         }
+-                                        } // Close if let Some(choices)
+                                     } else {
+                                         // No selected stream - select muxbox if selectable
+                                         log::info!("CLICK DEBUG: MuxBox '{}' has no selected stream, selecting if selectable", clicked_muxbox.id);
+@@ -3682,7 +3569,9 @@ fn auto_scroll_to_selected_choice(
+     use crate::draw_utils::wrap_text_to_width;
+ 
+     let bounds = muxbox.bounds();
+-    let viewable_height = bounds.height().saturating_sub(2); // Account for borders
++    // Use ComponentDimensions for proper viewable area calculation (replaces ad-hoc math)
++    let component_dims = ComponentDimensions::new(bounds);
++    let viewable_height = component_dims.content_bounds().height();
+ 
+     // Handle different overflow behaviors
+     if let Some(overflow_behavior) = &muxbox.overflow_behavior {
+@@ -3690,7 +3579,7 @@ fn auto_scroll_to_selected_choice(
+             "wrap" => {
+                 // Calculate wrapped lines for auto-scroll in wrapped choice mode
+                 if let Some(choices) = muxbox.get_selected_stream_choices() {
+-                    let viewable_width = bounds.width().saturating_sub(4);
++                    let viewable_width = component_dims.content_bounds().width();
+                     let mut total_lines = 0;
+                     let mut selected_line_start = 0;
+                     let mut selected_line_end = 0;

@@ -93,12 +93,7 @@ mod debug_coordinate_issues {
         // Create BoxDimensions for NEW method - this is what handle_click uses internally
         let dimensions = BoxDimensions {
             total_bounds: bounds.clone(),
-            content_bounds: Bounds::new(
-                bounds.left() + 1,
-                bounds.top() + 1,
-                bounds.right() - 1,
-                bounds.bottom() - 1,
-            ),
+            content_bounds: crate::components::ComponentDimensions::new(bounds).content_bounds(),
             viewable_width,
             viewable_height,
             content_width,

@@ -5,6 +5,7 @@
 
 pub mod border;
 pub mod box_renderer;
+pub mod dimensions;
 pub mod chart_component;
 pub mod choice_content;
 pub mod choice_menu;
@@ -48,3 +49,9 @@ pub use tab_bar::{TabBar, TabNavigationAction};
 pub use table_component::{TableComponent, TableComponentConfig};
 pub use text_content::TextContent;
 pub use vertical_scrollbar::VerticalScrollbar;
+
+// Dimension classes for centralized mathematical operations
+pub use dimensions::{
+    ComponentDimensions, LayoutDimensions, MouseDimensions, ProgressDimensions, ScrollDimensions,
+    TextDimensions,
+};

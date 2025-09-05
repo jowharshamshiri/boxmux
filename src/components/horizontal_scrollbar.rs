@@ -1,5 +1,6 @@
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::{Bounds, ScreenBuffer};
+use crate::components::ComponentDimensions;
 
 /// Horizontal Scrollbar Component
 ///
@@ -37,13 +38,12 @@ impl HorizontalScrollbar {
 
     /// Get the bounds where this scrollbar should be drawn
     pub fn get_bounds(&self, parent_bounds: &Bounds) -> (usize, usize, usize) {
-        let y = parent_bounds.bottom(); // Draw ON bottom border, replacing it
-        let start_x = parent_bounds.left() + 1;
-        let end_x = parent_bounds.right().saturating_sub(1); // Match border drawing bounds
-        (y, start_x, end_x)
+        let component_dims = ComponentDimensions::new(*parent_bounds);
+        let track_bounds = component_dims.horizontal_scrollbar_track_bounds();
+        (track_bounds.y1, track_bounds.x1, track_bounds.x2)
     }
 
-    /// Calculate knob position and size based on scroll state and content dimensions
+    /// Calculate knob position and size using ScrollDimensions (eliminates ad-hoc math)
     pub fn calculate_knob_metrics(
         &self,
         content_width: usize,
@@ -55,17 +55,19 @@ impl HorizontalScrollbar {
             return (0, 0);
         }
 
-        // Calculate proportional knob size (from existing implementation)
-        let content_ratio = viewable_width as f64 / content_width as f64;
-        let knob_size = std::cmp::max(1, (track_width as f64 * content_ratio).round() as usize);
-        let available_track = track_width.saturating_sub(knob_size);
-
-        // Calculate knob position (from existing implementation)
-        let knob_position = if available_track > 0 {
-            ((horizontal_scroll / 100.0) * available_track as f64).round() as usize
-        } else {
-            0
-        };
+        // Use ScrollDimensions for proper calculations
+        use crate::components::dimensions::{ScrollDimensions, Orientation};
+        use crate::Bounds;
+        
+        let scroll_dims = ScrollDimensions::new(
+            (content_width, 1), // Use 1 for height since this is horizontal scrollbar
+            (viewable_width, 1),
+            (horizontal_scroll, 0.0), // Only horizontal scroll matters
+            Bounds::new(0, 0, track_width + 1, 2), // Adjust bounds so track_length = track_width
+        );
+        
+        let knob_size = scroll_dims.calculate_knob_size(Orientation::Horizontal);
+        let knob_position = scroll_dims.calculate_knob_position(Orientation::Horizontal);
 
         (knob_position, knob_size)
     }

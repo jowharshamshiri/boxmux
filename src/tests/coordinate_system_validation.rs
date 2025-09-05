@@ -69,14 +69,30 @@ mod coordinate_system_tests {
         
         let dimensions = BoxDimensions::new(&muxbox, &bounds, content_width, content_height);
         
-        // Test that scroll affects coordinate translation
-        if let Some((inbox_x, inbox_y)) = dimensions.screen_to_inbox(10, 5) {
-            // With 50% horizontal scroll on 2x content, we should see offset
-            println!("Scrolled coordinates: inbox ({},{})", inbox_x, inbox_y);
+        // Test coordinate translation with no scroll first
+        let mut unscrolled_muxbox = MuxBox::default();
+        let unscrolled_dimensions = BoxDimensions::new(&unscrolled_muxbox, &bounds, content_width, content_height);
+        
+        // Test same screen point with and without scroll
+        let screen_point = (10, 5);
+        if let (Some((unscrolled_inbox_x, unscrolled_inbox_y)), Some((scrolled_inbox_x, scrolled_inbox_y))) = 
+            (unscrolled_dimensions.screen_to_inbox(screen_point.0, screen_point.1),
+             dimensions.screen_to_inbox(screen_point.0, screen_point.1)) {
             
-            // The inbox coordinates should reflect the scroll offset
-            assert!(inbox_x > 10, "Horizontal scroll should offset inbox X coordinate");
-            assert!(inbox_y > 5, "Vertical scroll should offset inbox Y coordinate");
+            println!("Screen point {:?} -> Unscrolled inbox: ({},{}) | Scrolled inbox: ({},{})", 
+                screen_point, unscrolled_inbox_x, unscrolled_inbox_y, scrolled_inbox_x, scrolled_inbox_y);
+            
+            // When scrolled right, we're viewing a more rightward portion of content
+            // So the same screen coordinate should map to content that's further right
+            // Therefore scrolled inbox coordinates should be GREATER (further into content)
+            assert!(scrolled_inbox_x > unscrolled_inbox_x, 
+                "50% horizontal scroll should show content further right: scrolled {} vs unscrolled {}", 
+                scrolled_inbox_x, unscrolled_inbox_x);
+            assert!(scrolled_inbox_y > unscrolled_inbox_y, 
+                "25% vertical scroll should show content further down: scrolled {} vs unscrolled {}",
+                scrolled_inbox_y, unscrolled_inbox_y);
+        } else {
+            panic!("Screen point should be valid for both scrolled and unscrolled cases");
         }
     }
 }

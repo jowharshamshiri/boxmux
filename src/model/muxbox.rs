@@ -1944,7 +1944,7 @@ impl MuxBox {
                 "Content".to_string()
             };
 
-            let mut content_stream = Stream::new(
+            let content_stream = Stream::new(
                 format!("{}_content", self.id),
                 StreamType::Content,
                 content_title,
@@ -1980,7 +1980,7 @@ impl MuxBox {
                 self.title.clone().unwrap_or_else(|| self.id.clone())
             };
 
-            let mut choices_stream = Stream::new(
+            let choices_stream = Stream::new(
                 format!("{}_choices", self.id),
                 StreamType::Choices,
                 choices_title,
@@ -2206,6 +2206,12 @@ impl MuxBox {
     pub fn update_stream_content(&mut self, stream_id: &str, content: Vec<String>) {
         if let Some(stream) = self.streams.get_mut(stream_id) {
             stream.content = content;
+            
+            // AUTO_SCROLL_BOTTOM FIX: Apply auto-scroll after stream content update
+            if self.auto_scroll_bottom == Some(true) {
+                self.vertical_scroll = Some(100.0);
+                log::debug!("Applied auto-scroll to bottom for muxbox {} after update_stream_content", self.id);
+            }
         }
     }
 

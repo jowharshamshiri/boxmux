@@ -1,8 +1,9 @@
 use crate::color_utils::{get_bg_color_transparent, get_fg_color_transparent, should_draw_color};
 use crate::components::choice_menu::ChoiceMenu;
-use crate::components::renderable_content::{ClickableZone, ContentEvent, EventType, EventData, RenderableContent};
+use crate::components::renderable_content::{ClickableZone, RenderableContent};
 use crate::components::{
     ChartComponent, ChartConfig, ChartType, HorizontalScrollbar, VerticalScrollbar,
+    ComponentDimensions,
 };
 use crate::draw_utils::{
     content_size, draw_horizontal_line, draw_horizontal_line_with_tabs, draw_vertical_line,
@@ -60,18 +61,24 @@ impl BoxDimensions {
     ) -> Self {
         let border_thickness = 2; // Standard border is 2 chars wide
         let tab_height = if muxbox.streams.len() > 1 { 1 } else { 0 };
-        let vertical_scrollbar_width = if content_height > bounds.height().saturating_sub(border_thickness + tab_height) { 1 } else { 0 };
-        let horizontal_scrollbar_height = if content_width > bounds.width().saturating_sub(border_thickness + vertical_scrollbar_width) { 1 } else { 0 };
         
-        let viewable_width = bounds.width().saturating_sub(border_thickness + vertical_scrollbar_width);
-        let viewable_height = bounds.height().saturating_sub(border_thickness + tab_height + horizontal_scrollbar_height);
+        // Determine if scrollbars are needed
+        let component_base = ComponentDimensions::new(*bounds)
+            .with_border_thickness(1); // ComponentDimensions uses 1, we adjust
+        let base_content = component_base.content_bounds();
         
-        let content_bounds = Bounds::new(
-            bounds.left() + (border_thickness / 2),
-            bounds.top() + (border_thickness / 2) + tab_height,
-            bounds.left() + (border_thickness / 2) + viewable_width,
-            bounds.top() + (border_thickness / 2) + tab_height + viewable_height,
-        );
+        let needs_vertical_scrollbar = content_height > base_content.height().saturating_sub(tab_height);
+        let needs_horizontal_scrollbar = content_width > base_content.width().saturating_sub(if needs_vertical_scrollbar { 1 } else { 0 });
+        
+        // Create final ComponentDimensions with scrollbar info
+        let component_dims = ComponentDimensions::new(*bounds)
+            .with_border_thickness(1)
+            .with_scrollbars(needs_vertical_scrollbar, needs_horizontal_scrollbar);
+        
+        let viewable_width = component_dims.content_bounds().width();
+        let viewable_height = component_dims.content_bounds().height().saturating_sub(tab_height);
+        
+        let content_bounds = component_dims.content_bounds();
         
         Self {
             total_bounds: bounds.clone(),
@@ -84,8 +91,8 @@ impl BoxDimensions {
             vertical_scroll: muxbox.current_vertical_scroll(),
             border_thickness,
             tab_height,
-            vertical_scrollbar_width,
-            horizontal_scrollbar_height,
+            vertical_scrollbar_width: if needs_vertical_scrollbar { 1 } else { 0 },
+            horizontal_scrollbar_height: if needs_horizontal_scrollbar { 1 } else { 0 },
         }
     }
     
@@ -119,22 +126,30 @@ impl BoxDimensions {
             return None;
         }
         
-        // Calculate content positioning and padding
-        let vertical_padding = (self.viewable_height.saturating_sub(self.content_height)) / 2;
-        let horizontal_padding = (self.viewable_width.saturating_sub(self.content_width)) / 2;
+        // Use ScrollDimensions for proper scroll calculations
+        use crate::components::dimensions::{ScrollDimensions, Orientation};
+        let scroll_dims = ScrollDimensions::new(
+            (self.content_width, self.content_height),
+            (self.viewable_width, self.viewable_height),
+            (self.horizontal_scroll, self.vertical_scroll),
+            self.content_bounds,
+        );
         
-        // Calculate scroll offsets
-        let horizontal_offset = if self.content_width > self.viewable_width {
-            ((self.content_width - self.viewable_width) as f64 * self.horizontal_scroll / 100.0).round() as usize
+        // Calculate content positioning and padding using proper dimension methods
+        let vertical_padding = if self.content_height < self.viewable_height {
+            (self.viewable_height - self.content_height) / 2
+        } else {
+            0
+        };
+        let horizontal_padding = if self.content_width < self.viewable_width {
+            (self.viewable_width - self.content_width) / 2
         } else {
             0
         };
         
-        let vertical_offset = if self.content_height > self.viewable_height {
-            ((self.content_height - self.viewable_height) as f64 * self.vertical_scroll / 100.0).round() as usize
-        } else {
-            0
-        };
+        // Use ScrollDimensions for scroll offset calculations
+        let horizontal_offset = scroll_dims.calculate_scroll_offset(Orientation::Horizontal);
+        let vertical_offset = scroll_dims.calculate_scroll_offset(Orientation::Vertical);
         
         // Calculate actual content start position
         let content_start_x = self.content_bounds.left() + horizontal_padding;
@@ -466,8 +481,8 @@ impl<'a> BoxRenderer<'a> {
 
             let config = ChartConfig {
                 chart_type,
-                width: bounds.width().saturating_sub(4),
-                height: bounds.height().saturating_sub(4),
+                width: ComponentDimensions::new(*bounds).content_bounds().width(),
+                height: ComponentDimensions::new(*bounds).content_bounds().height(),
                 title: None, // Don't show chart title since muxbox already has the title
                 color: "blue".to_string(),
                 show_title: false, // Muxbox already shows title
@@ -737,8 +752,10 @@ impl<'a> BoxRenderer<'a> {
 
                     // Use unified content rendering (same path as text content)
                     let (content_width, content_height) = content_size(&choice_content);
-                    let viewable_width = bounds.width().saturating_sub(4);
-                    let viewable_height = bounds.height().saturating_sub(4);
+                    let component_dims = ComponentDimensions::new(bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
+                    let viewable_height = content_bounds.height();
                     let _choices_overflow =
                         content_width > viewable_width || content_height > viewable_height;
 
@@ -775,8 +792,10 @@ impl<'a> BoxRenderer<'a> {
             }
         } else if let Some(content) = content {
             let (content_width, content_height) = content_size(content);
-            let viewable_width = bounds.width().saturating_sub(4);
-            let viewable_height = bounds.height().saturating_sub(4);
+            let component_dims = ComponentDimensions::new(bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
+            let viewable_height = content_bounds.height();
             _overflowing = content_width > viewable_width || content_height > viewable_height;
 
             scrollbars_drawn = self.render_content(
@@ -844,8 +863,10 @@ impl<'a> BoxRenderer<'a> {
         buffer: &mut ScreenBuffer,
     ) -> bool {
         let (content_width, content_height) = content_size(content);
-        let viewable_width = bounds.width().saturating_sub(4);
-        let viewable_height = bounds.height().saturating_sub(4);
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
+        let viewable_height = content_bounds.height();
 
         let content_lines: Vec<&str> = content.lines().collect();
         let max_content_width = content_lines
@@ -897,7 +918,25 @@ impl<'a> BoxRenderer<'a> {
                 bg_color,
                 buffer,
             );
-            false
+            
+            // HORIZONTAL SCROLLBAR FIX: Draw horizontal scrollbar even in normal content mode if needed
+            // This ensures consistency with border space reservation logic
+            if max_content_width > viewable_width {
+                use crate::components::horizontal_scrollbar::HorizontalScrollbar;
+                let horizontal_scrollbar = HorizontalScrollbar::new("content".to_string());
+                horizontal_scrollbar.draw(
+                    bounds,
+                    max_content_width,
+                    viewable_width,
+                    horizontal_scroll,
+                    border_color,
+                    bg_color,
+                    buffer,
+                );
+                true // Return true to indicate scrollbar was drawn
+            } else {
+                false
+            }
         }
     }
 
@@ -917,7 +956,9 @@ impl<'a> BoxRenderer<'a> {
         border_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
-        let viewable_height = bounds.height().saturating_sub(1);
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_height = content_bounds.height();
 
         let max_horizontal_offset = max_content_width.saturating_sub(viewable_width);
         let max_vertical_offset = max_content_height.saturating_sub(viewable_height);
@@ -947,8 +988,8 @@ impl<'a> BoxRenderer<'a> {
                 .collect::<String>();
 
             print_with_color_and_background_at(
-                bounds.top() + 1 + line_idx + vertical_padding,
-                bounds.left() + 2 + horizontal_padding,
+                content_bounds.top() + line_idx + vertical_padding,
+                content_bounds.left() + 1 + horizontal_padding,
                 fg_color,
                 bg_color,
                 &visible_part,
@@ -968,8 +1009,8 @@ impl<'a> BoxRenderer<'a> {
 
             draw_vertical_line(
                 bounds.right(),
-                bounds.top() + 1,
-                bounds.bottom().saturating_sub(1),
+                ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y1,
+                ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y2,
                 border_color,
                 bg_color,
                 buffer,
@@ -1016,10 +1057,12 @@ impl<'a> BoxRenderer<'a> {
         _parent_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) -> bool {
-        let viewable_width = bounds.width().saturating_sub(4);
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
         let wrapped_content = wrap_text_to_width(content, viewable_width);
 
-        let viewable_height = bounds.height().saturating_sub(4);
+        let viewable_height = content_bounds.height();
         let wrapped_overflows_vertically = wrapped_content.len() > viewable_height;
 
         render_wrapped_content(
@@ -1062,6 +1105,8 @@ impl<'a> BoxRenderer<'a> {
         bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
         let total_lines = content_lines.len();
         let vertical_padding = (viewable_height.saturating_sub(total_lines)) / 2;
         let horizontal_padding = (viewable_width.saturating_sub(max_content_width)) / 2;
@@ -1070,8 +1115,8 @@ impl<'a> BoxRenderer<'a> {
             let visible_line = &line.chars().take(viewable_width).collect::<String>();
 
             print_with_color_and_background_at(
-                bounds.top() + 2 + vertical_padding + i,
-                bounds.left() + 2 + horizontal_padding,
+                content_bounds.top() + vertical_padding + i,
+                content_bounds.left() + 1 + horizontal_padding,
                 fg_color,
                 bg_color,
                 visible_line,
@@ -1108,7 +1153,9 @@ impl<'a> BoxRenderer<'a> {
                     .map(|line| line.len())
                     .max()
                     .unwrap_or(0);
-                let viewable_width = bounds.width().saturating_sub(4);
+                let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
                 max_content_width > viewable_width
             } else {
                 false
@@ -1121,14 +1168,14 @@ impl<'a> BoxRenderer<'a> {
             draw_horizontal_line(
                 bounds.bottom(),
                 bounds.left(),
-                bounds.left() + 1,
+                ComponentDimensions::new(*bounds).horizontal_scrollbar_track_bounds().x1,
                 border_color,
                 bg_color,
                 buffer,
             );
             draw_horizontal_line(
                 bounds.bottom(),
-                bounds.right().saturating_sub(1),
+                ComponentDimensions::new(*bounds).horizontal_scrollbar_track_bounds().x2,
                 bounds.right(),
                 border_color,
                 bg_color,
@@ -1148,8 +1195,8 @@ impl<'a> BoxRenderer<'a> {
         // Draw left border
         draw_vertical_line(
             bounds.left(),
-            bounds.top() + 1,
-            bounds.bottom().saturating_sub(1),
+            ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y1,
+            ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y2,
             border_color,
             bg_color,
             buffer,
@@ -1160,7 +1207,7 @@ impl<'a> BoxRenderer<'a> {
             if let Some(content_str) = content {
                 let content_lines: Vec<&str> = content_str.lines().collect();
                 let content_height = content_lines.len();
-                let viewable_height = bounds.height().saturating_sub(4);
+                let viewable_height = ComponentDimensions::new(*bounds).content_bounds().height();
                 content_height > viewable_height
             } else {
                 false
@@ -1170,8 +1217,8 @@ impl<'a> BoxRenderer<'a> {
         if !has_vertical_scrollbar {
             draw_vertical_line(
                 bounds.right(),
-                bounds.top() + 1,
-                bounds.bottom().saturating_sub(1),
+                ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y1,
+                ComponentDimensions::new(*bounds).vertical_scrollbar_track_bounds().y2,
                 border_color,
                 bg_color,
                 buffer,
@@ -1237,12 +1284,7 @@ impl<'a> BoxRenderer<'a> {
         // CRITICAL FIX: Use BoxDimensions for consistent coordinate translation
         let dimensions = BoxDimensions {
             total_bounds: bounds.clone(),
-            content_bounds: Bounds::new(
-                bounds.left() + 1,
-                bounds.top() + 1,
-                bounds.right() - 1,
-                bounds.bottom() - 1,
-            ),
+            content_bounds: ComponentDimensions::new(*bounds).content_bounds(),
             viewable_width,
             viewable_height,
             content_width,
@@ -1362,10 +1404,12 @@ impl<'a> BoxRenderer<'a> {
         };
 
         // Forward translate: inbox coordinates -> screen coordinates
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
         let screen_x =
-            (bounds.left() + 2 + horizontal_padding + inbox_x).wrapping_sub(horizontal_offset);
+            (content_bounds.left() + 1 + horizontal_padding + inbox_x).wrapping_sub(horizontal_offset);
         let screen_y =
-            (bounds.top() + 2 + vertical_padding + inbox_y).wrapping_sub(vertical_offset);
+            (content_bounds.top() + vertical_padding + inbox_y).wrapping_sub(vertical_offset);
 
         (screen_x, screen_y)
     }
@@ -1375,13 +1419,13 @@ impl<'a> BoxRenderer<'a> {
     /// Inbox coordinates: content-local (0,0 = top-left of content area)
 
     /// Handle click using formalized coordinate system
-    /// Returns true if click was handled by a renderable content
+    /// Returns Some(choice_index) if a choice was clicked, None otherwise
     pub fn handle_click_with_dimensions(
         &mut self,
         screen_x: usize,
         screen_y: usize,
         dimensions: &BoxDimensions,
-    ) -> bool {
+    ) -> Option<usize> {
         // Use formalized coordinate translation
         if let Some((inbox_x, inbox_y)) = dimensions.screen_to_inbox(screen_x, screen_y) {
             // Check clickable zones in screen coordinates
@@ -1392,38 +1436,16 @@ impl<'a> BoxRenderer<'a> {
                         screen_x, screen_y, inbox_x, inbox_y, zone.content_id
                     );
                     
-                    // TODO: Pass inbox coordinates to renderable content
-                    // let event = ContentEvent::new_click((inbox_x, inbox_y), MouseButton::Left, Some(zone.content_id.clone()));
-                    // let result = renderable_content.handle_event(&event);
-                    
-                    return true;
+                    // Get clicked choice index if valid
+                    if let Some(choice_index) = self.get_clicked_choice_index(inbox_x, inbox_y, &zone.content_id) {
+                        return Some(choice_index);
+                    }
                 }
             }
         }
-        false
+        None
     }
     
-    /// Handle click using formalized coordinate system
-    pub fn handle_click(
-        &mut self,
-        click_x: usize,
-        click_y: usize,
-        bounds: &Bounds,
-        content_width: usize,
-        content_height: usize,
-        viewable_width: usize,
-        viewable_height: usize,
-        horizontal_scroll: f64,
-        vertical_scroll: f64,
-    ) -> bool {
-        // Create BoxDimensions and delegate to new method
-        let mut temp_muxbox = crate::model::muxbox::MuxBox::default();
-        temp_muxbox.set_horizontal_scroll(horizontal_scroll);
-        temp_muxbox.set_vertical_scroll(vertical_scroll);
-        let dimensions = BoxDimensions::new(&temp_muxbox, bounds, content_width, content_height);
-        
-        self.handle_click_with_dimensions(click_x, click_y, &dimensions)
-    }
 
     /// Handle mouse move using formalized coordinate system
     pub fn handle_mouse_move_with_dimensions(
@@ -1447,28 +1469,6 @@ impl<'a> BoxRenderer<'a> {
         false
     }
     
-    /// Handle mouse move using formalized coordinate system
-    pub fn handle_mouse_move(
-        &mut self,
-        screen_x: usize,
-        screen_y: usize,
-        bounds: &Bounds,
-        content_width: usize,
-        content_height: usize,
-        viewable_width: usize,
-        viewable_height: usize,
-        horizontal_scroll: f64,
-        vertical_scroll: f64,
-    ) -> bool {
-        // Translate screen coordinates to inbox coordinates before passing to renderable content
-        // Create BoxDimensions and delegate to new method
-        let mut temp_muxbox = crate::model::muxbox::MuxBox::default();
-        temp_muxbox.set_horizontal_scroll(horizontal_scroll);
-        temp_muxbox.set_vertical_scroll(vertical_scroll);
-        let dimensions = BoxDimensions::new(&temp_muxbox, bounds, content_width, content_height);
-        
-        self.handle_mouse_move_with_dimensions(screen_x, screen_y, &dimensions)
-    }
 
     /// Handle mouse hover using formalized coordinate system
     pub fn handle_mouse_hover_with_dimensions(
@@ -1497,27 +1497,6 @@ impl<'a> BoxRenderer<'a> {
         false
     }
     
-    /// Handle mouse hover using formalized coordinate system
-    pub fn handle_mouse_hover(
-        &mut self,
-        screen_x: usize,
-        screen_y: usize,
-        bounds: &Bounds,
-        content_width: usize,
-        content_height: usize,
-        viewable_width: usize,
-        viewable_height: usize,
-        horizontal_scroll: f64,
-        vertical_scroll: f64,
-    ) -> bool {
-        // Create BoxDimensions and delegate to new method
-        let mut temp_muxbox = crate::model::muxbox::MuxBox::default();
-        temp_muxbox.set_horizontal_scroll(horizontal_scroll);
-        temp_muxbox.set_vertical_scroll(vertical_scroll);
-        let dimensions = BoxDimensions::new(&temp_muxbox, bounds, content_width, content_height);
-        
-        self.handle_mouse_hover_with_dimensions(screen_x, screen_y, &dimensions)
-    }
 
     /// Handle mouse drag using formalized coordinate system
     pub fn handle_mouse_drag_with_dimensions(
@@ -1548,27 +1527,53 @@ impl<'a> BoxRenderer<'a> {
         false
     }
     
-    /// Handle mouse drag using formalized coordinate system
-    pub fn handle_mouse_drag(
-        &mut self,
-        from_screen_x: usize,
-        from_screen_y: usize,
-        to_screen_x: usize,
-        to_screen_y: usize,
-        bounds: &Bounds,
-        content_width: usize,
-        content_height: usize,
-        viewable_width: usize,
-        viewable_height: usize,
-        horizontal_scroll: f64,
-        vertical_scroll: f64,
-    ) -> bool {
-        // Create BoxDimensions and delegate to new method
-        let mut temp_muxbox = crate::model::muxbox::MuxBox::default();
-        temp_muxbox.set_horizontal_scroll(horizontal_scroll);
-        temp_muxbox.set_vertical_scroll(vertical_scroll);
-        let dimensions = BoxDimensions::new(&temp_muxbox, bounds, content_width, content_height);
+    /// Get the clicked choice index if a valid choice was clicked
+    pub fn get_clicked_choice_index(&self, inbox_x: usize, inbox_y: usize, zone_id: &str) -> Option<usize> {
+        use crate::components::renderable_content::{ContentEvent};
+        use crate::components::choice_menu::ChoiceMenu;
         
-        self.handle_mouse_drag_with_dimensions(from_screen_x, from_screen_y, to_screen_x, to_screen_y, &dimensions)
+        // Get the current streams to determine content type
+        let streams = &self.muxbox.streams;
+        
+        // Check if this is choice content
+        if let Some(stream) = streams.values().find(|s| matches!(s.stream_type, crate::model::common::StreamType::Choices)) {
+            let choices = stream.get_choices();
+            let mut choice_menu = ChoiceMenu::new(
+                format!("{}_choice_menu", self.component_id), 
+                choices
+            )
+            .with_selection(self.muxbox.selected_choice_index())
+            .with_focus(self.muxbox.focused_choice_index());
+
+            // Create click event with inbox coordinates
+            let event = ContentEvent::new_click(
+                Some((inbox_x, inbox_y)), 
+                Some(zone_id.to_string())
+            );
+
+            log::info!(
+                "CLICK EVENT: Created event for zone '{}' at inbox coords ({},{})",
+                zone_id, inbox_x, inbox_y
+            );
+
+            // Pass event to choice menu to validate the click
+            let result = choice_menu.handle_event(&event);
+            
+            // If event was handled, parse and return the choice index
+            if matches!(result, crate::components::renderable_content::EventResult::Handled) {
+                if let Some(index_str) = zone_id.strip_prefix("choice_") {
+                    if let Ok(choice_index) = index_str.parse::<usize>() {
+                        log::info!(
+                            "CLICK EVENT: Valid choice {} clicked",
+                            choice_index
+                        );
+                        return Some(choice_index);
+                    }
+                }
+            }
+        }
+        
+        None
     }
+    
 }

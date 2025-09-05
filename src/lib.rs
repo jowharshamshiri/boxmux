@@ -31,6 +31,9 @@ pub mod validation;
 #[cfg(test)]
 pub mod tests;
 
+#[cfg(test)]
+mod test_dimensions;
+
 pub use ansi_color_processor::*;
 pub use ansi_processor::*;
 // Re-export components selectively to avoid ambiguous MouseButton re-export

@@ -1,5 +1,6 @@
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::{Bounds, ScreenBuffer};
+use crate::components::ComponentDimensions;
 
 /// Vertical Scrollbar Component
 ///
@@ -37,13 +38,12 @@ impl VerticalScrollbar {
 
     /// Get the bounds where this scrollbar should be drawn
     pub fn get_bounds(&self, parent_bounds: &Bounds) -> (usize, usize, usize) {
-        let x = parent_bounds.right();
-        let start_y = parent_bounds.top() + 1;
-        let end_y = parent_bounds.bottom().saturating_sub(1); // Match border drawing bounds
-        (x, start_y, end_y)
+        let component_dims = ComponentDimensions::new(*parent_bounds);
+        let track_bounds = component_dims.vertical_scrollbar_track_bounds();
+        (track_bounds.x1, track_bounds.y1, track_bounds.y2)
     }
 
-    /// Calculate knob position and size based on scroll state and content dimensions
+    /// Calculate knob position and size using ScrollDimensions (eliminates ad-hoc math)
     pub fn calculate_knob_metrics(
         &self,
         content_height: usize,
@@ -55,18 +55,20 @@ impl VerticalScrollbar {
             return (0, 0);
         }
 
-        // Calculate proportional knob size (from existing implementation)
-        let content_ratio = viewable_height as f64 / content_height as f64;
-        let knob_size = std::cmp::max(1, (track_height as f64 * content_ratio).round() as usize);
-        let available_track = track_height.saturating_sub(knob_size);
-
-        // Calculate knob position (from existing implementation)
-        let knob_position = if available_track > 0 {
-            ((vertical_scroll / 100.0) * available_track as f64).round() as usize
-        } else {
-            0
-        };
-
+        // Use ScrollDimensions for proper calculations
+        use crate::components::dimensions::{ScrollDimensions, Orientation};
+        use crate::Bounds;
+        
+        let scroll_dims = ScrollDimensions::new(
+            (1, content_height), // Use 1 for width since this is vertical scrollbar
+            (1, viewable_height),
+            (0.0, vertical_scroll), // Only vertical scroll matters
+            Bounds::new(0, 0, 2, track_height + 1), // Adjust bounds so track_length = track_height
+        );
+        
+        let knob_size = scroll_dims.calculate_knob_size(Orientation::Vertical);
+        let knob_position = scroll_dims.calculate_knob_position(Orientation::Vertical);
+        
         (knob_position, knob_size)
     }
 

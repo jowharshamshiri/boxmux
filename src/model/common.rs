@@ -2036,7 +2036,7 @@ impl InputBounds {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Bounds {
     pub x1: usize,
     pub y1: usize,

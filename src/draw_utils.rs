@@ -3,7 +3,7 @@ use crate::{set_terminal_title, AppContext, AppGraph, Bounds, Layout, MuxBox, Sc
 use std::collections::HashMap;
 
 use crate::ansi_color_processor::{contains_ansi_sequences, process_ansi_text};
-use crate::components::BoxRenderer;
+use crate::components::{BoxRenderer, ComponentDimensions};
 use crate::model::common::Cell;
 use crate::utils::screen_bounds;
 
@@ -294,7 +294,7 @@ pub fn draw_horizontal_line_with_title(
             fill_horizontal_background(
                 y,
                 title_start_position,
-                title_start_position + title_length - 1,
+                title_start_position + title_length.saturating_sub(1),
                 title_fg_color,
                 title_bg_color,
                 buffer,
@@ -604,9 +604,11 @@ pub fn render_wrapped_content(
     bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
-    let viewable_height = bounds.height().saturating_sub(4);
-    let content_start_x = bounds.left() + 2;
-    let content_start_y = bounds.top() + 2;
+    let component_dims = ComponentDimensions::new(*bounds);
+    let content_bounds = component_dims.content_bounds(); 
+    let viewable_height = content_bounds.height();
+    let content_start_x = content_bounds.left() + 1;
+    let content_start_y = content_bounds.top();
 
     // Calculate scroll offset
     let max_vertical_offset = wrapped_lines.len().saturating_sub(viewable_height);
@@ -707,8 +709,10 @@ pub fn render_wrapped_choices(
         .skip(vertical_offset)
         .take(viewable_height);
 
-    let choice_start_x = bounds.left() + 2;
-    let choice_start_y = bounds.top() + 1;
+    let component_dims = ComponentDimensions::new(*bounds);
+    let content_bounds = component_dims.content_bounds();
+    let choice_start_x = content_bounds.left() + 1;
+    let choice_start_y = content_bounds.top();
 
     for (display_idx, wrapped_choice) in visible_wrapped_choices.enumerate() {
         let render_y = choice_start_y + display_idx;

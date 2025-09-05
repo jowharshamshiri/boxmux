@@ -7,6 +7,7 @@
 use crate::model::common::Bounds;
 use crate::table::{render_table, TableConfig, TableData, TablePagination};
 use crossterm::style::Color;
+use crate::components::ComponentDimensions;
 
 /// Configuration for table component styling
 #[derive(Debug, Clone, PartialEq)]
@@ -86,8 +87,8 @@ impl TableComponent {
     ) -> Vec<String> {
         // Adjust table config to fit within bounds
         let mut adjusted_config = table_config.clone();
-        adjusted_config.width = bounds.width().saturating_sub(2); // Account for borders
-        adjusted_config.height = bounds.height().saturating_sub(2); // Account for borders
+        adjusted_config.width = ComponentDimensions::new(*bounds).content_bounds().width(); // Account for borders
+        adjusted_config.height = ComponentDimensions::new(*bounds).content_bounds().height(); // Account for borders
 
         // Generate base table content using existing table system
         let table_content = render_table(table_data, &adjusted_config);

@@ -1,6 +1,7 @@
 use crate::model::muxbox::MuxBox;
 use crate::pty_manager::PtyManager;
 use crate::{Bounds, Cell, ScreenBuffer};
+use crate::components::ComponentDimensions;
 
 /// Border component for rendering box borders with various styles and states
 pub struct Border {
@@ -189,7 +190,9 @@ impl Border {
         );
 
         // Draw horizontal edges
-        for x in (bounds.left() + 1)..bounds.right() {
+        let component_dims = ComponentDimensions::new(*bounds);
+        let inside_border = component_dims.inside_border_bounds();
+        for x in inside_border.left()..bounds.right() {
             buffer.update(
                 x,
                 bounds.top(),
@@ -211,7 +214,7 @@ impl Border {
         }
 
         // Draw vertical edges
-        for y in (bounds.top() + 1)..bounds.bottom() {
+        for y in inside_border.top()..bounds.bottom() {
             buffer.update(
                 bounds.left(),
                 y,

@@ -253,7 +253,7 @@ app:
 
     // The choice should be wrapped across multiple lines
     // Click on the first line of the wrapped choice
-    tester.click_at(4, 4); // Should hit the first part of the wrapped text
+    tester.click_at(4, 4).expect("Click should succeed"); // Should hit the first part of the wrapped text
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     let after_click_frame = tester.current_frame();
@@ -318,7 +318,7 @@ app:
 
     // With vertical scroll at 50%, we should see middle choices
     // Click on what appears to be the first visible choice
-    tester.click_at(4, 4);
+    tester.click_at(4, 4).expect("Click should succeed");
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     let after_click_frame = tester.current_frame();

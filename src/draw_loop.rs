@@ -507,6 +507,13 @@ create_runnable!(
                                         }
 
                                         stream_found = true;
+                                        
+                                        // AUTO_SCROLL_BOTTOM FIX: Apply auto-scroll when stream content is updated
+                                        if muxbox.auto_scroll_bottom == Some(true) {
+                                            muxbox.vertical_scroll = Some(100.0);
+                                            log::debug!("Applied auto-scroll to bottom for muxbox {} after stream update", muxbox.id);
+                                        }
+                                        
                                         inner
                                             .send_message(Message::RedrawMuxBox(muxbox.id.clone()));
                                         break;
@@ -580,6 +587,12 @@ create_runnable!(
                                     stream_id,
                                     target_muxbox.id
                                 );
+
+                                // AUTO_SCROLL_BOTTOM FIX: Apply auto-scroll when new stream content is added
+                                if target_muxbox.auto_scroll_bottom == Some(true) {
+                                    target_muxbox.vertical_scroll = Some(100.0);
+                                    log::debug!("Applied auto-scroll to bottom for muxbox {} after new stream content", target_muxbox.id);
+                                }
 
                                 inner.send_message(Message::RedrawMuxBox(target_muxbox.id.clone()));
                             } else {
@@ -2157,12 +2170,12 @@ create_runnable!(
                                         box_renderer.store_translated_clickable_zones(translated_zones);
 
                                         // Handle click using formalized coordinate system
-                                        if box_renderer.handle_click_with_dimensions(
+                                        if let Some(clicked_choice_idx) = box_renderer.handle_click_with_dimensions(
                                             *x as usize,
                                             *y as usize,
                                             &dimensions,
                                         ) {
-                                            log::info!("CLICK: BoxRenderer handled click for muxbox '{}' using formalized coordinates", clicked_muxbox.id);
+                                            log::info!("CLICK: BoxRenderer detected click on choice {} for muxbox '{}'", clicked_choice_idx, clicked_muxbox.id);
 
                                             // Extract choice execution using formalized coordinate translation
                                             if let Some(choices) = clicked_muxbox.get_selected_stream_choices() {
@@ -2389,7 +2402,20 @@ create_runnable!(
                                                     } // Close if let Some(idx_str)
                                                 } // Close if let Some(clicked_zone)
                                         } else {
-                                            log::info!("NEW ARCH: Click at ({}, {}) did not hit any clickable zone", *x, *y);
+                                            log::info!("NEW ARCH: Click at ({}, {}) did not hit any clickable zone - selecting muxbox", *x, *y);
+                                            
+                                            // ISSUE FIX: When click doesn't hit a choice zone, still select the muxbox
+                                            if clicked_muxbox.tab_order.is_some() || clicked_muxbox.has_scrollable_content() {
+                                                log::trace!("Selecting muxbox (no choice clicked): {}", clicked_muxbox.id);
+                                                
+                                                // Deselect all muxboxes and select the clicked one
+                                                let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                                layout.deselect_all_muxboxes();
+                                                layout.select_only_muxbox(&clicked_muxbox.id);
+                                                
+                                                inner.update_app_context(app_context_for_click.clone());
+                                                inner.send_message(Message::RedrawAppDiff);
+                                            }
                                         }
                                             } // Close if !choices.is_empty()
                                         } else {
@@ -3281,6 +3307,12 @@ create_runnable!(
                             // Update stream content directly using new stream system
                             if let Some(stream) = muxbox.streams.get_mut(stream_id) {
                                 stream.content = content.lines().map(|s| s.to_string()).collect();
+                                
+                                // AUTO_SCROLL_BOTTOM FIX: Apply auto-scroll after stream content update
+                                if muxbox.auto_scroll_bottom == Some(true) {
+                                    muxbox.vertical_scroll = Some(100.0);
+                                    log::debug!("Applied auto-scroll to bottom for muxbox {} after UpdateStreamContent", muxbox_id);
+                                }
                             } else {
                                 log::warn!(
                                     "Stream {} not found in muxbox {} for content update",
