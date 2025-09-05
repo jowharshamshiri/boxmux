@@ -15,19 +15,21 @@ mod debug_coordinate_issues {
         };
         
         // Set bounds similar to the failing test
-        muxbox.set_bounds(2, 2, 23, 6); // Same as failing test
+        // Set bounds using update_bounds_absolutely method
+        let bounds = Bounds { x1: 2, y1: 2, x2: 23, y2: 6 };
+        muxbox.update_bounds_absolutely(bounds, None);
         
         // Add choices
         muxbox.choices = Some(vec![
             Choice {
-                id: Some("short_choice".to_string()),
-                content: "BOUNDS_SHORT_CHOICE".to_string(),
+                id: "short_choice".to_string(),
+                content: Some("BOUNDS_SHORT_CHOICE".to_string()),
                 script: Some(vec!["echo BOUNDS_SHORT_EXECUTED".to_string()]),
                 ..Default::default()
             },
             Choice {
-                id: Some("long_choice".to_string()),
-                content: "BOUNDS_VERY_LONG_CHOICE_TEXT".to_string(),
+                id: "long_choice".to_string(),
+                content: Some("BOUNDS_VERY_LONG_CHOICE_TEXT".to_string()),
                 script: Some(vec!["echo BOUNDS_LONG_EXECUTED".to_string()]),
                 ..Default::default()
             },
@@ -39,14 +41,14 @@ mod debug_coordinate_issues {
     #[test]
     fn debug_coordinate_translation_mismatch() {
         let muxbox = create_test_muxbox_with_choices();
-        let bounds = muxbox.bounds();
+        let bounds = muxbox.bounds().clone();
         
         println!("=== COORDINATE DEBUG ===");
         println!("Muxbox bounds: {:?}", bounds);
         
         // Create BoxRenderer and ChoiceMenu exactly like draw_loop does
         let mut box_renderer = BoxRenderer::new(&muxbox, "debug_renderer".to_string());
-        let choices = muxbox.get_selected_stream_choices().unwrap();
+        let choices = muxbox.get_selected_stream_choices().unwrap_or_else(|| &muxbox.choices.as_ref().unwrap());
         let choice_menu = ChoiceMenu::new("debug_menu".to_string(), choices)
             .with_selection(muxbox.selected_choice_index())
             .with_focus(muxbox.focused_choice_index());
@@ -90,7 +92,7 @@ mod debug_coordinate_issues {
         
         // Create BoxDimensions for NEW method - this is what handle_click uses internally
         let dimensions = BoxDimensions {
-            total_bounds: bounds,
+            total_bounds: bounds.clone(),
             content_bounds: Bounds::new(
                 bounds.left() + 1,
                 bounds.top() + 1,

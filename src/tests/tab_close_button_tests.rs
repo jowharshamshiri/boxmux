@@ -38,8 +38,7 @@ mod tests {
             label,
             content: vec!["test content".to_string()],
             choices: None,
-            active: id == "stream1", // First stream is active
-            source,
+            source, // Active state managed by muxbox.selected_stream_id
             content_hash: 0,
             last_updated: SystemTime::now(),
             created_at: SystemTime::now(),

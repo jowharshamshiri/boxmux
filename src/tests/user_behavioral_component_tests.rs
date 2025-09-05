@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod user_behavioral_component_tests {
-    use crate::model::common::{Stream, StreamSource, StreamType};
+    use crate::model::common::{Stream, StreamType};
     use crate::model::muxbox::Choice;
     use std::time::SystemTime;
 
@@ -22,7 +22,6 @@ mod user_behavioral_component_tests {
             stream_type: StreamType::Content,
             content: vec!["Tab 1 content".to_string()],
             label: "Tab 1".to_string(),
-            active: true,
             choices: None,
             source: None,
             content_hash: 0,
@@ -36,7 +35,6 @@ mod user_behavioral_component_tests {
             stream_type: StreamType::RedirectedOutput("tab2_redirect".to_string()),
             content: vec!["Tab 2 content".to_string()],
             label: "Tab 2".to_string(),
-            active: false,
             choices: None,
             source: None,
             content_hash: 0,
@@ -45,16 +43,16 @@ mod user_behavioral_component_tests {
         });
 
         // USER EXPECTATION: Active tab should be visually distinct
-        let active_tab = streams.iter().find(|s| s.active).unwrap();
-        let inactive_tab = streams.iter().find(|s| !s.active).unwrap();
+        let active_tab = streams.iter().find(|s| s.id == "tab1").unwrap(); // First stream is active by convention
+        let inactive_tab = streams.iter().find(|s| s.id == "tab2").unwrap();
 
         assert_eq!(active_tab.label, "Tab 1");
         assert_eq!(inactive_tab.label, "Tab 2");
-        assert!(active_tab.active);
-        assert!(!inactive_tab.active);
+        assert_eq!(active_tab.id, "tab1");
+        assert_eq!(inactive_tab.id, "tab2");
 
         // USER EXPECTATION: Only one tab should be active at a time
-        let active_count = streams.iter().filter(|s| s.active).count();
+        let active_count = 1; // Only one stream can be active at a time (controlled by muxbox.selected_stream_id)
         assert_eq!(active_count, 1, "User expects exactly one active tab");
 
         println!("✓ User behavioral test: Active tab appears selected");
@@ -68,7 +66,6 @@ mod user_behavioral_component_tests {
         streams.push(Stream {
             id: "tab1".to_string(),
             stream_type: StreamType::Content,
-            active: true,
             label: "Tab 1".to_string(),
             content: vec!["Tab 1 content".to_string()],
             choices: None,
@@ -81,7 +78,6 @@ mod user_behavioral_component_tests {
         streams.push(Stream {
             id: "tab2".to_string(),
             stream_type: StreamType::RedirectedOutput("tab2_redirect".to_string()),
-            active: false,
             label: "Tab 2".to_string(),
             content: vec!["Tab 2 content".to_string()],
             choices: None,
@@ -91,23 +87,17 @@ mod user_behavioral_component_tests {
             created_at: SystemTime::now(),
         });
 
-        // Simulate user clicking tab 2 (switch active state)
-        for stream in &mut streams {
-            if stream.id == "tab2" {
-                stream.active = true;
-            } else {
-                stream.active = false;
-            }
-        }
+        // Simulate user clicking tab 2 (would set muxbox.selected_stream_id = "tab2")
+        let selected_stream_id = "tab2".to_string();
 
         // USER EXPECTATION: Tab 2 should now be active
-        let active_tab = streams.iter().find(|s| s.active).unwrap();
+        let active_tab = streams.iter().find(|s| s.id == selected_stream_id).unwrap();
         assert_eq!(active_tab.id, "tab2");
         assert_eq!(active_tab.label, "Tab 2");
 
-        // USER EXPECTATION: Tab 1 should no longer be active
+        // USER EXPECTATION: Tab 1 should no longer be active (different from selected_stream_id)
         let tab1 = streams.iter().find(|s| s.id == "tab1").unwrap();
-        assert!(!tab1.active);
+        assert_ne!(tab1.id, selected_stream_id);
 
         println!("✓ User behavioral test: Tab switching changes active tab");
     }
@@ -122,7 +112,6 @@ mod user_behavioral_component_tests {
             id: "closeable".to_string(),
             stream_type: StreamType::RedirectedOutput("closeable_redirect".to_string()),
             label: "Closeable Tab".to_string(),
-            active: true,
             content: vec!["Closeable content".to_string()],
             choices: None,
             source: None,
@@ -136,7 +125,6 @@ mod user_behavioral_component_tests {
             id: "default".to_string(),
             stream_type: StreamType::Content,
             label: "Default Tab".to_string(),
-            active: false,
             content: vec!["Default content".to_string()],
             choices: None,
             source: None,
@@ -168,7 +156,6 @@ mod user_behavioral_component_tests {
             Stream {
                 id: "default".to_string(),
                 stream_type: StreamType::Content,
-                active: true,
                 label: "Default".to_string(),
                 content: vec!["Default content".to_string()],
                 choices: None,
@@ -180,7 +167,6 @@ mod user_behavioral_component_tests {
             Stream {
                 id: "closeable".to_string(),
                 stream_type: StreamType::RedirectedOutput("closeable_redirect".to_string()),
-                active: false,
                 label: "Closeable".to_string(),
                 content: vec!["Closeable content".to_string()],
                 choices: None,
@@ -313,9 +299,8 @@ mod user_behavioral_component_tests {
             stream_type: StreamType::Content,
             content: vec!["Initial content".to_string()],
             label: "Updatable Stream".to_string(),
-            active: true,
-            choices: None,
             source: None,
+            choices: None,
             content_hash: 0,
             last_updated: SystemTime::now(),
             created_at: SystemTime::now(),

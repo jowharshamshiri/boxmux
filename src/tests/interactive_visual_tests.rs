@@ -160,7 +160,7 @@ app:
         assert!(drag_result.is_ok(), "Failed to perform resize drag");
 
         // Capture frame after resize
-        let after_resize_frame = tester
+        let _after_resize_frame = tester
             .wait_for_frame()
             .expect("Failed to capture frame after resize");
 
@@ -234,7 +234,7 @@ app:
             .expect("Failed to press enter");
 
         // Wait for all processing to complete
-        let final_frame = tester
+        let __final_frame = tester
             .wait_for_frame()
             .expect("Failed to capture final frame");
 
@@ -396,13 +396,13 @@ app:
         }
 
         // Capture final state
-        let final_frame = tester
+        let __final_frame = tester
             .wait_for_frame()
             .expect("Failed to capture final frame");
 
         // Verify all choices are still present
-        assert!(final_frame.assert_contains_text("Rapid action 1").is_ok());
-        assert!(final_frame.assert_contains_text("Rapid action 4").is_ok());
+        assert!(__final_frame.assert_contains_text("Rapid action 1").is_ok());
+        assert!(__final_frame.assert_contains_text("Rapid action 4").is_ok());
 
         println!("Rapid interaction sequence test completed successfully!");
     }

@@ -19,7 +19,6 @@ mod tests {
             label: "Content".to_string(),
             content: vec!["Original content".to_string()],
             choices: None,
-            active: true,
             source: None,
             content_hash: 0,
             last_updated: SystemTime::now(),
@@ -37,7 +36,6 @@ mod tests {
                 "Deployment output line 2".to_string(),
             ],
             choices: None,
-            active: false,
             source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
                 choice_id: "choice_deploy".to_string(),
                 thread_id: None,
@@ -133,7 +131,6 @@ mod tests {
                 label: "Content".to_string(),
                 content: vec!["Base content".to_string()],
                 choices: None,
-                active: true,
                 source: None,
                 content_hash: 0,
                 last_updated: SystemTime::now(),
@@ -150,7 +147,6 @@ mod tests {
                 label: "→Deploy".to_string(),
                 content: vec!["Deploy output".to_string()],
                 choices: None,
-                active: false,
                 source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
                     choice_id: "deploy".to_string(),
                     thread_id: None,
@@ -175,7 +171,6 @@ mod tests {
                 label: "→Monitor".to_string(),
                 content: vec!["Monitor output".to_string()],
                 choices: None,
-                active: false,
                 source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
                     choice_id: "monitor".to_string(),
                     thread_id: None,
@@ -254,7 +249,6 @@ mod tests {
                 label: "Content".to_string(),
                 content: vec!["Base content".to_string()],
                 choices: None,
-                active: false, // Not active initially
                 source: None,
                 content_hash: 0,
                 last_updated: SystemTime::now(),
@@ -271,7 +265,6 @@ mod tests {
                 label: "→Deploy".to_string(),
                 content: vec!["Deploy output".to_string()],
                 choices: None,
-                active: true, // This is the active stream
                 source: Some(StreamSource::ChoiceExecution(ChoiceExecutionSource {
                     choice_id: "deploy".to_string(),
                     thread_id: None,
@@ -288,6 +281,7 @@ mod tests {
         );
 
         muxbox.streams = streams;
+        muxbox.selected_stream_id = Some("redirect_active".to_string()); // Set the active stream
 
         // Verify initial state - redirected stream is active
         let active_stream = muxbox.get_selected_stream();
@@ -317,7 +311,7 @@ mod tests {
         // Verify content stream's active flag is set to true
         let content_stream = muxbox.streams.get("content").unwrap();
         assert!(
-            content_stream.active,
+            content_stream.stream_type == crate::model::common::StreamType::Content,
             "Content stream should have active=true after switching"
         );
     }

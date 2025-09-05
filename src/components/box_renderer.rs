@@ -161,6 +161,11 @@ impl BoxDimensions {
     
     /// Convert inbox coordinates to screen coordinates
     pub fn inbox_to_screen(&self, inbox_x: usize, inbox_y: usize) -> (usize, usize) {
+        // Check if inbox coordinates are within content bounds
+        if inbox_x >= self.content_width || inbox_y >= self.content_height {
+            return (usize::MAX, usize::MAX);
+        }
+        
         // Calculate content positioning and padding
         let vertical_padding = (self.viewable_height.saturating_sub(self.content_height)) / 2;
         let horizontal_padding = (self.viewable_width.saturating_sub(self.content_width)) / 2;
@@ -178,9 +183,18 @@ impl BoxDimensions {
             0
         };
         
-        // Calculate screen position
-        let screen_x = self.content_bounds.left() + horizontal_padding + inbox_x - horizontal_offset;
-        let screen_y = self.content_bounds.top() + vertical_padding + inbox_y - vertical_offset;
+        // Calculate screen position - check for potential underflow
+        let screen_x = if inbox_x >= horizontal_offset {
+            self.content_bounds.left() + horizontal_padding + inbox_x - horizontal_offset
+        } else {
+            return (usize::MAX, usize::MAX);
+        };
+        
+        let screen_y = if inbox_y >= vertical_offset {
+            self.content_bounds.top() + vertical_padding + inbox_y - vertical_offset
+        } else {
+            return (usize::MAX, usize::MAX);
+        };
         
         (screen_x, screen_y)
     }

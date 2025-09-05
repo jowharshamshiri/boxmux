@@ -329,7 +329,7 @@ impl TerminalCapture {
             let stream = muxbox
                 .streams
                 .iter()
-                .find(|(_, s)| s.active)
+                .find(|(_, s)| s.stream_type == crate::model::common::StreamType::Content)
                 .or_else(|| muxbox.streams.iter().next())
                 .map(|(_, s)| s);
 

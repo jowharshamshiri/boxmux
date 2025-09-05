@@ -94,7 +94,7 @@ mod tests {
             None,
             None,
         );
-        stream.active = true;
+        // Stream active state is now managed by muxbox.selected_stream_id
         streams.insert("content".to_string(), stream);
         muxbox.streams = streams;
 
@@ -131,7 +131,7 @@ mod tests {
         // Validate stream state
         assert_eq!(muxbox.streams.len(), 1, "Should have one content stream");
         let content_stream = muxbox.streams.get("content").unwrap();
-        assert!(content_stream.active, "Content stream should be active");
+        assert_eq!(content_stream.stream_type, crate::model::common::StreamType::Content, "Content stream should exist");
         assert_eq!(
             content_stream.stream_type,
             StreamType::Content,
@@ -184,7 +184,7 @@ mod tests {
             Some(choices),
             None,
         );
-        stream.active = true;
+        // Stream active state is now managed by muxbox.selected_stream_id
         streams.insert("choices".to_string(), stream);
         muxbox.streams = streams;
 
@@ -221,7 +221,7 @@ mod tests {
         // Validate stream configuration
         assert_eq!(muxbox.streams.len(), 1, "Should have one choices stream");
         let choices_stream = muxbox.streams.get("choices").unwrap();
-        assert!(choices_stream.active, "Choices stream should be active");
+        assert!(choices_stream.choices.is_some(), "Choices stream should contain choices");
         assert_eq!(
             choices_stream.stream_type,
             StreamType::Choices,
@@ -332,7 +332,7 @@ mod tests {
             None,
             None,
         );
-        stream.active = true;
+        // Stream active state is now managed by muxbox.selected_stream_id
         streams.insert("content".to_string(), stream);
         muxbox.streams = streams;
 

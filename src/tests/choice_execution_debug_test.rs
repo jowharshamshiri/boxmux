@@ -15,11 +15,13 @@ mod choice_execution_debug_tests {
         tester.load_config("layouts/multi_stream_tabs_demo.yaml")
             .expect("Failed to load multi_stream_tabs_demo layout");
             
-        // Capture initial frame
+        // Capture initial frame and extract initial tab count
         let initial_frame = tester.wait_for_frame()
             .expect("Failed to capture initial frame");
+        let initial_tabs = count_tabs_in_frame(&initial_frame, "multi_stream_box");
+        drop(initial_frame); // Release the frame reference
         
-        println!("Initial frame captured - multi_stream_box should be visible");
+        println!("Initial frame captured - multi_stream_box should be visible with {} tabs", initial_tabs);
         
         // Wait for layout to stabilize
         std::thread::sleep(Duration::from_millis(1000));
@@ -58,6 +60,8 @@ mod choice_execution_debug_tests {
         std::thread::sleep(Duration::from_millis(2000));
         let after_external_frame = tester.wait_for_frame()
             .expect("Failed to capture frame after external choice click");
+        let after_external_tabs = count_tabs_in_frame(&after_external_frame, "multi_stream_box");
+        drop(after_external_frame);
             
         println!("External stream choice executed - checking for new tab in multi_stream_box");
         
@@ -76,7 +80,7 @@ mod choice_execution_debug_tests {
         tester.send_mouse_event(MouseEventKind::Down(MouseButton::Left), multi_stream_click.column, multi_stream_click.row)
             .expect("Failed to click multi_stream_box");
         
-        let after_multi_focus_frame = tester.wait_for_frame()
+        let _after_multi_focus_frame = tester.wait_for_frame()
             .expect("Failed to capture frame after focusing multi_stream_box");
         
         // Click on "Deploy App" choice (first choice in multi_stream_box)
@@ -95,6 +99,9 @@ mod choice_execution_debug_tests {
         std::thread::sleep(Duration::from_millis(3000));
         let after_deploy_frame = tester.wait_for_frame()
             .expect("Failed to capture frame after deploy choice click");
+        let after_deploy_tabs = count_tabs_in_frame(&after_deploy_frame, "multi_stream_box");
+        let has_deployment_output = frame_contains_text(&after_deploy_frame, "Starting deployment");
+        drop(after_deploy_frame);
             
         println!("Deploy App choice clicked - checking for execution");
         
@@ -114,6 +121,9 @@ mod choice_execution_debug_tests {
         std::thread::sleep(Duration::from_millis(6000)); // Longer wait for the loop script
         let after_monitor_frame = tester.wait_for_frame()
             .expect("Failed to capture frame after monitor choice click");
+        let after_monitor_tabs = count_tabs_in_frame(&after_monitor_frame, "multi_stream_box");
+        let has_monitor_output = frame_contains_text(&after_monitor_frame, "Monitoring application logs");
+        drop(after_monitor_frame);
             
         println!("Monitor Logs choice clicked - checking for execution");
         
@@ -133,6 +143,9 @@ mod choice_execution_debug_tests {
         std::thread::sleep(Duration::from_millis(3000));
         let after_pty_frame = tester.wait_for_frame()
             .expect("Failed to capture frame after PTY choice click");
+        let after_pty_tabs = count_tabs_in_frame(&after_pty_frame, "multi_stream_box");
+        let has_pty_output = frame_contains_text(&after_pty_frame, "zenith") || frame_contains_text(&after_pty_frame, "PTY");
+        drop(after_pty_frame);
             
         println!("Start PTY Process choice clicked - checking for execution");
         
@@ -140,11 +153,7 @@ mod choice_execution_debug_tests {
         println!("\n=== FRAME ANALYSIS ===");
         
         // Check if any new tabs appeared in multi_stream_box
-        let initial_tabs = count_tabs_in_frame(&initial_frame, "multi_stream_box");
-        let after_external_tabs = count_tabs_in_frame(&after_external_frame, "multi_stream_box");
-        let after_deploy_tabs = count_tabs_in_frame(&after_deploy_frame, "multi_stream_box");
-        let after_monitor_tabs = count_tabs_in_frame(&after_monitor_frame, "multi_stream_box");
-        let after_pty_tabs = count_tabs_in_frame(&after_pty_frame, "multi_stream_box");
+        // initial_tabs, after_external_tabs, after_deploy_tabs, after_monitor_tabs, after_pty_tabs already calculated
         
         println!("Tab counts in multi_stream_box:");
         println!("  Initial: {}", initial_tabs);
@@ -153,10 +162,7 @@ mod choice_execution_debug_tests {
         println!("  After monitor choice: {}", after_monitor_tabs);
         println!("  After PTY choice: {}", after_pty_tabs);
         
-        // Check for content changes indicating script execution
-        let has_deployment_output = frame_contains_text(&after_deploy_frame, "Starting deployment");
-        let has_monitor_output = frame_contains_text(&after_monitor_frame, "Monitoring application logs");
-        let has_pty_output = frame_contains_text(&after_pty_frame, "zenith") || frame_contains_text(&after_pty_frame, "PTY");
+        // has_deployment_output, has_monitor_output, has_pty_output already calculated above
         
         println!("\nContent analysis:");
         println!("  Has deployment output: {}", has_deployment_output);
@@ -221,9 +227,9 @@ mod choice_execution_debug_tests {
     
     /// Convert frame to string for text analysis
     fn frame_to_string(frame: &crate::tests::visual_testing::terminal_capture::TerminalFrame) -> String {
-        frame.cells.iter()
+        frame.buffer.iter()
             .flat_map(|row| row.iter())
-            .map(|cell| cell.character.unwrap_or(' '))
+            .map(|cell| cell.ch)
             .collect::<String>()
     }
 }

@@ -16,10 +16,9 @@ mod tests {
                 id: format!("stream_{}", i),
                 label: format!("Tab{}", i + 1),
                 stream_type: crate::model::common::StreamType::Content,
-                active: i == 0, // First stream active
+                source: None, // Active state managed by muxbox
                 content: vec![format!("Content {}", i + 1)],
                 choices: None,
-                source: None,
                 content_hash: 0,
                 last_updated: std::time::SystemTime::now(),
                 created_at: std::time::SystemTime::now(),
