@@ -127,7 +127,7 @@ app:
 
 #[test]
 fn test_choice_click_bounds_accuracy() {
-    // T000060: Test that clickable zones are accurately positioned
+    // T000060: Test that sensitive zones are accurately positioned
     // Test clicking exactly on choice text vs clicking in empty space
 
     let yaml_config = r#"
@@ -324,7 +324,7 @@ app:
     let after_click_frame = tester.current_frame();
 
     // Should show waiting state for the clicked choice
-    // The clickable zones should account for the scroll offset
+    // The sensitive zones should account for the scroll offset
     if let Some(frame) = after_click_frame {
         frame.assert_contains_text("...").ok();
     }
@@ -335,9 +335,9 @@ app:
 }
 
 #[test]
-fn test_choice_clickable_zones_generation() {
-    // T000060: Unit test to debug clickable zone generation
-    println!("=== DEBUG: Testing ChoiceMenu clickable zones generation ===");
+fn test_choice_sensitive_zones_generation() {
+    // T000060: Unit test to debug sensitive zone generation
+    println!("=== DEBUG: Testing ChoiceMenu sensitive zones generation ===");
 
     // Create test choices
     use crate::model::common::ExecutionMode;
@@ -350,6 +350,7 @@ fn test_choice_clickable_zones_generation() {
             append_output: None,
             execution_mode: ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         },
         Choice {
@@ -360,6 +361,7 @@ fn test_choice_clickable_zones_generation() {
             append_output: None,
             execution_mode: ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         },
     ];
@@ -381,10 +383,10 @@ fn test_choice_clickable_zones_generation() {
         bounds.height()
     );
 
-    // Get clickable zones
-    let zones = choice_menu.get_box_relative_clickable_zones();
+    // Get sensitive zones
+    let zones = choice_menu.get_box_relative_sensitive_zones();
 
-    println!("Generated {} clickable zones", zones.len());
+    println!("Generated {} sensitive zones", zones.len());
     for (i, zone) in zones.iter().enumerate() {
         println!(
             "Zone {}: bounds=({},{} to {},{}), content_id={}, width={}, height={}",
@@ -426,10 +428,10 @@ fn test_choice_clickable_zones_generation() {
         assert_eq!(zone.content_id, "choice_0", "Should click on first choice");
     } else {
         println!(
-            "FAILURE: No clickable zone found at ({}, {})",
+            "FAILURE: No sensitive zone found at ({}, {})",
             expected_click_x, expected_click_y
         );
-        panic!("Should find a clickable zone at expected coordinates");
+        panic!("Should find a sensitive zone at expected coordinates");
     }
 
     // Test second choice
@@ -448,6 +450,6 @@ fn test_choice_clickable_zones_generation() {
         println!("SUCCESS: Found second clicked zone: {}", zone.content_id);
         assert_eq!(zone.content_id, "choice_1", "Should click on second choice");
     } else {
-        println!("FAILURE: No clickable zone found for second choice");
+        println!("FAILURE: No sensitive zone found for second choice");
     }
 }

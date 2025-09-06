@@ -1,8 +1,8 @@
-//! F0187 - Clickable Scrollbars Tests
+//! F0187 - Sensitive Scrollbars Tests
 //! Test the scrollbar clicking functionality for jumping to specific positions
 
 #[cfg(test)]
-mod clickable_scrollbar_tests {
+mod sensitive_scrollbar_tests {
     use crate::model::common::InputBounds;
     use crate::model::muxbox::Choice;
     use crate::tests::test_utils::TestDataFactory;

@@ -13,7 +13,7 @@ app:
           content: |
             This panel extends to 100% width.
             Try clicking and dragging at the bottom-right corner to resize.
-            The resize corner should be clickable at the rightmost edge.
+            The resize corner should be sensitive at the rightmost edge.
             
             If the resize doesn't work, the issue is in the mouse event handling,
             not the coordinate detection (which tests confirm works correctly).

@@ -50,6 +50,15 @@ struct MuxBoxMoveState {
     original_bounds: InputBounds,
 }
 
+// Hover state tracking for sensitive zones
+#[derive(Debug, Clone)]
+struct HoverState {
+    current_zone: Option<String>,       // Currently hovered zone ID
+    current_muxbox: Option<String>,     // MuxBox containing hovered zone
+    last_position: Option<(u16, u16)>,  // Last mouse position
+    hover_start_time: Option<std::time::SystemTime>, // When current hover started
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResizeEdge {
     BottomRight, // Only corner resize allowed
@@ -58,6 +67,12 @@ pub enum ResizeEdge {
 static DRAG_STATE: Mutex<Option<DragState>> = Mutex::new(None);
 static MUXBOX_RESIZE_STATE: Mutex<Option<MuxBoxResizeState>> = Mutex::new(None);
 static MUXBOX_MOVE_STATE: Mutex<Option<MuxBoxMoveState>> = Mutex::new(None);
+static HOVER_STATE: Mutex<HoverState> = Mutex::new(HoverState {
+    current_zone: None,
+    current_muxbox: None,
+    last_position: None,
+    hover_start_time: None,
+});
 
 // F0189: Helper functions to detect muxbox border resize areas (corner-only)
 pub fn detect_resize_edge(muxbox: &MuxBox, click_x: u16, click_y: u16) -> Option<ResizeEdge> {
@@ -1513,6 +1528,7 @@ create_runnable!(
                                                 redirect_output: redirect_output.clone(),
                                                 append_output: Some(append_output),
                                                 waiting: true,
+                                                hovered: false,
                                             };
 
                                             // Register execution source and get stream_id
@@ -2119,6 +2135,14 @@ create_runnable!(
                                     log::info!("CLICK: Processing click on muxbox '{}' at screen ({}, {})", 
                                              clicked_muxbox.id, *x, *y);
 
+                                    // UNIVERSAL BOX SELECTION: Select any muxbox that is clicked, regardless of specific actions
+                                    log::trace!("Selecting muxbox on click: {}", clicked_muxbox.id);
+                                    let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
+                                    layout.deselect_all_muxboxes();
+                                    layout.select_only_muxbox(&clicked_muxbox.id);
+                                    inner.update_app_context(app_context_for_click.clone());
+                                    inner.send_message(Message::RedrawAppDiff);
+
                                     // Check if muxbox has choices (menu items) in the currently selected stream
                                     log::info!("CLICK DEBUG: Checking selected stream for muxbox '{}'", clicked_muxbox.id);
                                     if let Some(selected_stream) = clicked_muxbox.get_selected_stream() {
@@ -2154,8 +2178,8 @@ create_runnable!(
                                             content_height
                                         );
 
-                                        // Generate clickable zones using formalized system
-                                        let box_relative_zones = choice_menu.get_box_relative_clickable_zones();
+                                        // Generate sensitive zones using formalized system with wrapping support
+                                        let box_relative_zones = choice_menu.get_box_relative_sensitive_zones_with_width(dimensions.viewable_width);
                                         let translated_zones = box_renderer.translate_box_relative_zones_to_absolute(
                                             &box_relative_zones,
                                             &bounds,
@@ -2167,7 +2191,7 @@ create_runnable!(
                                             dimensions.vertical_scroll,
                                             false,
                                         );
-                                        box_renderer.store_translated_clickable_zones(translated_zones);
+                                        box_renderer.store_translated_sensitive_zones(translated_zones);
 
                                         // Handle click using formalized coordinate system
                                         if let Some(clicked_choice_idx) = box_renderer.handle_click_with_dimensions(
@@ -2180,7 +2204,7 @@ create_runnable!(
                                             // Extract choice execution using formalized coordinate translation
                                             if let Some(choices) = clicked_muxbox.get_selected_stream_choices() {
                                                 // Find clicked choice using screen-to-inbox coordinate translation
-                                                let zones = box_renderer.get_clickable_zones();
+                                                let zones = box_renderer.get_sensitive_zones();
                                                 let screen_x = *x as usize;
                                                 let screen_y = *y as usize;
                                                 
@@ -2313,6 +2337,7 @@ create_runnable!(
                                                                                 _append_output,
                                                                             ),
                                                                             waiting: true,
+                                                                            hovered: false,
                                                                         };
 
                                                                     // Register execution source and get stream_id
@@ -2402,71 +2427,171 @@ create_runnable!(
                                                     } // Close if let Some(idx_str)
                                                 } // Close if let Some(clicked_zone)
                                         } else {
-                                            log::info!("NEW ARCH: Click at ({}, {}) did not hit any clickable zone - selecting muxbox", *x, *y);
-                                            
-                                            // ISSUE FIX: When click doesn't hit a choice zone, still select the muxbox
-                                            if clicked_muxbox.tab_order.is_some() || clicked_muxbox.has_scrollable_content() {
-                                                log::trace!("Selecting muxbox (no choice clicked): {}", clicked_muxbox.id);
-                                                
-                                                // Deselect all muxboxes and select the clicked one
-                                                let layout = app_context_for_click.app.get_active_layout_mut().unwrap();
-                                                layout.deselect_all_muxboxes();
-                                                layout.select_only_muxbox(&clicked_muxbox.id);
-                                                
-                                                inner.update_app_context(app_context_for_click.clone());
-                                                inner.send_message(Message::RedrawAppDiff);
-                                            }
+                                            log::info!("NEW ARCH: Click at ({}, {}) did not hit any sensitive zone - muxbox already selected", *x, *y);
                                         }
                                             } // Close if !choices.is_empty()
                                         } else {
-                                            // Selected stream has empty choices - select muxbox
-                                            log::info!("CLICK DEBUG: MuxBox '{}' selected stream has empty choices, selecting if selectable", clicked_muxbox.id);
-                                            if clicked_muxbox.tab_order.is_some()
-                                                || clicked_muxbox.has_scrollable_content()
-                                            {
-                                            log::trace!(
-                                                "Selecting muxbox (no choices): {}",
-                                                clicked_muxbox.id
-                                            );
-
-                                            // Deselect all muxboxes in the layout first
-                                            let layout = app_context_for_click
-                                                .app
-                                                .get_active_layout_mut()
-                                                .unwrap();
-                                            layout.deselect_all_muxboxes();
-                                            layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                            inner.update_app_context(app_context_for_click);
-                                            inner.send_message(Message::RedrawAppDiff);
-                                            }
+                                            // Selected stream has empty choices - muxbox already selected
+                                            log::info!("CLICK DEBUG: MuxBox '{}' selected stream has empty choices - muxbox already selected", clicked_muxbox.id);
                                         }
                                         } // Close if let Some(choices)
                                     } else {
-                                        // No selected stream - select muxbox if selectable
-                                        log::info!("CLICK DEBUG: MuxBox '{}' has no selected stream, selecting if selectable", clicked_muxbox.id);
-                                        if clicked_muxbox.tab_order.is_some()
-                                            || clicked_muxbox.has_scrollable_content()
-                                        {
-                                            log::trace!(
-                                                "Selecting muxbox (no stream): {}",
-                                                clicked_muxbox.id
-                                            );
-
-                                            // Deselect all muxboxes in the layout first
-                                            let layout = app_context_for_click
-                                                .app
-                                                .get_active_layout_mut()
-                                                .unwrap();
-                                            layout.deselect_all_muxboxes();
-                                            layout.select_only_muxbox(&clicked_muxbox.id);
-
-                                            inner.update_app_context(app_context_for_click);
-                                            inner.send_message(Message::RedrawAppDiff);
-                                        }
+                                        // No selected stream - muxbox already selected
+                                        log::info!("CLICK DEBUG: MuxBox '{}' has no selected stream - muxbox already selected", clicked_muxbox.id);
                                     } // Close if let Some(selected_stream)
                                 } // End of clicked_muxbox
                             } // End of !handled_tab_click
+                        }
+                    }
+                    Message::MouseMove(x, y) => {
+                        // Handle mouse movement for hover detection on sensitive zones
+                        // Use the EXACT same pattern as MouseClick handling
+                        let screen_x = *x as usize;
+                        let screen_y = *y as usize;
+                        
+                        let mut hover_state = HOVER_STATE.lock().unwrap();
+                        let current_time = std::time::SystemTime::now();
+                        
+                        // Update position tracking
+                        hover_state.last_position = Some((*x, *y));
+                        
+                        // Check if mouse is over any sensitive zones
+                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
+                        let mut new_hovered_zone: Option<String> = None;
+                        let mut new_hovered_muxbox: Option<String> = None;
+                        
+                        // Iterate through all muxboxes to find sensitive zones (same as click handling)
+                        for hovered_muxbox in active_layout.get_all_muxboxes() {
+                            let muxbox_bounds = hovered_muxbox.bounds();
+                            
+                            // Check if mouse is within this muxbox bounds first
+                            if screen_x >= muxbox_bounds.left() && screen_x <= muxbox_bounds.right()
+                                && screen_y >= muxbox_bounds.top() && screen_y <= muxbox_bounds.bottom()
+                            {
+                                // Check if this muxbox has choices (same condition as click handling)
+                                if let Some(selected_stream) = hovered_muxbox.get_selected_stream() {
+                                    if let Some(choices) = selected_stream.choices.as_ref() {
+                                        if !choices.is_empty() {
+                                            // Use EXACT same pattern as click detection
+                                            use crate::components::box_renderer::{BoxRenderer, BoxDimensions};
+                                            use crate::components::choice_menu::ChoiceMenu;
+                                            use crate::components::renderable_content::RenderableContent;
+
+                                            // Create BoxRenderer and ChoiceMenu (same as click handling)
+                                            let mut box_renderer = BoxRenderer::new(
+                                                hovered_muxbox,
+                                                format!("{}_hover_renderer", hovered_muxbox.id),
+                                            );
+                                            
+                                            let choice_menu = ChoiceMenu::new(
+                                                format!("{}_choice_menu", hovered_muxbox.id),
+                                                choices,
+                                            )
+                                            .with_selection(hovered_muxbox.selected_choice_index())
+                                            .with_focus(hovered_muxbox.focused_choice_index());
+
+                                            // Create formalized BoxDimensions (same as click handling)
+                                            let bounds = hovered_muxbox.bounds();
+                                            let (content_width, content_height) = choice_menu.get_dimensions();
+                                            let dimensions = BoxDimensions::new(
+                                                hovered_muxbox, 
+                                                &bounds, 
+                                                content_width, 
+                                                content_height
+                                            );
+
+                                            // Generate sensitive zones using formalized system (same as click handling)
+                                            let box_relative_zones = choice_menu.get_box_relative_sensitive_zones_with_width(dimensions.viewable_width);
+                                            let translated_zones = box_renderer.translate_box_relative_zones_to_absolute(
+                                                &box_relative_zones,
+                                                &bounds,
+                                                content_width,
+                                                content_height,
+                                                dimensions.viewable_width,
+                                                dimensions.viewable_height,
+                                                dimensions.horizontal_scroll,
+                                                dimensions.vertical_scroll,
+                                                false,
+                                            );
+                                            box_renderer.store_translated_sensitive_zones(translated_zones);
+
+                                            // Use EXACT same zone detection as click handling (no coordinate translation)
+                                            let zones = box_renderer.get_sensitive_zones();
+                                            if let Some(hovered_zone) = zones.iter().find(|z| {
+                                                z.bounds.contains_point(screen_x, screen_y)
+                                            }) {
+                                                new_hovered_zone = Some(hovered_zone.content_id.clone());
+                                                new_hovered_muxbox = Some(hovered_muxbox.id.clone());
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if new_hovered_zone.is_some() {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Check for hover state changes
+                        let previous_zone = hover_state.current_zone.clone();
+                        let zone_changed = previous_zone != new_hovered_zone;
+                        
+                        if zone_changed {
+                            let mut app_context_for_hover = app_context_unwrapped.clone();
+                            
+                            // Clear previous hover state from choices
+                            if let Some(prev_zone) = &previous_zone {
+                                if let Some(prev_muxbox_id) = &hover_state.current_muxbox {
+                                    if let Some(prev_muxbox) = app_context_for_hover.app.get_muxbox_by_id_mut(prev_muxbox_id) {
+                                        if let Some(choices) = prev_muxbox.get_selected_stream_choices_mut() {
+                                            // Find and unhover the previous choice
+                                            if let Some(idx_str) = prev_zone.strip_prefix("choice_") {
+                                                if let Ok(choice_idx) = idx_str.parse::<usize>() {
+                                                    if let Some(choice) = choices.get_mut(choice_idx) {
+                                                        choice.hovered = false;
+                                                        log::trace!("Hover leave: {} (choice_{})", prev_zone, choice_idx);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Set new hover state on choices
+                            if let Some(new_zone) = &new_hovered_zone {
+                                if let Some(new_muxbox_id) = &new_hovered_muxbox {
+                                    if let Some(new_muxbox) = app_context_for_hover.app.get_muxbox_by_id_mut(new_muxbox_id) {
+                                        if let Some(choices) = new_muxbox.get_selected_stream_choices_mut() {
+                                            // Find and hover the new choice
+                                            if let Some(idx_str) = new_zone.strip_prefix("choice_") {
+                                                if let Ok(choice_idx) = idx_str.parse::<usize>() {
+                                                    if let Some(choice) = choices.get_mut(choice_idx) {
+                                                        choice.hovered = true;
+                                                        log::trace!("Hover enter: {} (choice_{})", new_zone, choice_idx);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                hover_state.hover_start_time = Some(current_time);
+                            } else {
+                                hover_state.hover_start_time = None;
+                            }
+                            
+                            // Update hover state and trigger redraw
+                            hover_state.current_zone = new_hovered_zone;
+                            hover_state.current_muxbox = new_hovered_muxbox;
+                            
+                            // Update app context and trigger redraw to show hover effects
+                            inner.update_app_context(app_context_for_hover);
+                            inner.send_message(Message::RedrawAppDiff);
+                        } else if hover_state.current_zone.is_some() {
+                            // Mouse moved within the same zone - could generate HoverState::Move event
+                            log::trace!("Hover move within zone: {:?} at ({}, {})", hover_state.current_zone, screen_x, screen_y);
                         }
                     }
                     Message::MouseDragStart(x, y) => {

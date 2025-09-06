@@ -103,7 +103,7 @@ pub mod choice_redirect_debug;
 pub mod choice_click_regression_test;
 
 #[cfg(test)]
-pub mod clickable_scrollbar_tests;
+pub mod sensitive_scrollbar_tests;
 
 #[cfg(test)]
 pub mod pty_input_tests;

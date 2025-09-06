@@ -35,7 +35,7 @@ pub use error_display::{
 pub use horizontal_scrollbar::HorizontalScrollbar;
 pub use progress_bar::{ProgressBar, ProgressBarConfig, ProgressBarOrientation, ProgressState};
 pub use renderable_content::{
-    BoxResizeInfo, BoxResizeType, ClickableMetadata, ClickableZone, ContentDimensions,
+    BoxResizeInfo, BoxResizeType, SensitiveMetadata, SensitiveZone, ContentDimensions,
     ContentEvent, ContentType, EventData, EventResult, EventType, HoverInfo, HoverState, KeyInfo,
     KeyModifier, MouseButton, MouseMoveInfo, RenderableContent, ResizeAnchor, ResizeState,
     ScrollDirection, ScrollInfo, TitleChangeInfo, TitleChangeSource,

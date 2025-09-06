@@ -96,8 +96,8 @@ pub mod unified_execution_architecture_tests {
         println!("=== Testing Multiple Click Stream Creation ===");
 
         let choice_template = Choice {
-            id: "clickable_choice".to_string(),
-            content: Some("Clickable Choice".to_string()),
+            id: "sensitive_choice".to_string(),
+            content: Some("Sensitive Choice".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
             execution_mode: ExecutionMode::Pty,

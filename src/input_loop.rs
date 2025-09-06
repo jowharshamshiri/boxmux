@@ -845,6 +845,11 @@ create_runnable!(
                                 inner.send_message(Message::MouseDragEnd(column, row));
                                 format!("MouseDragEnd({}, {})", column, row)
                             }
+                            MouseEventKind::Moved => {
+                                // Send mouse move event for hover detection
+                                inner.send_message(Message::MouseMove(column, row));
+                                format!("MouseMove({}, {})", column, row)
+                            }
                             _ => return (true, app_context), // Ignore other mouse events
                         }
                     }

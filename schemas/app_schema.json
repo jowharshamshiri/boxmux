@@ -141,9 +141,18 @@
             {
               "type": "array",
               "items": {
-                "type": "string"
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Script command as string"
+                  },
+                  {
+                    "type": "object",
+                    "description": "Script command as key-value pairs for structured commands"
+                  }
+                ]
               },
-              "description": "Array of script commands"
+              "description": "Array of script commands (strings or objects)"
             }
           ],
           "description": "Script to execute when choice is selected"
@@ -369,6 +378,39 @@
           "$ref": "#/definitions/color_name",
           "description": "Selected menu background color"
         },
+        "highlighted_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color when highlighted/hovered"
+        },
+        "highlighted_menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color when highlighted/hovered"
+        },
+        "highlighted_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color when highlighted/hovered"
+        },
+        "highlighted_bg_color": {
+          "$ref": "#/definitions/color_name", 
+          "description": "Background color when highlighted/hovered"
+        },
+        "highlighted_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when highlighted/hovered"
+        },
+        "highlighted_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when highlighted/hovered"
+        },
+        "highlighted_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when highlighted/hovered"
+        },
+        "highlighted_fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Fill character when highlighted/hovered"
+        },
         "redirect_output": {
           "type": "string",
           "description": "ID of box to redirect script output to"
@@ -386,9 +428,18 @@
             {
               "type": "array",
               "items": {
-                "type": "string"
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Script command as string"
+                  },
+                  {
+                    "type": "object",
+                    "description": "Script command as key-value pairs for structured commands"
+                  }
+                ]
               },
-              "description": "Array of script commands to execute"
+              "description": "Array of script commands (strings or objects)"
             }
           ],
           "description": "Script commands to execute for box content"
@@ -593,6 +644,39 @@
           "$ref": "#/definitions/color_name", 
           "description": "Selected menu background color"
         },
+        "highlighted_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color when highlighted/hovered"
+        },
+        "highlighted_menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color when highlighted/hovered"
+        },
+        "highlighted_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color when highlighted/hovered"
+        },
+        "highlighted_bg_color": {
+          "$ref": "#/definitions/color_name", 
+          "description": "Background color when highlighted/hovered"
+        },
+        "highlighted_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when highlighted/hovered"
+        },
+        "highlighted_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when highlighted/hovered"
+        },
+        "highlighted_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when highlighted/hovered"
+        },
+        "highlighted_fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Fill character when highlighted/hovered"
+        },
         "error_border_color": {
           "$ref": "#/definitions/color_name",
           "description": "Border color in error state"
@@ -746,6 +830,39 @@
         "selected_menu_bg_color": {
           "$ref": "#/definitions/color_name", 
           "description": "Selected menu background color"
+        },
+        "highlighted_menu_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu text color when highlighted/hovered"
+        },
+        "highlighted_menu_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Menu background color when highlighted/hovered"
+        },
+        "highlighted_border_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Border color when highlighted/hovered"
+        },
+        "highlighted_bg_color": {
+          "$ref": "#/definitions/color_name", 
+          "description": "Background color when highlighted/hovered"
+        },
+        "highlighted_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Foreground color when highlighted/hovered"
+        },
+        "highlighted_title_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title background color when highlighted/hovered"
+        },
+        "highlighted_title_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "Title text color when highlighted/hovered"
+        },
+        "highlighted_fill_char": {
+          "type": "string",
+          "maxLength": 1,
+          "description": "Fill character when highlighted/hovered"
         },
         "border": {
           "type": "boolean",

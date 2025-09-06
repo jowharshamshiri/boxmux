@@ -64,7 +64,7 @@ mod debug_coordinate_issues {
         println!("Viewable dimensions: {}x{}", viewable_width, viewable_height);
         
         // Get box-relative zones
-        let box_relative_zones = choice_menu.get_box_relative_clickable_zones();
+        let box_relative_zones = choice_menu.get_box_relative_sensitive_zones();
         println!("Box-relative zones:");
         for (i, zone) in box_relative_zones.iter().enumerate() {
             println!("  Zone {}: bounds=({},{} to {},{}), content_id={}", 

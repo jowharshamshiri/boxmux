@@ -646,6 +646,7 @@ pub struct WrappedChoice {
     pub content: String,
     pub is_selected: bool,
     pub is_waiting: bool,
+    pub is_hovered: bool,
 }
 
 /// Wrap choices to fit within specified width, handling multi-line choices
@@ -672,6 +673,7 @@ pub fn wrap_choices_to_width(
                     content: wrapped_line.clone(),
                     is_selected: choice.selected,
                     is_waiting: choice.waiting,
+                    is_hovered: choice.hovered,
                 });
             }
         }
@@ -689,6 +691,8 @@ pub fn render_wrapped_choices(
     bg_color: &Option<String>,
     selected_choice_fg_color: &Option<String>,
     selected_choice_bg_color: &Option<String>,
+    highlighted_choice_fg_color: &Option<String>,
+    highlighted_choice_bg_color: &Option<String>,
     buffer: &mut ScreenBuffer,
 ) {
     let viewable_width = bounds.width().saturating_sub(4);
@@ -721,8 +725,13 @@ pub fn render_wrapped_choices(
         }
 
         let (choice_fg, choice_bg) = if wrapped_choice.is_selected {
+            // Selected state takes highest priority
             (selected_choice_fg_color, selected_choice_bg_color)
+        } else if wrapped_choice.is_hovered {
+            // Hovered state takes priority over normal state
+            (highlighted_choice_fg_color, highlighted_choice_bg_color)
         } else {
+            // Normal state
             (fg_color, bg_color)
         };
 

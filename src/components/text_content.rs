@@ -1,5 +1,5 @@
 use crate::components::renderable_content::{
-    ClickableZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
+    SensitiveZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
 };
 use crate::draw_utils::content_size;
 
@@ -41,9 +41,9 @@ impl<'a> RenderableContent for TextContent<'a> {
         self.text.to_string()
     }
 
-    /// Get box-relative clickable zones
-    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone> {
-        Vec::new() // Text content typically doesn't have clickable zones
+    /// Get box-relative sensitive zones
+    fn get_box_relative_sensitive_zones(&self) -> Vec<SensitiveZone> {
+        Vec::new() // Text content typically doesn't have sensitive zones
     }
 
     /// Handle content events on text

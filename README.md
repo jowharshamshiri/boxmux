@@ -231,7 +231,7 @@ boxmux my-interface.yaml
 - **Content Boxes**: Display static or dynamic text with multi-line support
 - **Interactive Menus**: Navigate and select options with keyboard controls and mouse clicks
 - **Chart Boxes**: Unicode-based visualizations (bar, line, histogram) with responsive layout
-- **Table Boxes**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, clickable headers
+- **Table Boxes**: Structured data with CSV/JSON parsing, sorting, filtering, pagination, sensitive headers
 - **PTY Boxes**: Interactive terminal applications (vim, htop, ssh) with keyboard input routing
 - **Plugin Boxes**: Dynamic components with security validation and manifest loading
 - **Variable Boxes**: Template-driven content with hierarchical variable substitution
@@ -495,7 +495,7 @@ app:
     3,8
     4,20
 
-# Table with sorting and filtering (clickable headers)
+# Table with sorting and filtering (sensitive headers)
 - id: 'data_table'
   title: 'System Data (Click headers to sort)'
   table_config:

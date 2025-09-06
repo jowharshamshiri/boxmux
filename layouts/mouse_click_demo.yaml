@@ -73,9 +73,9 @@ app:
           border_color: 'cyan'
           selected_border_color: 'bright_cyan'
 
-        # Menu box with clickable choices
-        - id: "clickable_menu"
-          title: "Clickable Menu - Click on Choices"
+        # Menu box with sensitive choices
+        - id: "sensitive_menu"
+          title: "Sensitive Menu - Click on Choices"
           position:
             x1: "0"
             y1: "50"

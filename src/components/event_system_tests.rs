@@ -80,7 +80,7 @@ mod tests {
         let blue_color = Some("blue".to_string());
 
         let mut choice_content =
-            ChoiceContent::new(&choices, &white_color, &None, &yellow_color, &blue_color);
+            ChoiceContent::new(&choices, &white_color, &None, &yellow_color, &blue_color, &None, &None);
 
         // Test valid choice click
         let click_event = ContentEvent::new_click(Some((5, 0)), Some("choice_0".to_string()));
@@ -154,6 +154,8 @@ mod tests {
             &None,
             &yellow_dep_color,
             &blue_dep_color,
+            &None,
+            &None,
         );
 
         // Test event system with proper click events
@@ -179,7 +181,7 @@ mod tests {
             ..Default::default()
         }];
 
-        let mut choice_content = ChoiceContent::new(&choices, &None, &None, &None, &None);
+        let mut choice_content = ChoiceContent::new(&choices, &None, &None, &None, &None, &None, &None);
 
         // Test custom event
         let custom_event = ContentEvent::new_custom(
@@ -413,6 +415,8 @@ mod tests {
             &None,
             &yellow_hover_color,
             &blue_hover_color,
+            &None,
+            &None,
         );
 
         // Test hover enter

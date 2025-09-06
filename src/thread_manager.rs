@@ -44,6 +44,7 @@ pub enum Message {
     KeyPress(String),
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16),                          // x, y coordinates
+    MouseMove(u16, u16),                           // x, y coordinates - mouse movement for hover detection
     MouseDragStart(u16, u16),                      // x, y coordinates - start drag
     MouseDrag(u16, u16),                           // x, y coordinates - continue drag
     MouseDragEnd(u16, u16),                        // x, y coordinates - end drag
@@ -137,6 +138,11 @@ impl Hash for Message {
             }
             Message::MouseClick(x, y) => {
                 "mouse_click".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseMove(x, y) => {
+                "mouse_move".hash(state);
                 x.hash(state);
                 y.hash(state);
             }

@@ -1,5 +1,5 @@
 use crate::components::renderable_content::{
-    ClickableZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
+    SensitiveZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
 };
 use crate::model::muxbox::Choice;
 use crate::Bounds;
@@ -18,6 +18,10 @@ pub struct ChoiceContent<'a> {
     _selected_menu_fg_color: &'a Option<String>,
     /// Selected choice background color
     _selected_menu_bg_color: &'a Option<String>,
+    /// Highlighted choice foreground color (for hover state)
+    _highlighted_menu_fg_color: &'a Option<String>,
+    /// Highlighted choice background color (for hover state)
+    _highlighted_menu_bg_color: &'a Option<String>,
 }
 
 impl<'a> ChoiceContent<'a> {
@@ -28,6 +32,8 @@ impl<'a> ChoiceContent<'a> {
         menu_bg_color: &'a Option<String>,
         selected_menu_fg_color: &'a Option<String>,
         selected_menu_bg_color: &'a Option<String>,
+        highlighted_menu_fg_color: &'a Option<String>,
+        highlighted_menu_bg_color: &'a Option<String>,
     ) -> Self {
         Self {
             choices,
@@ -35,6 +41,8 @@ impl<'a> ChoiceContent<'a> {
             _menu_bg_color: menu_bg_color,
             _selected_menu_fg_color: selected_menu_fg_color,
             _selected_menu_bg_color: selected_menu_bg_color,
+            _highlighted_menu_fg_color: highlighted_menu_fg_color,
+            _highlighted_menu_bg_color: highlighted_menu_bg_color,
         }
     }
 
@@ -78,12 +86,12 @@ impl<'a> RenderableContent for ChoiceContent<'a> {
             .join("\n")
     }
 
-    /// Get box-relative clickable zones for choices - raw row/col positions
-    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone> {
+    /// Get box-relative sensitive zones for choices - raw row/col positions
+    fn get_box_relative_sensitive_zones(&self) -> Vec<SensitiveZone> {
         let mut zones = Vec::new();
 
         for (idx, choice) in self.choices.iter().enumerate() {
-            zones.push(ClickableZone {
+            zones.push(SensitiveZone {
                 bounds: Bounds::new(0, idx, choice.id.len(), 1), // Raw content: col 0, row idx, width=choice length, height=1
                 content_id: format!("choice_{}", idx),
                 content_type: crate::components::renderable_content::ContentType::Choice,

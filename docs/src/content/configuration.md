@@ -345,7 +345,7 @@ app:
   layouts:
     - id: 'main'
       children:
-        - id: 'clickable_menu'
+        - id: 'sensitive_menu'
           title: 'Click to Execute'
           choices:
             - id: 'action1'

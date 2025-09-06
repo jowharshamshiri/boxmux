@@ -21,7 +21,7 @@ BoxMux provides comprehensive mouse-driven interface manipulation, allowing user
 **Interactive Features:**
 - **Box resizing** by dragging corners
 - **Box movement** by dragging title bars
-- **Scrolling** with clickable scrollbars and drag-to-scroll
+- **Scrolling** with sensitive scrollbars and drag-to-scroll
 - **Dynamic cursor styles** that change based on interaction zones
 - **Real-time YAML synchronization** for persistent changes
 - **Performance optimizations** for smooth interactions
@@ -86,7 +86,7 @@ Move boxes by clicking and dragging the **title bar** or **top border**:
 
 ## Scrolling Interactions
 
-### Clickable Scrollbars
+### Sensitive Scrollbars
 Click scrollbar areas to jump to specific positions:
 
 ```yaml
@@ -128,7 +128,7 @@ The cursor automatically changes based on the mouse position to indicate availab
 |--------------|------------------|---------|
 | **■ (BlinkingBlock)** | Bottom-right corner | Box resizing |  
 | **_ (BlinkingUnderScore)** | Title bar/top border | Box movement |
-| **\| (BlinkingBar)** | Clickable choices/buttons | Interactive elements |
+| **\| (BlinkingBar)** | Sensitive choices/buttons | Interactive elements |
 | **→ (DefaultUserShape)** | Default areas | No special interaction |
 
 ### Edge Case Handling

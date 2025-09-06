@@ -38,7 +38,7 @@ app:
   layouts:
     - id: 'interactive'
       children:
-        - id: 'clickable_menu'
+        - id: 'sensitive_menu'
           title: 'Actions (Click to Execute)'
           choices:
             - id: 'deploy'

@@ -81,6 +81,7 @@ mod mouse_click_tests {
             append_output: Some(false),
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         };
 
@@ -111,6 +112,7 @@ mod mouse_click_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         };
 
@@ -122,6 +124,7 @@ mod mouse_click_tests {
             append_output: Some(true),
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         };
 

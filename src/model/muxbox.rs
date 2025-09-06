@@ -108,6 +108,8 @@ pub struct Choice {
     pub selected: bool,
     #[serde(skip, default)]
     pub waiting: bool,
+    #[serde(skip, default)]
+    pub hovered: bool,
 }
 
 impl Hash for Choice {
@@ -121,6 +123,7 @@ impl Hash for Choice {
         self.execution_mode.hash(state);
         self.selected.hash(state);
         self.waiting.hash(state);
+        self.hovered.hash(state);
     }
 }
 
@@ -135,6 +138,7 @@ impl PartialEq for Choice {
             && self.execution_mode == other.execution_mode
             && self.selected == other.selected
             && self.waiting == other.waiting
+            && self.hovered == other.hovered
     }
 }
 
@@ -152,6 +156,7 @@ impl Clone for Choice {
             execution_mode: self.execution_mode.clone(),
             selected: self.selected,
             waiting: self.waiting,
+            hovered: self.hovered,
         }
     }
 }
@@ -177,16 +182,22 @@ pub struct MuxBox {
     pub fill: Option<bool>,
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
+    pub highlighted_fill_char: Option<char>,
     pub border_color: Option<String>,
     pub selected_border_color: Option<String>,
+    pub highlighted_border_color: Option<String>,
     pub bg_color: Option<String>,
     pub selected_bg_color: Option<String>,
+    pub highlighted_bg_color: Option<String>,
     pub fg_color: Option<String>,
     pub selected_fg_color: Option<String>,
+    pub highlighted_fg_color: Option<String>,
     pub title_fg_color: Option<String>,
     pub title_bg_color: Option<String>,
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
+    pub highlighted_title_bg_color: Option<String>,
+    pub highlighted_title_fg_color: Option<String>,
     pub title_position: Option<String>,
     pub error_border_color: Option<String>,
     pub error_bg_color: Option<String>,
@@ -203,6 +214,8 @@ pub struct MuxBox {
     pub menu_bg_color: Option<String>,
     pub selected_menu_fg_color: Option<String>,
     pub selected_menu_bg_color: Option<String>,
+    pub highlighted_menu_fg_color: Option<String>,
+    pub highlighted_menu_bg_color: Option<String>,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
     #[serde(deserialize_with = "deserialize_script", default)]
@@ -273,21 +286,29 @@ impl Hash for MuxBox {
         self.fill.hash(state);
         self.fill_char.hash(state);
         self.selected_fill_char.hash(state);
+        self.highlighted_fill_char.hash(state);
         self.border_color.hash(state);
         self.selected_border_color.hash(state);
+        self.highlighted_border_color.hash(state);
         self.bg_color.hash(state);
         self.selected_bg_color.hash(state);
+        self.highlighted_bg_color.hash(state);
         self.fg_color.hash(state);
         self.selected_fg_color.hash(state);
+        self.highlighted_fg_color.hash(state);
         self.title_fg_color.hash(state);
         self.title_bg_color.hash(state);
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
+        self.highlighted_title_bg_color.hash(state);
+        self.highlighted_title_fg_color.hash(state);
         self.title_position.hash(state);
         self.menu_fg_color.hash(state);
         self.menu_bg_color.hash(state);
         self.selected_menu_fg_color.hash(state);
         self.selected_menu_bg_color.hash(state);
+        self.highlighted_menu_fg_color.hash(state);
+        self.highlighted_menu_bg_color.hash(state);
         self.error_border_color.hash(state);
         self.error_bg_color.hash(state);
         self.error_fg_color.hash(state);
@@ -371,16 +392,22 @@ impl Default for MuxBox {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
+            highlighted_fill_char: None,
             border_color: None,
             selected_border_color: None,
+            highlighted_border_color: None,
             bg_color: None,
             selected_bg_color: None,
+            highlighted_bg_color: None,
             fg_color: None,
             selected_fg_color: None,
+            highlighted_fg_color: None,
             title_fg_color: None,
             title_bg_color: None,
             selected_title_bg_color: None,
             selected_title_fg_color: None,
+            highlighted_title_bg_color: None,
+            highlighted_title_fg_color: None,
             title_position: None,
             error_border_color: None,
             error_bg_color: None,
@@ -397,6 +424,8 @@ impl Default for MuxBox {
             menu_bg_color: None,
             selected_menu_fg_color: None,
             selected_menu_bg_color: None,
+            highlighted_menu_fg_color: None,
+            highlighted_menu_bg_color: None,
             redirect_output: None,
             append_output: None,
             script: None,
@@ -447,16 +476,22 @@ impl PartialEq for MuxBox {
             && self.fill == other.fill
             && self.fill_char == other.fill_char
             && self.selected_fill_char == other.selected_fill_char
+            && self.highlighted_fill_char == other.highlighted_fill_char
             && self.border_color == other.border_color
             && self.selected_border_color == other.selected_border_color
+            && self.highlighted_border_color == other.highlighted_border_color
             && self.bg_color == other.bg_color
             && self.selected_bg_color == other.selected_bg_color
+            && self.highlighted_bg_color == other.highlighted_bg_color
             && self.fg_color == other.fg_color
             && self.selected_fg_color == other.selected_fg_color
+            && self.highlighted_fg_color == other.highlighted_fg_color
             && self.title_fg_color == other.title_fg_color
             && self.title_bg_color == other.title_bg_color
             && self.selected_title_bg_color == other.selected_title_bg_color
             && self.selected_title_fg_color == other.selected_title_fg_color
+            && self.highlighted_title_bg_color == other.highlighted_title_bg_color
+            && self.highlighted_title_fg_color == other.highlighted_title_fg_color
             && self.title_position == other.title_position
             && self.error_border_color == other.error_border_color
             && self.error_bg_color == other.error_bg_color
@@ -473,6 +508,8 @@ impl PartialEq for MuxBox {
             && self.menu_bg_color == other.menu_bg_color
             && self.selected_menu_fg_color == other.selected_menu_fg_color
             && self.selected_menu_bg_color == other.selected_menu_bg_color
+            && self.highlighted_menu_fg_color == other.highlighted_menu_fg_color
+            && self.highlighted_menu_bg_color == other.highlighted_menu_bg_color
             && self.redirect_output == other.redirect_output
             && self.append_output == other.append_output
             && self.script == other.script
@@ -522,16 +559,22 @@ impl Clone for MuxBox {
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
+            highlighted_fill_char: self.highlighted_fill_char,
             border_color: self.border_color.clone(),
             selected_border_color: self.selected_border_color.clone(),
+            highlighted_border_color: self.highlighted_border_color.clone(),
             bg_color: self.bg_color.clone(),
             selected_bg_color: self.selected_bg_color.clone(),
+            highlighted_bg_color: self.highlighted_bg_color.clone(),
             fg_color: self.fg_color.clone(),
             selected_fg_color: self.selected_fg_color.clone(),
+            highlighted_fg_color: self.highlighted_fg_color.clone(),
             title_fg_color: self.title_fg_color.clone(),
             title_bg_color: self.title_bg_color.clone(),
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
+            highlighted_title_bg_color: self.highlighted_title_bg_color.clone(),
+            highlighted_title_fg_color: self.highlighted_title_fg_color.clone(),
             title_position: self.title_position.clone(),
             error_border_color: self.error_border_color.clone(),
             error_bg_color: self.error_bg_color.clone(),
@@ -548,6 +591,8 @@ impl Clone for MuxBox {
             menu_bg_color: self.menu_bg_color.clone(),
             selected_menu_fg_color: self.selected_menu_fg_color.clone(),
             selected_menu_bg_color: self.selected_menu_bg_color.clone(),
+            highlighted_menu_fg_color: self.highlighted_menu_fg_color.clone(),
+            highlighted_menu_bg_color: self.highlighted_menu_bg_color.clone(),
             redirect_output: self.redirect_output.clone(),
             append_output: self.append_output,
             script: self.script.clone(),
@@ -931,6 +976,46 @@ impl MuxBox {
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
             Some("red"),
+        )
+    }
+
+    pub fn calc_highlighted_menu_fg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.highlighted_menu_fg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.highlighted_menu_fg_color.clone());
+
+        inherit_string_transparent(
+            self.highlighted_menu_fg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            Some("cyan"),
+        )
+    }
+
+    pub fn calc_highlighted_menu_bg_color(
+        &self,
+        app_context: &AppContext,
+        app_graph: &AppGraph,
+    ) -> Option<String> {
+        let parent_position = self
+            .get_parent_clone(app_graph)
+            .and_then(|p| p.highlighted_menu_bg_color.clone());
+        let parent_layout_position = self
+            .get_parent_layout_clone(app_context)
+            .and_then(|pl| pl.highlighted_menu_bg_color.clone());
+
+        inherit_string_transparent(
+            self.highlighted_menu_bg_color.as_ref(),
+            parent_position.as_ref(),
+            parent_layout_position.as_ref(),
+            Some("dark_gray"),
         )
     }
 
@@ -3452,6 +3537,7 @@ mod tests {
             execution_mode: ExecutionMode::default(),
             selected: false,
             waiting: false,
+            hovered: false,
         }
     }
 

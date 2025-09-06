@@ -23,7 +23,7 @@ pub enum EventType {
     Click,
     /// Mouse double-click event
     DoubleClick,
-    /// Mouse hover event (entering/leaving clickable zones)
+    /// Mouse hover event (entering/leaving sensitive zones)
     Hover,
     /// Mouse move event (continuous movement tracking)
     MouseMove,
@@ -145,9 +145,9 @@ pub struct HoverInfo {
 /// Hover state transitions
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverState {
-    /// Mouse entered clickable zone
+    /// Mouse entered sensitive zone
     Enter,
-    /// Mouse left clickable zone  
+    /// Mouse left sensitive zone  
     Leave,
     /// Mouse moved within same zone
     Move,
@@ -570,9 +570,9 @@ pub trait RenderableContent {
     /// Get the raw content as a string - for backward compatibility with existing text rendering
     fn get_raw_content(&self) -> String;
 
-    /// Get clickable zones in box-relative coordinates (0,0 = top-left of content area, ignoring borders)
+    /// Get sensitive zones in box-relative coordinates (0,0 = top-left of content area, ignoring borders)
     /// BoxRenderer will translate these to absolute screen coordinates accounting for scroll/wrap/centering
-    fn get_box_relative_clickable_zones(&self) -> Vec<ClickableZone>;
+    fn get_box_relative_sensitive_zones(&self) -> Vec<SensitiveZone>;
 
     /// Handle a content event (click, hover, keypress, etc.)
     /// Event contains zone_id, position, and event-specific data
@@ -580,20 +580,20 @@ pub trait RenderableContent {
     fn handle_event(&mut self, event: &ContentEvent) -> EventResult;
 }
 
-/// Clickable zone representing an interactive area on screen
+/// Sensitive zone representing an interactive area on screen
 #[derive(Debug, Clone)]
-pub struct ClickableZone {
-    /// Screen rectangle bounds for this clickable area
+pub struct SensitiveZone {
+    /// Screen rectangle bounds for this sensitive area
     pub bounds: Bounds,
     /// Identifier for the content item (choice ID, link target, etc.)
     pub content_id: String,
     /// Type of content this zone represents
     pub content_type: ContentType,
-    /// Additional metadata for this clickable zone
-    pub metadata: ClickableMetadata,
+    /// Additional metadata for this sensitive zone
+    pub metadata: SensitiveMetadata,
 }
 
-/// Type of clickable content
+/// Type of sensitive content
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContentType {
     /// Menu choice item
@@ -610,9 +610,9 @@ pub enum ContentType {
     Interactive,
 }
 
-/// Additional metadata for clickable zones
+/// Additional metadata for sensitive zones
 #[derive(Debug, Clone, Default)]
-pub struct ClickableMetadata {
+pub struct SensitiveMetadata {
     /// Display text for this zone
     pub display_text: Option<String>,
     /// Tooltip or help text
@@ -627,23 +627,23 @@ pub struct ClickableMetadata {
     pub char_range: Option<(usize, usize)>,
 }
 
-impl ClickableZone {
-    /// Create a new clickable zone
+impl SensitiveZone {
+    /// Create a new sensitive zone
     pub fn new(bounds: Bounds, content_id: String, content_type: ContentType) -> Self {
         Self {
             bounds,
             content_id,
             content_type,
-            metadata: ClickableMetadata::default(),
+            metadata: SensitiveMetadata::default(),
         }
     }
 
-    /// Create a clickable zone with metadata
+    /// Create a sensitive zone with metadata
     pub fn with_metadata(
         bounds: Bounds,
         content_id: String,
         content_type: ContentType,
-        metadata: ClickableMetadata,
+        metadata: SensitiveMetadata,
     ) -> Self {
         Self {
             bounds,
@@ -653,7 +653,7 @@ impl ClickableZone {
         }
     }
 
-    /// Check if a point is within this clickable zone
+    /// Check if a point is within this sensitive zone
     pub fn contains(&self, x: usize, y: usize) -> bool {
         self.bounds.contains(x, y)
     }

@@ -13,21 +13,29 @@ pub struct Layout {
     pub fill: Option<bool>,
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
+    pub highlighted_fill_char: Option<char>,
     pub border_color: Option<String>,
     pub selected_border_color: Option<String>,
+    pub highlighted_border_color: Option<String>,
     pub bg_color: Option<String>,
     pub selected_bg_color: Option<String>,
+    pub highlighted_bg_color: Option<String>,
     pub fg_color: Option<String>,
     pub selected_fg_color: Option<String>,
+    pub highlighted_fg_color: Option<String>,
     pub title_fg_color: Option<String>,
     pub title_bg_color: Option<String>,
     pub title_position: Option<String>,
     pub selected_title_bg_color: Option<String>,
     pub selected_title_fg_color: Option<String>,
+    pub highlighted_title_bg_color: Option<String>,
+    pub highlighted_title_fg_color: Option<String>,
     pub menu_fg_color: Option<String>,
     pub menu_bg_color: Option<String>,
     pub selected_menu_fg_color: Option<String>,
     pub selected_menu_bg_color: Option<String>,
+    pub highlighted_menu_fg_color: Option<String>,
+    pub highlighted_menu_bg_color: Option<String>,
     pub error_border_color: Option<String>,
     pub error_bg_color: Option<String>,
     pub error_fg_color: Option<String>,
@@ -60,21 +68,29 @@ impl Hash for Layout {
         self.fill.hash(state);
         self.fill_char.hash(state);
         self.selected_fill_char.hash(state);
+        self.highlighted_fill_char.hash(state);
         self.border_color.hash(state);
         self.selected_border_color.hash(state);
+        self.highlighted_border_color.hash(state);
         self.bg_color.hash(state);
         self.selected_bg_color.hash(state);
+        self.highlighted_bg_color.hash(state);
         self.fg_color.hash(state);
         self.selected_fg_color.hash(state);
+        self.highlighted_fg_color.hash(state);
         self.title_fg_color.hash(state);
         self.title_bg_color.hash(state);
         self.title_position.hash(state);
         self.selected_title_bg_color.hash(state);
         self.selected_title_fg_color.hash(state);
+        self.highlighted_title_bg_color.hash(state);
+        self.highlighted_title_fg_color.hash(state);
         self.menu_fg_color.hash(state);
         self.menu_bg_color.hash(state);
         self.selected_menu_fg_color.hash(state);
         self.selected_menu_bg_color.hash(state);
+        self.highlighted_menu_fg_color.hash(state);
+        self.highlighted_menu_bg_color.hash(state);
         self.error_border_color.hash(state);
         self.error_bg_color.hash(state);
         self.error_fg_color.hash(state);
@@ -101,21 +117,29 @@ impl Layout {
             fill: None,
             fill_char: None,
             selected_fill_char: None,
+            highlighted_fill_char: None,
             border_color: None,
             selected_border_color: None,
+            highlighted_border_color: None,
             bg_color: None,
             selected_bg_color: None,
+            highlighted_bg_color: None,
             fg_color: None,
             selected_fg_color: None,
+            highlighted_fg_color: None,
             title_fg_color: None,
             title_bg_color: None,
             title_position: None,
             selected_title_bg_color: None,
             selected_title_fg_color: None,
+            highlighted_title_bg_color: None,
+            highlighted_title_fg_color: None,
             menu_fg_color: None,
             menu_bg_color: None,
             selected_menu_fg_color: None,
             selected_menu_bg_color: None,
+            highlighted_menu_fg_color: None,
+            highlighted_menu_bg_color: None,
             error_border_color: None,
             error_bg_color: None,
             error_fg_color: None,
@@ -537,21 +561,29 @@ impl Clone for Layout {
             fill: self.fill,
             fill_char: self.fill_char,
             selected_fill_char: self.selected_fill_char,
+            highlighted_fill_char: self.highlighted_fill_char,
             border_color: self.border_color.clone(),
             selected_border_color: self.selected_border_color.clone(),
+            highlighted_border_color: self.highlighted_border_color.clone(),
             bg_color: self.bg_color.clone(),
             selected_bg_color: self.selected_bg_color.clone(),
+            highlighted_bg_color: self.highlighted_bg_color.clone(),
             fg_color: self.fg_color.clone(),
             selected_fg_color: self.selected_fg_color.clone(),
+            highlighted_fg_color: self.highlighted_fg_color.clone(),
             title_fg_color: self.title_fg_color.clone(),
             title_bg_color: self.title_bg_color.clone(),
             title_position: self.title_position.clone(),
             selected_title_bg_color: self.selected_title_bg_color.clone(),
             selected_title_fg_color: self.selected_title_fg_color.clone(),
+            highlighted_title_bg_color: self.highlighted_title_bg_color.clone(),
+            highlighted_title_fg_color: self.highlighted_title_fg_color.clone(),
             menu_fg_color: self.menu_fg_color.clone(),
             menu_bg_color: self.menu_bg_color.clone(),
             selected_menu_fg_color: self.selected_menu_fg_color.clone(),
             selected_menu_bg_color: self.selected_menu_bg_color.clone(),
+            highlighted_menu_fg_color: self.highlighted_menu_fg_color.clone(),
+            highlighted_menu_bg_color: self.highlighted_menu_bg_color.clone(),
             error_border_color: self.error_border_color.clone(),
             error_bg_color: self.error_bg_color.clone(),
             error_fg_color: self.error_fg_color.clone(),

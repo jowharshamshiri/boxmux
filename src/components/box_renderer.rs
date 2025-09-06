@@ -1,6 +1,6 @@
 use crate::color_utils::{get_bg_color_transparent, get_fg_color_transparent, should_draw_color};
 use crate::components::choice_menu::ChoiceMenu;
-use crate::components::renderable_content::{ClickableZone, RenderableContent};
+use crate::components::renderable_content::{SensitiveZone, RenderableContent};
 use crate::components::{
     ChartComponent, ChartConfig, ChartType, HorizontalScrollbar, VerticalScrollbar,
     ComponentDimensions,
@@ -10,6 +10,7 @@ use crate::draw_utils::{
     fill_muxbox, print_with_color_and_background_at, render_wrapped_content, wrap_text_to_width,
 };
 use crate::model::common::{Cell, ChoicesStreamTrait, ContentStreamTrait, StreamType};
+use crate::model::muxbox::Choice;
 use crate::{AppContext, AppGraph, Bounds, MuxBox, ScreenBuffer};
 use std::collections::HashMap;
 
@@ -405,8 +406,8 @@ pub struct BoxRenderer<'a> {
     component_id: String,
     /// Formalized dimensions and coordinate system
     dimensions: Option<BoxDimensions>,
-    /// Translated clickable zones in absolute screen coordinates
-    clickable_zones: Vec<ClickableZone>,
+    /// Translated sensitive zones in absolute screen coordinates
+    sensitive_zones: Vec<SensitiveZone>,
 }
 
 impl<'a> BoxRenderer<'a> {
@@ -416,7 +417,7 @@ impl<'a> BoxRenderer<'a> {
             muxbox,
             component_id,
             dimensions: None,
-            clickable_zones: Vec::new(),
+            sensitive_zones: Vec::new(),
         }
     }
 
@@ -734,7 +735,7 @@ impl<'a> BoxRenderer<'a> {
             if let Some(stream) = choices_stream {
                 let choices = stream.get_choices();
                 if !choices.is_empty() {
-                    // Create ChoiceMenu component to generate content and clickable zones
+                    // Create ChoiceMenu component to generate content and sensitive zones
                     let choice_menu =
                         ChoiceMenu::new(format!("{}_choice_menu", self.component_id), choices)
                             .with_selection(self.muxbox.selected_choice_index())
@@ -743,37 +744,39 @@ impl<'a> BoxRenderer<'a> {
                     log::info!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}", 
                              self.muxbox.id, choices.len(), choice_menu.get_dimensions());
 
-                    // Get choice content as string - treat it like any other content
-                    let choice_content = choice_menu.get_raw_content();
-                    log::info!(
-                        "CHOICE RENDER: Generated choice content length: {} chars",
-                        choice_content.len()
-                    );
+                    // Get highlighted colors for hover states - use fallback colors for now
+                    let highlighted_menu_fg_color = Some("yellow".to_string());
+                    let highlighted_menu_bg_color = Some("blue".to_string());
 
-                    // Use unified content rendering (same path as text content)
-                    let (content_width, content_height) = content_size(&choice_content);
+                    // Use choice-specific rendering with hover state support
                     let component_dims = ComponentDimensions::new(bounds);
-        let content_bounds = component_dims.content_bounds();
-        let viewable_width = content_bounds.width();
+                    let content_bounds = component_dims.content_bounds();
+                    let viewable_width = content_bounds.width();
                     let viewable_height = content_bounds.height();
-                    let _choices_overflow =
-                        content_width > viewable_width || content_height > viewable_height;
-
-                    scrollbars_drawn = self.render_content(
+                    
+                    // Calculate content dimensions to match original logic
+                    let choice_content = choice_menu.get_raw_content();
+                    let (content_width, content_height) = content_size(&choice_content);
+                    
+                    scrollbars_drawn = self.render_choices_with_hover_states(
                         &bounds,
-                        &choice_content,
+                        choices,
                         menu_fg_color,
                         menu_bg_color,
+                        &Some("bright_white".to_string()),
+                        &Some("red".to_string()),
+                        &highlighted_menu_fg_color,
+                        &highlighted_menu_bg_color,
                         border_color,
                         parent_bg_color,
-                        overflow_behavior,
-                        horizontal_scroll,
-                        vertical_scroll,
+                        UnifiedOverflowBehavior::Scroll,
+                        horizontal_scroll as usize,
+                        vertical_scroll as usize,
                         buffer,
                     );
 
-                    // Get box-relative clickable zones and translate to absolute coordinates
-                    let box_relative_zones = choice_menu.get_box_relative_clickable_zones();
+                    // Get box-relative sensitive zones and translate to absolute coordinates
+                    let box_relative_zones = choice_menu.get_box_relative_sensitive_zones();
                     let translated_zones = self.translate_box_relative_zones_to_absolute(
                         &box_relative_zones,
                         &bounds,
@@ -787,7 +790,7 @@ impl<'a> BoxRenderer<'a> {
                     );
 
                     // Store translated zones for click detection
-                    self.store_translated_clickable_zones(translated_zones);
+                    self.store_translated_sensitive_zones(translated_zones);
                 }
             }
         } else if let Some(content) = content {
@@ -906,7 +909,9 @@ impl<'a> BoxRenderer<'a> {
                 parent_bg_color,
                 buffer,
             );
-            false
+            // In wrap mode, we need to tell border renderer about horizontal scrollbar space
+            // even though no scrollbar is drawn, to ensure border fills the reserved space
+            max_content_width > viewable_width
         } else {
             self.render_normal_content(
                 bounds,
@@ -1266,12 +1271,12 @@ impl<'a> BoxRenderer<'a> {
         );
     }
 
-    /// Translate box-relative clickable zones to absolute screen coordinates
+    /// Translate box-relative sensitive zones to absolute screen coordinates
     /// This handles centering, scroll offsets, and coordinate translation
     /// CRITICAL FIX: Updated to use BoxDimensions for proper coordinate translation
     pub fn translate_box_relative_zones_to_absolute(
         &self,
-        box_relative_zones: &[ClickableZone],
+        box_relative_zones: &[SensitiveZone],
         bounds: &Bounds,
         content_width: usize,
         content_height: usize,
@@ -1280,7 +1285,7 @@ impl<'a> BoxRenderer<'a> {
         horizontal_scroll: f64,
         vertical_scroll: f64,
         _is_wrapped: bool,
-    ) -> Vec<ClickableZone> {
+    ) -> Vec<SensitiveZone> {
         // CRITICAL FIX: Use BoxDimensions for consistent coordinate translation
         let dimensions = BoxDimensions {
             total_bounds: bounds.clone(),
@@ -1354,20 +1359,20 @@ impl<'a> BoxRenderer<'a> {
         translated_zones
     }
 
-    /// Store clickable zones for click detection
+    /// Store sensitive zones for click detection
     /// CRITICAL FIX: Now stores zones in screen coordinates after proper translation
-    pub fn store_translated_clickable_zones(&mut self, zones: Vec<ClickableZone>) {
-        self.clickable_zones = zones;
+    pub fn store_translated_sensitive_zones(&mut self, zones: Vec<SensitiveZone>) {
+        self.sensitive_zones = zones;
         log::info!(
-            "STORE ZONES: Stored {} screen-coordinate clickable zones for muxbox '{}'",
-            self.clickable_zones.len(),
+            "STORE ZONES: Stored {} screen-coordinate sensitive zones for muxbox '{}'",
+            self.sensitive_zones.len(),
             self.muxbox.id
         );
     }
 
-    /// Get clickable zones in absolute screen coordinates
-    pub fn get_clickable_zones(&self) -> &[ClickableZone] {
-        &self.clickable_zones
+    /// Get sensitive zones in absolute screen coordinates
+    pub fn get_sensitive_zones(&self) -> &[SensitiveZone] {
+        &self.sensitive_zones
     }
 
     /// Translate inbox coordinates to screen coordinates
@@ -1428,8 +1433,8 @@ impl<'a> BoxRenderer<'a> {
     ) -> Option<usize> {
         // Use formalized coordinate translation
         if let Some((inbox_x, inbox_y)) = dimensions.screen_to_inbox(screen_x, screen_y) {
-            // Check clickable zones in screen coordinates
-            for zone in &self.clickable_zones {
+            // Check sensitive zones in screen coordinates
+            for zone in &self.sensitive_zones {
                 if zone.bounds.contains_point(screen_x, screen_y) {
                     log::info!(
                         "CLICK: Screen ({},{}) -> Inbox ({},{}) on zone '{}'",
@@ -1477,8 +1482,8 @@ impl<'a> BoxRenderer<'a> {
         screen_y: usize,
         dimensions: &BoxDimensions,
     ) -> bool {
-        // Check clickable zones using screen coordinates
-        for zone in &self.clickable_zones {
+        // Check sensitive zones using screen coordinates
+        for zone in &self.sensitive_zones {
             if zone.bounds.contains_point(screen_x, screen_y) {
                 if let Some((inbox_x, inbox_y)) = dimensions.screen_to_inbox(screen_x, screen_y) {
                     log::info!(
@@ -1574,6 +1579,135 @@ impl<'a> BoxRenderer<'a> {
         }
         
         None
+    }
+
+    /// Render choices with hover state support
+    /// This method replaces the generic content rendering for choices
+    /// and applies appropriate colors based on choice state (selected > hovered > normal)
+    fn render_choices_with_hover_states(
+        &self,
+        bounds: &Bounds,
+        choices: &[Choice],
+        menu_fg_color: &Option<String>,
+        menu_bg_color: &Option<String>,
+        selected_menu_fg_color: &Option<String>,
+        selected_menu_bg_color: &Option<String>,
+        highlighted_menu_fg_color: &Option<String>,
+        highlighted_menu_bg_color: &Option<String>,
+        border_color: &Option<String>,
+        parent_bg_color: &Option<String>,
+        overflow_behavior: UnifiedOverflowBehavior,
+        horizontal_scroll: usize,
+        vertical_scroll: usize,
+        buffer: &mut ScreenBuffer,
+    ) -> bool {
+        let component_dims = ComponentDimensions::new(*bounds);
+        let content_bounds = component_dims.content_bounds();
+        let viewable_width = content_bounds.width();
+        let viewable_height = content_bounds.height();
+        
+        // Calculate content dimensions
+        let choice_lines: Vec<String> = choices
+            .iter()
+            .map(|choice| {
+                if let Some(content) = &choice.content {
+                    if choice.waiting {
+                        format!("{}...", content)
+                    } else {
+                        content.clone()
+                    }
+                } else {
+                    String::new()
+                }
+            })
+            .collect();
+        
+        let max_content_width = choice_lines.iter().map(|line| line.len()).max().unwrap_or(0);
+        let content_height = choice_lines.len();
+        
+        // Determine if scrollbars are needed
+        let needs_horizontal_scrollbar = max_content_width > viewable_width;
+        let needs_vertical_scrollbar = content_height > viewable_height;
+        
+        // Render choices line by line with appropriate colors
+        let visible_lines = choice_lines
+            .iter()
+            .skip(vertical_scroll)
+            .take(viewable_height)
+            .enumerate();
+        
+        for (line_index, line) in visible_lines {
+            let choice_index = line_index + vertical_scroll;
+            if choice_index >= choices.len() {
+                break;
+            }
+            
+            let choice = &choices[choice_index];
+            
+            // Determine colors based on choice state (priority: selected > hovered > normal)
+            let (fg_color, bg_color) = if choice.selected {
+                (selected_menu_fg_color, selected_menu_bg_color)
+            } else if choice.hovered {
+                (highlighted_menu_fg_color, highlighted_menu_bg_color)
+            } else {
+                (menu_fg_color, menu_bg_color)
+            };
+            
+            // Apply horizontal scroll and truncate to viewable width
+            let visible_line = if horizontal_scroll < line.len() {
+                line.chars()
+                    .skip(horizontal_scroll)
+                    .take(viewable_width)
+                    .collect::<String>()
+            } else {
+                String::new()
+            };
+            
+            // Render the choice line
+            print_with_color_and_background_at(
+                content_bounds.top() + line_index,
+                content_bounds.left() + 1,
+                fg_color,
+                bg_color,
+                &visible_line,
+                buffer,
+            );
+        }
+        
+        // Draw scrollbars if needed
+        let mut scrollbars_drawn = false;
+        
+        if needs_vertical_scrollbar {
+            use crate::components::vertical_scrollbar::VerticalScrollbar;
+            let vertical_scrollbar = VerticalScrollbar::new("choices".to_string());
+            vertical_scrollbar.draw(
+                bounds,
+                content_height,
+                viewable_height,
+                vertical_scroll as f64,
+                border_color,
+                parent_bg_color,
+                buffer,
+            );
+            scrollbars_drawn = true;
+        }
+        
+        if needs_horizontal_scrollbar {
+            use crate::components::horizontal_scrollbar::HorizontalScrollbar;
+            let horizontal_scrollbar = HorizontalScrollbar::new("choices".to_string());
+            horizontal_scrollbar.draw(
+                bounds,
+                max_content_width,
+                viewable_width,
+                horizontal_scroll as f64,
+                border_color,
+                parent_bg_color,
+                buffer,
+            );
+            scrollbars_drawn = true;
+        }
+        
+        scrollbars_drawn
     }
     
 }
