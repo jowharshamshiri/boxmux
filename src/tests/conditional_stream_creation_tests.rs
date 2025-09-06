@@ -118,6 +118,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         }]);
 
@@ -155,6 +156,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         }]);
 
@@ -191,6 +193,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         }]);
 
@@ -252,6 +255,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         }]);
 

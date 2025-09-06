@@ -53,6 +53,7 @@ mod hotkey_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
+			hovered: false,
             waiting: false,
         };
 
