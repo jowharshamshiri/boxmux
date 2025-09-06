@@ -3,7 +3,7 @@ mod tests {
     use super::super::choice_content::ChoiceContent;
     use super::super::renderable_content::*;
     use super::super::text_content::TextContent;
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
     use crate::{Bounds, ScreenBuffer};
     use std::time::Duration;
     use std::time::SystemTime;

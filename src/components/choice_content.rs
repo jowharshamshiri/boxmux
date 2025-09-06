@@ -1,7 +1,7 @@
 use crate::components::renderable_content::{
     SensitiveZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
 };
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::Bounds;
 
 /// ChoiceContent implementation of RenderableContent trait

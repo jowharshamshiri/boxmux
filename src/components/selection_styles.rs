@@ -1,6 +1,6 @@
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::model::common::{Bounds, ScreenBuffer};
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 
 /// Selection highlighting styles for choice menus
 #[derive(Debug, Clone, PartialEq)]

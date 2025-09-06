@@ -651,7 +651,7 @@ pub struct WrappedChoice {
 
 /// Wrap choices to fit within specified width, handling multi-line choices
 pub fn wrap_choices_to_width(
-    choices: &[crate::model::muxbox::Choice],
+    choices: &[crate::model::choice::Choice],
     width: usize,
 ) -> Vec<WrappedChoice> {
     let mut wrapped_choices = Vec::new();
@@ -684,7 +684,7 @@ pub fn wrap_choices_to_width(
 
 /// Render wrapped choices within bounds
 pub fn render_wrapped_choices(
-    choices: &[crate::model::muxbox::Choice],
+    choices: &[crate::model::choice::Choice],
     bounds: &Bounds,
     vertical_scroll: f64,
     fg_color: &Option<String>,

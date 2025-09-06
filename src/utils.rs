@@ -645,7 +645,7 @@ pub fn should_use_pty(muxbox: &crate::model::muxbox::MuxBox) -> bool {
 }
 
 /// F0226: ExecutionMode-based PTY check - replaces legacy choice.pty boolean
-pub fn should_use_pty_for_choice(choice: &crate::model::muxbox::Choice) -> bool {
+pub fn should_use_pty_for_choice(choice: &crate::model::choice::Choice) -> bool {
     matches!(
         choice.execution_mode,
         crate::model::common::ExecutionMode::Pty

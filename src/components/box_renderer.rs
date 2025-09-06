@@ -10,7 +10,7 @@ use crate::draw_utils::{
     fill_muxbox, print_with_color_and_background_at, render_wrapped_content, wrap_text_to_width,
 };
 use crate::model::common::{Cell, ChoicesStreamTrait, ContentStreamTrait, StreamType};
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::{AppContext, AppGraph, Bounds, MuxBox, ScreenBuffer};
 use std::collections::HashMap;
 

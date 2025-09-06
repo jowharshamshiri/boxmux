@@ -4,7 +4,7 @@ use crate::model::app::{
     save_muxbox_content_to_yaml, save_muxbox_scroll_to_yaml,
 };
 use crate::model::common::{InputBounds, StreamSourceTrait, StreamType};
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::thread_manager::Runnable;
 use crate::{
     apply_buffer, apply_buffer_if_changed, handle_keypress, AppContext, MuxBox, ScreenBuffer,

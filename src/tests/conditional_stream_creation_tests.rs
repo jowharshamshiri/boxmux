@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod conditional_stream_creation_tests {
     use crate::model::common::StreamType;
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
     use crate::tests::test_utils::TestDataFactory;
 
     #[test]

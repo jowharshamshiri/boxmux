@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod choice_redirect_debug {
     use crate::model::app::load_app_from_yaml;
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
     use crate::{AppContext, Config};
     use std::path::Path;
 

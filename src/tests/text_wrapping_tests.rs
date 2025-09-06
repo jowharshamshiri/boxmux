@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod text_wrapping_tests {
     use crate::draw_utils::{wrap_choices_to_width, wrap_text_to_width, WrappedChoice};
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
 
     #[test]
     fn test_wrap_text_short_line() {

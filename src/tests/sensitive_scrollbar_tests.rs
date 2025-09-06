@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod sensitive_scrollbar_tests {
     use crate::model::common::InputBounds;
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
     use crate::tests::test_utils::TestDataFactory;
 
     #[test]
@@ -24,6 +24,7 @@ mod sensitive_scrollbar_tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
+				hovered: false,
                 waiting: false,
             });
         }
@@ -205,6 +206,7 @@ mod sensitive_scrollbar_tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
+				hovered: false,
                 waiting: false,
             });
         }
@@ -346,6 +348,7 @@ mod sensitive_scrollbar_tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
+				hovered: false,
                 waiting: false,
             });
         }

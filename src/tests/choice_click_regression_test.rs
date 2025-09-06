@@ -1,7 +1,7 @@
 use crate::components::choice_menu::ChoiceMenu;
 use crate::components::renderable_content::RenderableContent;
 use crate::model::common::Bounds;
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::tests::visual_testing::{
     boxmux_tester::BoxMuxTester, visual_assertions::VisualAssertions,
 };

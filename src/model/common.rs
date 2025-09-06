@@ -1,11 +1,9 @@
 use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
+use serde::Deserializer;
 
 use crate::{
-    color_utils::{get_bg_color, get_fg_color},
-    screen_bounds, screen_height, screen_width,
-    utils::input_bounds_to_bounds,
-    AppContext, AppGraph, Layout, Message, MuxBox,
+    AppContext, AppGraph, Layout, Message, MuxBox, color_utils::{get_bg_color, get_fg_color}, model::choice::Choice, screen_bounds, screen_height, screen_width, utils::input_bounds_to_bounds
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -117,7 +115,7 @@ pub enum SourceType {
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SourceReference {
-    Choice(crate::model::muxbox::Choice), // Full choice object
+    Choice(Choice), // Full choice object
     StaticConfig(String),                 // YAML configuration reference (one-time)
     PeriodicConfig(String),               // YAML configuration for periodic refresh
     SocketCommand(String),                // Socket command that triggered this
@@ -299,7 +297,7 @@ pub struct Stream {
     pub stream_type: StreamType,
     pub label: String,
     pub content: Vec<String>,
-    pub choices: Option<Vec<crate::model::muxbox::Choice>>, // For choices stream
+    pub choices: Option<Vec<Choice>>, // For choices stream
     // F0212: Stream Source Tracking - enable stream termination when tabs closed
     pub source: Option<StreamSource>,
     // F0216: Stream Change Detection - track content changes for efficient updates
@@ -326,9 +324,9 @@ pub trait ContentStreamTrait {
 }
 
 pub trait ChoicesStreamTrait {
-    fn get_choices(&self) -> &Vec<crate::model::muxbox::Choice>;
-    fn get_choices_mut(&mut self) -> &mut Vec<crate::model::muxbox::Choice>;
-    fn set_choices(&mut self, choices: Vec<crate::model::muxbox::Choice>);
+    fn get_choices(&self) -> &Vec<Choice>;
+    fn get_choices_mut(&mut self) -> &mut Vec<Choice>;
+    fn set_choices(&mut self, choices: Vec<Choice>);
 }
 
 // F0212: Base trait for all stream sources with lifecycle management
@@ -1249,7 +1247,7 @@ impl Stream {
         stream_type: StreamType,
         label: String,
         content: Vec<String>,
-        choices: Option<Vec<crate::model::muxbox::Choice>>,
+        choices: Option<Vec<Choice>>,
         source: Option<StreamSource>,
     ) -> Self {
         let now = std::time::SystemTime::now();
@@ -1303,7 +1301,7 @@ impl Stream {
     }
 
     /// Update choices and automatically refresh change detection  
-    pub fn update_choices(&mut self, new_choices: Option<Vec<crate::model::muxbox::Choice>>) {
+    pub fn update_choices(&mut self, new_choices: Option<Vec<Choice>>) {
         self.choices = new_choices;
         self.update_content_hash();
     }
@@ -1367,7 +1365,7 @@ impl ContentStreamTrait for Stream {
 
 // F0217: Implement ChoicesStreamTrait for choices-type streams
 impl ChoicesStreamTrait for Stream {
-    fn get_choices(&self) -> &Vec<crate::model::muxbox::Choice> {
+    fn get_choices(&self) -> &Vec<Choice> {
         match self.stream_type {
             StreamType::Choices => self
                 .choices
@@ -1380,7 +1378,7 @@ impl ChoicesStreamTrait for Stream {
         }
     }
 
-    fn get_choices_mut(&mut self) -> &mut Vec<crate::model::muxbox::Choice> {
+    fn get_choices_mut(&mut self) -> &mut Vec<Choice> {
         match self.stream_type {
             StreamType::Choices => self
                 .choices
@@ -1393,7 +1391,7 @@ impl ChoicesStreamTrait for Stream {
         }
     }
 
-    fn set_choices(&mut self, choices: Vec<crate::model::muxbox::Choice>) {
+    fn set_choices(&mut self, choices: Vec<Choice>) {
         match self.stream_type {
             StreamType::Choices => {
                 self.choices = Some(choices);
@@ -2527,6 +2525,64 @@ pub fn adjust_bounds_with_constraints(
 pub fn calculate_bounds_map(app_graph: &AppGraph, layout: &Layout) -> HashMap<String, Bounds> {
     let bounds_map = calculate_initial_bounds(app_graph, layout);
     adjust_bounds_with_constraints(layout, bounds_map)
+}
+
+
+/// Flexible deserializer for script fields that handles:
+/// - Single string (split on newlines)
+/// - Array of strings
+/// - Mixed array with YAML literal blocks
+pub fn deserialize_script<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ScriptFormat {
+        Single(String),
+        Multiple(Vec<String>),
+        Mixed(Vec<serde_yaml::Value>),
+    }
+
+    let script_format = Option::<ScriptFormat>::deserialize(deserializer)?;
+
+    match script_format {
+        None => Ok(None),
+        Some(ScriptFormat::Single(single)) => {
+            // Split single string on newlines, filter empty lines
+            let commands: Vec<String> = single
+                .lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
+                .collect();
+            Ok(Some(commands))
+        }
+        Some(ScriptFormat::Multiple(multiple)) => Ok(Some(multiple)),
+        Some(ScriptFormat::Mixed(mixed)) => {
+            // Handle mixed array with literal blocks and simple strings
+            let mut commands = Vec::new();
+            for value in mixed {
+                match value {
+                    serde_yaml::Value::String(s) => commands.push(s),
+                    serde_yaml::Value::Mapping(_) | serde_yaml::Value::Sequence(_) => {
+                        // Convert complex YAML structures to string representation
+                        if let Ok(yaml_str) = serde_yaml::to_string(&value) {
+                            // For literal blocks, extract the actual content
+                            let clean_str = yaml_str.trim_start_matches("---\n").trim().to_string();
+                            if !clean_str.is_empty() {
+                                commands.push(clean_str);
+                            }
+                        }
+                    }
+                    _ => {
+                        // For other types, convert to string
+                        commands.push(format!("{:?}", value));
+                    }
+                }
+            }
+            Ok(Some(commands))
+        }
+    }
 }
 
 use std::io::{Read, Write};

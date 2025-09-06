@@ -399,7 +399,7 @@ impl SchemaValidator {
     /// Validate a single choice
     pub fn validate_choice(
         &mut self,
-        choice: &crate::model::muxbox::Choice,
+        choice: &crate::model::choice::Choice,
         path: &str,
     ) -> ValidationResult {
         // Validate required fields

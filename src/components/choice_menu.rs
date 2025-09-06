@@ -2,7 +2,7 @@ use crate::components::renderable_content::{
     SensitiveMetadata, SensitiveZone, ContentEvent, ContentType, EventResult, EventType,
     RenderableContent,
 };
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::Bounds;
 
 /// ChoiceMenu component - generates choice content and sensitive zones for BoxRenderer

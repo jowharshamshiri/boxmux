@@ -1,11 +1,4 @@
-// Re-export the necessary modules
-pub mod model {
-    pub mod app;
-    pub mod common;
-    pub mod defaults;
-    pub mod layout;
-    pub mod muxbox;
-}
+pub mod model;
 
 #[macro_use]
 pub mod thread_manager;

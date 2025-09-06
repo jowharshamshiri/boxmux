@@ -6,7 +6,8 @@ mod hotkey_tests {
     use crate::model::app::App;
     use crate::model::common::{Anchor, InputBounds};
     use crate::model::layout::Layout;
-    use crate::model::muxbox::{Choice, MuxBox};
+        use crate::model::muxbox::MuxBox;
+	use crate::model::choice::Choice;
     use crate::thread_manager::Message;
     use std::collections::HashMap;
 

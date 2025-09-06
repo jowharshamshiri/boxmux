@@ -1,9 +1,12 @@
 use crate::color_utils::should_draw_color;
+use crate::model::choice::Choice;
 use crate::model::common::*;
 use crate::model::layout::Layout;
 use crate::utils::{input_bounds_to_bounds, screen_bounds};
 use core::hash::Hash;
 use indexmap::IndexMap;
+
+use crate::model::common::deserialize_script;
 
 /// Priority order for stream types in tab display
 pub fn stream_type_priority(stream_type: &crate::model::common::StreamType) -> u8 {
@@ -36,130 +39,6 @@ use std::io::Write;
 use crate::{utils::*, AppContext, AppGraph};
 use uuid;
 
-/// Flexible deserializer for script fields that handles:
-/// - Single string (split on newlines)
-/// - Array of strings
-/// - Mixed array with YAML literal blocks
-fn deserialize_script<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum ScriptFormat {
-        Single(String),
-        Multiple(Vec<String>),
-        Mixed(Vec<serde_yaml::Value>),
-    }
-
-    let script_format = Option::<ScriptFormat>::deserialize(deserializer)?;
-
-    match script_format {
-        None => Ok(None),
-        Some(ScriptFormat::Single(single)) => {
-            // Split single string on newlines, filter empty lines
-            let commands: Vec<String> = single
-                .lines()
-                .map(|line| line.trim().to_string())
-                .filter(|line| !line.is_empty())
-                .collect();
-            Ok(Some(commands))
-        }
-        Some(ScriptFormat::Multiple(multiple)) => Ok(Some(multiple)),
-        Some(ScriptFormat::Mixed(mixed)) => {
-            // Handle mixed array with literal blocks and simple strings
-            let mut commands = Vec::new();
-            for value in mixed {
-                match value {
-                    serde_yaml::Value::String(s) => commands.push(s),
-                    serde_yaml::Value::Mapping(_) | serde_yaml::Value::Sequence(_) => {
-                        // Convert complex YAML structures to string representation
-                        if let Ok(yaml_str) = serde_yaml::to_string(&value) {
-                            // For literal blocks, extract the actual content
-                            let clean_str = yaml_str.trim_start_matches("---\n").trim().to_string();
-                            if !clean_str.is_empty() {
-                                commands.push(clean_str);
-                            }
-                        }
-                    }
-                    _ => {
-                        // For other types, convert to string
-                        commands.push(format!("{:?}", value));
-                    }
-                }
-            }
-            Ok(Some(commands))
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Default)]
-pub struct Choice {
-    pub id: String,
-    pub content: Option<String>,
-    #[serde(deserialize_with = "deserialize_script", default)]
-    pub script: Option<Vec<String>>,
-    pub redirect_output: Option<String>,
-    pub append_output: Option<bool>,
-    // F0222: Choice ExecutionMode Field - Replace thread+pty boolean flags with single execution_mode enum
-    #[serde(default)]
-    pub execution_mode: ExecutionMode,
-    #[serde(skip, default)]
-    pub selected: bool,
-    #[serde(skip, default)]
-    pub waiting: bool,
-    #[serde(skip, default)]
-    pub hovered: bool,
-}
-
-impl Hash for Choice {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-        self.content.hash(state);
-        self.script.hash(state);
-        self.redirect_output.hash(state);
-        self.append_output.hash(state);
-        // F0222: Hash ExecutionMode field
-        self.execution_mode.hash(state);
-        self.selected.hash(state);
-        self.waiting.hash(state);
-        self.hovered.hash(state);
-    }
-}
-
-impl PartialEq for Choice {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.content == other.content
-            && self.script == other.script
-            && self.redirect_output == other.redirect_output
-            && self.append_output == other.append_output
-            // F0222: Compare ExecutionMode field
-            && self.execution_mode == other.execution_mode
-            && self.selected == other.selected
-            && self.waiting == other.waiting
-            && self.hovered == other.hovered
-    }
-}
-
-impl Eq for Choice {}
-
-impl Clone for Choice {
-    fn clone(&self) -> Self {
-        Choice {
-            id: self.id.clone(),
-            content: self.content.clone(),
-            script: self.script.clone(),
-            redirect_output: self.redirect_output.clone(),
-            append_output: self.append_output,
-            // F0222: Clone ExecutionMode field
-            execution_mode: self.execution_mode.clone(),
-            selected: self.selected,
-            waiting: self.waiting,
-            hovered: self.hovered,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -2561,7 +2440,6 @@ impl MuxBox {
     }
 }
 
-impl Choice {}
 
 impl Updatable for MuxBox {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {

@@ -1,5 +1,5 @@
 use crate::model::common::{Anchor, InputBounds};
-use crate::model::muxbox::Choice;
+use crate::model::choice::Choice;
 use crate::tests::test_utils::TestDataFactory;
 use crate::utils::screen_bounds;
 

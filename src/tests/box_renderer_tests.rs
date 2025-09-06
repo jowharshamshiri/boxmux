@@ -163,13 +163,13 @@ mod tests {
 
         // Add choices stream with correct API
         let mut streams = IndexMap::new();
-        let choice1 = crate::model::muxbox::Choice {
+        let choice1 = crate::model::choice::Choice {
             id: "choice1".to_string(),
             content: Some("Option 1".to_string()),
             script: Some(vec!["echo option1".to_string()]),
             ..Default::default()
         };
-        let choice2 = crate::model::muxbox::Choice {
+        let choice2 = crate::model::choice::Choice {
             id: "choice2".to_string(),
             content: Some("Option 2".to_string()),
             script: Some(vec!["echo option2".to_string()]),

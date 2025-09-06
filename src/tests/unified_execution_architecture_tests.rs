@@ -1,7 +1,8 @@
 #[cfg(test)]
 pub mod unified_execution_architecture_tests {
     use crate::model::common::ExecutionMode;
-    use crate::model::muxbox::{Choice, MuxBox};
+        use crate::model::muxbox::MuxBox;
+	use crate::model::choice::Choice;
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
 

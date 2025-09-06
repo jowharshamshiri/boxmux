@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod choice_overflow_tests {
     use crate::draw_utils::render_muxbox;
-    use crate::model::muxbox::Choice;
+    use crate::model::choice::Choice;
     use crate::model::common::ScreenBuffer;
     use crate::model::common::Bounds;
 

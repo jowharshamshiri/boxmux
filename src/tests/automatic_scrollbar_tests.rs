@@ -81,7 +81,7 @@ mod tests {
         // Add many choices that will overflow a small muxbox
         let mut choices = Vec::new();
         for i in 1..=20 {
-            choices.push(crate::model::muxbox::Choice {
+            choices.push(crate::model::choice::Choice {
                 id: format!("choice_{}", i),
                 content: Some(format!("Choice {}", i)),
                 script: None,

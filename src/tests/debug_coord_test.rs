@@ -4,7 +4,8 @@ mod debug_coordinate_issues {
     use crate::components::box_renderer::{BoxRenderer, BoxDimensions};
     use crate::components::choice_menu::ChoiceMenu;
     use crate::components::renderable_content::RenderableContent;
-    use crate::model::muxbox::{Choice, MuxBox};
+    use crate::model::muxbox::MuxBox;
+	use crate::model::choice::Choice;
     use crate::Bounds;
 
     fn create_test_muxbox_with_choices() -> MuxBox {
