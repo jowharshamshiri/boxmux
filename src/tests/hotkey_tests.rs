@@ -4,10 +4,10 @@
 #[cfg(test)]
 mod hotkey_tests {
     use crate::model::app::App;
+    use crate::model::choice::Choice;
     use crate::model::common::{Anchor, InputBounds};
     use crate::model::layout::Layout;
-        use crate::model::muxbox::MuxBox;
-	use crate::model::choice::Choice;
+    use crate::model::muxbox::MuxBox;
     use crate::thread_manager::Message;
     use std::collections::HashMap;
 
@@ -54,7 +54,7 @@ mod hotkey_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         };
 

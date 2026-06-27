@@ -100,6 +100,7 @@ impl TestDataFactory {
             scroll_x: 0,
             scroll_y: 0,
             tab_scroll_offset: 0,
+            hovered_tab_target: None,
             streams: indexmap::IndexMap::new(),
             selected_stream_id: None,
         }
@@ -163,7 +164,7 @@ impl TestDataFactory {
             error_selected_fg_color: None,
             error_selected_title_bg_color: None,
             error_selected_title_fg_color: None,
-			highlighted_fill_char: None,
+            highlighted_fill_char: None,
             highlighted_border_color: None,
             highlighted_bg_color: None,
             highlighted_fg_color: None,

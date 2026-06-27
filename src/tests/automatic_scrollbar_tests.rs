@@ -89,7 +89,7 @@ mod tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
-				hovered: false,
+                hovered: false,
                 waiting: false,
             });
         }

@@ -1,6 +1,6 @@
+use crate::components::ComponentDimensions;
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::{Bounds, ScreenBuffer};
-use crate::components::ComponentDimensions;
 
 /// Horizontal Scrollbar Component
 ///
@@ -56,16 +56,16 @@ impl HorizontalScrollbar {
         }
 
         // Use ScrollDimensions for proper calculations
-        use crate::components::dimensions::{ScrollDimensions, Orientation};
+        use crate::components::dimensions::{Orientation, ScrollDimensions};
         use crate::Bounds;
-        
+
         let scroll_dims = ScrollDimensions::new(
             (content_width, 1), // Use 1 for height since this is horizontal scrollbar
             (viewable_width, 1),
             (horizontal_scroll, 0.0), // Only horizontal scroll matters
             Bounds::new(0, 0, track_width + 1, 2), // Adjust bounds so track_length = track_width
         );
-        
+
         let knob_size = scroll_dims.calculate_knob_size(Orientation::Horizontal);
         let knob_position = scroll_dims.calculate_knob_position(Orientation::Horizontal);
 

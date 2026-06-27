@@ -1,8 +1,8 @@
 #[cfg(test)]
 pub mod unified_execution_architecture_tests {
+    use crate::model::choice::Choice;
     use crate::model::common::ExecutionMode;
-        use crate::model::muxbox::MuxBox;
-	use crate::model::choice::Choice;
+    use crate::model::muxbox::MuxBox;
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
 
@@ -26,7 +26,7 @@ pub mod unified_execution_architecture_tests {
                 id: format!("test_choice_{}", mode.as_stream_suffix()),
                 content: Some("Test Choice".to_string()),
                 selected: false,
-				hovered: false,
+                hovered: false,
                 script: Some(vec!["echo hello".to_string()]),
                 execution_mode: mode.clone(),
                 redirect_output: None,
@@ -70,7 +70,7 @@ pub mod unified_execution_architecture_tests {
                 "echo 'Second command'".to_string(),
                 "echo 'Third command'".to_string(),
             ]),
-hovered: false,
+            hovered: false,
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
             append_output: Some(false),
@@ -101,7 +101,7 @@ hovered: false,
             id: "sensitive_choice".to_string(),
             content: Some("Sensitive Choice".to_string()),
             selected: false,
-			hovered: false,
+            hovered: false,
             script: Some(vec!["echo test".to_string()]),
             execution_mode: ExecutionMode::Pty,
             redirect_output: None,
@@ -146,7 +146,7 @@ hovered: false,
             id: "consistent_choice".to_string(),
             content: Some("Consistent Choice".to_string()),
             selected: false,
-			hovered: false,
+            hovered: false,
             script: Some(vec!["echo test".to_string()]),
             execution_mode: ExecutionMode::Thread,
             redirect_output: Some("target_box".to_string()),
@@ -180,7 +180,7 @@ hovered: false,
             content: Some("Legacy Test".to_string()),
             selected: false,
             script: Some(vec!["echo test".to_string()]),
-hovered: false,
+            hovered: false,
             execution_mode: ExecutionMode::Immediate, // This should take precedence
             redirect_output: None,
             append_output: Some(false),
@@ -223,7 +223,7 @@ hovered: false,
                 id: format!("label_test_{}", expected_suffix),
                 content: Some(format!("Label Test {}", expected_suffix)),
                 selected: false,
-				hovered: false,
+                hovered: false,
                 script: Some(vec!["echo test".to_string()]),
                 execution_mode: mode.clone(),
                 redirect_output: None,

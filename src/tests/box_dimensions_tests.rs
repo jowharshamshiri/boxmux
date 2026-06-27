@@ -123,16 +123,11 @@ mod tests {
         let total_bounds = Bounds::new(10, 10, 30, 25); // 20x15 total
         let dimensions = BoxDimensions::calculate_from_muxbox(&muxbox, total_bounds.clone());
 
-        // Test basic inbox to screen translation (no scrolling, centered)
+        // Test basic inbox to screen translation (no scrolling, top-left aligned)
         let (screen_x, screen_y) = dimensions.inbox_to_screen(0, 0);
 
-        // Calculate expected coordinates based on actual dimensions
-        let expected_horizontal_padding =
-            (dimensions.viewable_width - dimensions.content_width) / 2;
-        let expected_vertical_padding =
-            (dimensions.viewable_height - dimensions.content_height) / 2;
-        let expected_screen_x = dimensions.content_bounds.left() + expected_horizontal_padding;
-        let expected_screen_y = dimensions.content_bounds.top() + expected_vertical_padding;
+        let expected_screen_x = dimensions.content_bounds.left();
+        let expected_screen_y = dimensions.content_bounds.top();
 
         assert_eq!(screen_x, expected_screen_x);
         assert_eq!(screen_y, expected_screen_y);
@@ -252,15 +247,10 @@ mod tests {
             .expect("Dimensions should be initialized");
         assert_eq!(dimensions.total_bounds, bounds);
 
-        // Test coordinate translation through renderer
-        let inbox_coords = renderer.screen_to_inbox_coords(10, 10);
-        if let Some((inbox_x, inbox_y)) = inbox_coords {
-            let screen_coords = renderer.inbox_to_screen_coords(inbox_x, inbox_y);
-            // Round-trip should work (approximately, within visible area)
-            assert!(
-                screen_coords.is_some(),
-                "Round-trip coordinate translation should work"
-            );
-        }
+        let screen_coords = renderer
+            .inbox_to_screen_coords(0, 0)
+            .expect("Rendered content origin should map to screen coordinates");
+        let inbox_coords = renderer.screen_to_inbox_coords(screen_coords.0, screen_coords.1);
+        assert_eq!(inbox_coords, Some((0, 0)));
     }
 }

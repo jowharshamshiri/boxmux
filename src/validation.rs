@@ -675,6 +675,7 @@ mod tests {
         let config = Config {
             frame_delay: 0,
             locked: false,
+            calibrate: false,
         };
 
         let result = validator.validate_config(&config);
@@ -694,6 +695,7 @@ mod tests {
         let config = Config {
             frame_delay: 2000,
             locked: false,
+            calibrate: false,
         };
 
         let result = validator.validate_config(&config);

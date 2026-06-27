@@ -71,7 +71,7 @@ mod text_wrapping_tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: false,
-				hovered: false,
+                hovered: false,
                 waiting: false,
             },
             Choice {
@@ -82,7 +82,7 @@ mod text_wrapping_tests {
                 append_output: None,
                 execution_mode: crate::model::common::ExecutionMode::default(),
                 selected: true,
-				hovered: false,
+                hovered: false,
                 waiting: false,
             },
         ];
@@ -123,7 +123,7 @@ mod text_wrapping_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: true,
         }];
 

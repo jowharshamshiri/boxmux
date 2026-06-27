@@ -1,5 +1,5 @@
 use crate::components::renderable_content::{
-    SensitiveZone, ContentEvent, EventResult, EventType, HoverState, RenderableContent,
+    ContentEvent, EventResult, EventType, HoverState, RenderableContent, SensitiveZone,
 };
 use crate::draw_utils::content_size;
 

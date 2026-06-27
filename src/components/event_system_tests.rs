@@ -79,8 +79,15 @@ mod tests {
         let yellow_color = Some("yellow".to_string());
         let blue_color = Some("blue".to_string());
 
-        let mut choice_content =
-            ChoiceContent::new(&choices, &white_color, &None, &yellow_color, &blue_color, &None, &None);
+        let mut choice_content = ChoiceContent::new(
+            &choices,
+            &white_color,
+            &None,
+            &yellow_color,
+            &blue_color,
+            &None,
+            &None,
+        );
 
         // Test valid choice click
         let click_event = ContentEvent::new_click(Some((5, 0)), Some("choice_0".to_string()));
@@ -181,7 +188,8 @@ mod tests {
             ..Default::default()
         }];
 
-        let mut choice_content = ChoiceContent::new(&choices, &None, &None, &None, &None, &None, &None);
+        let mut choice_content =
+            ChoiceContent::new(&choices, &None, &None, &None, &None, &None, &None);
 
         // Test custom event
         let custom_event = ContentEvent::new_custom(

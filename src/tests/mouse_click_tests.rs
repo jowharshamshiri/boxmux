@@ -3,11 +3,15 @@
 
 #[cfg(test)]
 mod mouse_click_tests {
+    use crate::model::choice::Choice;
+    use crate::model::common::{Bounds, InputBounds};
     use crate::model::layout::Layout;
-        use crate::model::muxbox::MuxBox;
-	use crate::model::choice::Choice;
+    use crate::model::muxbox::MuxBox;
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
+    use crate::{
+        color_utils::get_bg_color, draw_loop::apply_calibration_cursor_overlay_at, ScreenBuffer,
+    };
 
     /// Test that MouseClick message can be created
     #[test]
@@ -71,6 +75,173 @@ mod mouse_click_tests {
         // Very large coordinates should not find any muxbox (unless screen is huge)
     }
 
+    #[test]
+    fn test_every_terminal_pixel_maps_to_topmost_muxbox() {
+        let mut left = TestDataFactory::create_test_muxbox("left");
+        left.position = InputBounds {
+            x1: "1%".to_string(),
+            y1: "8%".to_string(),
+            x2: "24%".to_string(),
+            y2: "91%".to_string(),
+        };
+
+        let mut center = TestDataFactory::create_test_muxbox("center");
+        center.position = InputBounds {
+            x1: "25%".to_string(),
+            y1: "8%".to_string(),
+            x2: "73%".to_string(),
+            y2: "70%".to_string(),
+        };
+
+        let mut overlay = TestDataFactory::create_test_muxbox("overlay");
+        overlay.position = InputBounds {
+            x1: "39%".to_string(),
+            y1: "11%".to_string(),
+            x2: "52%".to_string(),
+            y2: "18%".to_string(),
+        };
+        overlay.z_index = Some(10);
+
+        let mut right = TestDataFactory::create_test_muxbox("right");
+        right.position = InputBounds {
+            x1: "74%".to_string(),
+            y1: "8%".to_string(),
+            x2: "99%".to_string(),
+            y2: "91%".to_string(),
+        };
+
+        let mut far_corner = TestDataFactory::create_test_muxbox("far_corner");
+        far_corner.position = InputBounds {
+            x1: "82.5%".to_string(),
+            y1: "74.5%".to_string(),
+            x2: "99.6%".to_string(),
+            y2: "99.2%".to_string(),
+        };
+        far_corner.z_index = Some(20);
+
+        let layout = TestDataFactory::create_test_layout(
+            "pixel_map",
+            Some(vec![left, center, right, overlay, far_corner]),
+        );
+
+        for (width, height) in [
+            (80usize, 24usize),
+            (100, 30),
+            (132, 43),
+            (192, 54),
+            (241, 67),
+            (319, 91),
+        ] {
+            let root_bounds = Bounds {
+                x1: 0,
+                y1: 0,
+                x2: width - 1,
+                y2: height - 1,
+            };
+            let children = layout.children.as_ref().expect("pixel map children");
+            let left_bounds = children[0].bounds_with_parent(&root_bounds);
+            let center_bounds = children[1].bounds_with_parent(&root_bounds);
+            let right_bounds = children[2].bounds_with_parent(&root_bounds);
+            let overlay_bounds = children[3].bounds_with_parent(&root_bounds);
+            let far_corner_bounds = children[4].bounds_with_parent(&root_bounds);
+
+            for y in 0..height as u16 {
+                for x in 0..width as u16 {
+                    let ux = x as usize;
+                    let uy = y as usize;
+                    let expected = if far_corner_bounds.contains_point(ux, uy) {
+                        Some("far_corner")
+                    } else if overlay_bounds.contains_point(ux, uy) {
+                        Some("overlay")
+                    } else if center_bounds.contains_point(ux, uy) {
+                        Some("center")
+                    } else if right_bounds.contains_point(ux, uy) {
+                        Some("right")
+                    } else if left_bounds.contains_point(ux, uy) {
+                        Some("left")
+                    } else {
+                        None
+                    };
+
+                    let actual = layout
+                        .find_muxbox_at_coordinates_with_bounds(x, y, &root_bounds)
+                        .map(|muxbox| muxbox.id.as_str());
+
+                    assert_eq!(
+                        actual, expected,
+                        "coordinate ({},{}) at terminal {}x{} mapped to the wrong muxbox",
+                        x, y, width, height
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_calibration_marks_only_cursor_cell_background_for_detected_muxbox() {
+        let mut muxbox = TestDataFactory::create_test_muxbox("target");
+        muxbox.position = InputBounds {
+            x1: "25%".to_string(),
+            y1: "8%".to_string(),
+            x2: "73%".to_string(),
+            y2: "70%".to_string(),
+        };
+        let layout = TestDataFactory::create_test_layout("calibration", Some(vec![muxbox]));
+        let root_bounds = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 240,
+            y2: 66,
+        };
+        let mut buffer = ScreenBuffer::new_custom(241, 67);
+        let before_cursor = buffer.get(90, 20).cloned().expect("cursor cell");
+        let before_neighbor = buffer.get(91, 20).cloned().expect("neighbor cell");
+
+        assert!(apply_calibration_cursor_overlay_at(
+            &layout,
+            &mut buffer,
+            90,
+            20,
+            &root_bounds
+        ));
+
+        let cursor = buffer.get(90, 20).expect("calibrated cursor cell");
+        let neighbor = buffer.get(91, 20).expect("neighbor cell after calibration");
+        assert_eq!(cursor.ch, before_cursor.ch);
+        assert_eq!(cursor.fg_color, before_cursor.fg_color);
+        assert_eq!(cursor.bg_color, get_bg_color("red"));
+        assert_eq!(neighbor, &before_neighbor);
+    }
+
+    #[test]
+    fn test_calibration_does_not_mark_unowned_gap_cells() {
+        let mut muxbox = TestDataFactory::create_test_muxbox("target");
+        muxbox.position = InputBounds {
+            x1: "25%".to_string(),
+            y1: "8%".to_string(),
+            x2: "73%".to_string(),
+            y2: "70%".to_string(),
+        };
+        let layout = TestDataFactory::create_test_layout("calibration", Some(vec![muxbox]));
+        let root_bounds = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 240,
+            y2: 66,
+        };
+        let mut buffer = ScreenBuffer::new_custom(241, 67);
+        let before = buffer.get(1, 1).cloned().expect("gap cell");
+
+        assert!(!apply_calibration_cursor_overlay_at(
+            &layout,
+            &mut buffer,
+            1,
+            1,
+            &root_bounds
+        ));
+        assert_eq!(buffer.get(1, 1), Some(&before));
+    }
+
     /// Test choice creation with mouse-activatable properties
     #[test]
     fn test_choice_mouse_activation_properties() {
@@ -82,7 +253,7 @@ mod mouse_click_tests {
             append_output: Some(false),
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         };
 
@@ -113,7 +284,7 @@ mod mouse_click_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         };
 
@@ -125,7 +296,7 @@ mod mouse_click_tests {
             append_output: Some(true),
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         };
 

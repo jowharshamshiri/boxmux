@@ -1,0 +1,13 @@
+layouts:
+  - name: "test_child_process"
+    muxboxes:
+      - id: "test_pty"
+        bounds: { x: "0%", y: "0%", width: "100%", height: "100%" }
+        border: { style: "rounded", fg_color: "blue" }
+        title: "PTY Child Process Test"
+        execution_mode: "pty"
+        script:
+          - "./test_child_process.sh"
+        auto_refresh: false
+
+active_layout: "test_child_process"

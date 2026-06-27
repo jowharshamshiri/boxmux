@@ -1,0 +1,38 @@
+app:
+  layouts:
+    - id: hover_test
+      root: true
+      children:
+        - id: test_choices
+          title: "Hover Test - Move mouse over choices"
+          position:
+            x1: "10"
+            y1: "10"
+            x2: "90"
+            y2: "90"
+          execution_mode: "Thread"
+          # Normal menu colors (white on black)
+          menu_fg_color: "white"
+          menu_bg_color: "black"
+          # Selected colors (bright white on red)
+          selected_menu_fg_color: "bright_white"
+          selected_menu_bg_color: "red"
+          # Highlighted colors (yellow on blue when hovering)
+          highlighted_menu_fg_color: "yellow"
+          highlighted_menu_bg_color: "blue"
+          highlighted_border_color: "cyan"
+          highlighted_bg_color: "bright_blue"
+          highlighted_fg_color: "bright_yellow"
+          highlighted_title_fg_color: "bright_cyan"
+          highlighted_title_bg_color: "bright_magenta"
+          border_color: "white"
+          choices:
+            - id: choice1
+              content: "First Choice - Hover me!"
+              script: ["echo", "Choice 1 executed"]
+            - id: choice2  
+              content: "Second Choice - Hover me too!"
+              script: ["echo", "Choice 2 executed"]
+            - id: choice3
+              content: "Third Choice - And me!"
+              script: ["echo", "Choice 3 executed"]

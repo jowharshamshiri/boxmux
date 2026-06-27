@@ -1,6 +1,6 @@
 use crate::components::renderable_content::{
-    SensitiveMetadata, SensitiveZone, ContentEvent, ContentType, EventResult, EventType,
-    RenderableContent,
+    ContentEvent, ContentType, EventResult, EventType, RenderableContent, SensitiveMetadata,
+    SensitiveZone,
 };
 use crate::model::choice::Choice;
 use crate::Bounds;
@@ -54,7 +54,10 @@ impl<'a> ChoiceMenu<'a> {
     }
 
     /// Generate sensitive zones accounting for text wrapping at specified width
-    pub fn get_box_relative_sensitive_zones_with_width(&self, available_width: usize) -> Vec<SensitiveZone> {
+    pub fn get_box_relative_sensitive_zones_with_width(
+        &self,
+        available_width: usize,
+    ) -> Vec<SensitiveZone> {
         let mut zones = Vec::new();
         let mut current_line = 0;
 
@@ -65,14 +68,14 @@ impl<'a> ChoiceMenu<'a> {
             if let Some(choice_content) = &choice.content {
                 // Get the actual formatted line for this choice (with indicators)
                 let formatted_line = &content_lines[index];
-                
+
                 if available_width == usize::MAX || formatted_line.len() <= available_width {
                     // Single line case - no wrapping needed
                     let zone_bounds = Bounds::new(
-                        0,                                          // Start at x=0 (left edge of content area)
-                        current_line,                              // y position based on actual rendered line
-                        formatted_line.len().saturating_sub(1),    // End x coordinate based on formatted content
-                        current_line,                              // Single line height, so y2 == y1
+                        0,                                      // Start at x=0 (left edge of content area)
+                        current_line, // y position based on actual rendered line
+                        formatted_line.len().saturating_sub(1), // End x coordinate based on formatted content
+                        current_line,                           // Single line height, so y2 == y1
                     );
 
                     let metadata = SensitiveMetadata {
@@ -90,22 +93,22 @@ impl<'a> ChoiceMenu<'a> {
                         ContentType::Choice,
                         metadata,
                     ));
-                    
+
                     current_line += 1;
                 } else {
                     // Multi-line case - choice wraps across multiple lines
                     let mut remaining_text = formatted_line.clone();
                     let mut char_offset = 0;
-                    
+
                     while !remaining_text.is_empty() {
                         let line_width = remaining_text.len().min(available_width);
                         let line_text = remaining_text[..line_width].to_string();
-                        
+
                         let zone_bounds = Bounds::new(
-                            0,                              // Start at x=0 (left edge of content area)
-                            current_line,                   // y position for this wrapped segment
-                            line_width.saturating_sub(1),   // End x coordinate for this segment
-                            current_line,                   // Single line height, so y2 == y1
+                            0,                            // Start at x=0 (left edge of content area)
+                            current_line,                 // y position for this wrapped segment
+                            line_width.saturating_sub(1), // End x coordinate for this segment
+                            current_line,                 // Single line height, so y2 == y1
                         );
 
                         let metadata = SensitiveMetadata {
@@ -123,7 +126,7 @@ impl<'a> ChoiceMenu<'a> {
                             ContentType::Choice,
                             metadata,
                         ));
-                        
+
                         remaining_text = remaining_text[line_width..].to_string();
                         char_offset += line_width;
                         current_line += 1;

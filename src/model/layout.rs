@@ -1,4 +1,4 @@
-use crate::{model::muxbox::MuxBox, EntityType, FieldUpdate, Updatable};
+use crate::{model::muxbox::MuxBox, screen_bounds, Bounds, EntityType, FieldUpdate, Updatable};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -400,30 +400,42 @@ impl Layout {
     }
 
     pub fn find_muxbox_at_coordinates(&self, x: u16, y: u16) -> Option<&MuxBox> {
-        fn find_in_muxboxes_at_coords(muxboxes: &[MuxBox], x: u16, y: u16) -> Option<&MuxBox> {
+        let root_bounds = screen_bounds();
+        self.find_muxbox_at_coordinates_with_bounds(x, y, &root_bounds)
+    }
+
+    pub fn find_muxbox_at_coordinates_with_bounds(
+        &self,
+        x: u16,
+        y: u16,
+        root_bounds: &Bounds,
+    ) -> Option<&MuxBox> {
+        fn find_in_muxboxes_at_coords<'a>(
+            muxboxes: &'a [MuxBox],
+            x: usize,
+            y: usize,
+            parent_bounds: &Bounds,
+        ) -> Option<&'a MuxBox> {
             // Collect matching boxes and their children, then sort by z_index (highest first)
-            let mut candidates: Vec<&MuxBox> = Vec::new();
+            let mut candidates: Vec<(&MuxBox, Bounds)> = Vec::new();
 
             // Find all boxes that contain the click coordinates
             for muxbox in muxboxes {
-                let bounds = muxbox.bounds();
-                if x >= bounds.x1 as u16
-                    && x <= bounds.x2 as u16
-                    && y >= bounds.y1 as u16
-                    && y <= bounds.y2 as u16
-                {
-                    candidates.push(muxbox);
+                let bounds = muxbox.bounds_with_parent(parent_bounds);
+                if bounds.contains_point(x, y) {
+                    candidates.push((muxbox, bounds));
                 }
             }
 
             // Sort candidates by z_index (highest first for click priority)
-            candidates.sort_by_key(|muxbox| std::cmp::Reverse(muxbox.effective_z_index()));
+            candidates.sort_by_key(|(muxbox, _)| std::cmp::Reverse(muxbox.effective_z_index()));
 
             // Get the highest priority candidate (first after sorting by z_index)
-            if let Some(muxbox) = candidates.into_iter().next() {
+            if let Some((muxbox, bounds)) = candidates.into_iter().next() {
                 // Check children first (they take priority over parent)
                 if let Some(ref children) = muxbox.children {
-                    if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y) {
+                    if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y, &bounds)
+                    {
                         return Some(child_muxbox);
                     }
                 }
@@ -434,7 +446,7 @@ impl Layout {
         }
 
         if let Some(ref children) = self.children {
-            find_in_muxboxes_at_coords(children, x, y)
+            find_in_muxboxes_at_coords(children, x as usize, y as usize, root_bounds)
         } else {
             None
         }

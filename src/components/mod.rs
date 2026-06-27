@@ -5,11 +5,11 @@
 
 pub mod border;
 pub mod box_renderer;
-pub mod dimensions;
 pub mod chart_component;
 pub mod choice_content;
 pub mod choice_menu;
 pub mod defaults;
+pub mod dimensions;
 pub mod error_display;
 pub mod horizontal_scrollbar;
 pub mod progress_bar;
@@ -35,17 +35,17 @@ pub use error_display::{
 pub use horizontal_scrollbar::HorizontalScrollbar;
 pub use progress_bar::{ProgressBar, ProgressBarConfig, ProgressBarOrientation, ProgressState};
 pub use renderable_content::{
-    BoxResizeInfo, BoxResizeType, SensitiveMetadata, SensitiveZone, ContentDimensions,
-    ContentEvent, ContentType, EventData, EventResult, EventType, HoverInfo, HoverState, KeyInfo,
-    KeyModifier, MouseButton, MouseMoveInfo, RenderableContent, ResizeAnchor, ResizeState,
-    ScrollDirection, ScrollInfo, TitleChangeInfo, TitleChangeSource,
+    BoxResizeInfo, BoxResizeType, ContentDimensions, ContentEvent, ContentType, EventData,
+    EventResult, EventType, HoverInfo, HoverState, KeyInfo, KeyModifier, MouseButton,
+    MouseMoveInfo, RenderableContent, ResizeAnchor, ResizeState, ScrollDirection, ScrollInfo,
+    SensitiveMetadata, SensitiveZone, TitleChangeInfo, TitleChangeSource,
 };
 pub use selection_styles::{
     BorderChars, FeedbackStyle, FocusStyle, SelectionIndicators, SelectionStyle,
     SelectionStyleConfig, SelectionStyleRenderer,
 };
 pub use status_indicator::{StatusIndicator, StatusType};
-pub use tab_bar::{TabBar, TabNavigationAction};
+pub use tab_bar::{TabBar, TabHitTarget, TabHoverTarget, TabNavigationAction};
 pub use table_component::{TableComponent, TableComponentConfig};
 pub use text_content::TextContent;
 pub use vertical_scrollbar::VerticalScrollbar;

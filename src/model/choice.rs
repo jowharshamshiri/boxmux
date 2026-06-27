@@ -1,10 +1,9 @@
-use std::hash::{Hash,Hasher};
+use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ExecutionMode;
 use crate::model::common::deserialize_script;
-
+use crate::ExecutionMode;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Choice {

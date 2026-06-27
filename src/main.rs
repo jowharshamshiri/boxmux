@@ -390,6 +390,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .action(clap::ArgAction::SetTrue)
                 .help("Disable box resizing and moving"),
         )
+        .arg(
+            Arg::new("calibrate")
+                .long("calibrate")
+                .action(clap::ArgAction::SetTrue)
+                .help("Mark the single terminal cell under the cursor when it belongs to a muxbox"),
+        )
         .subcommand(
             Command::new("stop_box_refresh")
                 .about("Stops the refresh of the box")
@@ -880,6 +886,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse::<u64>()
         .unwrap_or(100);
     let locked = matches.get_flag("lock");
+    let calibrate = matches.get_flag("calibrate");
 
     let yaml_path = Path::new(yaml_path);
 
@@ -894,7 +901,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| format!("Failed to resolve absolute path for YAML file: {}", e))?;
 
     // Removed old simplelog - using our new comprehensive logging system instead
-    let config = boxmux_lib::model::common::Config::new_with_lock(frame_delay, locked);
+    let config = boxmux_lib::model::common::Config::new_with_lock_and_calibration(
+        frame_delay,
+        locked,
+        calibrate,
+    );
     let app = match load_app_from_yaml_with_lock(yaml_path.to_str().unwrap(), locked) {
         Ok(app) => app,
         Err(e) => {

@@ -4,8 +4,8 @@
 
 #[cfg(test)]
 mod user_behavioral_component_tests {
-    use crate::model::common::{Stream, StreamType};
     use crate::model::choice::Choice;
+    use crate::model::common::{Stream, StreamType};
     use std::time::SystemTime;
 
     // ===== TAB SYSTEM USER BEHAVIORAL TESTS =====

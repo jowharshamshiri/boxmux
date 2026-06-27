@@ -1,6 +1,6 @@
+use crate::components::ComponentDimensions;
 use crate::draw_utils::print_with_color_and_background_at;
 use crate::{Bounds, ScreenBuffer};
-use crate::components::ComponentDimensions;
 
 /// Vertical Scrollbar Component
 ///
@@ -56,19 +56,19 @@ impl VerticalScrollbar {
         }
 
         // Use ScrollDimensions for proper calculations
-        use crate::components::dimensions::{ScrollDimensions, Orientation};
+        use crate::components::dimensions::{Orientation, ScrollDimensions};
         use crate::Bounds;
-        
+
         let scroll_dims = ScrollDimensions::new(
             (1, content_height), // Use 1 for width since this is vertical scrollbar
             (1, viewable_height),
             (0.0, vertical_scroll), // Only vertical scroll matters
             Bounds::new(0, 0, 2, track_height + 1), // Adjust bounds so track_length = track_height
         );
-        
+
         let knob_size = scroll_dims.calculate_knob_size(Orientation::Vertical);
         let knob_position = scroll_dims.calculate_knob_position(Orientation::Vertical);
-        
+
         (knob_position, knob_size)
     }
 

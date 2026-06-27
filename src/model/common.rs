@@ -1,9 +1,13 @@
+use serde::Deserializer;
 use serde_json::Value;
 use std::{collections::HashMap, error::Error, hash::Hash};
-use serde::Deserializer;
 
 use crate::{
-    AppContext, AppGraph, Layout, Message, MuxBox, color_utils::{get_bg_color, get_fg_color}, model::choice::Choice, screen_bounds, screen_height, screen_width, utils::input_bounds_to_bounds
+    color_utils::{get_bg_color, get_fg_color},
+    model::choice::Choice,
+    screen_bounds, screen_height, screen_width,
+    utils::input_bounds_to_bounds,
+    AppContext, AppGraph, Layout, Message, MuxBox,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -115,12 +119,12 @@ pub enum SourceType {
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SourceReference {
-    Choice(Choice), // Full choice object
-    StaticConfig(String),                 // YAML configuration reference (one-time)
-    PeriodicConfig(String),               // YAML configuration for periodic refresh
-    SocketCommand(String),                // Socket command that triggered this
-    HotkeyBinding(String),                // Hotkey that triggered this
-    Schedule(String),                     // Schedule configuration
+    Choice(Choice),         // Full choice object
+    StaticConfig(String),   // YAML configuration reference (one-time)
+    PeriodicConfig(String), // YAML configuration for periodic refresh
+    SocketCommand(String),  // Socket command that triggered this
+    HotkeyBinding(String),  // Hotkey that triggered this
+    Schedule(String),       // Schedule configuration
 }
 
 /// T0302: StreamUpdate message struct - Universal content updates from any execution mode
@@ -1427,12 +1431,15 @@ pub trait Updatable {
 pub struct Config {
     pub frame_delay: u64,
     pub locked: bool, // Disable muxbox resizing and moving when true
+    #[serde(default)]
+    pub calibrate: bool,
 }
 
 impl Hash for Config {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.frame_delay.hash(state);
         self.locked.hash(state);
+        self.calibrate.hash(state);
     }
 }
 
@@ -1441,6 +1448,7 @@ impl Default for Config {
         Config {
             frame_delay: 30,
             locked: false, // Default to unlocked (resizable/movable)
+            calibrate: false,
         }
     }
 }
@@ -1450,6 +1458,7 @@ impl Config {
         let result = Config {
             frame_delay,
             locked: false, // Default to unlocked
+            calibrate: false,
         };
         result.validate();
         result
@@ -1459,6 +1468,17 @@ impl Config {
         let result = Config {
             frame_delay,
             locked,
+            calibrate: false,
+        };
+        result.validate();
+        result
+    }
+
+    pub fn new_with_lock_and_calibration(frame_delay: u64, locked: bool, calibrate: bool) -> Self {
+        let result = Config {
+            frame_delay,
+            locked,
+            calibrate,
         };
         result.validate();
         result
@@ -2527,7 +2547,6 @@ pub fn calculate_bounds_map(app_graph: &AppGraph, layout: &Layout) -> HashMap<St
     adjust_bounds_with_constraints(layout, bounds_map)
 }
 
-
 /// Flexible deserializer for script fields that handles:
 /// - Single string (split on newlines)
 /// - Array of strings
@@ -2634,6 +2653,7 @@ mod tests {
         let config = Config {
             frame_delay: 0,
             locked: false,
+            calibrate: false,
         };
         config.validate();
     }
@@ -2645,6 +2665,7 @@ mod tests {
         let config = Config {
             frame_delay: 16,
             locked: false,
+            calibrate: false,
         };
         config.validate(); // Should not panic
     }

@@ -44,19 +44,19 @@ pub enum Message {
     KeyPress(String),
     ExecuteHotKeyChoice(String),
     MouseClick(u16, u16),                          // x, y coordinates
-    MouseMove(u16, u16),                           // x, y coordinates - mouse movement for hover detection
-    MouseDragStart(u16, u16),                      // x, y coordinates - start drag
-    MouseDrag(u16, u16),                           // x, y coordinates - continue drag
-    MouseDragEnd(u16, u16),                        // x, y coordinates - end drag
-    MuxBoxBorderDrag(String, u16, u16),            // muxbox_id, x, y coordinates - resize muxbox
-    MuxBoxResizeComplete(String),                  // muxbox_id - save changes to YAML
-    MuxBoxMove(String, u16, u16),                  // muxbox_id, x, y coordinates - move muxbox
-    MuxBoxMoveComplete(String),                    // muxbox_id - save position changes to YAML
-    SaveYamlState,                                 // F0200: Trigger complete YAML state persistence
-    SaveActiveLayout(String),                      // F0200: Save active layout to YAML
-    SaveMuxBoxContent(String, String),             // F0200: Save muxbox content to YAML
-    SaveMuxBoxScroll(String, usize, usize),        // F0200: Save muxbox scroll position
-    PTYInput(String, String),                      // muxbox_id, input_text
+    MouseMove(u16, u16), // x, y coordinates - mouse movement for hover detection
+    MouseDragStart(u16, u16), // x, y coordinates - start drag
+    MouseDrag(u16, u16), // x, y coordinates - continue drag
+    MouseDragEnd(u16, u16), // x, y coordinates - end drag
+    MuxBoxBorderDrag(String, u16, u16), // muxbox_id, x, y coordinates - resize muxbox
+    MuxBoxResizeComplete(String), // muxbox_id - save changes to YAML
+    MuxBoxMove(String, u16, u16), // muxbox_id, x, y coordinates - move muxbox
+    MuxBoxMoveComplete(String), // muxbox_id - save position changes to YAML
+    SaveYamlState,       // F0200: Trigger complete YAML state persistence
+    SaveActiveLayout(String), // F0200: Save active layout to YAML
+    SaveMuxBoxContent(String, String), // F0200: Save muxbox content to YAML
+    SaveMuxBoxScroll(String, usize, usize), // F0200: Save muxbox scroll position
+    PTYInput(String, String), // muxbox_id, input_text
     PTYInputWithModes(String, String, bool, bool), // F0309: muxbox_id, input_text, cursor_key_mode, keypad_mode
     PTYMouseEvent(
         String,

@@ -12,9 +12,9 @@
 #[cfg(test)]
 mod execution_mode_schema_validation_tests {
     use crate::model::app::load_app_from_yaml;
+    use crate::model::choice::Choice;
     use crate::model::common::ExecutionMode;
-        use crate::model::muxbox::MuxBox;
-	use crate::model::choice::Choice;
+    use crate::model::muxbox::MuxBox;
     use crate::validation::SchemaValidator;
     use std::fs;
     use tempfile::NamedTempFile;

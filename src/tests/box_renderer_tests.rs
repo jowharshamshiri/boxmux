@@ -131,7 +131,11 @@ mod tests {
         // Validate stream state
         assert_eq!(muxbox.streams.len(), 1, "Should have one content stream");
         let content_stream = muxbox.streams.get("content").unwrap();
-        assert_eq!(content_stream.stream_type, crate::model::common::StreamType::Content, "Content stream should exist");
+        assert_eq!(
+            content_stream.stream_type,
+            crate::model::common::StreamType::Content,
+            "Content stream should exist"
+        );
         assert_eq!(
             content_stream.stream_type,
             StreamType::Content,
@@ -221,7 +225,10 @@ mod tests {
         // Validate stream configuration
         assert_eq!(muxbox.streams.len(), 1, "Should have one choices stream");
         let choices_stream = muxbox.streams.get("choices").unwrap();
-        assert!(choices_stream.choices.is_some(), "Choices stream should contain choices");
+        assert!(
+            choices_stream.choices.is_some(),
+            "Choices stream should contain choices"
+        );
         assert_eq!(
             choices_stream.stream_type,
             StreamType::Choices,

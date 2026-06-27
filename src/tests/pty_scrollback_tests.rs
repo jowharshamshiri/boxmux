@@ -262,6 +262,7 @@ mod pty_scrollback_tests {
             scroll_x: 0,
             scroll_y: 0,
             tab_scroll_offset: 0,
+            hovered_tab_target: None,
             streams: indexmap::IndexMap::new(),
             selected_stream_id: None,
         }

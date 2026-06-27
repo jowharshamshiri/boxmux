@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod conditional_stream_creation_tests {
-    use crate::model::common::StreamType;
     use crate::model::choice::Choice;
+    use crate::model::common::StreamType;
     use crate::tests::test_utils::TestDataFactory;
 
     #[test]
@@ -118,7 +118,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         }]);
 
@@ -156,7 +156,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         }]);
 
@@ -193,7 +193,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         }]);
 
@@ -255,7 +255,7 @@ mod conditional_stream_creation_tests {
             append_output: None,
             execution_mode: crate::model::common::ExecutionMode::default(),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: false,
         }]);
 

@@ -1,7 +1,7 @@
+use crate::components::ComponentDimensions;
 use crate::model::muxbox::MuxBox;
 use crate::pty_manager::PtyManager;
 use crate::{Bounds, Cell, ScreenBuffer};
-use crate::components::ComponentDimensions;
 
 /// Border component for rendering box borders with various styles and states
 pub struct Border {

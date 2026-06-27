@@ -23,6 +23,7 @@ mod tests {
             &tab_close_buttons,
             0,
             0,
+            None,
             &mut buffer,
         );
 
@@ -78,6 +79,7 @@ mod tests {
             &tab_close_buttons,
             0,
             0,
+            None,
             &mut buffer,
         );
 
@@ -287,6 +289,644 @@ mod tests {
     }
 
     #[test]
+    fn test_rendered_close_glyph_is_click_target() {
+        let mut buffer = ScreenBuffer::new();
+        let tab_labels = vec!["Closable".to_string(), "Pinned".to_string()];
+        let tab_close_buttons = vec![true, false];
+        let y = 5;
+
+        TabBar::draw(
+            y,
+            0,
+            50,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            0,
+            0,
+            None,
+            &mut buffer,
+        );
+
+        let close_x = (0..buffer.width)
+            .find(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .expect("tab bar should render a close glyph for a closeable tab");
+
+        assert_eq!(
+            TabBar::calculate_tab_close_click(
+                close_x,
+                0,
+                50,
+                &tab_labels,
+                &tab_close_buttons,
+                0,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(0),
+            "clicking the rendered close glyph must close the tab that owns it"
+        );
+        assert_eq!(
+            TabBar::calculate_tab_hover_target(
+                close_x,
+                0,
+                50,
+                &tab_labels,
+                &tab_close_buttons,
+                0,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(crate::components::TabHoverTarget::CloseButton(0)),
+            "hovering the rendered close glyph must use close-button affordance"
+        );
+    }
+
+    #[test]
+    fn test_only_rendered_close_glyph_cell_is_close_sensitive() {
+        let mut buffer = ScreenBuffer::new();
+        let tab_labels = vec!["Closable".to_string(), "Pinned".to_string()];
+        let tab_close_buttons = vec![true, false];
+        let y = 5;
+
+        TabBar::draw(
+            y,
+            0,
+            50,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            0,
+            0,
+            None,
+            &mut buffer,
+        );
+
+        let close_x = (0..buffer.width)
+            .find(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .expect("tab bar should render a close glyph for a closeable tab");
+
+        assert_eq!(
+            TabBar::calculate_tab_close_click(
+                close_x,
+                0,
+                50,
+                &tab_labels,
+                &tab_close_buttons,
+                0,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            TabBar::calculate_tab_close_click(
+                close_x - 1,
+                0,
+                50,
+                &tab_labels,
+                &tab_close_buttons,
+                0,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            None,
+            "the visual spacing before the close glyph must not be part of the close target"
+        );
+    }
+
+    #[test]
+    fn test_non_scrolling_close_target_ignores_stale_scroll_offset() {
+        let mut buffer = ScreenBuffer::new();
+        let tab_labels = vec![
+            "Content".to_string(),
+            "Output".to_string(),
+            "Logs".to_string(),
+        ];
+        let tab_close_buttons = vec![false, true, true];
+        let y = 5;
+        let stale_scroll_offset = 2;
+
+        TabBar::draw(
+            y,
+            0,
+            80,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            1,
+            stale_scroll_offset,
+            None,
+            &mut buffer,
+        );
+
+        assert_eq!(
+            TabBar::calculate_tab_navigation_click(
+                2,
+                0,
+                80,
+                &tab_labels,
+                stale_scroll_offset,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            None,
+            "test fixture must be a non-scrolling tab bar"
+        );
+
+        let close_positions: Vec<usize> = (0..buffer.width)
+            .filter(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .collect();
+        assert_eq!(
+            close_positions.len(),
+            2,
+            "non-scrolling render should show close glyphs for tabs 1 and 2"
+        );
+
+        assert_eq!(
+            TabBar::calculate_tab_close_click(
+                close_positions[0],
+                0,
+                80,
+                &tab_labels,
+                &tab_close_buttons,
+                stale_scroll_offset,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(1),
+            "stale scroll offset must not shift close targets when all tabs fit"
+        );
+    }
+
+    #[test]
+    fn test_live_output_panel_choice_tab_close_cell() {
+        let tab_labels = vec![
+            "Content".to_string(),
+            "Choice:2bc3dce0-ab7d-4763-b794-ee0df8b6e6eb".to_string(),
+        ];
+        let tab_close_buttons = vec![false, true];
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+        let title_fg = Some("cyan".to_string());
+        let title_bg = Some("blue".to_string());
+        let y = 3;
+        let mut buffer = ScreenBuffer::new_custom(100, 30);
+
+        TabBar::draw(
+            y,
+            44,
+            98,
+            &fg,
+            &bg,
+            &title_fg,
+            &title_bg,
+            &tab_labels,
+            &tab_close_buttons,
+            1,
+            0,
+            None,
+            &mut buffer,
+        );
+
+        let rendered_close_cells: Vec<usize> = (44..=98)
+            .filter(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .collect();
+
+        let close_cells: Vec<usize> = (44..=98)
+            .filter(|x| {
+                TabBar::calculate_tab_close_click(
+                    *x,
+                    44,
+                    98,
+                    &tab_labels,
+                    &tab_close_buttons,
+                    0,
+                    &fg,
+                    &bg,
+                ) == Some(1)
+            })
+            .collect();
+
+        assert_eq!(
+            rendered_close_cells, close_cells,
+            "live output panel hit target must exactly match the rendered close glyph cells"
+        );
+        assert_eq!(
+            close_cells.len(),
+            1,
+            "live output panel should expose exactly one close cell for the closeable choice tab"
+        );
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum VisibleTabTarget {
+        Tab(usize),
+        Close(usize),
+        NavLeft,
+        NavRight,
+    }
+
+    fn runtime_click_target(
+        x: usize,
+        x1: usize,
+        x2: usize,
+        tab_labels: &[String],
+        tab_close_buttons: &[bool],
+        tab_scroll_offset: usize,
+    ) -> Option<VisibleTabTarget> {
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+
+        if let Some(nav_action) = TabBar::calculate_tab_navigation_click(
+            x,
+            x1,
+            x2,
+            tab_labels,
+            tab_scroll_offset,
+            &fg,
+            &bg,
+        ) {
+            return Some(match nav_action {
+                TabNavigationAction::ScrollLeft => VisibleTabTarget::NavLeft,
+                TabNavigationAction::ScrollRight => VisibleTabTarget::NavRight,
+            });
+        }
+
+        if let Some(close_index) = TabBar::calculate_tab_close_click(
+            x,
+            x1,
+            x2,
+            tab_labels,
+            tab_close_buttons,
+            tab_scroll_offset,
+            &fg,
+            &bg,
+        ) {
+            return Some(VisibleTabTarget::Close(close_index));
+        }
+
+        TabBar::calculate_tab_click_index(x, x1, x2, tab_labels, tab_scroll_offset, &fg, &bg)
+            .map(VisibleTabTarget::Tab)
+    }
+
+    fn runtime_hover_target(
+        x: usize,
+        x1: usize,
+        x2: usize,
+        tab_labels: &[String],
+        tab_close_buttons: &[bool],
+        tab_scroll_offset: usize,
+    ) -> Option<VisibleTabTarget> {
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+
+        TabBar::calculate_tab_hover_target(
+            x,
+            x1,
+            x2,
+            tab_labels,
+            tab_close_buttons,
+            tab_scroll_offset,
+            &fg,
+            &bg,
+        )
+        .map(|target| match target {
+            crate::components::TabHoverTarget::Tab(index) => VisibleTabTarget::Tab(index),
+            crate::components::TabHoverTarget::CloseButton(index) => VisibleTabTarget::Close(index),
+            crate::components::TabHoverTarget::NavigationLeft => VisibleTabTarget::NavLeft,
+            crate::components::TabHoverTarget::NavigationRight => VisibleTabTarget::NavRight,
+        })
+    }
+
+    #[test]
+    fn test_every_tab_row_cell_maps_to_the_visible_target_under_it_across_sizes() {
+        let tab_labels = vec![
+            "Content".to_string(),
+            "Execution".to_string(),
+            "Logs".to_string(),
+            "Metrics".to_string(),
+            "Monitor".to_string(),
+        ];
+        let tab_close_buttons = vec![false, true, true, true, true];
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+        let title_fg = Some("cyan".to_string());
+        let title_bg = Some("blue".to_string());
+
+        for (screen_width, x1, x2, scroll_offset) in [
+            (80usize, 0usize, 34usize, 0usize),
+            (80, 0, 34, 1),
+            (100, 25, 73, 0),
+            (100, 25, 73, 2),
+            (132, 67, 128, 0),
+            (132, 67, 128, 3),
+            (192, 133, 188, 0),
+            (192, 133, 188, 4),
+            (241, 185, 238, 0),
+            (319, 259, 316, 4),
+        ] {
+            let y = 5;
+            let mut buffer = ScreenBuffer::new_custom(screen_width, 12);
+
+            TabBar::draw(
+                y,
+                x1,
+                x2,
+                &fg,
+                &bg,
+                &title_fg,
+                &title_bg,
+                &tab_labels,
+                &tab_close_buttons,
+                1,
+                scroll_offset,
+                None,
+                &mut buffer,
+            );
+
+            for x in 0..buffer.width {
+                let cell = buffer.get(x, y).expect("tab row cell should be in buffer");
+                let click_target =
+                    runtime_click_target(x, x1, x2, &tab_labels, &tab_close_buttons, scroll_offset);
+                let hover_target =
+                    runtime_hover_target(x, x1, x2, &tab_labels, &tab_close_buttons, scroll_offset);
+
+                assert_eq!(
+                    hover_target, click_target,
+                    "hover/click mismatch at x={} for panel x1={} x2={} scroll={}",
+                    x, x1, x2, scroll_offset
+                );
+
+                match cell.ch {
+                    '×' => assert!(
+                        matches!(click_target, Some(VisibleTabTarget::Close(_))),
+                        "rendered close glyph at x={} must be the close target for panel x1={} x2={} scroll={}",
+                        x,
+                        x1,
+                        x2,
+                        scroll_offset
+                    ),
+                    '◀' => assert_eq!(
+                        click_target,
+                        Some(VisibleTabTarget::NavLeft),
+                        "rendered left arrow at x={} must be the left navigation target",
+                        x
+                    ),
+                    '▶' => assert_eq!(
+                        click_target,
+                        Some(VisibleTabTarget::NavRight),
+                        "rendered right arrow at x={} must be the right navigation target",
+                        x
+                    ),
+                    _ => {
+                        assert!(
+                            !matches!(click_target, Some(VisibleTabTarget::Close(_))),
+                            "non-close cell '{}' at x={} must not be close-sensitive for panel x1={} x2={} scroll={}",
+                            cell.ch,
+                            x,
+                            x1,
+                            x2,
+                            scroll_offset
+                        );
+                        assert!(
+                            !matches!(
+                                click_target,
+                                Some(VisibleTabTarget::NavLeft | VisibleTabTarget::NavRight)
+                            ),
+                            "non-arrow cell '{}' at x={} must not be navigation-sensitive for panel x1={} x2={} scroll={}",
+                            cell.ch,
+                            x,
+                            x1,
+                            x2,
+                            scroll_offset
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_fractional_percentage_far_from_origin_close_glyph_hit_targets() {
+        use crate::model::common::{Bounds, InputBounds};
+
+        let tab_labels = vec![
+            "Content".to_string(),
+            "Choice:de95b8ce-42a0-43fd-9184-58b481c0482f".to_string(),
+            "Logs".to_string(),
+        ];
+        let tab_close_buttons = vec![false, true, true];
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+        let title_fg = Some("cyan".to_string());
+        let title_bg = Some("blue".to_string());
+
+        for (screen_width, screen_height, x1_pct, x2_pct) in [
+            (100usize, 30usize, "25%", "73%"),
+            (192, 54, "70.5%", "98.4%"),
+            (241, 67, "76.8%", "99.1%"),
+            (319, 91, "81.4%", "99.3%"),
+        ] {
+            let root_bounds = Bounds {
+                x1: 0,
+                y1: 0,
+                x2: screen_width - 1,
+                y2: screen_height - 1,
+            };
+            let bounds = InputBounds {
+                x1: x1_pct.to_string(),
+                y1: "74.5%".to_string(),
+                x2: x2_pct.to_string(),
+                y2: "92.2%".to_string(),
+            }
+            .to_bounds(&root_bounds);
+            let y = bounds.y1;
+            let mut buffer = ScreenBuffer::new_custom(screen_width, screen_height);
+
+            TabBar::draw(
+                y,
+                bounds.x1,
+                bounds.x2,
+                &fg,
+                &bg,
+                &title_fg,
+                &title_bg,
+                &tab_labels,
+                &tab_close_buttons,
+                1,
+                0,
+                None,
+                &mut buffer,
+            );
+
+            let rendered_close_cells = (bounds.x1..=bounds.x2)
+                .filter(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+                .collect::<Vec<_>>();
+            assert!(
+                !rendered_close_cells.is_empty(),
+                "fractional far-origin panel {}x{} should render close glyphs in {:?}",
+                screen_width,
+                screen_height,
+                bounds
+            );
+
+            for x in 0..screen_width {
+                let close_target = TabBar::calculate_tab_close_click(
+                    x,
+                    bounds.x1,
+                    bounds.x2,
+                    &tab_labels,
+                    &tab_close_buttons,
+                    0,
+                    &fg,
+                    &bg,
+                );
+                let renders_close = buffer.get(x, y).is_some_and(|cell| cell.ch == '×');
+                assert_eq!(
+                    close_target.is_some(),
+                    renders_close,
+                    "close hit target/render mismatch at x={} for fractional far-origin panel {:?} on {}x{}",
+                    x,
+                    bounds,
+                    screen_width,
+                    screen_height
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrolled_rendered_close_glyph_is_click_target() {
+        let mut buffer = ScreenBuffer::new();
+        let tab_labels = vec![
+            "One".to_string(),
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+        ];
+        let tab_close_buttons = vec![true, true, true, true];
+        let y = 5;
+
+        TabBar::draw(
+            y,
+            0,
+            50,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            1,
+            1,
+            None,
+            &mut buffer,
+        );
+
+        let close_positions: Vec<usize> = (0..buffer.width)
+            .filter(|x| buffer.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .collect();
+
+        assert!(
+            close_positions.len() >= 2,
+            "scrolled tab bar should render close glyphs for visible closeable tabs"
+        );
+        assert_eq!(
+            TabBar::calculate_tab_navigation_click(
+                2,
+                0,
+                50,
+                &tab_labels,
+                1,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(TabNavigationAction::ScrollLeft),
+            "85 percent overflow threshold must match the renderer and expose the left scroll target"
+        );
+        assert_eq!(
+            TabBar::calculate_tab_close_click(
+                close_positions[0],
+                0,
+                50,
+                &tab_labels,
+                &tab_close_buttons,
+                1,
+                &Some("white".to_string()),
+                &Some("black".to_string()),
+            ),
+            Some(1),
+            "first rendered close glyph after scroll offset 1 belongs to tab index 1"
+        );
+    }
+
+    #[test]
+    fn test_close_button_hover_changes_rendered_cell_style() {
+        let tab_labels = vec!["Closable".to_string(), "Pinned".to_string()];
+        let tab_close_buttons = vec![true, false];
+        let y = 5;
+
+        let mut normal = ScreenBuffer::new();
+        TabBar::draw(
+            y,
+            0,
+            50,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            0,
+            0,
+            None,
+            &mut normal,
+        );
+        let close_x = (0..normal.width)
+            .find(|x| normal.get(*x, y).is_some_and(|cell| cell.ch == '×'))
+            .expect("normal render should contain close glyph");
+
+        let mut hovered = ScreenBuffer::new();
+        TabBar::draw(
+            y,
+            0,
+            50,
+            &Some("white".to_string()),
+            &Some("black".to_string()),
+            &Some("cyan".to_string()),
+            &Some("blue".to_string()),
+            &tab_labels,
+            &tab_close_buttons,
+            0,
+            0,
+            Some(&crate::components::TabHoverTarget::CloseButton(0)),
+            &mut hovered,
+        );
+
+        let normal_cell = normal.get(close_x, y).expect("normal close cell");
+        let hovered_cell = hovered.get(close_x, y).expect("hovered close cell");
+        assert!(
+            normal_cell.ch != hovered_cell.ch
+                || (normal_cell.fg_color.as_str(), normal_cell.bg_color.as_str())
+                    != (
+                        hovered_cell.fg_color.as_str(),
+                        hovered_cell.bg_color.as_str()
+                    ),
+            "hovering a close button must visibly change its rendered cell style"
+        );
+    }
+
+    #[test]
     fn test_empty_tabs_handling() {
         let tab_labels: Vec<String> = vec![];
         let tab_close_buttons: Vec<bool> = vec![];
@@ -357,6 +997,7 @@ mod tests {
             &tab_close_buttons,
             2, // Active tab index
             1, // Scroll offset
+            None,
             &mut buffer,
         );
 

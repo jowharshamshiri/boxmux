@@ -357,6 +357,7 @@ pub fn draw_horizontal_line_with_tabs(
     tab_close_buttons: &[bool], // F0219: Close button info for each tab
     active_tab_index: usize,
     tab_scroll_offset: usize,
+    hovered_tab_target: Option<&crate::components::TabHoverTarget>,
     buffer: &mut ScreenBuffer,
 ) {
     let _width = x2.saturating_sub(x1);
@@ -375,6 +376,7 @@ pub fn draw_horizontal_line_with_tabs(
             tab_close_buttons,
             active_tab_index,
             tab_scroll_offset,
+            hovered_tab_target,
             buffer,
         );
     } else {
@@ -459,8 +461,52 @@ pub fn calculate_tab_close_click(
     )
 }
 
+pub fn calculate_tab_hover_target(
+    hover_x: usize,
+    x1: usize,
+    x2: usize,
+    tab_labels: &[String],
+    tab_close_buttons: &[bool],
+    tab_scroll_offset: usize,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
+) -> Option<crate::components::TabHoverTarget> {
+    crate::components::TabBar::calculate_tab_hover_target(
+        hover_x,
+        x1,
+        x2,
+        tab_labels,
+        tab_close_buttons,
+        tab_scroll_offset,
+        fg_color,
+        bg_color,
+    )
+}
+
+pub fn calculate_tab_hit_target(
+    x: usize,
+    x1: usize,
+    x2: usize,
+    tab_labels: &[String],
+    tab_close_buttons: &[bool],
+    tab_scroll_offset: usize,
+    fg_color: &Option<String>,
+    bg_color: &Option<String>,
+) -> Option<crate::components::TabHitTarget> {
+    crate::components::TabBar::calculate_tab_hit_target(
+        x,
+        x1,
+        x2,
+        tab_labels,
+        tab_close_buttons,
+        tab_scroll_offset,
+        fg_color,
+        bg_color,
+    )
+}
+
 // TabNavigationAction moved to components::tab_bar module
-pub use crate::components::TabNavigationAction;
+pub use crate::components::{TabHitTarget, TabHoverTarget, TabNavigationAction};
 
 // render_muxbox function removed - replaced by BoxRenderer component
 // All box rendering logic is now encapsulated in src/components/box_renderer.rs
@@ -605,7 +651,7 @@ pub fn render_wrapped_content(
     buffer: &mut ScreenBuffer,
 ) {
     let component_dims = ComponentDimensions::new(*bounds);
-    let content_bounds = component_dims.content_bounds(); 
+    let content_bounds = component_dims.content_bounds();
     let viewable_height = content_bounds.height();
     let content_start_x = content_bounds.left() + 1;
     let content_start_y = content_bounds.top();

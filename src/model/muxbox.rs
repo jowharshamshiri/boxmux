@@ -29,7 +29,7 @@ pub fn stream_type_priority(stream_type: &crate::model::common::StreamType) -> u
 fn is_zero(n: &usize) -> bool {
     *n == 0
 }
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -38,7 +38,6 @@ use std::io::Write;
 
 use crate::{utils::*, AppContext, AppGraph};
 use uuid;
-
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -134,6 +133,8 @@ pub struct MuxBox {
     pub scroll_y: usize,
     #[serde(skip, default)]
     pub tab_scroll_offset: usize,
+    #[serde(skip, default)]
+    pub hovered_tab_target: Option<crate::components::TabHoverTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -238,6 +239,7 @@ impl Hash for MuxBox {
         self.parent_id.hash(state);
         self.parent_layout_id.hash(state);
         self.error_state.hash(state);
+        self.hovered_tab_target.hash(state);
         // Hash streams by collecting and hashing their keys and values
         for (key, stream) in &self.streams {
             key.hash(state);
@@ -328,6 +330,7 @@ impl Default for MuxBox {
             scroll_x: 0,
             scroll_y: 0,
             tab_scroll_offset: 0,
+            hovered_tab_target: None,
             parent_id: None,
             parent_layout_id: None,
             error_state: false,
@@ -413,6 +416,7 @@ impl PartialEq for MuxBox {
             && self.z_index == other.z_index
             && self.error_state == other.error_state
             && self.streams == other.streams
+            && self.hovered_tab_target == other.hovered_tab_target
     }
 }
 
@@ -481,6 +485,7 @@ impl Clone for MuxBox {
             scroll_x: self.scroll_x,
             scroll_y: self.scroll_y,
             tab_scroll_offset: self.tab_scroll_offset,
+            hovered_tab_target: self.hovered_tab_target.clone(),
             save_in_file: self.save_in_file.clone(),
             chart_type: self.chart_type.clone(),
             chart_data: self.chart_data.clone(),
@@ -509,10 +514,15 @@ impl MuxBox {
         input_bounds_to_bounds(&self.position, &screen_bounds())
     }
 
+    pub fn bounds_with_parent(&self, parent_bounds: &Bounds) -> Bounds {
+        input_bounds_to_bounds(&self.position, parent_bounds)
+    }
+
     pub fn absolute_bounds(&self, parent_bounds: Option<&Bounds>) -> Bounds {
-        let screen_bounds_value = screen_bounds();
-        let actual_parent_bounds = parent_bounds.unwrap_or(&screen_bounds_value);
-        input_bounds_to_bounds(&self.position, actual_parent_bounds)
+        match parent_bounds {
+            Some(actual_parent_bounds) => self.bounds_with_parent(actual_parent_bounds),
+            None => self.bounds(),
+        }
     }
 
     pub fn update_bounds_absolutely(&mut self, bounds: Bounds, parent_bounds: Option<&Bounds>) {
@@ -572,11 +582,7 @@ impl MuxBox {
             self.fg_color.as_ref()
         };
 
-        let default_color = if self.selected.unwrap_or(false) {
-            "bright_white"
-        } else {
-            "white"
-        };
+        let default_color = crate::color_utils::default_fg_color(self.selected.unwrap_or(false));
 
         crate::utils::inherit_string_transparent(
             self_color,
@@ -613,11 +619,7 @@ impl MuxBox {
             self.bg_color.as_ref()
         };
 
-        let default_color = if self.selected.unwrap_or(false) {
-            "bright_black"
-        } else {
-            "black"
-        };
+        let default_color = crate::color_utils::default_bg_color(self.selected.unwrap_or(false));
 
         crate::utils::inherit_string_transparent(
             self_color,
@@ -658,11 +660,8 @@ impl MuxBox {
             self.border_color.as_ref()
         };
 
-        let default_color = if self.selected.unwrap_or(false) {
-            "bright_white"
-        } else {
-            "white"
-        };
+        let default_color =
+            crate::color_utils::default_border_color(self.selected.unwrap_or(false));
 
         crate::utils::inherit_string_transparent(
             self_color,
@@ -703,11 +702,8 @@ impl MuxBox {
             self.title_bg_color.as_ref()
         };
 
-        let default_color = if self.selected.unwrap_or(false) {
-            "black"
-        } else {
-            "bright_black"
-        };
+        let default_color =
+            crate::color_utils::default_title_bg_color(self.selected.unwrap_or(false));
 
         crate::utils::inherit_string_transparent(
             self_color,
@@ -748,11 +744,8 @@ impl MuxBox {
             self.title_fg_color.as_ref()
         };
 
-        let default_color = if self.selected.unwrap_or(false) {
-            "bright_white"
-        } else {
-            "white"
-        };
+        let default_color =
+            crate::color_utils::default_title_fg_color(self.selected.unwrap_or(false));
 
         crate::utils::inherit_string_transparent(
             self_color,
@@ -794,7 +787,7 @@ impl MuxBox {
             self.menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("bright_white"),
+            Some(crate::color_utils::default_menu_fg_color()),
         )
     }
 
@@ -814,7 +807,7 @@ impl MuxBox {
             self.menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("black"),
+            Some(crate::color_utils::default_menu_bg_color()),
         )
     }
 
@@ -834,7 +827,7 @@ impl MuxBox {
             self.selected_menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("bright_white"),
+            Some(crate::color_utils::default_selected_menu_fg_color()),
         )
     }
 
@@ -854,7 +847,7 @@ impl MuxBox {
             self.selected_menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("red"),
+            Some(crate::color_utils::default_selected_menu_bg_color()),
         )
     }
 
@@ -874,7 +867,7 @@ impl MuxBox {
             self.highlighted_menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("cyan"),
+            Some(crate::color_utils::default_hover_fg_color()),
         )
     }
 
@@ -894,7 +887,7 @@ impl MuxBox {
             self.highlighted_menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some("dark_gray"),
+            Some(crate::color_utils::default_hover_bg_color()),
         )
     }
 
@@ -1927,7 +1920,8 @@ impl MuxBox {
                 )),
             );
             let content_stream_id = content_stream.id.clone();
-            self.streams.insert(content_stream_id.clone(), content_stream);
+            self.streams
+                .insert(content_stream_id.clone(), content_stream);
             // Set content stream as initially selected if no stream is selected yet
             if self.selected_stream_id.is_none() {
                 self.selected_stream_id = Some(content_stream_id);
@@ -2170,11 +2164,14 @@ impl MuxBox {
     pub fn update_stream_content(&mut self, stream_id: &str, content: Vec<String>) {
         if let Some(stream) = self.streams.get_mut(stream_id) {
             stream.content = content;
-            
+
             // AUTO_SCROLL_BOTTOM FIX: Apply auto-scroll after stream content update
             if self.auto_scroll_bottom == Some(true) {
                 self.vertical_scroll = Some(100.0);
-                log::debug!("Applied auto-scroll to bottom for muxbox {} after update_stream_content", self.id);
+                log::debug!(
+                    "Applied auto-scroll to bottom for muxbox {} after update_stream_content",
+                    self.id
+                );
             }
         }
     }
@@ -2439,7 +2436,6 @@ impl MuxBox {
         self.selected_choice_index()
     }
 }
-
 
 impl Updatable for MuxBox {
     fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {

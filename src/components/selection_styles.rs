@@ -1,6 +1,6 @@
 use crate::draw_utils::print_with_color_and_background_at;
-use crate::model::common::{Bounds, ScreenBuffer};
 use crate::model::choice::Choice;
+use crate::model::common::{Bounds, ScreenBuffer};
 
 /// Selection highlighting styles for choice menus
 #[derive(Debug, Clone, PartialEq)]
@@ -635,7 +635,7 @@ mod tests {
             id: "test_choice".to_string(),
             content: Some("Test Choice".to_string()),
             selected: true,
-			hovered: false,
+            hovered: false,
             waiting: false,
             script: None,
             execution_mode: crate::model::common::ExecutionMode::Immediate,
@@ -673,7 +673,7 @@ mod tests {
             id: "menu_item".to_string(),
             content: Some("Menu Item".to_string()),
             selected: true,
-			hovered: false,
+            hovered: false,
             waiting: false,
             script: None,
             execution_mode: crate::model::common::ExecutionMode::Immediate,
@@ -707,7 +707,7 @@ mod tests {
             id: "inverted".to_string(),
             content: Some("Inverted".to_string()),
             selected: true,
-			hovered: false,
+            hovered: false,
             waiting: false,
             script: None,
             execution_mode: crate::model::common::ExecutionMode::Immediate,
@@ -737,7 +737,7 @@ mod tests {
             id: "loading".to_string(),
             content: Some("Loading".to_string()),
             selected: false,
-			hovered: false,
+            hovered: false,
             waiting: true,
             script: None,
             execution_mode: crate::model::common::ExecutionMode::Immediate,
@@ -770,7 +770,7 @@ mod tests {
             id: "focused".to_string(),
             content: Some("Focused".to_string()),
             selected: true,
-			hovered: false,
+            hovered: false,
             waiting: false,
             script: None,
             execution_mode: crate::model::common::ExecutionMode::Immediate,

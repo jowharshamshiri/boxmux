@@ -4,10 +4,10 @@
 //! pagination, sorting, filtering, and styling. Extracts table rendering logic
 //! into a reusable component following the established component architecture.
 
+use crate::components::ComponentDimensions;
 use crate::model::common::Bounds;
 use crate::table::{render_table, TableConfig, TableData, TablePagination};
 use crossterm::style::Color;
-use crate::components::ComponentDimensions;
 
 /// Configuration for table component styling
 #[derive(Debug, Clone, PartialEq)]
