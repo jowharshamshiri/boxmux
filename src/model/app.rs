@@ -836,7 +836,10 @@ impl Updatable for AppContext {
                         self.config = new_config;
                     }
                 }
-                _ => log::warn!("Unknown field name for AppContext: {}", update.field_name),
+                // All other fields belong to the inner App and are applied below;
+                // do not warn here (that would fire for every legitimate app-level
+                // field update).
+                _ => {}
             }
         }
 

@@ -2222,7 +2222,7 @@ impl MuxBox {
 
     pub fn get_tab_labels(&self) -> Vec<String> {
         // F0218: Stream Tab Integration - generate tabs from streams
-        log::info!(
+        log::trace!(
             "TAB DEBUG: get_tab_labels() called for box {}, streams count: {}",
             self.id,
             self.streams.len()
@@ -2254,7 +2254,7 @@ impl MuxBox {
             labels.push(label);
         }
 
-        log::info!(
+        log::trace!(
             "TAB DEBUG: get_tab_labels() returning {} labels for box {}: {:?}",
             labels.len(),
             self.id,

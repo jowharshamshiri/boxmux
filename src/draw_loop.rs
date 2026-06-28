@@ -75,6 +75,26 @@ static HOVER_STATE: Mutex<HoverState> = Mutex::new(HoverState {
     hover_start_time: None,
 });
 
+/// Signature (hash of render-relevant app state + terminal size) of the last
+/// full render, used to skip rebuilding the screen buffer and recomputing
+/// sensitive zones when nothing observable has changed.
+static LAST_RENDER_SIGNATURE: Mutex<Option<u64>> = Mutex::new(None);
+/// When the last full render happened, for a periodic liveness backstop so any
+/// state not captured by the signature still appears within ~1s.
+static LAST_RENDER_AT: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+/// Compute the render signature: everything that affects the drawn frame.
+fn compute_render_signature(app_context: &AppContext) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    app_context.app.hash(&mut hasher);
+    // Terminal size affects layout even without an explicit resize message.
+    let screen = crate::utils::screen_bounds();
+    screen.x2.hash(&mut hasher);
+    screen.y2.hash(&mut hasher);
+    hasher.finish()
+}
+
 pub fn apply_calibration_cursor_overlay_at(
     layout: &crate::Layout,
     buffer: &mut ScreenBuffer,
@@ -376,11 +396,29 @@ create_runnable!(
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut app_context_unwrapped = app_context.clone();
-        let (adjusted_bounds, app_graph) = app_context_unwrapped
-            .app
-            .get_adjusted_bounds_and_app_graph(Some(true));
 
         let is_first_render = global_screen.is_none();
+
+        // Skip the (expensive) full rebuild + sensitive-zone recomputation when
+        // nothing observable has changed since the last render. Calibration mode
+        // tracks the live cursor cell, so it always renders. A ~1s periodic
+        // backstop guarantees liveness for any state the signature can't capture.
+        let signature = compute_render_signature(&app_context_unwrapped);
+        let now = std::time::Instant::now();
+        let mut last_signature = LAST_RENDER_SIGNATURE.lock().unwrap();
+        let mut last_render_at = LAST_RENDER_AT.lock().unwrap();
+        let periodic_due = last_render_at
+            .map(|t| now.duration_since(t) >= std::time::Duration::from_millis(1000))
+            .unwrap_or(true);
+        let must_render = is_first_render
+            || app_context_unwrapped.config.calibrate
+            || *last_signature != Some(signature)
+            || periodic_due;
+
+        if !must_render {
+            return true;
+        }
+
         if is_first_render {
             let mut stdout = stdout();
             enable_raw_mode().unwrap();
@@ -388,6 +426,10 @@ create_runnable!(
             *global_screen = Some(stdout);
             *global_buffer = Some(ScreenBuffer::new());
         }
+
+        let (adjusted_bounds, app_graph) = app_context_unwrapped
+            .app
+            .get_adjusted_bounds_and_app_graph(Some(true));
 
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
@@ -408,6 +450,9 @@ create_runnable!(
             }
             *buffer = new_buffer;
         }
+
+        *last_signature = Some(signature);
+        *last_render_at = Some(now);
 
         true
     },
@@ -4159,4 +4204,60 @@ fn trigger_muxbox_flash(_muxbox_id: &str) {
     // TODO: Implement visual flash with color inversion
     // This would require storing flash state and modifying muxbox rendering
     // For now, the redraw provides visual feedback
+}
+
+#[cfg(test)]
+mod render_gating_tests {
+    use super::compute_render_signature;
+    use crate::tests::test_utils::TestDataFactory;
+
+    /// The render loop only skips work when the signature is stable for identical
+    /// state; if this regresses to always-changing we lose the optimization, and
+    /// if it regresses to never-changing the UI would appear frozen.
+    #[test]
+    fn test_signature_is_stable_for_identical_state() {
+        let ctx = TestDataFactory::create_test_app_context();
+        assert_eq!(
+            compute_render_signature(&ctx),
+            compute_render_signature(&ctx),
+            "identical app state must produce an identical render signature"
+        );
+    }
+
+    #[test]
+    fn test_signature_changes_on_content_scroll_and_selection() {
+        let base = {
+            let ctx = TestDataFactory::create_test_app_context();
+            compute_render_signature(&ctx)
+        };
+
+        // Content change.
+        let mut ctx = TestDataFactory::create_test_app_context();
+        ctx.app.layouts[0].children.as_mut().unwrap()[0].content =
+            Some("brand new content".to_string());
+        assert_ne!(
+            base,
+            compute_render_signature(&ctx),
+            "a content change must change the render signature"
+        );
+
+        // Scroll change.
+        let mut ctx = TestDataFactory::create_test_app_context();
+        ctx.app.layouts[0].children.as_mut().unwrap()[0].vertical_scroll = Some(50.0);
+        assert_ne!(
+            base,
+            compute_render_signature(&ctx),
+            "a scroll change must change the render signature"
+        );
+
+        // Selection change.
+        let mut ctx = TestDataFactory::create_test_app_context();
+        ctx.app.layouts[0].children.as_mut().unwrap()[0].title =
+            Some("retitled".to_string());
+        assert_ne!(
+            base,
+            compute_render_signature(&ctx),
+            "a title change must change the render signature"
+        );
+    }
 }

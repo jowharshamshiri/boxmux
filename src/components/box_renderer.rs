@@ -719,7 +719,7 @@ impl<'a> BoxRenderer<'a> {
                     let (content_width, content_height) = choice_menu.get_dimensions();
                     let dims = BoxDimensions::new(self.muxbox, &bounds, content_width, content_height);
 
-                    log::info!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}",
+                    log::trace!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}",
                              self.muxbox.id, choices.len(), (content_width, content_height));
 
                     scrollbars_drawn = self.render_choices_with_hover_states(
@@ -796,7 +796,7 @@ impl<'a> BoxRenderer<'a> {
                             .with_selection(self.muxbox.selected_choice_index())
                             .with_focus(self.muxbox.focused_choice_index());
 
-                    log::info!(
+                    log::trace!(
                         "CHOICE RENDER: Secondary ChoiceMenu created for content only, muxbox '{}'",
                         self.muxbox.id
                     );
@@ -1283,7 +1283,7 @@ impl<'a> BoxRenderer<'a> {
         let (visible_left, visible_top, visible_right, visible_bottom) =
             dimensions.get_visible_inbox_region();
 
-        log::info!(
+        log::trace!(
             "TRANSLATE ZONES: content={}x{}, viewable={}x{}, scroll={}%x{}%, visible_region=({},{} to {},{})",
             content_width,
             content_height,
@@ -1321,7 +1321,7 @@ impl<'a> BoxRenderer<'a> {
 
             let translated_bounds = Bounds::new(absolute_x1, absolute_y1, absolute_x2, absolute_y2);
 
-            log::info!(
+            log::trace!(
                 "TRANSLATE ZONE: '{}' inbox=({},{} to {},{}) -> screen=({},{} to {},{})",
                 zone.content_id,
                 zone.bounds.x1,
@@ -1346,7 +1346,7 @@ impl<'a> BoxRenderer<'a> {
     /// CRITICAL FIX: Now stores zones in screen coordinates after proper translation
     pub fn store_translated_sensitive_zones(&mut self, zones: Vec<SensitiveZone>) {
         self.sensitive_zones = zones;
-        log::info!(
+        log::trace!(
             "STORE ZONES: Stored {} screen-coordinate sensitive zones for muxbox '{}'",
             self.sensitive_zones.len(),
             self.muxbox.id
