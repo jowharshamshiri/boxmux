@@ -659,6 +659,17 @@ create_runnable!(
         if let (Some(ref mut screen), Some(ref mut buffer)) =
             (&mut *global_screen, &mut *global_buffer)
         {
+            // Re-assert the terminal modes boxmux relies on every render. A child
+            // process (or anything else) can reset raw mode / mouse tracking on the
+            // tty; without this, that leaves the terminal echoing raw mouse escape
+            // codes to the screen. `ensure_raw_mode` inspects the real OS terminal
+            // state and re-applies raw mode when it has been reset (crossterm's own
+            // enable_raw_mode is a no-op after an external reset). EnableMouseCapture
+            // re-enables mouse tracking. Both are no-ops/emit nothing when already
+            // set, so the UI self-heals within a frame (the ~1s backstop covers idle).
+            crate::utils::ensure_raw_mode();
+            let _ = screen.execute(crossterm::event::EnableMouseCapture);
+
             let mut new_buffer = ScreenBuffer::new();
             draw_app(
                 &app_context_unwrapped,

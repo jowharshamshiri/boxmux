@@ -29,6 +29,52 @@ pub fn screen_bounds() -> Bounds {
     }
 }
 
+/// Build a Command for running a user script that is fully detached from
+/// boxmux's terminal: stdin is null and the child runs in its own session
+/// (`setsid`) so it has NO controlling terminal and therefore cannot reset
+/// boxmux's raw mode / mouse tracking — not via stdin and not via /dev/tty.
+/// Callers add `.arg(...)` and capture stdout/stderr with `.output()`.
+pub fn detached_command(program: &str) -> Command {
+    use std::os::unix::process::CommandExt;
+    let mut cmd = Command::new(program);
+    cmd.stdin(std::process::Stdio::null());
+    // SAFETY: setsid() is async-signal-safe and only detaches the freshly forked
+    // child from the controlling terminal. Failure (e.g. already a group leader)
+    // is harmless — stdin is null regardless.
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    cmd
+}
+
+/// Force the controlling terminal back into raw mode if it has been reset to
+/// cooked mode by a child process (e.g. something that ran `stty`/`reset` or set
+/// terminal attributes via /dev/tty). crossterm's `enable_raw_mode()` is a no-op
+/// once it believes raw mode is on, so it cannot recover from an external reset;
+/// this inspects the ACTUAL OS terminal attributes and re-applies raw directly
+/// (matching crossterm, which also uses `cfmakeraw`). It leaves crossterm's saved
+/// original mode untouched, so terminal restoration on exit still works.
+///
+/// No-op when stdin is not a terminal or is already raw, so it is safe to call
+/// every frame.
+pub fn ensure_raw_mode() {
+    unsafe {
+        let mut termios: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(libc::STDIN_FILENO, &mut termios) != 0 {
+            return; // not a terminal (e.g. redirected) — nothing to enforce
+        }
+        // Cooked mode is indicated by canonical input or local echo being on.
+        let is_cooked = (termios.c_lflag & (libc::ICANON | libc::ECHO)) != 0;
+        if is_cooked {
+            libc::cfmakeraw(&mut termios);
+            let _ = libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &termios);
+        }
+    }
+}
+
 pub fn input_bounds_to_bounds(input_bounds: &InputBounds, parent_bounds: &Bounds) -> Bounds {
     let bx1 = parse_percentage(&input_bounds.x1, parent_bounds.width());
     let by1 = parse_percentage(&input_bounds.y1, parent_bounds.height());
@@ -605,7 +651,12 @@ fn run_script_regular(libs_paths: Option<Vec<String>>, script: &Vec<String>) -> 
     }
 
     // Execute the script and capture stdout and stderr
-    let output = Command::new("bash").arg("-c").arg(script_content).output(); // Captures both stdout and stderr
+    // Detach the child from the real terminal so it can't reset boxmux's raw
+    // mode / mouse tracking via stdin or /dev/tty; stdout+stderr are captured.
+    let output = detached_command("bash")
+        .arg("-c")
+        .arg(script_content)
+        .output();
 
     match output {
         Ok(output) => {
@@ -758,6 +809,24 @@ mod tests {
     use crate::model::muxbox::MuxBox;
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
     use std::collections::HashMap;
+
+    /// run_script must detach the child from the terminal: a command that reads
+    /// stdin sees immediate EOF (empty), so it can never read the terminal or run
+    /// tty-resetting tools against it. If stdin were inherited from a real
+    /// terminal this `cat` would block forever instead of returning empty.
+    #[test]
+    fn test_run_script_detaches_child_stdin_from_terminal() {
+        let copied = run_script(None, &vec!["cat".to_string()]).expect("cat should run");
+        assert_eq!(copied.trim(), "", "child stdin must be empty (detached), not the terminal");
+        // Normal captured output still works.
+        let echoed = run_script(None, &vec!["echo hello".to_string()]).expect("echo should run");
+        assert_eq!(echoed.trim(), "hello");
+        // A command that explicitly checks for a controlling terminal on stdin
+        // must report there is none.
+        let tty = run_script(None, &vec!["test -t 0 && echo TTY || echo NOTTY".to_string()])
+            .expect("tty check should run");
+        assert_eq!(tty.trim(), "NOTTY", "child stdin must not be a terminal");
+    }
 
     // Helper function to create test bounds
     fn create_test_bounds(x1: usize, y1: usize, x2: usize, y2: usize) -> Bounds {

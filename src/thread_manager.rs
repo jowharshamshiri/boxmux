@@ -588,12 +588,13 @@ impl RunnableImpl {
     }
 
     fn execute_immediate_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        use std::process::Command;
 
         // Run the script synchronously
-        let output = Command::new("sh")
+        let output = crate::utils::detached_command("sh")
             .arg("-c")
             .arg(execute_script.script.join(" "))
+            // Detached from the terminal (own session, null stdin) so it can never
+            // reset boxmux's raw mode / mouse tracking; stdout/stderr are captured.
             .output();
 
         let content = match output {
@@ -651,7 +652,6 @@ impl RunnableImpl {
     }
 
     fn execute_threaded_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        use std::process::Command;
         use std::thread;
 
         log::info!("T0315: Thread execution - spawning background thread for script");
@@ -697,7 +697,10 @@ impl RunnableImpl {
             let thread_id = format!("{:?}", thread::current().id());
 
             // Execute the script
-            let output = Command::new("sh").arg("-c").arg(script.join(" ")).output();
+            let output = crate::utils::detached_command("sh")
+                .arg("-c")
+                .arg(script.join(" "))
+                .output();
 
             let (content, exit_code, status) = match output {
                 Ok(output) => {
@@ -1016,12 +1019,13 @@ impl ThreadManager {
     }
 
     fn execute_immediate_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        use std::process::Command;
 
         // Run the script synchronously
-        let output = Command::new("sh")
+        let output = crate::utils::detached_command("sh")
             .arg("-c")
             .arg(execute_script.script.join(" "))
+            // Detached from the terminal (own session, null stdin) so it can never
+            // reset boxmux's raw mode / mouse tracking; stdout/stderr are captured.
             .output();
 
         let content = match output {
