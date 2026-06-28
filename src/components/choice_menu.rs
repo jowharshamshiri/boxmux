@@ -68,14 +68,19 @@ impl<'a> ChoiceMenu<'a> {
             if let Some(choice_content) = &choice.content {
                 // Get the actual formatted line for this choice (with indicators)
                 let formatted_line = &content_lines[index];
+                let line_chars = formatted_line.chars().count();
 
-                if available_width == usize::MAX || formatted_line.len() <= available_width {
-                    // Single line case - no wrapping needed
+                if available_width == usize::MAX || line_chars <= available_width {
+                    // Single line case - no wrapping needed. The y coordinate is the
+                    // choice index, exactly matching the row the renderer draws this
+                    // choice on, and the width is measured in display characters so it
+                    // lines up with the rendered glyphs (the indicator prefix and any
+                    // multi-byte characters count as one cell each).
                     let zone_bounds = Bounds::new(
-                        0,                                      // Start at x=0 (left edge of content area)
-                        current_line, // y position based on actual rendered line
-                        formatted_line.len().saturating_sub(1), // End x coordinate based on formatted content
-                        current_line,                           // Single line height, so y2 == y1
+                        0,                          // left edge of content area
+                        index,                      // row == choice index
+                        line_chars.saturating_sub(1), // last drawn character
+                        index,                      // single line height
                     );
 
                     let metadata = SensitiveMetadata {
@@ -84,7 +89,7 @@ impl<'a> ChoiceMenu<'a> {
                         selected: choice.selected,
                         enabled: !choice.waiting,
                         original_line: Some(index),
-                        char_range: Some((0, formatted_line.len())),
+                        char_range: Some((0, line_chars)),
                     };
 
                     zones.push(SensitiveZone::with_metadata(
@@ -94,7 +99,7 @@ impl<'a> ChoiceMenu<'a> {
                         metadata,
                     ));
 
-                    current_line += 1;
+                    current_line = index + 1;
                 } else {
                     // Multi-line case - choice wraps across multiple lines
                     let mut remaining_text = formatted_line.clone();
@@ -240,7 +245,11 @@ impl<'a> RenderableContent for ChoiceMenu<'a> {
         let content = self.generate_choice_content();
         let lines: Vec<&str> = content.lines().collect();
         let height = lines.len();
-        let width = lines.iter().map(|line| line.len()).max().unwrap_or(0);
+        let width = lines
+            .iter()
+            .map(|line| line.chars().count())
+            .max()
+            .unwrap_or(0);
         (width, height)
     }
 }

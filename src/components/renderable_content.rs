@@ -653,9 +653,10 @@ impl SensitiveZone {
         }
     }
 
-    /// Check if a point is within this sensitive zone
+    /// Check if a point is within this sensitive zone (inclusive of edges, matching
+    /// the hit-testing convention used everywhere else).
     pub fn contains(&self, x: usize, y: usize) -> bool {
-        self.bounds.contains(x, y)
+        self.bounds.contains_point(x, y)
     }
 
     /// Get the display text for this zone

@@ -2226,11 +2226,11 @@ create_runnable!(
                                                     content_height,
                                                 );
 
-                                                // Generate sensitive zones using formalized system with wrapping support
-                                                let box_relative_zones = choice_menu
-                                                    .get_box_relative_sensitive_zones_with_width(
-                                                        dimensions.viewable_width,
-                                                    );
+                                                // Generate sensitive zones (one row per choice), matching
+                                                // exactly what the renderer draws; viewable clamping happens
+                                                // during translation through the shared coordinate mapping.
+                                                let box_relative_zones =
+                                                    choice_menu.get_box_relative_sensitive_zones();
                                                 let translated_zones = box_renderer
                                                     .translate_box_relative_zones_to_absolute(
                                                         &box_relative_zones,
@@ -2622,11 +2622,11 @@ create_runnable!(
                                                 content_height,
                                             );
 
-                                            // Generate sensitive zones using formalized system (same as click handling)
-                                            let box_relative_zones = choice_menu
-                                                .get_box_relative_sensitive_zones_with_width(
-                                                    dimensions.viewable_width,
-                                                );
+                                            // Generate sensitive zones (one row per choice), matching exactly
+                                            // what the renderer draws; viewable clamping happens during
+                                            // translation through the shared coordinate mapping.
+                                            let box_relative_zones =
+                                                choice_menu.get_box_relative_sensitive_zones();
                                             let translated_zones = box_renderer
                                                 .translate_box_relative_zones_to_absolute(
                                                     &box_relative_zones,

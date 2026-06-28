@@ -3,7 +3,22 @@ use crate::{App, Layout, MuxBox};
 use jsonschema::JSONSchema;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
-use std::fs;
+
+/// App JSON schema, embedded at compile time so validation works regardless of
+/// the current working directory or where the binary is installed.
+const APP_SCHEMA: &str = include_str!("../schemas/app_schema.json");
+
+/// Embedded schema parsed once.
+static APP_SCHEMA_VALUE: once_cell::sync::Lazy<Value> = once_cell::sync::Lazy::new(|| {
+    serde_json::from_str(APP_SCHEMA).expect("embedded app schema must be valid JSON")
+});
+
+/// Embedded schema compiled once. Recompiling this 30KB schema on every config
+/// load is expensive (regex compilation), so it is built a single time and shared.
+static APP_SCHEMA_COMPILED: once_cell::sync::Lazy<JSONSchema> =
+    once_cell::sync::Lazy::new(|| {
+        JSONSchema::compile(&APP_SCHEMA_VALUE).expect("embedded app schema must compile")
+    });
 
 /// Configuration schema validation errors
 #[derive(Debug, Clone)]
@@ -260,12 +275,11 @@ impl SchemaValidator {
         }
     }
 
-    /// Validate YAML content against JSON schema
-    pub fn validate_with_json_schema(
-        &mut self,
-        yaml_content: &str,
-        schema_dir: &str,
-    ) -> ValidationResult {
+    /// Validate YAML content against the app JSON schema embedded in the binary.
+    ///
+    /// The schema is compiled in via `include_str!`, so validation never depends
+    /// on the current working directory or where the binary is installed.
+    pub fn validate_app_yaml(&mut self, yaml_content: &str) -> ValidationResult {
         self.clear();
 
         // Parse YAML content to JSON
@@ -279,9 +293,20 @@ impl SchemaValidator {
             }
         };
 
-        // Load and validate against app schema
-        let app_schema_path = format!("{}/app_schema.json", schema_dir);
-        self.validate_against_schema_file(&yaml_value, &app_schema_path, "app")?;
+        // Validate against the pre-compiled embedded schema (compiled once).
+        if let Err(errors) = APP_SCHEMA_COMPILED.validate(&yaml_value) {
+            for error in errors {
+                let error_path = if error.instance_path.to_string().is_empty() {
+                    "app".to_string()
+                } else {
+                    format!("app.{}", error.instance_path)
+                };
+                self.add_error(ValidationError::JsonSchemaValidation {
+                    field: error_path,
+                    message: error.to_string(),
+                });
+            }
+        }
 
         if self.errors.is_empty() {
             Ok(())
@@ -290,30 +315,20 @@ impl SchemaValidator {
         }
     }
 
-    /// Validate a JSON value against a specific schema file
-    fn validate_against_schema_file(
+    /// Validate a JSON value against schema source text.
+    fn validate_against_schema_content(
         &mut self,
         value: &Value,
-        schema_path: &str,
+        schema_content: &str,
+        schema_label: &str,
         field_name: &str,
     ) -> ValidationResult {
-        // Load schema file
-        let schema_content = match fs::read_to_string(schema_path) {
-            Ok(content) => content,
-            Err(e) => {
-                self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Failed to load schema file '{}': {}", schema_path, e),
-                });
-                return Err(self.errors.clone());
-            }
-        };
-
         // Parse schema
-        let schema_json: Value = match serde_json::from_str(&schema_content) {
+        let schema_json: Value = match serde_json::from_str(schema_content) {
             Ok(schema) => schema,
             Err(e) => {
                 self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Invalid JSON schema in '{}': {}", schema_path, e),
+                    message: format!("Invalid JSON schema in '{}': {}", schema_label, e),
                 });
                 return Err(self.errors.clone());
             }
@@ -324,7 +339,7 @@ impl SchemaValidator {
             Ok(schema) => schema,
             Err(e) => {
                 self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Failed to compile schema '{}': {}", schema_path, e),
+                    message: format!("Failed to compile schema '{}': {}", schema_label, e),
                 });
                 return Err(self.errors.clone());
             }
@@ -828,7 +843,7 @@ app:
           tab_order: 1
 "#;
 
-        let result = validator.validate_with_json_schema(yaml_content, "schemas");
+        let result = validator.validate_app_yaml(yaml_content);
 
         // This should pass if schema files exist and are valid
         match result {
@@ -865,7 +880,7 @@ app:
           border_color: 'invalid_color'  # Invalid color
 "#;
 
-        let result = validator.validate_with_json_schema(invalid_yaml, "schemas");
+        let result = validator.validate_app_yaml(invalid_yaml);
 
         match result {
             Ok(_) => {
@@ -905,7 +920,7 @@ app:
           border_color: 123  # Wrong type - should be string
 "#;
 
-        let result = validator.validate_with_json_schema(malformed_yaml, "schemas");
+        let result = validator.validate_app_yaml(malformed_yaml);
 
         match result {
             Ok(_) => {
@@ -945,20 +960,48 @@ app:
     }
 
     #[test]
-    fn test_validate_against_schema_file_missing_file() {
+    fn test_validate_against_schema_content_rejects_malformed_schema() {
         let mut validator = SchemaValidator::new();
         let test_value = serde_json::json!({
             "test": "value"
         });
 
-        let result =
-            validator.validate_against_schema_file(&test_value, "nonexistent/schema.json", "test");
+        let result = validator.validate_against_schema_content(
+            &test_value,
+            "{ this is not valid json",
+            "broken schema",
+            "test",
+        );
 
         assert!(result.is_err());
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
         assert!(matches!(errors[0], ValidationError::SchemaStructure { .. }));
-        assert!(errors[0].to_string().contains("Failed to load schema file"));
+        assert!(errors[0].to_string().contains("Invalid JSON schema"));
+    }
+
+    #[test]
+    fn test_embedded_app_schema_compiles_and_validates() {
+        // The embedded schema must be valid JSON Schema so production validation
+        // never fails for schema-loading reasons regardless of working directory.
+        let mut validator = SchemaValidator::new();
+        let minimal_app = r#"
+app:
+  layouts:
+    - id: 'main'
+      root: true
+      children:
+        - id: 'box1'
+          position:
+            x1: '0%'
+            y1: '0%'
+            x2: '100%'
+            y2: '100%'
+"#;
+        assert!(
+            validator.validate_app_yaml(minimal_app).is_ok(),
+            "embedded schema must accept a minimal valid app"
+        );
     }
 
     #[test]

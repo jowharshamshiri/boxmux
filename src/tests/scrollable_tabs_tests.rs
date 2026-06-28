@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use crate::components::TabBar;
     use crate::draw_utils::{
         calculate_tab_click_index, calculate_tab_navigation_click, TabNavigationAction,
     };
+    use crate::model::common::ScreenBuffer;
     use crate::model::muxbox::MuxBox;
     use crate::tests::test_utils::TestDataFactory;
     use indexmap::IndexMap;
@@ -113,116 +115,137 @@ mod tests {
         );
     }
 
+    /// Render a tab bar (no close buttons, matching the empty-close-button slice
+    /// the click/navigation helpers compute against) and return the tab row.
+    fn render_tab_row(
+        x1: usize,
+        x2: usize,
+        tab_labels: &[String],
+        scroll_offset: usize,
+        fg: &Option<String>,
+        bg: &Option<String>,
+    ) -> ScreenBuffer {
+        let close_buttons = vec![false; tab_labels.len()];
+        let mut buffer = ScreenBuffer::new_custom(x2 + 1, 1);
+        TabBar::draw(
+            0,
+            x1,
+            x2,
+            fg,
+            bg,
+            fg,
+            bg,
+            tab_labels,
+            &close_buttons,
+            0,
+            scroll_offset,
+            None,
+            &mut buffer,
+        );
+        buffer
+    }
+
     #[test]
     fn test_tab_click_with_scrolling() {
-        let tab_labels = vec![
-            "Tab1".to_string(),
-            "Tab2".to_string(),
-            "Tab3".to_string(),
-            "Tab4".to_string(),
-            "Tab5".to_string(),
-            "Tab6".to_string(),
-        ];
+        let tab_labels: Vec<String> = (1..=6).map(|i| format!("Tab{}", i)).collect();
+        let x1 = 0usize;
+        let x2 = 50usize;
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
 
-        // Test clicking with scroll offset 0 - click near center where tabs should be
-        // With centering, tabs will be positioned differently, so click more centrally
-        let clicked_tab = calculate_tab_click_index(
-            25,
-            0,
-            50,
-            &tab_labels,
-            0,
-            &Some("white".to_string()),
-            &Some("black".to_string()),
-        );
-        assert!(
-            clicked_tab.is_some(),
-            "Should be able to click centered tabs with no scrolling"
-        );
+        for scroll_offset in [0usize, 2usize] {
+            // Every cell that the click helper resolves to a tab must map to a tab
+            // that is actually visible at this scroll offset: tabs scrolled off the
+            // left edge (index < scroll_offset) must never be clickable, and the
+            // visible ones must be reachable.
+            let clickable: Vec<usize> = (x1..=x2)
+                .filter_map(|x| {
+                    calculate_tab_click_index(x, x1, x2, &tab_labels, scroll_offset, &fg, &bg)
+                })
+                .collect();
 
-        // Test clicking with scroll offset 2 - tabs should fill available space when scrolling
-        let clicked_tab = calculate_tab_click_index(
-            25,
-            0,
-            50,
-            &tab_labels,
-            2,
-            &Some("white".to_string()),
-            &Some("black".to_string()),
-        );
-        assert!(
-            clicked_tab.is_some(),
-            "Should be able to click tabs with scrolling"
-        );
-
-        if let Some(tab_index) = clicked_tab {
             assert!(
-                tab_index >= 2,
-                "Should click tabs accounting for scroll offset"
+                !clickable.is_empty(),
+                "tabs must remain clickable at scroll offset {}",
+                scroll_offset
+            );
+            assert!(
+                clickable
+                    .iter()
+                    .all(|&i| i >= scroll_offset && i < tab_labels.len()),
+                "clickable tab indices {:?} must all be visible at scroll offset {}",
+                clickable,
+                scroll_offset
+            );
+            assert!(
+                clickable.contains(&scroll_offset),
+                "the first visible tab (index {}) must be clickable",
+                scroll_offset
             );
         }
     }
 
     #[test]
     fn test_navigation_arrow_detection() {
-        let tab_labels = vec![
-            "Tab1".to_string(),
-            "Tab2".to_string(),
-            "Tab3".to_string(),
-            "Tab4".to_string(),
-            "Tab5".to_string(),
-            "Tab6".to_string(),
-            "Tab7".to_string(),
-            "Tab8".to_string(),
-            "Tab9".to_string(),
-            "Tab10".to_string(),
-        ];
+        let tab_labels: Vec<String> = (1..=10).map(|i| format!("Tab{}", i)).collect();
+        let x1 = 0usize;
+        let x2 = 60usize;
+        let fg = Some("white".to_string());
+        let bg = Some("black".to_string());
+        // Offset 1: tabs are hidden on both sides, so both arrows render.
+        let scroll_offset = 1usize;
 
-        // Should detect left arrow when scroll offset > 0
-        let nav_action = calculate_tab_navigation_click(
-            3,
-            0,
-            60,
-            &tab_labels,
-            2,
-            &Some("white".to_string()),
-            &Some("black".to_string()),
-        );
-        assert!(
-            matches!(nav_action, Some(TabNavigationAction::ScrollLeft)),
-            "Should detect left arrow click with scroll offset > 0"
-        );
+        let buffer = render_tab_row(x1, x2, &tab_labels, scroll_offset, &fg, &bg);
+        let left_arrow_x = (0..buffer.width)
+            .find(|x| buffer.get(*x, 0).is_some_and(|c| c.ch == '◀'))
+            .expect("left arrow must render when scrolled right of the start");
+        let right_arrow_x = (0..buffer.width)
+            .find(|x| buffer.get(*x, 0).is_some_and(|c| c.ch == '▶'))
+            .expect("right arrow must render while tabs remain hidden on the right");
 
-        // Should detect right arrow when more tabs are hidden
-        let nav_action = calculate_tab_navigation_click(
-            57,
-            0,
-            60,
-            &tab_labels,
-            0,
-            &Some("white".to_string()),
-            &Some("black".to_string()),
+        // Clicking the exact rendered arrow glyph triggers the matching scroll.
+        assert_eq!(
+            calculate_tab_navigation_click(left_arrow_x, x1, x2, &tab_labels, scroll_offset, &fg, &bg),
+            Some(TabNavigationAction::ScrollLeft),
+            "clicking the rendered left arrow glyph must scroll left"
         );
-        assert!(
-            matches!(nav_action, Some(TabNavigationAction::ScrollRight)),
-            "Should detect right arrow click when tabs are hidden on right"
+        assert_eq!(
+            calculate_tab_navigation_click(right_arrow_x, x1, x2, &tab_labels, scroll_offset, &fg, &bg),
+            Some(TabNavigationAction::ScrollRight),
+            "clicking the rendered right arrow glyph must scroll right"
         );
 
-        // Should return None when no scrolling needed
+        // Exact-cell mapping: the padding space beside an arrow is not the arrow,
+        // so it must not trigger navigation.
+        assert_ne!(
+            calculate_tab_navigation_click(
+                left_arrow_x + 1,
+                x1,
+                x2,
+                &tab_labels,
+                scroll_offset,
+                &fg,
+                &bg
+            ),
+            Some(TabNavigationAction::ScrollLeft),
+            "the padding cell beside the left arrow must not scroll left"
+        );
+
+        // No scrolling needed -> no arrows render and navigation never fires.
         let few_tabs = vec!["Tab1".to_string(), "Tab2".to_string()];
-        let nav_action = calculate_tab_navigation_click(
-            30,
-            0,
-            100,
-            &few_tabs,
-            0,
-            &Some("white".to_string()),
-            &Some("black".to_string()),
-        );
+        let wide_buffer = render_tab_row(0, 100, &few_tabs, 0, &fg, &bg);
         assert!(
-            nav_action.is_none(),
-            "Should return None when no scrolling needed"
+            (0..wide_buffer.width)
+                .all(|x| wide_buffer.get(x, 0).map(|c| c.ch != '◀' && c.ch != '▶').unwrap_or(true)),
+            "no navigation arrows should render when all tabs fit"
         );
+        for x in 0..=100usize {
+            assert!(
+                calculate_tab_navigation_click(x, 0, 100, &few_tabs, 0, &fg, &bg).is_none(),
+                "navigation must never fire when no scrolling is needed (x={})",
+                x
+            );
+        }
     }
 
     #[test]

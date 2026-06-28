@@ -339,8 +339,15 @@ mod tests {
         // Test app validation with invalid configurations
         let mut invalid_app = TestDataFactory::create_test_app();
 
-        // Add duplicate muxbox IDs
-        let duplicate_muxbox = TestDataFactory::create_test_muxbox("test_muxbox"); // Same ID as existing
+        // Add duplicate muxbox IDs. create_test_app() seeds the layout with a
+        // single muxbox whose id is "default_muxbox", so the duplicate must reuse
+        // that exact id to actually collide.
+        let existing_id = invalid_app.layouts[0].children.as_ref().unwrap()[0].id.clone();
+        assert_eq!(
+            existing_id, "default_muxbox",
+            "test relies on the seeded muxbox id; update if the factory changes"
+        );
+        let duplicate_muxbox = TestDataFactory::create_test_muxbox(&existing_id);
         invalid_app.layouts[0]
             .children
             .as_mut()

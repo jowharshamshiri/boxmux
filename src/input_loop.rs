@@ -11,6 +11,47 @@ use crate::thread_manager::*;
 
 use uuid::Uuid;
 
+/// Decide whether a mouse event at screen cell (`x`, `y`) belongs to the focused
+/// PTY box instead of the BoxMux UI.
+///
+/// A PTY box only captures mouse events that land strictly inside its content
+/// interior — i.e. within the border frame, which excludes the borders, the
+/// tab/title row (where tabs and close buttons live) and the scrollbar rows —
+/// AND only when it is the top-most box under the cursor. Everywhere else (other
+/// boxes, this box's own tab bar, empty space) the event stays with the BoxMux
+/// UI so clicking targets, tabs and close buttons keeps working while a PTY box
+/// is focused.
+///
+/// `root_bounds` is the coordinate space the layout is rendered in (the screen
+/// at runtime); taking it explicitly keeps this decision deterministic and
+/// testable instead of reading the live terminal size.
+pub fn pty_should_capture_mouse(
+    active_layout: &crate::model::layout::Layout,
+    focused: &crate::model::muxbox::MuxBox,
+    x: u16,
+    y: u16,
+    root_bounds: &crate::model::common::Bounds,
+) -> bool {
+    if !should_use_pty(focused) {
+        return false;
+    }
+
+    let bounds = focused.bounds_with_parent(root_bounds);
+    let (xi, yi) = (x as usize, y as usize);
+    let inside_content =
+        xi > bounds.x1 && xi < bounds.x2 && yi > bounds.y1 && yi < bounds.y2;
+    if !inside_content {
+        return false;
+    }
+
+    // Respect z-order: only capture when the focused PTY box is actually the
+    // top-most box at this cell (another box may overlap it).
+    active_layout
+        .find_muxbox_at_coordinates_with_bounds(x, y, root_bounds)
+        .map(|topmost| topmost.id == focused.id)
+        .unwrap_or(false)
+}
+
 /// Convert crossterm KeyEvent to appropriate PTY input string
 /// F0309: Enhanced input translation system with terminal mode awareness
 pub fn format_key_for_pty_with_modes(
@@ -769,6 +810,147 @@ mod tests {
             );
         }
     }
+
+    use crate::model::common::{Bounds, ExecutionMode, InputBounds};
+    use crate::model::muxbox::MuxBox;
+    use crate::tests::test_utils::TestDataFactory;
+
+    fn pty_routing_layout() -> (crate::model::layout::Layout, Bounds) {
+        // Root coordinate space of a 100x30 screen.
+        let root = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 99,
+            y2: 29,
+        };
+
+        let abs = |x1: &str, y1: &str, x2: &str, y2: &str| InputBounds {
+            x1: x1.to_string(),
+            y1: y1.to_string(),
+            x2: x2.to_string(),
+            y2: y2.to_string(),
+        };
+
+        let mut pty = TestDataFactory::create_test_muxbox("pty_box");
+        pty.position = abs("5", "5", "40", "20");
+        pty.execution_mode = ExecutionMode::Pty;
+        pty.z_index = Some(0);
+
+        let mut other = TestDataFactory::create_test_muxbox("other_box");
+        other.position = abs("50", "5", "90", "20");
+        other.execution_mode = ExecutionMode::default();
+
+        // Overlay box sitting on top of a corner of the PTY box with a higher
+        // z-index, used to exercise z-order exclusion.
+        let mut overlay = TestDataFactory::create_test_muxbox("overlay_box");
+        overlay.position = abs("30", "15", "40", "20");
+        overlay.execution_mode = ExecutionMode::default();
+        overlay.z_index = Some(10);
+
+        let layout = TestDataFactory::create_root_layout(
+            "pty_routing_layout",
+            Some(vec![pty, other, overlay]),
+        );
+        (layout, root)
+    }
+
+    fn focused<'a>(layout: &'a crate::model::layout::Layout, id: &str) -> &'a MuxBox {
+        layout
+            .children
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|b| b.id == id)
+            .unwrap()
+    }
+
+    #[test]
+    fn test_pty_captures_mouse_only_inside_its_content_interior() {
+        let (layout, root) = pty_routing_layout();
+        let pty = focused(&layout, "pty_box");
+        let bounds = pty.bounds_with_parent(&root);
+
+        // A point strictly inside the content interior is captured by the PTY...
+        assert!(
+            pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, (bounds.y1 + 2) as u16, &root),
+            "clicks inside the PTY content interior must reach the PTY"
+        );
+
+        // ...but the tab/title row (top border) and the side/bottom borders stay
+        // with the BoxMux UI so the tab bar, close buttons and resize edges work.
+        assert!(
+            !pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, bounds.y1 as u16, &root),
+            "the tab/title row must not be captured by the PTY"
+        );
+        assert!(
+            !pty_should_capture_mouse(&layout, pty, bounds.x1 as u16, (bounds.y1 + 2) as u16, &root),
+            "the left border must not be captured by the PTY"
+        );
+        assert!(
+            !pty_should_capture_mouse(&layout, pty, bounds.x2 as u16, (bounds.y1 + 2) as u16, &root),
+            "the right border must not be captured by the PTY"
+        );
+        assert!(
+            !pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, bounds.y2 as u16, &root),
+            "the bottom border must not be captured by the PTY"
+        );
+    }
+
+    #[test]
+    fn test_pty_does_not_capture_clicks_on_other_boxes() {
+        let (layout, root) = pty_routing_layout();
+        let pty = focused(&layout, "pty_box");
+        let other = focused(&layout, "other_box");
+        let other_bounds = other.bounds_with_parent(&root);
+
+        assert!(
+            !pty_should_capture_mouse(
+                &layout,
+                pty,
+                (other_bounds.x1 + 2) as u16,
+                (other_bounds.y1 + 2) as u16,
+                &root
+            ),
+            "a click inside a different box must never be captured by the focused PTY"
+        );
+    }
+
+    #[test]
+    fn test_pty_does_not_capture_when_overlapped_by_higher_z_box() {
+        let (layout, root) = pty_routing_layout();
+        let pty = focused(&layout, "pty_box");
+        let overlay = focused(&layout, "overlay_box");
+        let ob = overlay.bounds_with_parent(&root);
+
+        // This cell is inside the PTY's content interior, but the overlay box sits
+        // on top of it with a higher z-index, so the top-most box under the cursor
+        // is the overlay, not the PTY.
+        let (px, py) = ((ob.x1 + 1) as u16, (ob.y1 + 1) as u16);
+        let pb = pty.bounds_with_parent(&root);
+        assert!(
+            (px as usize) > pb.x1
+                && (px as usize) < pb.x2
+                && (py as usize) > pb.y1
+                && (py as usize) < pb.y2,
+            "test point must lie within the PTY interior to isolate the z-order rule"
+        );
+        assert!(
+            !pty_should_capture_mouse(&layout, pty, px, py, &root),
+            "the PTY must not capture clicks that land on a box rendered above it"
+        );
+    }
+
+    #[test]
+    fn test_non_pty_box_never_captures_mouse() {
+        let (layout, root) = pty_routing_layout();
+        let other = focused(&layout, "other_box");
+        let bounds = other.bounds_with_parent(&root);
+
+        assert!(
+            !pty_should_capture_mouse(&layout, other, (bounds.x1 + 2) as u16, (bounds.y1 + 2) as u16, &root),
+            "a non-PTY focused box must never capture mouse events for a PTY"
+        );
+    }
 }
 create_runnable!(
     InputLoop,
@@ -790,16 +972,21 @@ create_runnable!(
                         row,
                         modifiers,
                     }) => {
-                        // F0310: Check if focused muxbox has PTY with mouse reporting enabled
+                        // F0310: Route the mouse event to the focused PTY only when
+                        // it lands inside that box's content area (not its tab bar,
+                        // borders, or another box). Otherwise the BoxMux UI keeps the
+                        // event so tabs, close buttons and other boxes stay clickable
+                        // while a PTY box is focused.
                         let selected_muxboxes = active_layout.get_selected_muxboxes();
-                        let focused_muxbox_has_pty = selected_muxboxes
-                            .first()
-                            .map(|muxbox| should_use_pty(muxbox))
-                            .unwrap_or(false);
-
-                        if focused_muxbox_has_pty {
-                            // F0310: Send mouse event to PTY for proper terminal state-aware processing
-                            if let Some(focused_muxbox) = selected_muxboxes.first() {
+                        let root_bounds = crate::utils::screen_bounds();
+                        if let Some(focused_muxbox) = selected_muxboxes.first() {
+                            if pty_should_capture_mouse(
+                                &active_layout,
+                                focused_muxbox,
+                                column,
+                                row,
+                                &root_bounds,
+                            ) {
                                 inner.send_message(Message::PTYMouseEvent(
                                     focused_muxbox.id.clone(),
                                     kind,
@@ -863,7 +1050,12 @@ create_runnable!(
                             .map(|muxbox| should_use_pty(muxbox))
                             .unwrap_or(false);
 
-                        if focused_muxbox_has_pty {
+                        // Escape hatch: focus navigation always reaches BoxMux even
+                        // when a PTY box is focused, so the user can always move focus
+                        // off a PTY box that would otherwise capture every keystroke.
+                        let is_focus_navigation = matches!(code, KeyCode::Tab | KeyCode::BackTab);
+
+                        if focused_muxbox_has_pty && !is_focus_navigation {
                             // F0309: Convert key event to string with terminal mode awareness
                             // TODO: Get actual terminal modes from focused muxbox's terminal state
                             let cursor_key_mode = false; // Default: normal cursor keys

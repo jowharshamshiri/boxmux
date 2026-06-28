@@ -53,39 +53,41 @@ pub struct BoxDimensions {
 }
 
 impl BoxDimensions {
-    /// Create new BoxDimensions from MuxBox state
+    /// Create new BoxDimensions from MuxBox state with explicit content size.
+    ///
+    /// This is the single canonical coordinate authority shared by rendering and
+    /// hit-testing. `content_bounds` is computed purely from the box's border and
+    /// tab presence (inclusive coordinates), and one column/row is always reserved
+    /// for scrollbars so the viewable region never depends on whether a scrollbar
+    /// happens to be visible. `inbox_to_screen`/`screen_to_inbox` are exact
+    /// inverses over this region, so any cell a renderer draws via `inbox_to_screen`
+    /// is hit-tested back to the same inbox coordinate.
     pub fn new(
         muxbox: &crate::model::muxbox::MuxBox,
         bounds: &Bounds,
         content_width: usize,
         content_height: usize,
     ) -> Self {
-        let border_thickness = 2; // Standard border is 2 chars wide
+        let border_thickness = if muxbox.border_color.is_some() { 1 } else { 0 };
         let tab_height = if muxbox.streams.len() > 1 { 1 } else { 0 };
 
-        // Determine if scrollbars are needed
-        let component_base = ComponentDimensions::new(*bounds).with_border_thickness(1); // ComponentDimensions uses 1, we adjust
-        let base_content = component_base.content_bounds();
+        // Standard scrollbar reservation: always reserve one column on the right
+        // and one row on the bottom of the content area.
+        let vertical_scrollbar_width = 1;
+        let horizontal_scrollbar_height = 1;
 
-        let needs_vertical_scrollbar =
-            content_height > base_content.height().saturating_sub(tab_height);
-        let needs_horizontal_scrollbar = content_width
-            > base_content
-                .width()
-                .saturating_sub(if needs_vertical_scrollbar { 1 } else { 0 });
+        // Content bounds: inside the border, below the tab row. Inclusive coords.
+        let content_left = bounds.left() + border_thickness;
+        let content_top = bounds.top() + border_thickness + tab_height;
+        let content_right = bounds.right().saturating_sub(border_thickness);
+        let content_bottom = bounds.bottom().saturating_sub(border_thickness);
+        let content_bounds = Bounds::new(content_left, content_top, content_right, content_bottom);
 
-        // Create final ComponentDimensions with scrollbar info
-        let component_dims = ComponentDimensions::new(*bounds)
-            .with_border_thickness(1)
-            .with_scrollbars(needs_vertical_scrollbar, needs_horizontal_scrollbar);
-
-        let viewable_width = component_dims.content_bounds().width();
-        let viewable_height = component_dims
-            .content_bounds()
+        // Viewable region excludes the reserved scrollbar column/row.
+        let viewable_width = content_bounds.width().saturating_sub(vertical_scrollbar_width);
+        let viewable_height = content_bounds
             .height()
-            .saturating_sub(tab_height);
-
-        let content_bounds = component_dims.content_bounds();
+            .saturating_sub(horizontal_scrollbar_height);
 
         Self {
             total_bounds: bounds.clone(),
@@ -98,8 +100,8 @@ impl BoxDimensions {
             vertical_scroll: muxbox.current_vertical_scroll(),
             border_thickness,
             tab_height,
-            vertical_scrollbar_width: if needs_vertical_scrollbar { 1 } else { 0 },
-            horizontal_scrollbar_height: if needs_horizontal_scrollbar { 1 } else { 0 },
+            vertical_scrollbar_width,
+            horizontal_scrollbar_height,
         }
     }
 
@@ -127,93 +129,77 @@ impl BoxDimensions {
         )
     }
 
-    /// Convert screen coordinates to inbox (content-local) coordinates
-    /// Inbox coordinates treat content area as (0,0) origin
-    pub fn screen_to_inbox(&self, screen_x: usize, screen_y: usize) -> Option<(usize, usize)> {
-        // Check if point is within content area
-        if screen_x < self.content_bounds.left()
-            || screen_x >= self.content_bounds.right()
-            || screen_y < self.content_bounds.top()
-            || screen_y >= self.content_bounds.bottom()
-        {
-            return None;
-        }
-
-        // Use ScrollDimensions for proper scroll calculations
-        use crate::components::dimensions::{Orientation, ScrollDimensions};
-        let scroll_dims = ScrollDimensions::new(
-            (self.content_width, self.content_height),
-            (self.viewable_width, self.viewable_height),
-            (self.horizontal_scroll, self.vertical_scroll),
-            self.content_bounds,
-        );
-
-        // Use ScrollDimensions for scroll offset calculations
-        let horizontal_offset = scroll_dims.calculate_scroll_offset(Orientation::Horizontal);
-        let vertical_offset = scroll_dims.calculate_scroll_offset(Orientation::Vertical);
-
-        // Calculate actual content start position
-        let content_start_x = self.content_bounds.left();
-        let content_start_y = self.content_bounds.top();
-
-        // Calculate expanded bounds to account for scrolling
-        let expanded_left = content_start_x.saturating_sub(horizontal_offset);
-        let expanded_top = content_start_y.saturating_sub(vertical_offset);
-        let expanded_right = content_start_x + self.viewable_width + horizontal_offset;
-        let expanded_bottom = content_start_y + self.viewable_height + vertical_offset;
-
-        // Check if within scrolled content area
-        if screen_x < expanded_left
-            || screen_x >= expanded_right
-            || screen_y < expanded_top
-            || screen_y >= expanded_bottom
-        {
-            return None;
-        }
-
-        // Convert to inbox coordinates
-        let inbox_x = screen_x.saturating_sub(content_start_x.saturating_sub(horizontal_offset));
-        let inbox_y = screen_y.saturating_sub(content_start_y.saturating_sub(vertical_offset));
-
-        Some((inbox_x, inbox_y))
-    }
-
-    /// Convert inbox coordinates to screen coordinates
-    pub fn inbox_to_screen(&self, inbox_x: usize, inbox_y: usize) -> (usize, usize) {
-        // Check if inbox coordinates are within content bounds
-        if inbox_x >= self.content_width || inbox_y >= self.content_height {
-            return (usize::MAX, usize::MAX);
-        }
-
-        // Calculate scroll offsets
+    /// Scroll offsets (in content cells) for the current scroll percentages.
+    /// This is the single definition used by every coordinate method so the
+    /// forward and inverse mappings can never disagree.
+    fn scroll_offsets(&self) -> (usize, usize) {
         let horizontal_offset = if self.content_width > self.viewable_width {
             ((self.content_width - self.viewable_width) as f64 * self.horizontal_scroll / 100.0)
                 .round() as usize
         } else {
             0
         };
-
         let vertical_offset = if self.content_height > self.viewable_height {
             ((self.content_height - self.viewable_height) as f64 * self.vertical_scroll / 100.0)
                 .round() as usize
         } else {
             0
         };
+        (horizontal_offset, vertical_offset)
+    }
 
-        // Calculate screen position - check for potential underflow
-        let screen_x = if inbox_x >= horizontal_offset {
-            self.content_bounds.left() + inbox_x - horizontal_offset
-        } else {
+    /// Convert screen coordinates to inbox (content-local) coordinates.
+    /// Exact inverse of `inbox_to_screen` over the viewable window. The viewable
+    /// window is `[content_left, content_left + viewable_width)` horizontally and
+    /// `[content_top, content_top + viewable_height)` vertically, so the last
+    /// viewable cell is reachable (no off-by-one) and the reserved scrollbar
+    /// column/row is excluded.
+    pub fn screen_to_inbox(&self, screen_x: usize, screen_y: usize) -> Option<(usize, usize)> {
+        let left = self.content_bounds.left();
+        let top = self.content_bounds.top();
+
+        if screen_x < left
+            || screen_x >= left + self.viewable_width
+            || screen_y < top
+            || screen_y >= top + self.viewable_height
+        {
+            return None;
+        }
+
+        let (horizontal_offset, vertical_offset) = self.scroll_offsets();
+        let inbox_x = (screen_x - left) + horizontal_offset;
+        let inbox_y = (screen_y - top) + vertical_offset;
+
+        if inbox_x >= self.content_width || inbox_y >= self.content_height {
+            return None;
+        }
+
+        Some((inbox_x, inbox_y))
+    }
+
+    /// Convert inbox coordinates to screen coordinates. Returns `(usize::MAX,
+    /// usize::MAX)` when the inbox cell is outside content or scrolled out of the
+    /// viewable window. Exact inverse of `screen_to_inbox`.
+    pub fn inbox_to_screen(&self, inbox_x: usize, inbox_y: usize) -> (usize, usize) {
+        if inbox_x >= self.content_width || inbox_y >= self.content_height {
             return (usize::MAX, usize::MAX);
-        };
+        }
 
-        let screen_y = if inbox_y >= vertical_offset {
-            self.content_bounds.top() + inbox_y - vertical_offset
-        } else {
+        let (horizontal_offset, vertical_offset) = self.scroll_offsets();
+        if inbox_x < horizontal_offset || inbox_y < vertical_offset {
             return (usize::MAX, usize::MAX);
-        };
+        }
 
-        (screen_x, screen_y)
+        let viewable_x = inbox_x - horizontal_offset;
+        let viewable_y = inbox_y - vertical_offset;
+        if viewable_x >= self.viewable_width || viewable_y >= self.viewable_height {
+            return (usize::MAX, usize::MAX);
+        }
+
+        (
+            self.content_bounds.left() + viewable_x,
+            self.content_bounds.top() + viewable_y,
+        )
     }
 
     /// Check if screen coordinates are within the content area
@@ -316,22 +302,10 @@ impl BoxDimensions {
 
     /// Check if inbox coordinates are currently visible in the viewable area
     pub fn is_inbox_visible(&self, inbox_x: usize, inbox_y: usize) -> bool {
-        // Calculate scroll offsets
-        let horizontal_offset = if self.content_width > self.viewable_width {
-            ((self.content_width - self.viewable_width) as f64 * self.horizontal_scroll / 100.0)
-                .round() as usize
-        } else {
-            0
-        };
-
-        let vertical_offset = if self.content_height > self.viewable_height {
-            ((self.content_height - self.viewable_height) as f64 * self.vertical_scroll / 100.0)
-                .round() as usize
-        } else {
-            0
-        };
-
-        // Check if coordinates are within visible scroll range
+        if inbox_x >= self.content_width || inbox_y >= self.content_height {
+            return false;
+        }
+        let (horizontal_offset, vertical_offset) = self.scroll_offsets();
         inbox_x >= horizontal_offset
             && inbox_x < horizontal_offset + self.viewable_width
             && inbox_y >= vertical_offset
@@ -340,20 +314,7 @@ impl BoxDimensions {
 
     /// Get the visible inbox region (scroll window)
     pub fn get_visible_inbox_region(&self) -> (usize, usize, usize, usize) {
-        // Calculate scroll offsets
-        let horizontal_offset = if self.content_width > self.viewable_width {
-            ((self.content_width - self.viewable_width) as f64 * self.horizontal_scroll / 100.0)
-                .round() as usize
-        } else {
-            0
-        };
-
-        let vertical_offset = if self.content_height > self.viewable_height {
-            ((self.content_height - self.viewable_height) as f64 * self.vertical_scroll / 100.0)
-                .round() as usize
-        } else {
-            0
-        };
+        let (horizontal_offset, vertical_offset) = self.scroll_offsets();
 
         (
             horizontal_offset,                       // left
@@ -753,18 +714,13 @@ impl<'a> BoxRenderer<'a> {
                             .with_selection(self.muxbox.selected_choice_index())
                             .with_focus(self.muxbox.focused_choice_index());
 
-                    log::info!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}", 
-                             self.muxbox.id, choices.len(), choice_menu.get_dimensions());
+                    // Content size measured exactly as rendered (formatted lines, in
+                    // display characters), so dimensions/zones/render all agree.
+                    let (content_width, content_height) = choice_menu.get_dimensions();
+                    let dims = BoxDimensions::new(self.muxbox, &bounds, content_width, content_height);
 
-                    // Use choice-specific rendering with hover state support
-                    let component_dims = ComponentDimensions::new(bounds);
-                    let content_bounds = component_dims.content_bounds();
-                    let viewable_width = content_bounds.width();
-                    let viewable_height = content_bounds.height();
-
-                    // Calculate content dimensions to match original logic
-                    let choice_content = choice_menu.get_raw_content();
-                    let (content_width, content_height) = content_size(&choice_content);
+                    log::info!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}",
+                             self.muxbox.id, choices.len(), (content_width, content_height));
 
                     scrollbars_drawn = self.render_choices_with_hover_states(
                         &bounds,
@@ -778,22 +734,24 @@ impl<'a> BoxRenderer<'a> {
                         border_color,
                         parent_bg_color,
                         UnifiedOverflowBehavior::Scroll,
-                        horizontal_scroll as usize,
-                        vertical_scroll as usize,
+                        0,
+                        0,
                         buffer,
                     );
 
-                    // Get box-relative sensitive zones and translate to absolute coordinates
+                    // Sensitive zones are translated through the SAME canonical
+                    // mapping the renderer uses, so every drawn choice cell hit-tests
+                    // back to that choice.
                     let box_relative_zones = choice_menu.get_box_relative_sensitive_zones();
                     let translated_zones = self.translate_box_relative_zones_to_absolute(
                         &box_relative_zones,
                         &bounds,
                         content_width,
                         content_height,
-                        viewable_width,
-                        viewable_height,
-                        horizontal_scroll,
-                        vertical_scroll,
+                        dims.viewable_width,
+                        dims.viewable_height,
+                        dims.horizontal_scroll,
+                        dims.vertical_scroll,
                         false, // not wrapped
                     );
 
@@ -1310,20 +1268,14 @@ impl<'a> BoxRenderer<'a> {
         vertical_scroll: f64,
         _is_wrapped: bool,
     ) -> Vec<SensitiveZone> {
-        // CRITICAL FIX: Use BoxDimensions for consistent coordinate translation
+        // Use the single canonical coordinate authority so zones land exactly where
+        // content is rendered (correct border/tab/scrollbar handling for this box).
+        let _ = (viewable_width, viewable_height);
+        let dimensions = BoxDimensions::new(self.muxbox, bounds, content_width, content_height);
         let dimensions = BoxDimensions {
-            total_bounds: bounds.clone(),
-            content_bounds: ComponentDimensions::new(*bounds).content_bounds(),
-            viewable_width,
-            viewable_height,
-            content_width,
-            content_height,
             horizontal_scroll,
             vertical_scroll,
-            border_thickness: 1,
-            tab_height: 0,
-            vertical_scrollbar_width: 1,
-            horizontal_scrollbar_height: 1,
+            ..dimensions
         };
 
         let mut translated_zones = Vec::new();
@@ -1345,17 +1297,27 @@ impl<'a> BoxRenderer<'a> {
             visible_bottom
         );
 
+        // Last inbox cell that is currently visible in each direction. Zone
+        // extents are clamped to this window so a zone never translates a cell
+        // that is scrolled out (which would otherwise produce a usize::MAX
+        // corner). This mirrors the renderer, which truncates content to the
+        // viewable width/height.
+        let max_visible_x = visible_right.saturating_sub(1);
+        let max_visible_y = visible_bottom.saturating_sub(1);
+
         for zone in box_relative_zones {
-            // Skip zones that are scrolled out of view using BoxDimensions visibility check
+            // Skip zones whose start is scrolled out of view.
             if !dimensions.is_inbox_visible(zone.bounds.x1, zone.bounds.y1) {
                 continue;
             }
 
-            // CRITICAL FIX: Use BoxDimensions for consistent coordinate translation
+            let clamped_x2 = zone.bounds.x2.min(max_visible_x);
+            let clamped_y2 = zone.bounds.y2.min(max_visible_y);
+
+            // Single canonical coordinate translation, shared with the renderer.
             let (absolute_x1, absolute_y1) =
                 dimensions.inbox_to_screen(zone.bounds.x1, zone.bounds.y1);
-            let (absolute_x2, absolute_y2) =
-                dimensions.inbox_to_screen(zone.bounds.x2, zone.bounds.y2);
+            let (absolute_x2, absolute_y2) = dimensions.inbox_to_screen(clamped_x2, clamped_y2);
 
             let translated_bounds = Bounds::new(absolute_x1, absolute_y1, absolute_x2, absolute_y2);
 
@@ -1640,55 +1602,41 @@ impl<'a> BoxRenderer<'a> {
         border_color: &Option<String>,
         parent_bg_color: &Option<String>,
         _overflow_behavior: UnifiedOverflowBehavior,
-        horizontal_scroll: usize,
-        vertical_scroll: usize,
+        _horizontal_scroll: usize,
+        _vertical_scroll: usize,
         buffer: &mut ScreenBuffer,
     ) -> bool {
-        let component_dims = ComponentDimensions::new(*bounds);
-        let content_bounds = component_dims.content_bounds();
-        let viewable_width = content_bounds.width();
-        let viewable_height = content_bounds.height();
+        use crate::components::choice_menu::ChoiceMenu;
 
-        // Calculate content dimensions
-        let choice_lines: Vec<String> = choices
-            .iter()
-            .map(|choice| {
-                if let Some(content) = &choice.content {
-                    if choice.waiting {
-                        format!("{}...", content)
-                    } else {
-                        content.clone()
-                    }
-                } else {
-                    String::new()
-                }
-            })
-            .collect();
+        // Build the same formatted lines (with selection/focus indicator prefix)
+        // that the sensitive-zone generation uses, so rendered glyphs and hit
+        // regions are derived from identical content.
+        let choice_menu = ChoiceMenu::new(format!("{}_choice_menu", self.component_id), choices)
+            .with_selection(self.muxbox.selected_choice_index())
+            .with_focus(self.muxbox.focused_choice_index());
+        let choice_lines = choice_menu.generate_choice_lines();
 
         let max_content_width = choice_lines
             .iter()
-            .map(|line| line.len())
+            .map(|line| line.chars().count())
             .max()
             .unwrap_or(0);
         let content_height = choice_lines.len();
 
-        // Determine if scrollbars are needed
+        // Single canonical coordinate authority — identical to the one used to
+        // translate sensitive zones, so render position ≡ hit position.
+        let dims = BoxDimensions::new(self.muxbox, bounds, max_content_width, content_height);
+        let viewable_width = dims.viewable_width;
+        let viewable_height = dims.viewable_height;
+
         let needs_horizontal_scrollbar = max_content_width > viewable_width;
         let needs_vertical_scrollbar = content_height > viewable_height;
 
-        // Render choices line by line with appropriate colors
-        let visible_lines = choice_lines
-            .iter()
-            .skip(vertical_scroll)
-            .take(viewable_height)
-            .enumerate();
+        // Visible scroll window in content (inbox) coordinates.
+        let (vis_left, vis_top, _vis_right, vis_bottom) = dims.get_visible_inbox_region();
+        let last_row = vis_bottom.min(choice_lines.len());
 
-        for (line_index, line) in visible_lines {
-            let choice_index = line_index + vertical_scroll;
-            if choice_index >= choices.len() {
-                break;
-            }
-
+        for choice_index in vis_top..last_row {
             let choice = &choices[choice_index];
 
             // Determine colors based on choice state (priority: selected > hovered > normal)
@@ -1700,20 +1648,22 @@ impl<'a> BoxRenderer<'a> {
                 (menu_fg_color, menu_bg_color)
             };
 
-            // Apply horizontal scroll and truncate to viewable width
-            let visible_line = if horizontal_scroll < line.len() {
-                line.chars()
-                    .skip(horizontal_scroll)
-                    .take(viewable_width)
-                    .collect::<String>()
-            } else {
-                String::new()
-            };
+            // Screen position of the first visible cell of this choice row, via the
+            // shared mapping. Skipped if scrolled out of the viewable window.
+            let (screen_x, screen_y) = dims.inbox_to_screen(vis_left, choice_index);
+            if screen_x == usize::MAX {
+                continue;
+            }
 
-            // Render the choice line
+            let visible_line: String = choice_lines[choice_index]
+                .chars()
+                .skip(vis_left)
+                .take(viewable_width)
+                .collect();
+
             print_with_color_and_background_at(
-                content_bounds.top() + line_index,
-                content_bounds.left() + 1,
+                screen_y,
+                screen_x,
                 fg_color,
                 bg_color,
                 &visible_line,
@@ -1731,7 +1681,7 @@ impl<'a> BoxRenderer<'a> {
                 bounds,
                 content_height,
                 viewable_height,
-                vertical_scroll as f64,
+                dims.vertical_scroll,
                 border_color,
                 parent_bg_color,
                 buffer,
@@ -1746,7 +1696,7 @@ impl<'a> BoxRenderer<'a> {
                 bounds,
                 max_content_width,
                 viewable_width,
-                horizontal_scroll as f64,
+                dims.horizontal_scroll,
                 border_color,
                 parent_bg_color,
                 buffer,

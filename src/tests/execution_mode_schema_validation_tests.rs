@@ -496,7 +496,7 @@ app:
               script: 'echo "comprehensive choice"'
 "#;
 
-        let result = validator.validate_with_json_schema(yaml_content, "schemas");
+        let result = validator.validate_app_yaml(yaml_content);
         match result {
             Ok(_) => {
                 // Schema validation passed - ExecutionMode fields are properly supported

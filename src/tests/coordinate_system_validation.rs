@@ -67,6 +67,8 @@ mod coordinate_system_tests {
     #[test]
     fn test_coordinate_boundary_checking() {
         let mut muxbox = MuxBox::default();
+        // A border must be present for the border row/column to be non-content.
+        muxbox.border_color = Some("white".to_string());
         let bounds = Bounds::new(0, 0, 40, 20);
         let dimensions = BoxDimensions::new(&muxbox, &bounds, 30, 15);
 

@@ -60,7 +60,9 @@ mod coordinate_translation_tests {
 
     #[test]
     fn test_boundary_conditions() {
-        let muxbox = MuxBox::default();
+        let mut muxbox = MuxBox::default();
+        // A border must be present for the border row/column to be non-content.
+        muxbox.border_color = Some("white".to_string());
         let bounds = Bounds::new(10, 5, 30, 15);
         let dimensions = BoxDimensions::new(&muxbox, &bounds, 15, 8);
 

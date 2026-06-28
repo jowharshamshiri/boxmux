@@ -34,6 +34,9 @@ pub mod coordinate_translation_tests;
 pub mod box_dimensions_tests;
 
 #[cfg(test)]
+pub mod coordinate_unification_tests;
+
+#[cfg(test)]
 pub mod integration_tests;
 
 #[cfg(test)]
