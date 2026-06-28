@@ -416,22 +416,29 @@ impl Layout {
             y: usize,
             parent_bounds: &Bounds,
         ) -> Option<&'a MuxBox> {
-            // Collect matching boxes and their children, then sort by z_index (highest first)
-            let mut candidates: Vec<(&MuxBox, Bounds)> = Vec::new();
-
-            // Find all boxes that contain the click coordinates
+            // Pick the box that is VISUALLY on top at this cell, matching the
+            // renderer exactly. The renderer draws children sorted ascending by
+            // z_index with a stable sort, so the top-most box is the one with the
+            // highest z_index and, among equal z_index, the one that appears LATER
+            // in the children list (drawn last = on top). Adjacent boxes share an
+            // edge cell under inclusive bounds (e.g. a box's bottom row == the next
+            // box's tab-bar row), so returning the first match instead of the
+            // top-most one sends clicks/hover to the wrong (underneath) box.
+            let mut top: Option<(&MuxBox, Bounds)> = None;
+            let mut top_z = i32::MIN;
             for muxbox in muxboxes {
                 let bounds = muxbox.bounds_with_parent(parent_bounds);
                 if bounds.contains_point(x, y) {
-                    candidates.push((muxbox, bounds));
+                    let z = muxbox.effective_z_index();
+                    // `>=` so a later, equal-z box (drawn on top) replaces an earlier one.
+                    if top.is_none() || z >= top_z {
+                        top_z = z;
+                        top = Some((muxbox, bounds));
+                    }
                 }
             }
 
-            // Sort candidates by z_index (highest first for click priority)
-            candidates.sort_by_key(|(muxbox, _)| std::cmp::Reverse(muxbox.effective_z_index()));
-
-            // Get the highest priority candidate (first after sorting by z_index)
-            if let Some((muxbox, bounds)) = candidates.into_iter().next() {
+            if let Some((muxbox, bounds)) = top {
                 // Check children first (they take priority over parent)
                 if let Some(ref children) = muxbox.children {
                     if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y, &bounds)

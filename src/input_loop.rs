@@ -4,12 +4,20 @@ use crate::{handle_keypress, AppContext, FieldUpdate};
 use crossterm::event::{
     poll, read, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::thread_manager::*;
 
 use uuid::Uuid;
+
+/// Whether a mouse button is currently held down. Terminals/crossterm report
+/// button-less motion inconsistently — some send `Moved`, others (e.g. VTE /
+/// gnome-terminal via crossterm 0.27) send `Drag(<phantom button>)` for plain
+/// hover. We track the real button state from Down/Up ourselves and classify
+/// motion from that, so hover works regardless of how motion is labelled.
+static MOUSE_BUTTON_DOWN: AtomicBool = AtomicBool::new(false);
 
 /// Decide whether a mouse event at screen cell (`x`, `y`) belongs to the focused
 /// PTY box instead of the BoxMux UI.
@@ -963,8 +971,21 @@ create_runnable!(
 
         let active_layout = app_context.app.get_active_layout().unwrap().clone();
 
-        if poll(Duration::from_millis(10)).unwrap() {
-            if let Ok(event) = read() {
+        // Drain every input event available this tick so fast mouse motion
+        // (any-event tracking drives hover) and rapid keystrokes never backlog
+        // into input lag. The first poll waits briefly; subsequent polls don't,
+        // so we stop as soon as the queue is empty. Bounded so a stream we can't
+        // keep up with can't starve rendering.
+        let mut poll_timeout = Duration::from_millis(10);
+        let mut events_processed = 0u32;
+        while events_processed < 256 && poll(poll_timeout).unwrap_or(false) {
+            poll_timeout = Duration::from_millis(0);
+            events_processed += 1;
+            let event = match read() {
+                Ok(event) => event,
+                Err(_) => break,
+            };
+            {
                 let key_str = match event {
                     Event::Mouse(MouseEvent {
                         kind,
@@ -994,7 +1015,7 @@ create_runnable!(
                                     row,
                                     modifiers,
                                 ));
-                                return (true, app_context);
+                                continue;
                             }
                         }
 
@@ -1018,26 +1039,31 @@ create_runnable!(
                             }
                             MouseEventKind::Down(_button) => {
                                 // F0091 & F0188: Handle mouse clicks and start of drag
+                                MOUSE_BUTTON_DOWN.store(true, Ordering::Relaxed);
                                 inner.send_message(Message::MouseClick(column, row));
                                 inner.send_message(Message::MouseDragStart(column, row));
                                 format!("MouseClick({}, {})", column, row)
                             }
-                            MouseEventKind::Drag(_button) => {
-                                // F0188: Handle mouse drag for scroll knob dragging
-                                inner.send_message(Message::MouseDrag(column, row));
-                                format!("MouseDrag({}, {})", column, row)
-                            }
                             MouseEventKind::Up(_button) => {
                                 // F0188: Handle end of drag
+                                MOUSE_BUTTON_DOWN.store(false, Ordering::Relaxed);
                                 inner.send_message(Message::MouseDragEnd(column, row));
                                 format!("MouseDragEnd({}, {})", column, row)
                             }
-                            MouseEventKind::Moved => {
-                                // Send mouse move event for hover detection
-                                inner.send_message(Message::MouseMove(column, row));
-                                format!("MouseMove({}, {})", column, row)
+                            // Motion. crossterm/terminals label button-less motion
+                            // inconsistently (Moved on some, Drag(<phantom button>)
+                            // on others), so decide from the button state we track:
+                            // a held button means a real drag, otherwise it's hover.
+                            MouseEventKind::Drag(_) | MouseEventKind::Moved => {
+                                if MOUSE_BUTTON_DOWN.load(Ordering::Relaxed) {
+                                    inner.send_message(Message::MouseDrag(column, row));
+                                    format!("MouseDrag({}, {})", column, row)
+                                } else {
+                                    inner.send_message(Message::MouseMove(column, row));
+                                    format!("MouseMove({}, {})", column, row)
+                                }
                             }
-                            _ => return (true, app_context), // Ignore other mouse events
+                            _ => continue, // Ignore other mouse events
                         }
                     }
                     Event::Key(KeyEvent {
@@ -1073,7 +1099,7 @@ create_runnable!(
                                     focused_muxbox.id.clone(),
                                     key_str.clone(),
                                 ));
-                                return (true, app_context);
+                                continue;
                             }
                         }
 
@@ -1176,10 +1202,10 @@ create_runnable!(
                             }
                             KeyCode::F(n) => format!("F{}", n),
                             KeyCode::Insert => "Insert".to_string(),
-                            _ => return (true, app_context),
+                            _ => continue,
                         }
                     }
-                    _ => return (true, app_context),
+                    _ => continue,
                 };
 
                 // F0081: Hot Key Actions - Direct choice execution
@@ -1282,6 +1308,11 @@ create_runnable!(
                 }
 
                 inner.send_message(Message::KeyPress(key_str.clone()));
+            }
+
+            // Quit ('q') stops the loop immediately rather than draining more.
+            if !should_continue {
+                break;
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(

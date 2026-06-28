@@ -126,7 +126,8 @@ fn apply_calibration_cursor_overlay(app_context: &AppContext, buffer: &mut Scree
         return;
     }
 
-    let Some((x, y)) = HOVER_STATE.lock().unwrap().last_position else {
+    let last_position = HOVER_STATE.lock().unwrap().last_position;
+    let Some((x, y)) = last_position else {
         return;
     };
 
@@ -134,6 +135,193 @@ fn apply_calibration_cursor_overlay(app_context: &AppContext, buffer: &mut Scree
         let root_bounds = crate::utils::screen_bounds();
         apply_calibration_cursor_overlay_at(active_layout, buffer, x, y, &root_bounds);
     }
+}
+
+/// Last mouse position that hover reconciliation has already processed.
+static LAST_HOVER_POS: Mutex<Option<(u16, u16)>> = Mutex::new(None);
+/// When hover was last reconciled, for the periodic self-heal timer.
+static LAST_HOVER_CHECK_AT: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+/// Detect which interactive zone (tab target or choice) is under the screen
+/// coordinate (x, y). Returns (muxbox_id, zone_id) or None. This is the single
+/// source of truth for "what is hoverable here", shared by every hover update.
+fn detect_hover_zone(
+    app_context: &AppContext,
+    app_graph: &crate::model::app::AppGraph,
+    x: u16,
+    y: u16,
+) -> Option<(String, String)> {
+    let active_layout = app_context.app.get_active_layout()?;
+    let hovered_muxbox = active_layout.find_muxbox_at_coordinates(x, y)?;
+    let screen_x = x as usize;
+    let screen_y = y as usize;
+    let muxbox_bounds = hovered_muxbox.bounds();
+
+    // Tab bar / close button / nav arrow row (top border of the box).
+    if screen_y == muxbox_bounds.top() {
+        let tab_labels = hovered_muxbox.get_tab_labels();
+        if !tab_labels.is_empty() {
+            if let Some(tab_target) = crate::draw_utils::calculate_tab_hover_target(
+                screen_x,
+                muxbox_bounds.left(),
+                muxbox_bounds.right(),
+                &tab_labels,
+                &hovered_muxbox.get_tab_close_buttons(),
+                hovered_muxbox.tab_scroll_offset,
+                &hovered_muxbox.calc_border_color(app_context, app_graph),
+                &hovered_muxbox.bg_color,
+            ) {
+                let zone = match tab_target {
+                    crate::draw_utils::TabHoverTarget::Tab(i) => format!("tab_{}", i),
+                    crate::draw_utils::TabHoverTarget::CloseButton(i) => format!("tab_close_{}", i),
+                    crate::draw_utils::TabHoverTarget::NavigationLeft => "tab_nav_left".to_string(),
+                    crate::draw_utils::TabHoverTarget::NavigationRight => {
+                        "tab_nav_right".to_string()
+                    }
+                };
+                return Some((hovered_muxbox.id.clone(), zone));
+            }
+        }
+    }
+
+    // Choice rows.
+    if let Some(stream) = hovered_muxbox.get_selected_stream() {
+        if let Some(choices) = stream.choices.as_ref() {
+            if !choices.is_empty() {
+                use crate::components::box_renderer::{BoxDimensions, BoxRenderer};
+                use crate::components::choice_menu::ChoiceMenu;
+                use crate::components::renderable_content::RenderableContent;
+
+                let box_renderer =
+                    BoxRenderer::new(hovered_muxbox, format!("{}_hover", hovered_muxbox.id));
+                let choice_menu =
+                    ChoiceMenu::new(format!("{}_choice_menu", hovered_muxbox.id), choices)
+                        .with_selection(hovered_muxbox.selected_choice_index())
+                        .with_focus(hovered_muxbox.focused_choice_index());
+                let bounds = hovered_muxbox.bounds();
+                let (content_width, content_height) = choice_menu.get_dimensions();
+                let dimensions =
+                    BoxDimensions::new(hovered_muxbox, &bounds, content_width, content_height);
+                let zones = box_renderer.translate_box_relative_zones_to_absolute(
+                    &choice_menu.get_box_relative_sensitive_zones(),
+                    &bounds,
+                    content_width,
+                    content_height,
+                    dimensions.viewable_width,
+                    dimensions.viewable_height,
+                    dimensions.horizontal_scroll,
+                    dimensions.vertical_scroll,
+                    false,
+                );
+                if let Some(zone) = zones
+                    .iter()
+                    .find(|z| z.bounds.contains_point(screen_x, screen_y))
+                {
+                    return Some((hovered_muxbox.id.clone(), zone.content_id.clone()));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Remove every hover flag everywhere (all choice rows in every stream and every
+/// tab hover target, across all boxes and nested children). Returns whether any
+/// hover flag was actually cleared.
+fn clear_all_hover(app: &mut crate::model::app::App) -> bool {
+    fn clear_in(muxboxes: &mut [MuxBox]) -> bool {
+        let mut changed = false;
+        for muxbox in muxboxes {
+            if muxbox.hovered_tab_target.is_some() {
+                muxbox.hovered_tab_target = None;
+                changed = true;
+            }
+            for stream in muxbox.streams.values_mut() {
+                if let Some(choices) = stream.choices.as_mut() {
+                    for choice in choices.iter_mut() {
+                        if choice.hovered {
+                            choice.hovered = false;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            if let Some(children) = muxbox.children.as_mut() {
+                changed |= clear_in(children);
+            }
+        }
+        changed
+    }
+
+    let mut changed = false;
+    for layout in &mut app.layouts {
+        if let Some(children) = layout.children.as_mut() {
+            changed |= clear_in(children);
+        }
+    }
+    changed
+}
+
+/// Apply a single hover target (tab target or choice) to the named box.
+fn apply_hover_target(app: &mut crate::model::app::App, muxbox_id: &str, zone: &str) {
+    let Some(muxbox) = app.get_muxbox_by_id_mut(muxbox_id) else {
+        return;
+    };
+    if zone == "tab_nav_left" {
+        muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::NavigationLeft);
+    } else if zone == "tab_nav_right" {
+        muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::NavigationRight);
+    } else if let Some(i) = zone
+        .strip_prefix("tab_close_")
+        .and_then(|s| s.parse::<usize>().ok())
+    {
+        muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::CloseButton(i));
+    } else if let Some(i) = zone.strip_prefix("tab_").and_then(|s| s.parse::<usize>().ok()) {
+        muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::Tab(i));
+    } else if let Some(i) = zone
+        .strip_prefix("choice_")
+        .and_then(|s| s.parse::<usize>().ok())
+    {
+        if let Some(choices) = muxbox.get_selected_stream_choices_mut() {
+            if let Some(choice) = choices.get_mut(i) {
+                choice.hovered = true;
+            }
+        }
+    }
+}
+
+/// Reconcile the app's hover state to exactly match the zone under (x, y):
+/// clear every existing highlight and set only the one under the cursor
+/// (mutual exclusivity). Returns true if the highlighted target changed (i.e. a
+/// redraw is warranted). Cheap no-op when the target is unchanged.
+fn reconcile_hover(
+    app_context: &mut AppContext,
+    app_graph: &crate::model::app::AppGraph,
+    x: u16,
+    y: u16,
+) -> bool {
+    let target = detect_hover_zone(app_context, app_graph, x, y);
+    let (new_muxbox, new_zone) = match &target {
+        Some((muxbox_id, zone)) => (Some(muxbox_id.clone()), Some(zone.clone())),
+        None => (None, None),
+    };
+
+    {
+        let mut hover_state = HOVER_STATE.lock().unwrap();
+        if hover_state.current_muxbox == new_muxbox && hover_state.current_zone == new_zone {
+            return false;
+        }
+        hover_state.current_muxbox = new_muxbox;
+        hover_state.current_zone = new_zone;
+    }
+
+    // A new highlight always clears all others first.
+    clear_all_hover(&mut app_context.app);
+    if let Some((muxbox_id, zone)) = &target {
+        apply_hover_target(&mut app_context.app, muxbox_id, zone);
+    }
+    true
 }
 
 // F0189: Helper functions to detect muxbox border resize areas (corner-only)
@@ -392,12 +580,49 @@ lazy_static! {
 
 create_runnable!(
     DrawLoop,
-    |_inner: &mut RunnableImpl, app_context: AppContext, _messages: Vec<Message>| -> bool {
+    |inner: &mut RunnableImpl, app_context: AppContext, _messages: Vec<Message>| -> bool {
         let mut global_screen = GLOBAL_SCREEN.lock().unwrap();
         let mut global_buffer = GLOBAL_BUFFER.lock().unwrap();
         let mut app_context_unwrapped = app_context.clone();
 
         let is_first_render = global_screen.is_none();
+
+        // Hover reconciliation: derive the highlight purely from the current mouse
+        // position so highlights are mutually exclusive and never get stuck. Runs
+        // when the pointer moved since last time, plus on a ~150ms timer that
+        // re-checks and removes any stale highlight (the "still needed?" check).
+        {
+            let last_position = HOVER_STATE.lock().unwrap().last_position;
+            let now = std::time::Instant::now();
+            let position_changed = *LAST_HOVER_POS.lock().unwrap() != last_position;
+            let timer_due = LAST_HOVER_CHECK_AT
+                .lock()
+                .unwrap()
+                .map(|t| now.duration_since(t) >= std::time::Duration::from_millis(150))
+                .unwrap_or(true);
+            if position_changed || timer_due {
+                *LAST_HOVER_POS.lock().unwrap() = last_position;
+                *LAST_HOVER_CHECK_AT.lock().unwrap() = Some(now);
+                let app_graph = app_context_unwrapped.app.generate_graph();
+                let changed = match last_position {
+                    Some((mx, my)) => {
+                        reconcile_hover(&mut app_context_unwrapped, &app_graph, mx, my)
+                    }
+                    // No known pointer position: ensure nothing is left highlighted.
+                    None => {
+                        let mut hover_state = HOVER_STATE.lock().unwrap();
+                        let had = hover_state.current_zone.is_some();
+                        hover_state.current_zone = None;
+                        hover_state.current_muxbox = None;
+                        drop(hover_state);
+                        clear_all_hover(&mut app_context_unwrapped.app) || had
+                    }
+                };
+                if changed {
+                    inner.app_context = app_context_unwrapped.clone();
+                }
+            }
+        }
 
         // Skip the (expensive) full rebuild + sensitive-zone recomputation when
         // nothing observable has changed since the last render. Calibration mode
@@ -1883,9 +2108,14 @@ create_runnable!(
                         let mut app_context_for_click = app_context_unwrapped.clone();
                         let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
 
-                        // F0187: Check for scrollbar clicks first
+                        // F0187: Check for scrollbar clicks first — but only on the
+                        // TOP-MOST box at the cursor. Iterating every box let a box
+                        // whose bottom-border (horizontal scrollbar) row coincides
+                        // with another box's tab-bar row steal the click, which is why
+                        // the central panel's tabs were unclickable at sizes where the
+                        // edges shared a row.
                         let mut handled_scrollbar_click = false;
-                        for muxbox in active_layout.get_all_muxboxes() {
+                        if let Some(muxbox) = active_layout.find_muxbox_at_coordinates(*x, *y) {
                             if muxbox.has_scrollable_content() {
                                 let muxbox_bounds = muxbox.bounds();
 
@@ -1931,7 +2161,6 @@ create_runnable!(
                                         (horizontal_scroll * 100.0) as usize,
                                         (scroll_percentage * 100.0) as usize,
                                     ));
-                                    break;
                                 }
 
                                 // Check for horizontal scrollbar click (on bottom border)
@@ -1977,7 +2206,6 @@ create_runnable!(
                                         (scroll_percentage * 100.0) as usize,
                                         (vertical_scroll * 100.0) as usize,
                                     ));
-                                    break;
                                 }
                             }
                         }
@@ -2570,255 +2798,11 @@ create_runnable!(
                         }
                     }
                     Message::MouseMove(x, y) => {
-                        // Handle mouse movement for hover detection on sensitive zones
-                        // Use the EXACT same pattern as MouseClick handling
-                        let screen_x = *x as usize;
-                        let screen_y = *y as usize;
-
-                        let mut hover_state = HOVER_STATE.lock().unwrap();
-                        let current_time = std::time::SystemTime::now();
-
-                        // Update position tracking
-                        hover_state.last_position = Some((*x, *y));
-
-                        // Check if mouse is over any sensitive zones
-                        let active_layout = app_context_unwrapped.app.get_active_layout().unwrap();
-                        let mut new_hovered_zone: Option<String> = None;
-                        let mut new_hovered_muxbox: Option<String> = None;
-
-                        if let Some(hovered_muxbox) =
-                            active_layout.find_muxbox_at_coordinates(*x, *y)
-                        {
-                            let muxbox_bounds = hovered_muxbox.bounds();
-
-                            if screen_y == muxbox_bounds.top() {
-                                let tab_labels = hovered_muxbox.get_tab_labels();
-                                if !tab_labels.is_empty() {
-                                    if let Some(tab_target) =
-                                        crate::draw_utils::calculate_tab_hover_target(
-                                            screen_x,
-                                            muxbox_bounds.left(),
-                                            muxbox_bounds.right(),
-                                            &tab_labels,
-                                            &hovered_muxbox.get_tab_close_buttons(),
-                                            hovered_muxbox.tab_scroll_offset,
-                                            &hovered_muxbox.calc_border_color(
-                                                &app_context_unwrapped,
-                                                &app_graph,
-                                            ),
-                                            &hovered_muxbox.bg_color,
-                                        )
-                                    {
-                                        new_hovered_zone = Some(match tab_target {
-                                            crate::draw_utils::TabHoverTarget::Tab(index) => {
-                                                format!("tab_{}", index)
-                                            }
-                                            crate::draw_utils::TabHoverTarget::CloseButton(
-                                                index,
-                                            ) => {
-                                                format!("tab_close_{}", index)
-                                            }
-                                            crate::draw_utils::TabHoverTarget::NavigationLeft => {
-                                                "tab_nav_left".to_string()
-                                            }
-                                            crate::draw_utils::TabHoverTarget::NavigationRight => {
-                                                "tab_nav_right".to_string()
-                                            }
-                                        });
-                                        new_hovered_muxbox = Some(hovered_muxbox.id.clone());
-                                    }
-                                }
-                            }
-
-                            if new_hovered_zone.is_none() {
-                                // Check if this muxbox has choices (same condition as click handling)
-                                if let Some(selected_stream) = hovered_muxbox.get_selected_stream()
-                                {
-                                    if let Some(choices) = selected_stream.choices.as_ref() {
-                                        if !choices.is_empty() {
-                                            // Use EXACT same pattern as click detection
-                                            use crate::components::box_renderer::{
-                                                BoxDimensions, BoxRenderer,
-                                            };
-                                            use crate::components::choice_menu::ChoiceMenu;
-                                            use crate::components::renderable_content::RenderableContent;
-
-                                            // Create BoxRenderer and ChoiceMenu (same as click handling)
-                                            let mut box_renderer = BoxRenderer::new(
-                                                hovered_muxbox,
-                                                format!("{}_hover_renderer", hovered_muxbox.id),
-                                            );
-
-                                            let choice_menu = ChoiceMenu::new(
-                                                format!("{}_choice_menu", hovered_muxbox.id),
-                                                choices,
-                                            )
-                                            .with_selection(hovered_muxbox.selected_choice_index())
-                                            .with_focus(hovered_muxbox.focused_choice_index());
-
-                                            // Create formalized BoxDimensions (same as click handling)
-                                            let bounds = hovered_muxbox.bounds();
-                                            let (content_width, content_height) =
-                                                choice_menu.get_dimensions();
-                                            let dimensions = BoxDimensions::new(
-                                                hovered_muxbox,
-                                                &bounds,
-                                                content_width,
-                                                content_height,
-                                            );
-
-                                            // Generate sensitive zones (one row per choice), matching exactly
-                                            // what the renderer draws; viewable clamping happens during
-                                            // translation through the shared coordinate mapping.
-                                            let box_relative_zones =
-                                                choice_menu.get_box_relative_sensitive_zones();
-                                            let translated_zones = box_renderer
-                                                .translate_box_relative_zones_to_absolute(
-                                                    &box_relative_zones,
-                                                    &bounds,
-                                                    content_width,
-                                                    content_height,
-                                                    dimensions.viewable_width,
-                                                    dimensions.viewable_height,
-                                                    dimensions.horizontal_scroll,
-                                                    dimensions.vertical_scroll,
-                                                    false,
-                                                );
-                                            box_renderer
-                                                .store_translated_sensitive_zones(translated_zones);
-
-                                            // Use EXACT same zone detection as click handling (no coordinate translation)
-                                            let zones = box_renderer.get_sensitive_zones();
-                                            if let Some(hovered_zone) = zones.iter().find(|z| {
-                                                z.bounds.contains_point(screen_x, screen_y)
-                                            }) {
-                                                new_hovered_zone =
-                                                    Some(hovered_zone.content_id.clone());
-                                                new_hovered_muxbox =
-                                                    Some(hovered_muxbox.id.clone());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Check for hover state changes
-                        let previous_zone = hover_state.current_zone.clone();
-                        let zone_changed = previous_zone != new_hovered_zone;
-
-                        if zone_changed {
-                            let mut app_context_for_hover = app_context_unwrapped.clone();
-
-                            // Clear previous hover state from choices
-                            if let Some(prev_zone) = &previous_zone {
-                                if let Some(prev_muxbox_id) = &hover_state.current_muxbox {
-                                    if let Some(prev_muxbox) = app_context_for_hover
-                                        .app
-                                        .get_muxbox_by_id_mut(prev_muxbox_id)
-                                    {
-                                        if prev_zone.starts_with("tab_") {
-                                            prev_muxbox.hovered_tab_target = None;
-                                        }
-
-                                        if let Some(choices) =
-                                            prev_muxbox.get_selected_stream_choices_mut()
-                                        {
-                                            // Find and unhover the previous choice
-                                            if let Some(idx_str) = prev_zone.strip_prefix("choice_")
-                                            {
-                                                if let Ok(choice_idx) = idx_str.parse::<usize>() {
-                                                    if let Some(choice) =
-                                                        choices.get_mut(choice_idx)
-                                                    {
-                                                        choice.hovered = false;
-                                                        log::trace!(
-                                                            "Hover leave: {} (choice_{})",
-                                                            prev_zone,
-                                                            choice_idx
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Set new hover state on choices
-                            if let Some(new_zone) = &new_hovered_zone {
-                                if let Some(new_muxbox_id) = &new_hovered_muxbox {
-                                    if let Some(new_muxbox) = app_context_for_hover
-                                        .app
-                                        .get_muxbox_by_id_mut(new_muxbox_id)
-                                    {
-                                        new_muxbox.hovered_tab_target = if new_zone
-                                            == "tab_nav_left"
-                                        {
-                                            Some(crate::draw_utils::TabHoverTarget::NavigationLeft)
-                                        } else if new_zone == "tab_nav_right" {
-                                            Some(crate::draw_utils::TabHoverTarget::NavigationRight)
-                                        } else if let Some(idx_str) =
-                                            new_zone.strip_prefix("tab_close_")
-                                        {
-                                            idx_str.parse::<usize>().ok().map(|index| {
-                                                crate::draw_utils::TabHoverTarget::CloseButton(
-                                                    index,
-                                                )
-                                            })
-                                        } else if let Some(idx_str) = new_zone.strip_prefix("tab_")
-                                        {
-                                            idx_str
-                                                .parse::<usize>()
-                                                .ok()
-                                                .map(crate::draw_utils::TabHoverTarget::Tab)
-                                        } else {
-                                            new_muxbox.hovered_tab_target.clone()
-                                        };
-
-                                        if let Some(choices) =
-                                            new_muxbox.get_selected_stream_choices_mut()
-                                        {
-                                            // Find and hover the new choice
-                                            if let Some(idx_str) = new_zone.strip_prefix("choice_")
-                                            {
-                                                if let Ok(choice_idx) = idx_str.parse::<usize>() {
-                                                    if let Some(choice) =
-                                                        choices.get_mut(choice_idx)
-                                                    {
-                                                        choice.hovered = true;
-                                                        log::trace!(
-                                                            "Hover enter: {} (choice_{})",
-                                                            new_zone,
-                                                            choice_idx
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                hover_state.hover_start_time = Some(current_time);
-                            } else {
-                                hover_state.hover_start_time = None;
-                            }
-
-                            // Update hover state and trigger redraw
-                            hover_state.current_zone = new_hovered_zone;
-                            hover_state.current_muxbox = new_hovered_muxbox;
-
-                            // Update app context and trigger redraw to show hover effects
-                            inner.update_app_context(app_context_for_hover);
-                            inner.send_message(Message::RedrawAppDiff);
-                        } else if hover_state.current_zone.is_some() {
-                            // Mouse moved within the same zone - could generate HoverState::Move event
-                            log::trace!(
-                                "Hover move within zone: {:?} at ({}, {})",
-                                hover_state.current_zone,
-                                screen_x,
-                                screen_y
-                            );
-                        }
+                        // Hover is reconciled centrally from the latest pointer
+                        // position (see reconcile_hover in the draw init path), so
+                        // here we only record where the pointer is. This keeps
+                        // highlights mutually exclusive and self-healing.
+                        HOVER_STATE.lock().unwrap().last_position = Some((*x, *y));
                     }
                     Message::MouseDragStart(x, y) => {
                         // Check if muxboxes are locked before allowing resize/move
@@ -4258,6 +4242,108 @@ mod render_gating_tests {
             base,
             compute_render_signature(&ctx),
             "a title change must change the render signature"
+        );
+
+        // Hover change — this is what guarantees the render gating can never
+        // suppress a hover affordance update.
+        let mut ctx = TestDataFactory::create_test_app_context();
+        ctx.app.layouts[0].children.as_mut().unwrap()[0].hovered_tab_target =
+            Some(crate::components::TabHoverTarget::CloseButton(0));
+        assert_ne!(
+            base,
+            compute_render_signature(&ctx),
+            "a hover change must change the render signature"
+        );
+    }
+}
+
+#[cfg(test)]
+mod hover_reconcile_tests {
+    use super::{apply_hover_target, clear_all_hover};
+    use crate::model::choice::Choice;
+    use crate::model::common::{Stream, StreamType};
+    use crate::tests::test_utils::TestDataFactory;
+
+    fn box_with_choices() -> (crate::model::app::App, String) {
+        let mut app = TestDataFactory::create_test_app();
+        let muxbox_id = app.layouts[0].children.as_ref().unwrap()[0].id.clone();
+        let muxbox = app.layouts[0].children.as_mut().unwrap().get_mut(0).unwrap();
+
+        let choices = vec![
+            Choice {
+                id: "a".into(),
+                content: Some("A".into()),
+                hovered: true,
+                ..Default::default()
+            },
+            Choice {
+                id: "b".into(),
+                content: Some("B".into()),
+                ..Default::default()
+            },
+            Choice {
+                id: "c".into(),
+                content: Some("C".into()),
+                hovered: true,
+                ..Default::default()
+            },
+        ];
+        let stream = Stream {
+            id: "s".into(),
+            stream_type: StreamType::Choices,
+            label: "S".into(),
+            content: vec![],
+            choices: Some(choices),
+            source: None,
+            content_hash: 0,
+            last_updated: std::time::SystemTime::now(),
+            created_at: std::time::SystemTime::now(),
+        };
+        muxbox.streams.insert("s".into(), stream);
+        muxbox.selected_stream_id = Some("s".into());
+        muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::Tab(1));
+        (app, muxbox_id)
+    }
+
+    #[test]
+    fn test_clear_all_hover_removes_every_highlight() {
+        let (mut app, _id) = box_with_choices();
+        assert!(clear_all_hover(&mut app), "should report it cleared highlights");
+        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        assert!(muxbox.hovered_tab_target.is_none());
+        for choice in muxbox.streams.get("s").unwrap().choices.as_ref().unwrap() {
+            assert!(!choice.hovered, "every choice highlight must be cleared");
+        }
+        // Idempotent: nothing left to clear.
+        assert!(!clear_all_hover(&mut app));
+    }
+
+    #[test]
+    fn test_new_highlight_is_mutually_exclusive() {
+        let (mut app, id) = box_with_choices();
+        // Setting a new highlight clears all others first (clear-all + set-one).
+        clear_all_hover(&mut app);
+        apply_hover_target(&mut app, &id, "choice_1");
+        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        let choices = muxbox.streams.get("s").unwrap().choices.as_ref().unwrap();
+        assert!(!choices[0].hovered);
+        assert!(choices[1].hovered, "the newly hovered choice must be highlighted");
+        assert!(!choices[2].hovered);
+        assert!(
+            muxbox.hovered_tab_target.is_none(),
+            "a choice highlight must not coexist with a tab highlight"
+        );
+    }
+
+    #[test]
+    fn test_apply_tab_close_target() {
+        let (mut app, id) = box_with_choices();
+        clear_all_hover(&mut app);
+        apply_hover_target(&mut app, &id, "tab_close_2");
+        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+        assert_eq!(
+            muxbox.hovered_tab_target,
+            Some(crate::draw_utils::TabHoverTarget::CloseButton(2))
         );
     }
 }

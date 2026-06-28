@@ -149,14 +149,19 @@ mod mouse_click_tests {
                 for x in 0..width as u16 {
                     let ux = x as usize;
                     let uy = y as usize;
+                    // Expected = the box that is visually on top, matching the
+                    // renderer: highest z_index first (far_corner z20, overlay z10),
+                    // then among equal z_index the box drawn LATER (later in the
+                    // children list) wins. Children order is left, center, right, so
+                    // where center and right share an edge column, right is on top.
                     let expected = if far_corner_bounds.contains_point(ux, uy) {
                         Some("far_corner")
                     } else if overlay_bounds.contains_point(ux, uy) {
                         Some("overlay")
-                    } else if center_bounds.contains_point(ux, uy) {
-                        Some("center")
                     } else if right_bounds.contains_point(ux, uy) {
                         Some("right")
+                    } else if center_bounds.contains_point(ux, uy) {
+                        Some("center")
                     } else if left_bounds.contains_point(ux, uy) {
                         Some("left")
                     } else {
@@ -175,6 +180,64 @@ mod mouse_click_tests {
                 }
             }
         }
+    }
+
+    /// Regression: when a full-width box's bottom edge rounds onto the same row as
+    /// the next box's TOP edge (fractional-percentage adjacency under inclusive
+    /// bounds), a click on that shared row — which is where the lower box's tab bar
+    /// is rendered — must resolve to the lower box (drawn on top), not the upper
+    /// one. This was the cause of the central panel's tabs being unclickable at
+    /// some terminal sizes until a resize/move shifted the rounding.
+    #[test]
+    fn test_shared_edge_row_resolves_to_box_rendered_on_top() {
+        // Status spans full width, y 0%..7%; main is below at y 8%..70%.
+        let mut status = TestDataFactory::create_test_muxbox("status");
+        status.position = InputBounds {
+            x1: "0%".to_string(),
+            y1: "0%".to_string(),
+            x2: "100%".to_string(),
+            y2: "7%".to_string(),
+        };
+        let mut main = TestDataFactory::create_test_muxbox("main");
+        main.position = InputBounds {
+            x1: "25%".to_string(),
+            y1: "8%".to_string(),
+            x2: "73%".to_string(),
+            y2: "70%".to_string(),
+        };
+        // status is listed BEFORE main, exactly like the real dashboard.
+        let layout =
+            TestDataFactory::create_test_layout("share", Some(vec![status, main]));
+
+        // 100x30: 7% -> round(0.07*29)=2 and 8% -> round(0.08*29)=2 collide on row 2.
+        let root_bounds = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 99,
+            y2: 29,
+        };
+        let children = layout.children.as_ref().unwrap();
+        let status_bounds = children[0].bounds_with_parent(&root_bounds);
+        let main_bounds = children[1].bounds_with_parent(&root_bounds);
+        assert_eq!(
+            status_bounds.y2, main_bounds.y1,
+            "test requires the shared-edge condition (status.bottom == main.top)"
+        );
+
+        // A cell on the shared row within main's columns is main's tab-bar row.
+        let shared_row = main_bounds.y1 as u16;
+        let x = ((main_bounds.x1 + main_bounds.x2) / 2) as u16;
+        assert!(status_bounds.contains_point(x as usize, shared_row as usize));
+        assert!(main_bounds.contains_point(x as usize, shared_row as usize));
+
+        let hit = layout
+            .find_muxbox_at_coordinates_with_bounds(x, shared_row, &root_bounds)
+            .map(|m| m.id.clone());
+        assert_eq!(
+            hit.as_deref(),
+            Some("main"),
+            "the shared tab-bar row must belong to the box rendered on top (main)"
+        );
     }
 
     #[test]

@@ -951,6 +951,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     execute!(_stdout, terminal::EnterAlternateScreen)?;
     execute!(_stdout, terminal::Clear(terminal::ClearType::All))?;
     terminal::enable_raw_mode()?;
+    // EnableMouseCapture turns on button, drag and any-event motion tracking
+    // (DEC 1000/1002/1003/1006), so hover motion is delivered. The input loop
+    // classifies button-less motion as hover regardless of how the terminal
+    // labels it (see input_loop::MOUSE_BUTTON_DOWN).
     execute!(_stdout, event::EnableMouseCapture)?;
 
     // Setup signal handler for proper terminal cleanup on exit
