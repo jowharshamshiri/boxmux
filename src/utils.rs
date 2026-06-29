@@ -817,14 +817,21 @@ mod tests {
     #[test]
     fn test_run_script_detaches_child_stdin_from_terminal() {
         let copied = run_script(None, &vec!["cat".to_string()]).expect("cat should run");
-        assert_eq!(copied.trim(), "", "child stdin must be empty (detached), not the terminal");
+        assert_eq!(
+            copied.trim(),
+            "",
+            "child stdin must be empty (detached), not the terminal"
+        );
         // Normal captured output still works.
         let echoed = run_script(None, &vec!["echo hello".to_string()]).expect("echo should run");
         assert_eq!(echoed.trim(), "hello");
         // A command that explicitly checks for a controlling terminal on stdin
         // must report there is none.
-        let tty = run_script(None, &vec!["test -t 0 && echo TTY || echo NOTTY".to_string()])
-            .expect("tty check should run");
+        let tty = run_script(
+            None,
+            &vec!["test -t 0 && echo TTY || echo NOTTY".to_string()],
+        )
+        .expect("tty check should run");
         assert_eq!(tty.trim(), "NOTTY", "child stdin must not be a terminal");
     }
 

@@ -5,7 +5,25 @@ description: Customizing colors, styling, and visual appearance in BoxMux termin
 
 # BoxMux Visual Themes
 
-BoxMux supports theming through YAML configuration for terminal applications with color schemes and styling.
+BoxMux renders with readable colors out of the box and also supports full theming through YAML configuration for color schemes and styling.
+
+## Automatic Light/Dark Theme
+
+You do not need to set any colors to get a good-looking dashboard. BoxMux picks a light or dark theme automatically and applies sensible defaults to every element — panel backgrounds, text, borders, titles, menu selections, and hover highlights — so a configuration with no color fields renders cleanly in both light and dark terminals.
+
+- **Auto-detection**: The theme is chosen from the terminal (via `COLORFGBG`), defaulting to dark when it cannot be determined.
+- **Force a theme**: Pass `--light` or `--dark` on the command line to override detection:
+
+  ```bash
+  boxmux layouts/dashboard.yaml --dark
+  boxmux layouts/dashboard.yaml --light
+  ```
+
+- **Palette-safe highlights**: Selection, active-tab, and focus colors use fixed 256-color values rather than the base 16 ANSI colors. The base 16 colors are remapped by terminal themes (for example, "bright black" is rendered as a light tint by some palettes), which can make text on a highlight unreadable; the fixed values render consistently across terminals.
+- **Focus indication**: The focused box is marked with a distinct border and tab color, so the active box is always identifiable without any configuration.
+- **Backgrounds are real backgrounds**: Empty space inside a box is painted with the box's background color (not a foreground block glyph), so the area behind text and the empty area always match — including in selected boxes and tab bars.
+
+Any color you set explicitly (see below) overrides the theme default for that element, so you can theme as much or as little as you like.
 
 ## ANSI Color System
 

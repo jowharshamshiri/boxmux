@@ -90,7 +90,9 @@ impl BoxDimensions {
         let content_bounds = Bounds::new(content_left, content_top, content_right, content_bottom);
 
         // Viewable region excludes the reserved scrollbar column/row.
-        let viewable_width = content_bounds.width().saturating_sub(vertical_scrollbar_width);
+        let viewable_width = content_bounds
+            .width()
+            .saturating_sub(vertical_scrollbar_width);
         let viewable_height = content_bounds
             .height()
             .saturating_sub(horizontal_scrollbar_height);
@@ -724,7 +726,8 @@ impl<'a> BoxRenderer<'a> {
                     // Content size measured exactly as rendered (formatted lines, in
                     // display characters), so dimensions/zones/render all agree.
                     let (content_width, content_height) = choice_menu.get_dimensions();
-                    let dims = BoxDimensions::new(self.muxbox, &bounds, content_width, content_height);
+                    let dims =
+                        BoxDimensions::new(self.muxbox, &bounds, content_width, content_height);
 
                     log::trace!("CHOICE RENDER: BoxRenderer creating ChoiceMenu for muxbox '{}' with {} choices, dimensions: {:?}",
                              self.muxbox.id, choices.len(), (content_width, content_height));

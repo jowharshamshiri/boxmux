@@ -56,6 +56,13 @@ boxmux hello.yaml
 ./run_boxmux.sh hello.yaml
 ```
 
+Notice the interface is already readable even though `hello.yaml` defines no colors: BoxMux applies an automatic light/dark theme based on your terminal. To force a theme, add `--light` or `--dark`:
+
+```bash
+boxmux hello.yaml --dark
+boxmux hello.yaml --light
+```
+
 ### Interactive Menu
 
 Add interactivity with menus:
@@ -324,6 +331,10 @@ Interactive terminal sessions create dedicated streams:
 
 BoxMux supports mouse-driven interface manipulation for dynamic layout editing:
 
+### Hover and Scrolling
+- **Hover highlighting** on every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) — no styling needed, the highlight uses the active theme
+- **Mouse wheel** scrolls whichever box is under the cursor, even if it is not the focused box
+
 ### Box Resizing
 - **Drag bottom-right corner** to resize boxes in real-time
 - **Auto-save to YAML** preserves changes across restarts
@@ -428,6 +439,8 @@ app:
 ```
 
 #### 3. Add Styling
+
+Styling is optional — without any color fields, BoxMux renders a readable light or dark theme automatically (see the [theme guide](/docs/styling/theme)). Set colors only where you want to override the theme defaults:
 
 ```yaml
 # At layout level for consistent styling

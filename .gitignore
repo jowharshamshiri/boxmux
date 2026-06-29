@@ -181,5 +181,4 @@ cython_debug/
 #/target
 .scrap/
 
-Cargo.lock
 logs/

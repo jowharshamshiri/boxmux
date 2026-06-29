@@ -206,12 +206,28 @@ mod tests {
 
         // Clicking the exact rendered arrow glyph triggers the matching scroll.
         assert_eq!(
-            calculate_tab_navigation_click(left_arrow_x, x1, x2, &tab_labels, scroll_offset, &fg, &bg),
+            calculate_tab_navigation_click(
+                left_arrow_x,
+                x1,
+                x2,
+                &tab_labels,
+                scroll_offset,
+                &fg,
+                &bg
+            ),
             Some(TabNavigationAction::ScrollLeft),
             "clicking the rendered left arrow glyph must scroll left"
         );
         assert_eq!(
-            calculate_tab_navigation_click(right_arrow_x, x1, x2, &tab_labels, scroll_offset, &fg, &bg),
+            calculate_tab_navigation_click(
+                right_arrow_x,
+                x1,
+                x2,
+                &tab_labels,
+                scroll_offset,
+                &fg,
+                &bg
+            ),
             Some(TabNavigationAction::ScrollRight),
             "clicking the rendered right arrow glyph must scroll right"
         );
@@ -236,8 +252,10 @@ mod tests {
         let few_tabs = vec!["Tab1".to_string(), "Tab2".to_string()];
         let wide_buffer = render_tab_row(0, 100, &few_tabs, 0, &fg, &bg);
         assert!(
-            (0..wide_buffer.width)
-                .all(|x| wide_buffer.get(x, 0).map(|c| c.ch != '◀' && c.ch != '▶').unwrap_or(true)),
+            (0..wide_buffer.width).all(|x| wide_buffer
+                .get(x, 0)
+                .map(|c| c.ch != '◀' && c.ch != '▶')
+                .unwrap_or(true)),
             "no navigation arrows should render when all tabs fit"
         );
         for x in 0..=100usize {

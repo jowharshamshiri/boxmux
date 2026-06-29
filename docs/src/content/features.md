@@ -16,8 +16,9 @@ description: Overview of BoxMux capabilities for building terminal user interfac
 ### Interactive Box Components
 - **Flexible Positioning**: Percentage-based and absolute positioning with anchor system support (TopLeft, Center, etc.)
 - **Dynamic Resizing**: Interactive box resizing with mouse drag support and automatic YAML persistence
-- **Border Styling**: Customizable borders with 16 ANSI colors and bright variants
-- **Focus Management**: Tab order navigation with configurable focus chains
+- **Automatic Theming**: Light/dark theme auto-detected from the terminal with readable defaults rendered out of the box (no color fields required), overridable with `--light` / `--dark`; highlights use palette-safe colors that render consistently across terminal color schemes
+- **Border Styling**: Theme-aware defaults plus customizable borders with 16 ANSI colors and bright variants
+- **Focus Management**: Tab order navigation with configurable focus chains; the focused box is marked with a distinct border and tab color
 - **Overflow Handling**: Multiple overflow behaviors including scroll, wrap, fill, and cross_out modes
 
 ## Script Execution & Automation
@@ -69,7 +70,9 @@ description: Overview of BoxMux capabilities for building terminal user interfac
 
 ### Mouse Support
 - **Click Interactions**: Click to select boxes, activate menu items, and trigger actions
+- **Hover Affordance**: Every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) highlights on hover by default, with no styling required
 - **Scrollbar Controls**: Interactive scrollbars with click-to-jump and drag-to-scroll support
+- **Mouse Wheel Scrolling**: The wheel scrolls whichever box is under the cursor, even when it is not the focused box
 - **Border Dragging**: Resize boxes interactively by dragging borders with real-time feedback
 - **Dynamic Cursor Styles**: Context-sensitive cursor shapes for different interactive elements
 - **Performance Optimized**: Message coalescing and 60 FPS throttling for smooth drag operations
@@ -120,7 +123,9 @@ description: Overview of BoxMux capabilities for building terminal user interfac
 - **Thread Safety**: Thread-safe implementation with Arc&lt;Mutex&lt;&gt;&gt; patterns
 
 ### Performance Optimizations
+- **Render-on-Change**: The screen is redrawn only when content, layout, focus, or hover state actually changes, so an idle dashboard uses almost no CPU
 - **Efficient Rendering**: Diff-based screen updates minimizing terminal I/O overhead
+- **Terminal Self-Recovery**: Raw mode and mouse tracking are re-asserted each frame, so the UI recovers automatically if a child process resets the terminal
 - **Memory Management**: Circular buffers and bounded storage preventing memory leaks
 - **Input Optimization**: Message coalescing and event throttling for responsive interactions
 - **Cross-platform Support**: Optimized implementations for macOS, Linux, and Windows
@@ -137,7 +142,7 @@ description: Overview of BoxMux capabilities for building terminal user interfac
 ### Extensibility
 - **Plugin Architecture**: Dynamic component loading with fallback to mock implementations
 - **Custom Components**: Create specialized box types for specific use cases
-- **Theme System**: Customizable color schemes and visual styling
+- **Theme System**: Automatic light/dark theming with readable defaults out of the box (`--light` / `--dark` to force a theme), plus fully customizable color schemes and visual styling
 - **Layout Templates**: Reusable layout patterns and component libraries
 
 BoxMux uses YAML configuration to define terminal UI applications with interactive components and real-time updates.

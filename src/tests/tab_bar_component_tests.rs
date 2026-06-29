@@ -1006,8 +1006,9 @@ mod tests {
             &Some("blue".to_string()),
             &tab_labels,
             &tab_close_buttons,
-            2, false, // Active tab index
-            1, // Scroll offset
+            2,
+            false, // Active tab index
+            1,     // Scroll offset
             None,
             &mut buffer,
         );

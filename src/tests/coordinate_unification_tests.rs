@@ -243,7 +243,10 @@ mod tests {
 
         // A few representative splits, including thirds which round unevenly.
         let layouts = [
-            vec![split("0%", "0%", "50%", "100%"), split("50%", "0%", "100%", "100%")],
+            vec![
+                split("0%", "0%", "50%", "100%"),
+                split("50%", "0%", "100%", "100%"),
+            ],
             vec![
                 split("0%", "0%", "33%", "100%"),
                 split("33%", "0%", "66%", "100%"),

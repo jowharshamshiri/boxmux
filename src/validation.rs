@@ -15,10 +15,9 @@ static APP_SCHEMA_VALUE: once_cell::sync::Lazy<Value> = once_cell::sync::Lazy::n
 
 /// Embedded schema compiled once. Recompiling this 30KB schema on every config
 /// load is expensive (regex compilation), so it is built a single time and shared.
-static APP_SCHEMA_COMPILED: once_cell::sync::Lazy<JSONSchema> =
-    once_cell::sync::Lazy::new(|| {
-        JSONSchema::compile(&APP_SCHEMA_VALUE).expect("embedded app schema must compile")
-    });
+static APP_SCHEMA_COMPILED: once_cell::sync::Lazy<JSONSchema> = once_cell::sync::Lazy::new(|| {
+    JSONSchema::compile(&APP_SCHEMA_VALUE).expect("embedded app schema must compile")
+});
 
 /// Configuration schema validation errors
 #[derive(Debug, Clone)]

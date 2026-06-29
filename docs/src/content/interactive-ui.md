@@ -22,6 +22,8 @@ BoxMux provides comprehensive mouse-driven interface manipulation, allowing user
 - **Box resizing** by dragging corners
 - **Box movement** by dragging title bars
 - **Scrolling** with sensitive scrollbars and drag-to-scroll
+- **Hover highlighting** on every clickable element, out of the box
+- **Mouse-wheel scrolling** of whichever box is under the cursor
 - **Dynamic cursor styles** that change based on interaction zones
 - **Real-time YAML synchronization** for persistent changes
 - **Performance optimizations** for smooth interactions
@@ -116,7 +118,15 @@ Click and drag the scrollbar thumb for smooth scrolling:
 ### Mouse Wheel Support
 - **Wheel up/down** → scroll content vertically
 - **Shift + wheel** → scroll content horizontally (where applicable)
-- **Works in any focusable scrollable box**
+- **Scrolls the box under the cursor** → the wheel acts on whichever scrollable box the pointer is over, even if it is not the focused box, so you can scroll one panel while another stays focused
+
+## Hover Highlighting
+
+Every element you can click highlights when the mouse is over it, with no styling required — boxes, menu choices, stream tabs, tab close buttons, and scrollbar knobs all show a hover affordance using the active theme's colors.
+
+- **Out of the box**: Hover works on a plain configuration with no color fields; the highlight colors come from the [automatic theme](styling/theme).
+- **Reliable clear**: Highlights are mutually exclusive and cleared promptly when the pointer moves away, so a stale highlight never lingers on a box you have left.
+- **Discoverability**: Because anything clickable lights up on hover, the hover state doubles as a hint for what is interactive.
 
 ## Dynamic Cursor Styles
 

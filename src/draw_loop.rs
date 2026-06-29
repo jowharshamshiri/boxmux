@@ -277,7 +277,10 @@ fn apply_hover_target(app: &mut crate::model::app::App, muxbox_id: &str, zone: &
         .and_then(|s| s.parse::<usize>().ok())
     {
         muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::CloseButton(i));
-    } else if let Some(i) = zone.strip_prefix("tab_").and_then(|s| s.parse::<usize>().ok()) {
+    } else if let Some(i) = zone
+        .strip_prefix("tab_")
+        .and_then(|s| s.parse::<usize>().ok())
+    {
         muxbox.hovered_tab_target = Some(crate::draw_utils::TabHoverTarget::Tab(i));
     } else if let Some(i) = zone
         .strip_prefix("choice_")
@@ -4331,8 +4334,7 @@ mod render_gating_tests {
 
         // Selection change.
         let mut ctx = TestDataFactory::create_test_app_context();
-        ctx.app.layouts[0].children.as_mut().unwrap()[0].title =
-            Some("retitled".to_string());
+        ctx.app.layouts[0].children.as_mut().unwrap()[0].title = Some("retitled".to_string());
         assert_ne!(
             base,
             compute_render_signature(&ctx),
@@ -4362,7 +4364,12 @@ mod hover_reconcile_tests {
     fn box_with_choices() -> (crate::model::app::App, String) {
         let mut app = TestDataFactory::create_test_app();
         let muxbox_id = app.layouts[0].children.as_ref().unwrap()[0].id.clone();
-        let muxbox = app.layouts[0].children.as_mut().unwrap().get_mut(0).unwrap();
+        let muxbox = app.layouts[0]
+            .children
+            .as_mut()
+            .unwrap()
+            .get_mut(0)
+            .unwrap();
 
         let choices = vec![
             Choice {
@@ -4403,7 +4410,10 @@ mod hover_reconcile_tests {
     #[test]
     fn test_clear_all_hover_removes_every_highlight() {
         let (mut app, _id) = box_with_choices();
-        assert!(clear_all_hover(&mut app), "should report it cleared highlights");
+        assert!(
+            clear_all_hover(&mut app),
+            "should report it cleared highlights"
+        );
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         assert!(muxbox.hovered_tab_target.is_none());
         for choice in muxbox.streams.get("s").unwrap().choices.as_ref().unwrap() {
@@ -4422,7 +4432,10 @@ mod hover_reconcile_tests {
         let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
         let choices = muxbox.streams.get("s").unwrap().choices.as_ref().unwrap();
         assert!(!choices[0].hovered);
-        assert!(choices[1].hovered, "the newly hovered choice must be highlighted");
+        assert!(
+            choices[1].hovered,
+            "the newly hovered choice must be highlighted"
+        );
         assert!(!choices[2].hovered);
         assert!(
             muxbox.hovered_tab_target.is_none(),

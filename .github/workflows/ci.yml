@@ -39,6 +39,7 @@ jobs:
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -49,10 +50,6 @@ jobs:
             target: x86_64-unknown-linux-musl
             artifact_name: boxmux
             asset_name: boxmux-linux-musl-x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: boxmux.exe
-            asset_name: boxmux-windows-x86_64.exe
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: boxmux
@@ -75,9 +72,11 @@ jobs:
         sudo xcode-select --install || true
         export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
         export MACOSX_DEPLOYMENT_TARGET=$(xcrun --sdk macosx --show-sdk-version)
-    - name: Install musl-tools (Linux musl)
+    - name: Set up musl cross toolchain (Linux musl)
       if: matrix.target == 'x86_64-unknown-linux-musl'
-      run: sudo apt-get update && sudo apt-get install -y musl-tools
+      uses: taiki-e/setup-cross-toolchain-action@v1
+      with:
+        target: x86_64-unknown-linux-musl
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
@@ -91,11 +90,13 @@ jobs:
     - name: Strip binary (Unix)
       if: matrix.os != 'windows-latest'
       run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+    - name: Rename binary to asset name
+      run: cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.asset_name }}
-        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+        path: ${{ matrix.asset_name }}
 
   packages:
     name: Build Packages
@@ -107,9 +108,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Install packaging tools
-      run: |
-        cargo install cargo-deb cargo-rpm
-        sudo apt-get update && sudo apt-get install -y rpm
+      run: cargo install cargo-deb cargo-generate-rpm
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
@@ -118,10 +117,12 @@ jobs:
           ~/.cargo/registry
           target
         key: packages-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Build release binary
+      run: cargo build --release
     - name: Build .deb package
-      run: cargo deb
+      run: cargo deb --no-build
     - name: Build .rpm package
-      run: cargo rpm build
+      run: cargo generate-rpm
     - name: Upload .deb package
       uses: actions/upload-artifact@v4
       with:
@@ -131,7 +132,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: boxmux-rpm
-        path: target/rpm/RPMS/*/*.rpm
+        path: target/generate-rpm/*.rpm
 
   release:
     name: Create Release
@@ -161,8 +162,6 @@ jobs:
         # macOS Apple Silicon
         cp boxmux-macos-arm64 release-assets/boxmux-macos-arm64 || echo "boxmux-macos-arm64 not found"
         chmod +x release-assets/boxmux-macos-arm64 2>/dev/null || true
-        # Windows
-        cp boxmux-windows-x86_64.exe release-assets/boxmux-windows-x86_64.exe || echo "boxmux-windows-x86_64.exe not found"
     - name: Create checksums
       run: |
         cd release-assets
@@ -185,7 +184,6 @@ jobs:
           release-assets/boxmux-linux-musl-x86_64
           release-assets/boxmux-macos-x86_64
           release-assets/boxmux-macos-arm64
-          release-assets/boxmux-windows-x86_64.exe
           release-assets/*.deb
           release-assets/*.rpm
           release-assets/checksums.txt
@@ -202,4 +200,11 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      shell: bash
+      run: |
+        set +e
+        out=$(cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} 2>&1); rc=$?
+        echo "$out"
+        [ $rc -eq 0 ] && exit 0
+        echo "$out" | grep -q "already exists on crates.io" && { echo "Version already published; skipping."; exit 0; }
+        exit $rc

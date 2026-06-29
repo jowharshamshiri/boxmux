@@ -396,9 +396,9 @@ impl PtyManager {
                             // Full-screen program detected - capture initial state for differential drawing
                             ansi_processor.capture_baseline();
                             baseline_captured = true;
-                            log::debug!("F0316: Captured baseline screen state for differential drawing (screen_mode={}, terminal_size={}x{})", 
-                                ansi_processor.use_screen_buffer, 
-                                ansi_processor.terminal_state.screen_width, 
+                            log::debug!("F0316: Captured baseline screen state for differential drawing (screen_mode={}, terminal_size={}x{})",
+                                ansi_processor.use_screen_buffer,
+                                ansi_processor.terminal_state.screen_width,
                                 ansi_processor.terminal_state.screen_height);
                         }
 
@@ -408,10 +408,10 @@ impl PtyManager {
 
                         if !content_to_send.trim().is_empty() {
                             if should_replace {
-                                log::info!("Full-screen program detected - sending terminal screen content ({} chars) to {}", 
+                                log::info!("Full-screen program detected - sending terminal screen content ({} chars) to {}",
                                           content_to_send.len(), output_target);
                             } else {
-                                log::info!("Line-based program - sending processed content ({} chars) to {}", 
+                                log::info!("Line-based program - sending processed content ({} chars) to {}",
                                           content_to_send.len(), output_target);
                             }
                         } else {
@@ -1202,7 +1202,7 @@ impl PtyManager {
         }
     }
 
-    /// Restart a PTY process via socket command  
+    /// Restart a PTY process via socket command
     /// F0137: Socket PTY Control - Restart PTY process after termination
     pub fn restart_pty_process(&self, muxbox_id: &str) -> Result<(), anyhow::Error> {
         // First, kill the existing process if it's still running

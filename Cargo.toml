@@ -3,41 +3,25 @@ name = "boxmux"
 path = "src/main.rs"
 
 [dependencies]
-actix-web = "4.0"
-actix-web-prom = "0.6"
 anyhow = "1.0"
 bincode = "1.3"
-crossbeam = "0.8"
 crossbeam-channel = "0.5"
 crossterm = "0.27"
-dotenv = "0.15"
 env_logger = "0.10"
-fern = "0.6"
-geo = "0.27"
-geo-types = "0.7"
 indexmap = "2.0"
-jsonschema = "0.17"
+jsonschema = { version = "0.17", default-features = false }
 lazy_static = "1.4"
 libloading = "0.8"
 log = "0.4"
 once_cell = "1.8.0"
 petgraph = "0.6"
 portable-pty = "0.8"
-prometheus = "0.12"
-rayon = "1.5"
 regex = "1.5"
 serde_json = "1.0"
 serde_yaml = "0.9"
-shutil = "0.1.2"
 signal-hook = "0.3"
-simplelog = "0.12"
-strum_macros = "0.25"
 tempfile = "3.2"
-thiserror = "1.0"
-tokio-postgres = "0.7"
 toml = "0.8"
-tracing = "0.1"
-tracing-appender = "0.2"
 vte = "0.11"
 
 [dependencies.chrono]
@@ -48,29 +32,9 @@ version = "0.4"
 features = ["derive"]
 version = "4.0"
 
-[dependencies.diesel]
-features = ["postgres", "chrono", "uuid", "serde_json"]
-version = "2.0"
-
-[dependencies.reqwest]
-features = ["rustls-tls"]
-version = "0.11"
-
 [dependencies.serde]
 features = ["derive"]
 version = "1.0"
-
-[dependencies.strum]
-features = ["derive"]
-version = "0.25"
-
-[dependencies.tokio]
-features = ["full"]
-version = "1"
-
-[dependencies.tracing-subscriber]
-features = ["env-filter", "fmt"]
-version = "0.3"
 
 [dependencies.uuid]
 features = ["serde", "v4"]
@@ -104,30 +68,12 @@ maintainer = "Bahram Shamshiri <jowharshamshiri@gmail.com>"
 priority = "optional"
 section = "utils"
 
-[package.metadata.rpm]
-description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
-group = "Applications/System"
-license = "MIT"
-package = "boxmux"
-requires = []
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/boxmux", dest = "/usr/bin/boxmux", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/boxmux/README", mode = "644", doc = true },
+]
 summary = "YAML-driven terminal UI framework"
-url = "https://boxmux.com"
-version = "0.144.197284"
-
-[[package.metadata.rpm.files]]
-dest = "/usr/bin/boxmux"
-mode = "755"
-source = "target/release/boxmux"
-
-[[package.metadata.rpm.files]]
-dest = "/usr/share/doc/boxmux/README"
-mode = "644"
-source = "README.md"
-
-[[package.metadata.rpm.files]]
-dest = "/usr/share/doc/boxmux/examples/"
-mode = "644"
-source = "examples/*"
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"

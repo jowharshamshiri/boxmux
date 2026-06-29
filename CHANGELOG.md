@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.240.3373] - 2026-06-29
+
 ### Added
 
+- Automatic light/dark theming with readable defaults rendered out of the box (no color configuration required)
+- `--light` and `--dark` command-line flags to force a theme, overriding terminal auto-detection
+- Hover highlighting on every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) by default
+- Mouse wheel now scrolls whichever box is under the cursor, not only the focused box
+- Distinct focus indication on the selected box (focus-colored border and active tab)
+- Render-on-change: the screen is redrawn only when content, layout, focus, or hover state changes
+- Terminal self-recovery: raw mode and mouse tracking re-asserted each frame; spawned processes detached
 - Documentation suite
 - Getting started guide with tutorials
 - configuration reference
@@ -21,12 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Selection, active-tab, and focus highlights use palette-safe fixed colors so they stay legible across terminal color schemes
+- Color defaults are now theme-derived (light/dark) instead of fixed values; explicit YAML colors still override them
 - Updated README
 - Improved project structure with better organization
 - Enhanced examples with more realistic use cases
 
 ### Fixed
 
+- Dark-mode panels rendered as solid white because empty space was filled with a foreground block glyph instead of the background color (default fill character is now a space)
+- The whole app background appeared dark in light mode because uncovered area used a hardcoded black default instead of the theme background
+- Menu choices overdrew the tab/title bar row, causing the title tab's text and empty space to show different backgrounds (content now renders below the tab bar)
+- White-on-cyan unreadable highlights caused by base ANSI colors being remapped by the terminal palette
 - Title background rendering issue on initial launch
 - Buffer synchronization problems in initial render cycle
 

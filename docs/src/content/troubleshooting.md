@@ -93,6 +93,22 @@ yamllint layouts/dashboard.yaml
 - Restart BoxMux
 - Check terminal compatibility
 
+**Note**: BoxMux re-asserts raw mode and mouse tracking every frame and detaches the processes it spawns, so it recovers on its own within a frame if a child program resets the terminal. If an external program crashed and left your shell echoing mouse escape codes or with input not displaying *after BoxMux has exited*, run `reset` to restore the terminal.
+
+#### Colors Look Wrong (washed out, low contrast, or light panels in a dark terminal)
+
+**Problem**: The default colors look wrong for your terminal  
+**Solution**:
+
+- BoxMux auto-detects a light or dark theme from your terminal (via `COLORFGBG`). If detection picks the wrong one, force it with `--light` or `--dark`:
+
+  ```bash
+  boxmux layouts/dashboard.yaml --dark
+  boxmux layouts/dashboard.yaml --light
+  ```
+
+- Selection, active-tab, and focus colors are palette-safe by design and should stay legible even with custom terminal palettes. If a highlight is still hard to read, confirm the detected theme matches your terminal by forcing it explicitly.
+
 #### Colors Not Working
 
 **Problem**: Colors appear incorrect or missing  

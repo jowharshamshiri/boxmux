@@ -77,10 +77,10 @@ impl<'a> ChoiceMenu<'a> {
                     // lines up with the rendered glyphs (the indicator prefix and any
                     // multi-byte characters count as one cell each).
                     let zone_bounds = Bounds::new(
-                        0,                          // left edge of content area
-                        index,                      // row == choice index
+                        0,                            // left edge of content area
+                        index,                        // row == choice index
                         line_chars.saturating_sub(1), // last drawn character
-                        index,                      // single line height
+                        index,                        // single line height
                     );
 
                     let metadata = SensitiveMetadata {

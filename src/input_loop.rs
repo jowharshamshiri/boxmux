@@ -46,8 +46,7 @@ pub fn pty_should_capture_mouse(
 
     let bounds = focused.bounds_with_parent(root_bounds);
     let (xi, yi) = (x as usize, y as usize);
-    let inside_content =
-        xi > bounds.x1 && xi < bounds.x2 && yi > bounds.y1 && yi < bounds.y2;
+    let inside_content = xi > bounds.x1 && xi < bounds.x2 && yi > bounds.y1 && yi < bounds.y2;
     if !inside_content {
         return false;
     }
@@ -880,26 +879,56 @@ mod tests {
 
         // A point strictly inside the content interior is captured by the PTY...
         assert!(
-            pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, (bounds.y1 + 2) as u16, &root),
+            pty_should_capture_mouse(
+                &layout,
+                pty,
+                (bounds.x1 + 2) as u16,
+                (bounds.y1 + 2) as u16,
+                &root
+            ),
             "clicks inside the PTY content interior must reach the PTY"
         );
 
         // ...but the tab/title row (top border) and the side/bottom borders stay
         // with the BoxMux UI so the tab bar, close buttons and resize edges work.
         assert!(
-            !pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, bounds.y1 as u16, &root),
+            !pty_should_capture_mouse(
+                &layout,
+                pty,
+                (bounds.x1 + 2) as u16,
+                bounds.y1 as u16,
+                &root
+            ),
             "the tab/title row must not be captured by the PTY"
         );
         assert!(
-            !pty_should_capture_mouse(&layout, pty, bounds.x1 as u16, (bounds.y1 + 2) as u16, &root),
+            !pty_should_capture_mouse(
+                &layout,
+                pty,
+                bounds.x1 as u16,
+                (bounds.y1 + 2) as u16,
+                &root
+            ),
             "the left border must not be captured by the PTY"
         );
         assert!(
-            !pty_should_capture_mouse(&layout, pty, bounds.x2 as u16, (bounds.y1 + 2) as u16, &root),
+            !pty_should_capture_mouse(
+                &layout,
+                pty,
+                bounds.x2 as u16,
+                (bounds.y1 + 2) as u16,
+                &root
+            ),
             "the right border must not be captured by the PTY"
         );
         assert!(
-            !pty_should_capture_mouse(&layout, pty, (bounds.x1 + 2) as u16, bounds.y2 as u16, &root),
+            !pty_should_capture_mouse(
+                &layout,
+                pty,
+                (bounds.x1 + 2) as u16,
+                bounds.y2 as u16,
+                &root
+            ),
             "the bottom border must not be captured by the PTY"
         );
     }
@@ -955,7 +984,13 @@ mod tests {
         let bounds = other.bounds_with_parent(&root);
 
         assert!(
-            !pty_should_capture_mouse(&layout, other, (bounds.x1 + 2) as u16, (bounds.y1 + 2) as u16, &root),
+            !pty_should_capture_mouse(
+                &layout,
+                other,
+                (bounds.x1 + 2) as u16,
+                (bounds.y1 + 2) as u16,
+                &root
+            ),
             "a non-PTY focused box must never capture mouse events for a PTY"
         );
     }

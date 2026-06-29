@@ -77,26 +77,32 @@ Layouts define the overall structure and appearance of your interface.
 
 ### Layout Properties
 
+> **All color properties are optional.** When omitted, they default to the
+> [automatic light/dark theme](styling/theme), which is detected from the terminal
+> (or forced with `--light` / `--dark`) and renders readable colors out of the box.
+> A `theme` default in the table below means "follows the active theme"; set a value
+> only to override the theme for that element.
+
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `id` | `string` | Yes | - | Unique identifier for the layout |
 | `root` | `boolean` | No | `false` | Whether this is the root/main layout |
 | `title` | `string` | No | - | Layout title (shown in terminal title bar) |
-| `bg_color` | `string` | No | `"black"` | Background color |
-| `fg_color` | `string` | No | `"white"` | Foreground/text color |
-| `title_fg_color` | `string` | No | `"white"` | Title text color |
-| `title_bg_color` | `string` | No | `"black"` | Title background color |
-| `selected_fg_color` | `string` | No | `"black"` | Selected element text color |
-| `selected_bg_color` | `string` | No | `"white"` | Selected element background color |
-| `selected_title_fg_color` | `string` | No | `"black"` | Selected title text color |
-| `selected_title_bg_color` | `string` | No | `"white"` | Selected title background color |
-| `border_color` | `string` | No | `"white"` | Border color |
-| `selected_border_color` | `string` | No | `"yellow"` | Selected border color |
-| `menu_fg_color` | `string` | No | `"white"` | Menu item text color |
-| `menu_bg_color` | `string` | No | `"black"` | Menu item background color |
-| `selected_menu_fg_color` | `string` | No | `"black"` | Selected menu item text color |
-| `selected_menu_bg_color` | `string` | No | `"white"` | Selected menu item background color |
-| `fill_char` | `char` | No | `' '` | Character used to fill empty space |
+| `bg_color` | `string` | No | `theme` | Background color |
+| `fg_color` | `string` | No | `theme` | Foreground/text color |
+| `title_fg_color` | `string` | No | `theme` | Title text color |
+| `title_bg_color` | `string` | No | `theme` | Title background color |
+| `selected_fg_color` | `string` | No | `theme` | Selected element text color |
+| `selected_bg_color` | `string` | No | `theme` | Selected element background color |
+| `selected_title_fg_color` | `string` | No | `theme` | Selected title text color |
+| `selected_title_bg_color` | `string` | No | `theme` | Selected (active) title/tab background; the focused box uses a distinct focus color |
+| `border_color` | `string` | No | `theme` | Border color |
+| `selected_border_color` | `string` | No | `theme` | Focused box border color (a distinct focus color) |
+| `menu_fg_color` | `string` | No | `theme` | Menu item text color |
+| `menu_bg_color` | `string` | No | `theme` | Menu item background color (blends with the box background) |
+| `selected_menu_fg_color` | `string` | No | `theme` | Selected menu item text color |
+| `selected_menu_bg_color` | `string` | No | `theme` | Selected menu item background color |
+| `fill_char` | `char` | No | `' '` | Character used to fill empty space (a space shows the background color) |
 | `children` | `array[Box]` | No | `[]` | List of child boxes |
 
 ### Example Layout
@@ -378,6 +384,14 @@ BoxMux supports the following color names:
 - `bright_magenta`
 - `bright_cyan`
 - `bright_white`
+
+> **Note on the 16 base colors:** these names map to the terminal's own palette, so
+> `red`, `bright_blue`, etc. match whatever your terminal theme defines for them. That
+> makes them ideal for blending with the terminal, but their exact appearance varies
+> between terminals (some palettes render `bright_black` as a light tint, for example).
+> For elements that need guaranteed contrast — selection, active-tab, and focus
+> highlights — BoxMux's automatic theme uses fixed colors that render consistently
+> everywhere, which is why you do not need to pick highlight colors yourself.
 
 ### Special Colors
 

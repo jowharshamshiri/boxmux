@@ -206,8 +206,7 @@ mod mouse_click_tests {
             y2: "70%".to_string(),
         };
         // status is listed BEFORE main, exactly like the real dashboard.
-        let layout =
-            TestDataFactory::create_test_layout("share", Some(vec![status, main]));
+        let layout = TestDataFactory::create_test_layout("share", Some(vec![status, main]));
 
         // 100x30: 7% -> round(0.07*29)=2 and 8% -> round(0.08*29)=2 collide on row 2.
         let root_bounds = Bounds {

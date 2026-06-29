@@ -34,10 +34,12 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 **UI Components and Styling (Complete)**
 
 - MuxBox Positioning: Flexible box positioning with percentage/absolute bounds
-- Borders and Styling: MuxBox borders with customizable colors and 16 ANSI color palette
+- Borders and Styling: MuxBox borders with customizable colors and a 16-color ANSI palette; highlights use palette-safe colors that render consistently regardless of the terminal's color scheme
+- Automatic Theming: Light and dark themes auto-detected from the terminal, with readable defaults rendered out of the box — no color configuration needed in your YAML; force a theme with `--light` or `--dark`
 - Text Rendering: Multi-line text content display with wrapping and positioning
 - Choice/Menu System: Interactive menu components with selection and navigation
-- Focus Management: Tab order and focus navigation between boxes
+- Hover Affordance: Every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) highlights on mouse hover by default, with no styling required
+- Focus Management: Tab order and focus navigation between boxes, with the focused box marked by a distinct border and tab color
 - Error State Styling: Visual error indication with specialized colors
 - Scrolling Support: Scrolling with position preservation, page navigation, visual indicators, and auto-scroll functionality
 
@@ -86,9 +88,12 @@ BoxMux lets you automate tasks and immediately visualize that automation in term
 - Plugin System: Dynamic component loading with security validation and manifest parsing
 - Configuration Schema Validation: JSON Schema validation integrated into YAML loading
 - Clipboard Integration: Ctrl+C copies focused box content to clipboard with visual feedback
-- Mouse Click Support: Click to select boxes, activate menu items, and trigger actions
+- Mouse Click Support: Click to select boxes, activate menu items, drag scrollbars, and trigger actions, with hover highlighting on anything clickable
+- Mouse Wheel Scrolling: The wheel scrolls the box under the cursor, even when it is not the focused box
 - Hot Key Actions: Global keyboard shortcuts to trigger choice actions without menu navigation
 - Enhanced Navigation: Home/End for horizontal scroll, Ctrl+Home/End for vertical scroll to beginning/end
+- Render-on-Change: The screen is redrawn only when content, layout, focus, or hover state actually changes, keeping idle CPU usage minimal
+- Terminal Self-Recovery: Raw mode and mouse tracking are re-asserted every frame, so the UI recovers automatically if a child process resets the terminal
 - Performance Benchmarking: Performance monitoring with regression detection
 
 **Cross-platform Compatibility**
@@ -132,6 +137,13 @@ Then run it with any YAML configuration:
 
 ```bash
 boxmux layouts/dashboard.yaml
+```
+
+BoxMux matches your terminal's light or dark theme automatically. To force one, pass `--light` or `--dark`:
+
+```bash
+boxmux layouts/dashboard.yaml --dark
+boxmux layouts/dashboard.yaml --light
 ```
 
 #### Option 2: Build from Source
@@ -240,13 +252,14 @@ boxmux my-interface.yaml
 
 - **Tab Navigation**: Move between interactive elements with configurable tab order
 - **Keyboard Shortcuts**: Custom keybindings, global hot keys (F1-F24), and box-specific actions
-- **Mouse Support**: Click to select boxes, activate menu items, and trigger choice actions
+- **Mouse Support**: Click to select boxes, activate menu items, drag scrollbars, and trigger choice actions; the wheel scrolls whichever box is under the cursor, and every clickable element highlights on hover
+- **Automatic Theming**: Readable light/dark colors out of the box, auto-detected from the terminal or forced with `--light` / `--dark`; highlights use palette-safe colors so they stay legible under any terminal color scheme
 - **Real-time Updates**: Configurable refresh intervals with millisecond precision
 - **Scrolling**: Position preservation, proportional scrollbars, Home/End navigation, auto-scroll
 - **Clipboard Integration**: Ctrl+C copies focused box content with visual feedback
 - **PTY Integration**: Interactive terminal emulation with ANSI processing and special key handling
-- **Borders & Styling**: 16 ANSI colors, multiple border styles, PTY visual indicators (⚡), zebra striping
-- **Focus Management**: Visual focus indicators and next_focus_id configuration
+- **Borders & Styling**: Theme-aware defaults, 16 ANSI colors, multiple border styles, PTY visual indicators (⚡), zebra striping
+- **Focus Management**: Visual focus indicators (a distinct border and tab color on the focused box) and next_focus_id configuration
 - **Error Handling**: Script failure handling with PTY fallback and error state display
 
 ## Configuration Structure
@@ -573,7 +586,7 @@ Contributions welcome. Please read our [Contributing Guidelines](CONTRIBUTING.md
 BoxMux performance characteristics (validated with 402 passing tests):
 
 - **Low Memory**: Minimal memory footprint with efficient data structures
-- **Fast Rendering**: Optimized screen updates with frame rate control
+- **Fast Rendering**: Optimized screen updates with frame rate control, redrawing only when content, layout, focus, or hover state changes so an idle dashboard costs almost nothing
 - **Efficient Threading**: Multi-threaded architecture with clean message passing
 - **Responsive**: Sub-millisecond input handling with performance benchmarking
 - **Scalable**: Handles complex layouts with nested box hierarchies
@@ -601,6 +614,15 @@ BoxMux performance characteristics (validated with 402 passing tests):
 - Check YAML syntax with `yamllint`
 - Verify script permissions
 - Check terminal compatibility
+
+**Colors look wrong (washed out, low contrast, or "light" panels in a dark terminal)**
+
+- BoxMux auto-detects your terminal theme; force it explicitly with `--light` or `--dark`
+- Highlights and selection colors are palette-safe by design, so they should stay legible even with custom terminal palettes — if something is unreadable, run with `--dark`/`--light` to confirm the detected theme matches your terminal
+
+**Terminal left in a bad state (mouse escape codes printing, no echo)**
+
+- BoxMux re-asserts raw mode and mouse tracking every frame and detaches child processes, so it recovers on its own within a frame; if a crashed external program left your shell in a raw state after exit, run `reset`
 
 **Performance Issues**
 

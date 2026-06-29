@@ -127,10 +127,10 @@ mod coordinate_system_tests {
             // When scrolled right, we're viewing a more rightward portion of content
             // So the same screen coordinate should map to content that's further right
             // Therefore scrolled inbox coordinates should be GREATER (further into content)
-            assert!(scrolled_inbox_x > unscrolled_inbox_x, 
-                "50% horizontal scroll should show content further right: scrolled {} vs unscrolled {}", 
+            assert!(scrolled_inbox_x > unscrolled_inbox_x,
+                "50% horizontal scroll should show content further right: scrolled {} vs unscrolled {}",
                 scrolled_inbox_x, unscrolled_inbox_x);
-            assert!(scrolled_inbox_y > unscrolled_inbox_y, 
+            assert!(scrolled_inbox_y > unscrolled_inbox_y,
                 "25% vertical scroll should show content further down: scrolled {} vs unscrolled {}",
                 scrolled_inbox_y, unscrolled_inbox_y);
         } else {
