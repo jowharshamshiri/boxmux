@@ -783,11 +783,13 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.menu_fg_color.clone());
 
+        // Match the panel's own foreground for the same reason as the background.
+        let panel_fg = self.calc_fg_color(app_context, app_graph);
         inherit_string_transparent(
             self.menu_fg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some(crate::color_utils::default_menu_fg_color()),
+            panel_fg.as_deref(),
         )
     }
 
@@ -803,11 +805,16 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.menu_bg_color.clone());
 
+        // Non-highlighted menu items blend with the panel: base background is the
+        // box's OWN background (follows theme + selected state). Using a fixed
+        // default_bg_color(false) made items in a selected box keep the unselected
+        // background and visibly differ from the panel fill.
+        let panel_bg = self.calc_bg_color(app_context, app_graph);
         inherit_string_transparent(
             self.menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some(crate::color_utils::default_menu_bg_color()),
+            panel_bg.as_deref(),
         )
     }
 
@@ -843,11 +850,18 @@ impl MuxBox {
             .get_parent_layout_clone(app_context)
             .and_then(|pl| pl.selected_menu_bg_color.clone());
 
+        // The focused box's selected item uses the focus color so its highlighted
+        // top bar matches the focus border; unfocused boxes use the neutral gray.
+        let default = if self.selected.unwrap_or(false) {
+            crate::color_utils::default_focused_title_bg_color()
+        } else {
+            crate::color_utils::default_selected_menu_bg_color()
+        };
         inherit_string_transparent(
             self.selected_menu_bg_color.as_ref(),
             parent_position.as_ref(),
             parent_layout_position.as_ref(),
-            Some(crate::color_utils::default_selected_menu_bg_color()),
+            Some(default),
         )
     }
 
@@ -1117,7 +1131,11 @@ impl MuxBox {
             self_char,
             parent_fill_char.as_ref(),
             parent_layout_fill_char.as_ref(),
-            '█',
+            // Default to a space so empty box area shows the BACKGROUND color. A
+            // block glyph ('█') is drawn in the FOREGROUND color, and fill_muxbox
+            // fills with a transparent fg (preserving the buffer's default white
+            // fg), which made every panel's empty space render as solid white.
+            ' ',
         )
     }
 

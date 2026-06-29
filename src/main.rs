@@ -396,6 +396,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .action(clap::ArgAction::SetTrue)
                 .help("Mark the single terminal cell under the cursor when it belongs to a muxbox"),
         )
+        .arg(
+            Arg::new("dark")
+                .long("dark")
+                .action(clap::ArgAction::SetTrue)
+                .conflicts_with("light")
+                .help("Force dark theme for default colors (overrides auto-detection)"),
+        )
+        .arg(
+            Arg::new("light")
+                .long("light")
+                .action(clap::ArgAction::SetTrue)
+                .conflicts_with("dark")
+                .help("Force light theme for default colors (overrides auto-detection)"),
+        )
         .subcommand(
             Command::new("stop_box_refresh")
                 .about("Stops the refresh of the box")
@@ -887,6 +901,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(100);
     let locked = matches.get_flag("lock");
     let calibrate = matches.get_flag("calibrate");
+
+    // Explicit theme override (--dark / --light); otherwise auto-detect via COLORFGBG.
+    if matches.get_flag("dark") {
+        boxmux_lib::color_utils::set_theme_override(Some(
+            boxmux_lib::color_utils::TerminalTheme::Dark,
+        ));
+    } else if matches.get_flag("light") {
+        boxmux_lib::color_utils::set_theme_override(Some(
+            boxmux_lib::color_utils::TerminalTheme::Light,
+        ));
+    }
 
     let yaml_path = Path::new(yaml_path);
 

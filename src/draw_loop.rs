@@ -324,6 +324,42 @@ fn reconcile_hover(
     true
 }
 
+/// Direction for mouse-wheel scrolling of the hovered box.
+#[derive(Clone, Copy)]
+enum WheelDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+/// Scroll the box UNDER the cursor (hovered), regardless of focus. Returns the
+/// scrolled box's id if a box was found at (x, y). Scrolls content/view only —
+/// it never changes choice selection (that stays a focus/keyboard action).
+fn scroll_hovered_box(
+    app_context: &mut AppContext,
+    x: u16,
+    y: u16,
+    root_bounds: &crate::Bounds,
+    direction: WheelDirection,
+) -> Option<String> {
+    let id = {
+        let layout = app_context.app.get_active_layout()?;
+        layout
+            .find_muxbox_at_coordinates_with_bounds(x, y, root_bounds)?
+            .id
+            .clone()
+    };
+    let muxbox = app_context.app.get_muxbox_by_id_mut(&id)?;
+    match direction {
+        WheelDirection::Up => muxbox.scroll_up(Some(1.0)),
+        WheelDirection::Down => muxbox.scroll_down(Some(1.0)),
+        WheelDirection::Left => muxbox.scroll_left(Some(1.0)),
+        WheelDirection::Right => muxbox.scroll_right(Some(1.0)),
+    }
+    Some(id)
+}
+
 // F0189: Helper functions to detect muxbox border resize areas (corner-only)
 pub fn detect_resize_edge(muxbox: &MuxBox, click_x: u16, click_y: u16) -> Option<ResizeEdge> {
     let bounds = muxbox.bounds();
@@ -1256,6 +1292,54 @@ create_runnable!(
                         }
                         for muxbox_id in selected_muxbox_ids {
                             inner.send_message(Message::RedrawMuxBox(muxbox_id));
+                        }
+                    }
+                    Message::MouseScrollUp(x, y) => {
+                        if let Some(id) = scroll_hovered_box(
+                            &mut app_context_unwrapped,
+                            *x,
+                            *y,
+                            &crate::utils::screen_bounds(),
+                            WheelDirection::Up,
+                        ) {
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(id));
+                        }
+                    }
+                    Message::MouseScrollDown(x, y) => {
+                        if let Some(id) = scroll_hovered_box(
+                            &mut app_context_unwrapped,
+                            *x,
+                            *y,
+                            &crate::utils::screen_bounds(),
+                            WheelDirection::Down,
+                        ) {
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(id));
+                        }
+                    }
+                    Message::MouseScrollLeft(x, y) => {
+                        if let Some(id) = scroll_hovered_box(
+                            &mut app_context_unwrapped,
+                            *x,
+                            *y,
+                            &crate::utils::screen_bounds(),
+                            WheelDirection::Left,
+                        ) {
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(id));
+                        }
+                    }
+                    Message::MouseScrollRight(x, y) => {
+                        if let Some(id) = scroll_hovered_box(
+                            &mut app_context_unwrapped,
+                            *x,
+                            *y,
+                            &crate::utils::screen_bounds(),
+                            WheelDirection::Right,
+                        ) {
+                            inner.update_app_context(app_context_unwrapped.clone());
+                            inner.send_message(Message::RedrawMuxBox(id));
                         }
                     }
                     Message::ScrollMuxBoxDown() => {
@@ -4356,5 +4440,90 @@ mod hover_reconcile_tests {
             muxbox.hovered_tab_target,
             Some(crate::draw_utils::TabHoverTarget::CloseButton(2))
         );
+    }
+}
+
+#[cfg(test)]
+mod wheel_scroll_tests {
+    use super::{scroll_hovered_box, WheelDirection};
+    use crate::model::common::InputBounds;
+    use crate::tests::test_utils::TestDataFactory;
+    use crate::Bounds;
+
+    fn pos(x1: &str, y1: &str, x2: &str, y2: &str) -> InputBounds {
+        InputBounds {
+            x1: x1.to_string(),
+            y1: y1.to_string(),
+            x2: x2.to_string(),
+            y2: y2.to_string(),
+        }
+    }
+
+    /// Mouse wheel scrolls the box UNDER the cursor, never the focused box.
+    #[test]
+    fn test_wheel_scrolls_box_under_cursor_not_focused() {
+        let mut left = TestDataFactory::create_test_muxbox("left");
+        left.position = pos("0%", "0%", "49%", "99%");
+        left.vertical_scroll = Some(0.0);
+        let mut right = TestDataFactory::create_test_muxbox("right");
+        right.position = pos("50%", "0%", "99%", "99%");
+        right.vertical_scroll = Some(0.0);
+
+        let mut ctx = TestDataFactory::create_test_app_context();
+        ctx.app.layouts[0].active = Some(true);
+        ctx.app.layouts[0].children = Some(vec![left, right]);
+
+        // Deterministic coordinate space independent of the real terminal size.
+        let root = Bounds {
+            x1: 0,
+            y1: 0,
+            x2: 99,
+            y2: 29,
+        };
+        // Sanity: confirm the test points land in the intended boxes.
+        let children = ctx.app.layouts[0].children.as_ref().unwrap();
+        let left_b = children[0].bounds_with_parent(&root);
+        let right_b = children[1].bounds_with_parent(&root);
+        let right_point = (((right_b.x1 + right_b.x2) / 2) as u16, 10u16);
+        let left_point = (((left_b.x1 + left_b.x2) / 2) as u16, 10u16);
+        assert!(right_b.contains_point(right_point.0 as usize, right_point.1 as usize));
+        assert!(left_b.contains_point(left_point.0 as usize, left_point.1 as usize));
+
+        // Wheel over the RIGHT box scrolls the right box only — regardless of focus.
+        let scrolled = scroll_hovered_box(
+            &mut ctx,
+            right_point.0,
+            right_point.1,
+            &root,
+            WheelDirection::Down,
+        );
+        assert_eq!(scrolled.as_deref(), Some("right"));
+        let children = ctx.app.layouts[0].children.as_ref().unwrap();
+        assert!(
+            children[1].vertical_scroll.unwrap() > 0.0,
+            "the hovered (right) box must have scrolled"
+        );
+        assert_eq!(
+            children[0].vertical_scroll.unwrap(),
+            0.0,
+            "the non-hovered (left) box must not scroll"
+        );
+
+        // Wheel over the LEFT box targets the left box.
+        let scrolled = scroll_hovered_box(
+            &mut ctx,
+            left_point.0,
+            left_point.1,
+            &root,
+            WheelDirection::Down,
+        );
+        assert_eq!(scrolled.as_deref(), Some("left"));
+
+        // Over empty space (a column past both boxes) nothing scrolls.
+        let empty_x = (right_b.x2 + 1) as u16;
+        assert!(!right_b.contains_point(empty_x as usize, 10));
+        assert!(!left_b.contains_point(empty_x as usize, 10));
+        let none = scroll_hovered_box(&mut ctx, empty_x, 10, &root, WheelDirection::Down);
+        assert_eq!(none, None);
     }
 }

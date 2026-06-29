@@ -1021,20 +1021,22 @@ create_runnable!(
 
                         // Fall back to BoxMux UI mouse handling
                         match kind {
+                            // Mouse wheel scrolls the box UNDER the cursor (hovered),
+                            // not the focused box — carry the pointer coordinates.
                             MouseEventKind::ScrollUp => {
-                                inner.send_message(Message::ScrollMuxBoxUp());
+                                inner.send_message(Message::MouseScrollUp(column, row));
                                 "ScrollUp".to_string()
                             }
                             MouseEventKind::ScrollDown => {
-                                inner.send_message(Message::ScrollMuxBoxDown());
+                                inner.send_message(Message::MouseScrollDown(column, row));
                                 "ScrollDown".to_string()
                             }
                             MouseEventKind::ScrollLeft => {
-                                inner.send_message(Message::ScrollMuxBoxLeft());
+                                inner.send_message(Message::MouseScrollLeft(column, row));
                                 "ScrollLeft".to_string()
                             }
                             MouseEventKind::ScrollRight => {
-                                inner.send_message(Message::ScrollMuxBoxRight());
+                                inner.send_message(Message::MouseScrollRight(column, row));
                                 "ScrollRight".to_string()
                             }
                             MouseEventKind::Down(_button) => {

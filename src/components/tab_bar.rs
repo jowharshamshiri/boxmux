@@ -203,6 +203,7 @@ impl TabBar {
         tab_labels: &[String],
         tab_close_buttons: &[bool],
         active_tab_index: usize,
+        box_selected: bool,
         tab_scroll_offset: usize,
         hovered_target: Option<&TabHoverTarget>,
         buffer: &mut ScreenBuffer,
@@ -272,6 +273,7 @@ impl TabBar {
                     tab.width,
                     &tab_labels[tab.index],
                     tab.index == active_tab_index,
+                    box_selected,
                     tab.close_glyph_x.is_some(),
                     matches!(hovered_target, Some(TabHoverTarget::Tab(index)) if *index == tab.index),
                     matches!(hovered_target, Some(TabHoverTarget::CloseButton(index)) if *index == tab.index),
@@ -369,6 +371,7 @@ impl TabBar {
         width: usize,
         label: &str,
         is_active: bool,
+        box_selected: bool,
         has_close_button: bool,
         is_hovered: bool,
         is_close_hovered: bool,
@@ -376,8 +379,19 @@ impl TabBar {
         title_bg_color: &Option<String>,
         buffer: &mut ScreenBuffer,
     ) {
-        let (base_tab_fg, base_tab_bg) = if is_active {
-            (title_bg_color, title_fg_color) // Inverted colors for active tab
+        // Active tab uses theme-aware selected-title colors instead of inverting
+        // title_fg/title_bg. Inverting made the active tab's background = title_fg,
+        // which is white in dark mode (a glaring light title bar). The selected-title
+        // defaults keep light's liked dark bar and give dark a dark accent bar. The
+        // FOCUSED box's active tab uses a distinct color so the focused box stands out.
+        let active_fg = Some(crate::color_utils::default_selected_title_fg_color().to_string());
+        let active_bg = Some(if box_selected {
+            crate::color_utils::default_focused_title_bg_color().to_string()
+        } else {
+            crate::color_utils::default_selected_title_bg_color().to_string()
+        });
+        let (base_tab_fg, base_tab_bg): (&Option<String>, &Option<String>) = if is_active {
+            (&active_fg, &active_bg)
         } else {
             (title_fg_color, title_bg_color)
         };

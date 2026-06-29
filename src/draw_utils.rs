@@ -356,6 +356,7 @@ pub fn draw_horizontal_line_with_tabs(
     tab_labels: &[String],
     tab_close_buttons: &[bool], // F0219: Close button info for each tab
     active_tab_index: usize,
+    box_selected: bool,
     tab_scroll_offset: usize,
     hovered_tab_target: Option<&crate::components::TabHoverTarget>,
     buffer: &mut ScreenBuffer,
@@ -375,6 +376,7 @@ pub fn draw_horizontal_line_with_tabs(
             tab_labels,
             tab_close_buttons,
             active_tab_index,
+            box_selected,
             tab_scroll_offset,
             hovered_tab_target,
             buffer,

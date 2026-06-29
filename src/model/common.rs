@@ -1948,9 +1948,13 @@ impl Default for ScreenBuffer {
 
 impl ScreenBuffer {
     pub fn new() -> Self {
+        // Theme-aware default so any cell never touched by a draw (the root area
+        // behind/around panels) shows the THEME background — white in light, black
+        // in dark — instead of a hardcoded black that darkened the whole app in
+        // light mode.
         let default_cell = Cell {
-            fg_color: get_fg_color("white"),
-            bg_color: get_bg_color("black"),
+            fg_color: get_fg_color(crate::color_utils::default_fg_color(false)),
+            bg_color: get_bg_color(crate::color_utils::default_bg_color(false)),
             ch: ' ',
         };
         let width = screen_width();
@@ -1964,9 +1968,13 @@ impl ScreenBuffer {
     }
 
     pub fn new_custom(width: usize, height: usize) -> Self {
+        // Theme-aware default so any cell never touched by a draw (the root area
+        // behind/around panels) shows the THEME background — white in light, black
+        // in dark — instead of a hardcoded black that darkened the whole app in
+        // light mode.
         let default_cell = Cell {
-            fg_color: get_fg_color("white"),
-            bg_color: get_bg_color("black"),
+            fg_color: get_fg_color(crate::color_utils::default_fg_color(false)),
+            bg_color: get_bg_color(crate::color_utils::default_bg_color(false)),
             ch: ' ',
         };
         let buffer = vec![vec![default_cell; width]; height];
@@ -1978,9 +1986,13 @@ impl ScreenBuffer {
     }
 
     pub fn clear(&mut self) {
+        // Theme-aware default so any cell never touched by a draw (the root area
+        // behind/around panels) shows the THEME background — white in light, black
+        // in dark — instead of a hardcoded black that darkened the whole app in
+        // light mode.
         let default_cell = Cell {
-            fg_color: get_fg_color("white"),
-            bg_color: get_bg_color("black"),
+            fg_color: get_fg_color(crate::color_utils::default_fg_color(false)),
+            bg_color: get_bg_color(crate::color_utils::default_bg_color(false)),
             ch: ' ',
         };
         self.buffer = vec![vec![default_cell; self.width]; self.height];

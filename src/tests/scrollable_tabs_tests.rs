@@ -138,6 +138,7 @@ mod tests {
             tab_labels,
             &close_buttons,
             0,
+            false,
             scroll_offset,
             None,
             &mut buffer,

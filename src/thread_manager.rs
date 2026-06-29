@@ -48,6 +48,12 @@ pub enum Message {
     MouseDragStart(u16, u16), // x, y coordinates - start drag
     MouseDrag(u16, u16), // x, y coordinates - continue drag
     MouseDragEnd(u16, u16), // x, y coordinates - end drag
+    // Mouse wheel scroll, carrying the cursor position so it scrolls the box
+    // UNDER the pointer (hovered), regardless of which box has focus.
+    MouseScrollUp(u16, u16),
+    MouseScrollDown(u16, u16),
+    MouseScrollLeft(u16, u16),
+    MouseScrollRight(u16, u16),
     MuxBoxBorderDrag(String, u16, u16), // muxbox_id, x, y coordinates - resize muxbox
     MuxBoxResizeComplete(String), // muxbox_id - save changes to YAML
     MuxBoxMove(String, u16, u16), // muxbox_id, x, y coordinates - move muxbox
@@ -153,6 +159,26 @@ impl Hash for Message {
             }
             Message::MouseDrag(x, y) => {
                 "mouse_drag".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseScrollUp(x, y) => {
+                "mouse_scroll_up".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseScrollDown(x, y) => {
+                "mouse_scroll_down".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseScrollLeft(x, y) => {
+                "mouse_scroll_left".hash(state);
+                x.hash(state);
+                y.hash(state);
+            }
+            Message::MouseScrollRight(x, y) => {
+                "mouse_scroll_right".hash(state);
                 x.hash(state);
                 y.hash(state);
             }

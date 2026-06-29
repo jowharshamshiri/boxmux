@@ -68,8 +68,14 @@ impl BoxDimensions {
         content_width: usize,
         content_height: usize,
     ) -> Self {
-        let border_thickness = if muxbox.border_color.is_some() { 1 } else { 0 };
-        let tab_height = if muxbox.streams.len() > 1 { 1 } else { 0 };
+        // The border is always drawn (calc_border defaults to a visible color, so a
+        // box without an explicit border_color still renders one). The previous
+        // `border_color.is_some()` check used the raw field (None for default boxes),
+        // giving border_thickness=0 — so content/choices rendered ON the top
+        // border/tab row and overdrew it. The tab bar is drawn ON that same top row
+        // (it replaces the border line), so it never adds a second row.
+        let border_thickness = 1;
+        let tab_height = 0;
 
         // Standard scrollbar reservation: always reserve one column on the right
         // and one row on the bottom of the content area.
@@ -685,6 +691,7 @@ impl<'a> BoxRenderer<'a> {
                 tab_labels,
                 tab_close_buttons,
                 active_tab_index,
+                self.muxbox.selected.unwrap_or(false),
                 tab_scroll_offset,
                 self.muxbox.hovered_tab_target.as_ref(),
                 buffer,
