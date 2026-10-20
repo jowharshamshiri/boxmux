@@ -109,21 +109,39 @@ mod emulator_integration_tests {
 
     #[test]
     fn test_emulator_performance_large_output() {
-        let mut processor = Emulator::new();
-
-        // Large output simulation
-        let mut large_output = String::new();
-        for i in 0..1000 {
-            large_output.push_str(&format!("\x1b[{}m Line {}\x1b[0m\r\n", 31 + (i % 7), i));
+        fn coloured_lines(count: usize) -> String {
+            (0..count)
+                .map(|i| format!("\x1b[{}m Line {}\x1b[0m\r\n", 31 + (i % 7), i))
+                .collect()
+        }
+        // The fastest of a few runs, so a stall of the machine does not count.
+        fn processing_time(output: &str) -> std::time::Duration {
+            (0..3)
+                .map(|_| {
+                    let mut processor = Emulator::new();
+                    let start = std::time::Instant::now();
+                    processor.process_string(output);
+                    start.elapsed()
+                })
+                .min()
+                .unwrap()
         }
 
-        let start = std::time::Instant::now();
-        processor.process_string(&large_output);
-        let duration = start.elapsed();
+        // Each line costs the same however much scrolled off before it: ten times the output
+        // takes about ten times as long, where work that grows with the history would take a
+        // hundred. Comparing the two keeps the check independent of how fast the machine is.
+        let short = processing_time(&coloured_lines(2_000));
+        let long = processing_time(&coloured_lines(20_000));
+        assert!(
+            long < short * 30,
+            "2000 lines took {:?} but 20000 took {:?}",
+            short,
+            long
+        );
 
-        // Should process reasonably quickly (less than 100ms for 1000 lines)
-        assert!(duration.as_millis() < 100);
         // The screen keeps the last lines; the rest scrolled off the top.
+        let mut processor = Emulator::new();
+        processor.process_string(&coloured_lines(1_000));
         let text = processor.get_processed_text();
         assert!(text.contains("Line 999"), "{}", text);
         assert!(!text.contains("Line 0\n"), "{}", text);
