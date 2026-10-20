@@ -13,7 +13,7 @@ pub fn display_width(text: &str) -> usize {
 
 /// Removes CSI escape sequences (colors, cursor movement) from text.
 pub fn strip_ansi_codes(input: &str) -> String {
-    static CSI: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
+    static CSI: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
         Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").expect("the CSI pattern is valid")
     });
     let re = &*CSI;
