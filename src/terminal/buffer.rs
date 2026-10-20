@@ -1,12 +1,13 @@
 //! A screen of cells, with its scrollback.
 
 use super::*;
+use std::collections::VecDeque;
 
 #[derive(Debug, Clone)]
 pub struct TerminalScreenBuffer {
     pub content: Vec<Vec<TerminalCell>>,
     /// Lines that scrolled off the top of the screen, oldest first.
-    pub scrollback: Vec<Vec<TerminalCell>>,
+    pub scrollback: VecDeque<Vec<TerminalCell>>,
     pub cursor: CursorState,
     pub max_scrollback: usize,
     pub width: usize,
@@ -17,7 +18,7 @@ impl TerminalScreenBuffer {
     pub fn new(width: usize, height: usize, max_scrollback: usize) -> Self {
         TerminalScreenBuffer {
             content: vec![vec![TerminalCell::default(); width]; height],
-            scrollback: Vec::new(),
+            scrollback: VecDeque::new(),
             cursor: CursorState {
                 x: 0,
                 y: 0,
@@ -35,9 +36,9 @@ impl TerminalScreenBuffer {
             return;
         }
         if self.scrollback.len() == self.max_scrollback {
-            self.scrollback.remove(0);
+            self.scrollback.pop_front();
         }
-        self.scrollback.push(line);
+        self.scrollback.push_back(line);
     }
 
     /// Blanks every cell and puts the cursor at the top left.
