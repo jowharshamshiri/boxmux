@@ -725,18 +725,8 @@ fn the_socket_option_goes_before_or_after_a_control_command_but_interface_option
     let fixture = Fixture::new();
     let socket = fixture.socket();
     for args in [
-        vec![
-            "--socket",
-            socket.as_str(),
-            "query_pty_status",
-            "b",
-        ],
-        vec![
-            "query_pty_status",
-            "--socket",
-            socket.as_str(),
-            "b",
-        ],
+        vec!["--socket", socket.as_str(), "query_pty_status", "b"],
+        vec!["query_pty_status", "--socket", socket.as_str(), "b"],
     ] {
         let output = Command::new(binary()).args(&args).output().unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -829,4 +819,14 @@ app:
     fixture.assert_no_marker_after("leaked", Duration::from_millis(300));
     let _ = child.kill();
     let _ = child.wait();
+}
+
+#[test]
+fn q_quits_with_success() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(&menu());
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("READY");
+    app.send("q");
+    assert!(app.wait_for_exit(), "q exits successfully");
 }
