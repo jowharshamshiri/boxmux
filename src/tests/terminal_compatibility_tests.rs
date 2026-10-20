@@ -3,7 +3,7 @@
 //! Tests for terminal compatibility with actual command-line programs.
 //! Validates that BoxMux PTY can properly run vi, htop, top, less, and other interactive programs.
 
-use crate::ansi_processor::AnsiProcessor;
+use crate::terminal::Emulator;
 
 #[cfg(test)]
 mod tests {
@@ -12,7 +12,7 @@ mod tests {
     #[test]
     fn test_ls_color_output_compatibility() {
         // F0319: Test ls --color=always produces proper ANSI output
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate ls --color output with directory listing and colors
         let ls_output = "\x1b[0m\x1b[01;34mbin\x1b[0m  \x1b[01;34mlib\x1b[0m  \x1b[00msrc\x1b[0m  \x1b[01;32mREADME.md\x1b[0m\n";
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn test_cat_file_output_compatibility() {
         // F0319: Test cat command with various file types
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate cat output with plain text
         let cat_output = "Hello World\r\nThis is a test file\r\nWith multiple lines\r\n";
@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn test_grep_output_compatibility() {
         // F0319: Test grep output with line numbers and highlighting
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate grep -n --color=always output
         let grep_output = "\x1b[35m\x1b[Kmain.rs\x1b[m\x1b[K:\x1b[36m\x1b[K42\x1b[m\x1b[K:fn \x1b[01;31m\x1b[Kmain\x1b[m\x1b[K() {\n";
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn test_ps_output_compatibility() {
         // F0319: Test ps command output with process information
-        let mut processor = AnsiProcessor::with_screen_size(120, 24);
+        let mut processor = Emulator::with_screen_size(120, 24);
 
         // Simulate ps aux output header and sample processes
         let ps_output = "  PID TTY          TIME CMD\n 1234 pts/0    00:00:01 boxmux\n 5678 pts/1    00:00:00 vim\n";
@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn test_top_like_header_compatibility() {
         // F0319: Test top-like header with system information
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate top header with cursor positioning and updates
         let top_output = "\x1b[H\x1b[2Jtop - 12:34:56 up 1 day,  5:43,  3 users,  load average: 0.45, 0.32, 0.28\r\n";
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_vi_status_line_compatibility() {
         // F0319: Test vi-like status line with file information
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate vi status line at bottom of screen
         let vi_output = "\x1b[24;1H\"main.rs\" 42L, 1337C\x1b[6n";
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_less_pager_compatibility() {
         // F0319: Test less pager with scroll indicators and content
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate less output with content and bottom status
         processor.process_bytes(b"Line 1\nLine 2\nLine 3\n");
@@ -158,7 +158,7 @@ mod tests {
     #[test]
     fn test_nano_editor_compatibility() {
         // F0319: Test nano editor interface with title and status bars
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate nano interface with title bar and content area
         let nano_output =
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn test_htop_process_list_compatibility() {
         // F0319: Test htop-like process display with colors and formatting
-        let mut processor = AnsiProcessor::with_screen_size(120, 30);
+        let mut processor = Emulator::with_screen_size(120, 30);
 
         // Simulate htop process list with colored output
         let htop_output = "\x1b[H\x1b[2J\x1b[1;32m  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND\x1b[0m\n";
@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_terminal_escape_sequence_compatibility() {
         // F0319: Test various terminal escape sequences used by real applications
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Test cursor save/restore sequences
         processor.process_bytes(b"\x1b[s"); // Save cursor
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_interactive_program_cursor_handling() {
         // F0319: Test cursor handling for interactive programs
-        let mut processor = AnsiProcessor::with_screen_size(80, 24);
+        let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate interactive program cursor movements
         processor.process_bytes(b"\x1b[H"); // Home position

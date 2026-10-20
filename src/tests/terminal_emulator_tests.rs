@@ -1,12 +1,12 @@
-use crate::ansi_processor::AnsiProcessor;
+use crate::terminal::Emulator;
 
 #[cfg(test)]
-mod ansi_processor_integration_tests {
+mod emulator_integration_tests {
     use super::*;
 
     #[test]
-    fn test_ansi_processor_with_ls_output() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_with_ls_output() {
+        let mut processor = Emulator::new();
 
         // Simulate colorized ls output
         let ls_output = "\x1b[0m\x1b[01;34mfolder\x1b[0m\n\x1b[01;32mscript.sh\x1b[0m\n\x1b[00mfile.txt\x1b[0m\n";
@@ -22,8 +22,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_with_grep_output() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_with_grep_output() {
+        let mut processor = Emulator::new();
 
         // Simulate grep output with highlighting
         let grep_output = "file.txt:\x1b[01;31m\x1b[Kpattern\x1b[m\x1b[K found here\n";
@@ -35,8 +35,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_with_vim_output() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_with_vim_output() {
+        let mut processor = Emulator::new();
 
         // Simulate vim-like editor output with cursor positioning
         let vim_output = "\x1b[2J\x1b[H\x1b[7mWelcome to editor\x1b[0m\n\x1b[2;1HLine 2 content";
@@ -48,8 +48,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_with_htop_like_output() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_with_htop_like_output() {
+        let mut processor = Emulator::new();
 
         // Simulate system monitor output with colors and positioning
         let htop_output = "\x1b[1;1H\x1b[44m\x1b[37mCPU: \x1b[32m15%\x1b[0m\x1b[49m\n\x1b[2;1H\x1b[44m\x1b[37mMEM: \x1b[31m85%\x1b[0m\x1b[49m";
@@ -61,8 +61,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_cursor_tracking() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_cursor_tracking() {
+        let mut processor = Emulator::new();
 
         processor.process_string("Start\x1b[5;10HMiddle\x1b[1;1HBegin");
 
@@ -71,8 +71,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_color_state_tracking() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_color_state_tracking() {
+        let mut processor = Emulator::new();
 
         processor.process_string("\x1b[31mRed\x1b[32mGreen\x1b[0mReset");
 
@@ -83,8 +83,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_incremental_processing() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_incremental_processing() {
+        let mut processor = Emulator::new();
 
         // Process in chunks like PTY would - this tests the state machine
         processor.process_string("\x1b[31mRed ");
@@ -95,8 +95,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_mixed_content() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_mixed_content() {
+        let mut processor = Emulator::new();
 
         // Mix of control chars, ANSI codes, and regular text
         let mixed = "Normal\n\x1b[1mBold\x1b[0m\tTabbed\r\nNew line\x1b[2JCleared";
@@ -108,8 +108,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_performance_large_output() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_performance_large_output() {
+        let mut processor = Emulator::new();
 
         // Large output simulation
         let mut large_output = String::new();
@@ -130,8 +130,8 @@ mod ansi_processor_integration_tests {
     }
 
     #[test]
-    fn test_ansi_processor_malformed_sequences() {
-        let mut processor = AnsiProcessor::new();
+    fn test_emulator_malformed_sequences() {
+        let mut processor = Emulator::new();
 
         // Test malformed or incomplete ANSI sequences - focus on not panicking
         processor.process_string("Text\x1b[999;999mMore");

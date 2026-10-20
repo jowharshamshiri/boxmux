@@ -2,7 +2,6 @@
 
 pub mod test_utils;
 
-mod ansi_processor_tests;
 mod box_renderer_tests;
 mod character_set_tests;
 mod comprehensive_variable_tests;
@@ -14,4 +13,5 @@ mod line_attribute_tests;
 mod tab_stop_tests;
 mod table_tests;
 mod terminal_compatibility_tests;
+mod terminal_emulator_tests;
 mod terminal_title_tests;

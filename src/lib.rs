@@ -1,4 +1,3 @@
-pub mod ansi_processor;
 pub mod base64;
 pub mod chart;
 pub mod model;
@@ -8,6 +7,7 @@ pub mod render;
 pub mod runtime;
 pub mod socket;
 pub mod table;
+pub mod terminal;
 pub mod text;
 pub mod utils;
 pub mod validation;

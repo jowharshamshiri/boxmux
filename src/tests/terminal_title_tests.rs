@@ -1,4 +1,4 @@
-use crate::ansi_processor::AnsiProcessor;
+use crate::terminal::Emulator;
 
 #[cfg(test)]
 mod tests {
@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_osc_terminal_title_sequence() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test OSC 0 - Set both icon and title
         processor.process_bytes("\x1b]0;Test Title\x07".as_bytes());
@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn test_osc_icon_name_sequence() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test OSC 1 - Set icon name
         processor.process_bytes("\x1b]1;Icon Name\x07".as_bytes());
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_osc_sequence_termination_methods() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test BEL termination (\x07)
         processor.process_bytes("\x1b]2;BEL Terminated\x07".as_bytes());
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_osc_sequence_with_special_characters() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test title with spaces and special characters
         processor.process_bytes("\x1b]2;Title with spaces & symbols!\x07".as_bytes());
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_osc_sequence_with_unicode() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test Unicode characters in title
         processor.process_bytes("\x1b]2;测试标题 🚀 Test\x07".as_bytes());
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_osc_unknown_commands() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test unknown OSC command (should be logged but not crash)
         let original_title = processor.terminal_state.terminal_title.clone();
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_osc_malformed_sequences() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test OSC without semicolon
         let original_title = processor.terminal_state.terminal_title.clone();
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_osc_color_palette_sequences() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test OSC 4 - Set color palette (should be logged, not stored)
         let original_title = processor.terminal_state.terminal_title.clone();
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_osc_clipboard_sequences() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test OSC 52 - Clipboard operations (should be logged for security)
         let original_title = processor.terminal_state.terminal_title.clone();
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_multiple_osc_sequences() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test multiple OSC sequences in sequence
         processor.process_bytes("\x1b]1;First Icon\x07".as_bytes());
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_osc_long_titles() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test very long title (should handle gracefully)
         let long_title = "A".repeat(1000);
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_osc_with_control_characters() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Test title with embedded control characters (should be filtered out for security)
         processor.process_bytes("\x1b]2;Title\nwith\tcontrols\x07".as_bytes());
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_title_propagation_detection() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Initially no title change detected
         assert!(!processor.has_title_changed());
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_multiple_title_changes() {
-        let mut processor = AnsiProcessor::new();
+        let mut processor = Emulator::new();
 
         // Set initial title
         processor.process_bytes("\x1b]2;Title 1\x07".as_bytes());

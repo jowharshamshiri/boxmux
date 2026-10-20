@@ -2,13 +2,13 @@
 
 use super::keys::{key_matches, key_name, pty_key_bytes};
 use super::{Drag, Runtime};
-use crate::ansi_processor::{MouseButton as TermButton, MouseEventType, MouseModifiers};
 use crate::model::bounds::{Bounds, InputBounds};
 use crate::model::stream::RunId;
 use crate::render::box_view::{percent_for_offset, BoxHit, BoxView};
 use crate::render::scrollbar::ScrollbarHit;
 use crate::render::tab_bar::TabHit;
 use crate::runtime::display::Display;
+use crate::terminal::{MouseButton as TermButton, MouseEventType, MouseModifiers};
 use crate::App;
 use crossterm::event::{
     Event as TermEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
