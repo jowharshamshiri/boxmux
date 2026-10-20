@@ -158,6 +158,23 @@ fn lines_that_scroll_off_the_top_are_kept_in_the_scrollback() {
 }
 
 #[test]
+fn a_full_scrollback_lets_go_of_its_oldest_line() {
+    let mut emulator = Emulator::with_screen_size(10, 1);
+    let lines: String = (0..MAX_SCROLLBACK + 2)
+        .map(|i| format!("{}\r\n", i))
+        .collect();
+    emulator.process_string(&lines);
+    let scrollback = &emulator.terminal_state.primary_buffer.scrollback;
+    assert_eq!(scrollback.len(), MAX_SCROLLBACK);
+    let text = |row: &Vec<TerminalCell>| row.iter().map(|c| c.character).collect::<String>();
+    assert_eq!(text(&scrollback[0]).trim_end(), "2");
+    assert_eq!(
+        text(&scrollback[MAX_SCROLLBACK - 1]).trim_end(),
+        (MAX_SCROLLBACK + 1).to_string()
+    );
+}
+
+#[test]
 fn the_cursor_is_shown_as_a_reverse_cell_unless_hidden() {
     let emulator = after(5, 1, "ab");
     assert!(
