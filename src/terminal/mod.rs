@@ -54,54 +54,14 @@ impl Emulator {
         &self.terminal_state
     }
 
-    /// Writes `c` at the cursor with the current attributes. A wide character also takes the
-    /// next cell.
-    fn put_char_at_cursor(&mut self, c: char, width: usize) {
-        let cursor_y = self.terminal_state.get_cursor().y;
-        let cursor_x = self.terminal_state.get_cursor().x;
-        let (screen_width, screen_height) = (
-            self.terminal_state.screen_width,
-            self.terminal_state.screen_height,
-        );
-        if cursor_y >= screen_height || cursor_x >= screen_width {
-            return;
-        }
-        let mut cell = self.terminal_state.current_attributes.clone();
-        cell.character = c;
-
-        // F0308: Apply reverse video mode (DECSCNM) globally
-        if self.terminal_state.mode.reverse_video {
-            std::mem::swap(&mut cell.fg_color, &mut cell.bg_color);
-            if cell.fg_color.is_none() && cell.bg_color.is_none() {
-                cell.fg_color = Some(TermColor::Indexed(0));
-                cell.bg_color = Some(TermColor::Indexed(15));
-            }
-        }
-
-        let screen = self.terminal_state.get_active_screen();
-        let row = &mut screen[cursor_y];
-        // Writing over half of a wide character leaves its other half blank.
-        if row[cursor_x].character == WIDE_CONTINUATION && cursor_x > 0 {
-            row[cursor_x - 1].character = ' ';
-        }
-        if cursor_x + 1 < screen_width && row[cursor_x + 1].character == WIDE_CONTINUATION {
-            row[cursor_x + 1].character = ' ';
-        }
-        if width == 2 && cursor_x + 1 < screen_width {
-            let mut continuation = cell.clone();
-            continuation.character = WIDE_CONTINUATION;
-            if cursor_x + 2 < screen_width && row[cursor_x + 2].character == WIDE_CONTINUATION {
-                row[cursor_x + 2].character = ' ';
-            }
-            row[cursor_x + 1] = continuation;
-        }
-        row[cursor_x] = cell;
-    }
-
     pub fn process_bytes(&mut self, bytes: &[u8]) {
         let mut parser = std::mem::take(&mut self.parser);
         parser.advance(self, bytes);
         self.parser = parser;
+    }
+
+    pub fn process_string(&mut self, text: &str) {
+        self.process_bytes(text.as_bytes());
     }
 
     /// Takes the text the program put on the clipboard since the last call.
@@ -115,14 +75,12 @@ impl Emulator {
     }
 
     /// The lines a box shows for this terminal, with SGR color sequences: the scrollback and
-    /// the screen, or only the screen while the program uses the alternate screen.
+    /// the screen, or only the screen while the program uses the alternate screen. The cursor,
+    /// unless the program hid it, is the cell shown in reverse video.
     pub fn display_lines(&self) -> Vec<String> {
-        let buffer = self.terminal_state.get_active_buffer_ref();
-        buffer.to_content_lines(!self.terminal_state.use_alternate_screen)
-    }
-
-    pub fn process_string(&mut self, text: &str) {
-        self.process_bytes(text.as_bytes());
+        let state = &self.terminal_state;
+        let buffer = state.get_active_buffer_ref();
+        buffer.to_content_lines(!state.use_alternate_screen, buffer.cursor.visible)
     }
 
     /// The text of the screen, without colors, trailing spaces or trailing empty lines.
@@ -140,352 +98,233 @@ impl Emulator {
         content.trim_end().to_string()
     }
 
-    /// F0306: Enhanced SGR parameter handling with comprehensive color and attribute support
-    fn apply_sgr_param(&mut self, param: u16) {
-        match param {
-            0 => {
-                // Reset all attributes
-                self.terminal_state.current_attributes = TerminalCell::default();
-            }
-            // Text attributes
-            1 => self.terminal_state.current_attributes.bold = true,
-            2 => self.terminal_state.current_attributes.dim = true, // Dim/faint
-            3 => self.terminal_state.current_attributes.italic = true,
-            4 => self.terminal_state.current_attributes.underline = true,
-            5 => self.terminal_state.current_attributes.blink = true, // Slow blink
-            6 => self.terminal_state.current_attributes.blink = true, // Rapid blink (treat as slow blink)
-            7 => self.terminal_state.current_attributes.reverse = true,
-            8 => self.terminal_state.current_attributes.hidden = true, // Concealed characters
-            9 => self.terminal_state.current_attributes.strikethrough = true,
-
-            // Double-width/height characters
-            10 => { /* Primary font - default */ }
-            11..=19 => {
-                // Alternative fonts 1-9 - store font selection
-                self.terminal_state.current_attributes.font_id = Some((param - 10) as u8);
-            }
-            20 => { /* Gothic/Fraktur - rarely supported */ }
-            21 => {
-                // Double underline or bold off (depending on implementation)
-                self.terminal_state.current_attributes.double_underline = true;
-            }
-
-            // Reset attributes
-            22 => {
-                // Normal intensity - reset bold and dim
-                self.terminal_state.current_attributes.bold = false;
-                self.terminal_state.current_attributes.dim = false;
-            }
-            23 => {
-                // Reset italic and gothic
-                self.terminal_state.current_attributes.italic = false;
-            }
-            24 => {
-                // Reset underline
-                self.terminal_state.current_attributes.underline = false;
-                self.terminal_state.current_attributes.double_underline = false;
-            }
-            25 => self.terminal_state.current_attributes.blink = false, // Reset blink
-            26 => { /* Reserved */ }
-            27 => self.terminal_state.current_attributes.reverse = false,
-            28 => self.terminal_state.current_attributes.hidden = false, // Reveal
-            29 => self.terminal_state.current_attributes.strikethrough = false,
-
-            // Standard 8-color foreground (30-37)
-            30..=37 => {
-                self.terminal_state.current_attributes.fg_color =
-                    Some(TermColor::Indexed((param - 30) as u8))
-            }
-            38 => {
-                // Extended foreground color (handled in apply_sgr_sequence for 38;5;n and 38;2;r;g;b)
-                self.terminal_state.sgr_state.expecting_extended_fg = true;
-            }
-            39 => self.terminal_state.current_attributes.fg_color = None, // Default foreground
-
-            // Standard 8-color background (40-47)
-            40..=47 => {
-                self.terminal_state.current_attributes.bg_color =
-                    Some(TermColor::Indexed((param - 40) as u8))
-            }
-            48 => {
-                // Extended background color (handled in apply_sgr_sequence for 48;5;n and 48;2;r;g;b)
-                self.terminal_state.sgr_state.expecting_extended_bg = true;
-            }
-            49 => self.terminal_state.current_attributes.bg_color = None, // Default background
-
-            // Additional attributes (50-65)
-            50 => { /* Reserved */ }
-            51 => self.terminal_state.current_attributes.framed = true, // Framed
-            52 => self.terminal_state.current_attributes.encircled = true, // Encircled
-            53 => self.terminal_state.current_attributes.overlined = true, // Overlined
-            54 => {
-                // Reset framed and encircled
-                self.terminal_state.current_attributes.framed = false;
-                self.terminal_state.current_attributes.encircled = false;
-            }
-            55 => self.terminal_state.current_attributes.overlined = false, // Reset overlined
-
-            // Ideogram attributes (60-65) - rarely used
-            60 => self.terminal_state.current_attributes.ideogram_underline = true,
-            61 => {
-                self.terminal_state
-                    .current_attributes
-                    .ideogram_double_underline = true
-            }
-            62 => self.terminal_state.current_attributes.ideogram_overline = true,
-            63 => {
-                self.terminal_state
-                    .current_attributes
-                    .ideogram_double_overline = true
-            }
-            64 => self.terminal_state.current_attributes.ideogram_stress = true,
-            65 => {
-                // Reset ideogram attributes
-                self.terminal_state.current_attributes.ideogram_underline = false;
-                self.terminal_state
-                    .current_attributes
-                    .ideogram_double_underline = false;
-                self.terminal_state.current_attributes.ideogram_overline = false;
-                self.terminal_state
-                    .current_attributes
-                    .ideogram_double_overline = false;
-                self.terminal_state.current_attributes.ideogram_stress = false;
-            }
-
-            // Bright/intense colors (90-97 foreground, 100-107 background)
-            90..=97 => {
-                self.terminal_state.current_attributes.fg_color =
-                    Some(TermColor::Indexed((param - 90 + 8) as u8))
-            }
-            100..=107 => {
-                self.terminal_state.current_attributes.bg_color =
-                    Some(TermColor::Indexed((param - 100 + 8) as u8))
-            }
-
-            _ => {} // Ignore unknown parameters
-        }
-    }
-
-    /// F0306: Process complete SGR sequence with extended color support (38;5;n, 38;2;r;g;b, etc.)
-    fn apply_sgr_sequence(&mut self, params: &Params) {
-        if params.is_empty() {
-            self.apply_sgr_param(0); // Reset if no params
-            return;
-        }
-
-        let mut param_iter = params.iter().flat_map(|slice| slice.iter());
-
-        while let Some(&param) = param_iter.next() {
-            match param {
-                38 => {
-                    // Extended foreground color: 38;5;n (256-color) or 38;2;r;g;b (24-bit RGB)
-                    if let Some(&mode) = param_iter.next() {
-                        match mode {
-                            5 => {
-                                // 256-color palette: 38;5;n
-                                if let Some(&palette_index) = param_iter.next() {
-                                    self.terminal_state.current_attributes.fg_color =
-                                        u8::try_from(palette_index).ok().map(TermColor::Indexed);
-                                }
-                            }
-                            2 => {
-                                // 24-bit RGB: 38;2;r;g;b
-                                if let (Some(&r), Some(&g), Some(&b)) =
-                                    (param_iter.next(), param_iter.next(), param_iter.next())
-                                {
-                                    self.terminal_state.current_attributes.fg_color =
-                                        Some(TermColor::Rgb(r as u8, g as u8, b as u8));
-                                }
-                            }
-                            _ => {} // Unknown extended color mode
-                        }
-                    }
-                }
-                48 => {
-                    // Extended background color: 48;5;n (256-color) or 48;2;r;g;b (24-bit RGB)
-                    if let Some(&mode) = param_iter.next() {
-                        match mode {
-                            5 => {
-                                // 256-color palette: 48;5;n
-                                if let Some(&palette_index) = param_iter.next() {
-                                    self.terminal_state.current_attributes.bg_color =
-                                        u8::try_from(palette_index).ok().map(TermColor::Indexed);
-                                }
-                            }
-                            2 => {
-                                // 24-bit RGB: 48;2;r;g;b
-                                if let (Some(&r), Some(&g), Some(&b)) =
-                                    (param_iter.next(), param_iter.next(), param_iter.next())
-                                {
-                                    self.terminal_state.current_attributes.bg_color =
-                                        Some(TermColor::Rgb(r as u8, g as u8, b as u8));
-                                }
-                            }
-                            _ => {} // Unknown extended color mode
-                        }
-                    }
-                }
-                _ => {
-                    // Regular SGR parameter
-                    self.apply_sgr_param(param);
-                }
-            }
-        }
-    }
-
-    // Helper to extract first parameter from Params
-    fn get_param(params: &Params, index: usize) -> u16 {
-        if index < params.len() {
-            if let Some(param_slice) = params.iter().nth(index) {
-                if !param_slice.is_empty() {
-                    return param_slice[0];
-                }
-            }
-        }
-        0
-    }
-
-    /// F0311: Get DEC private mode status for DECRQM queries
-    fn get_private_mode_status(&self, mode: u16) -> u8 {
-        let terminal_mode = &self.terminal_state.mode;
-        match mode {
-            1 => {
-                if terminal_mode.cursor_key_mode {
-                    1
-                } else {
-                    2
-                }
-            } // DECCKM - Application Cursor Keys
-            2 => 4, // DECANM - ANSI mode (always permanently set)
-            3 => 2, // DECCOLM - 80/132 column mode (not supported, permanently reset)
-            6 => {
-                if terminal_mode.origin_mode {
-                    1
-                } else {
-                    2
-                }
-            } // DECOM - Origin Mode
-            7 => {
-                if terminal_mode.auto_wrap_mode {
-                    1
-                } else {
-                    2
-                }
-            } // DECAWM - Auto Wrap Mode
-            25 => {
-                if self.terminal_state.get_cursor().visible {
-                    1
-                } else {
-                    2
-                }
-            } // DECTCEM - Cursor Visible
-            47 => {
-                if self.terminal_state.use_alternate_screen {
-                    1
-                } else {
-                    2
-                }
-            } // Alternate Screen (Simple)
-            1000 => {
-                if terminal_mode.mouse_x10_mode {
-                    1
-                } else {
-                    2
-                }
-            } // Mouse X10 mode
-            1002 => {
-                if terminal_mode.mouse_button_event_mode {
-                    1
-                } else {
-                    2
-                }
-            } // Mouse Button Event mode
-            1003 => {
-                if terminal_mode.mouse_any_event_mode {
-                    1
-                } else {
-                    2
-                }
-            } // Mouse Any Event mode
-            1006 => {
-                if terminal_mode.mouse_sgr_mode {
-                    1
-                } else {
-                    2
-                }
-            } // Mouse SGR mode
-            1047 => {
-                if self.terminal_state.use_alternate_screen {
-                    1
-                } else {
-                    2
-                }
-            } // Alternate Screen Buffer (Clear)
-            1049 => {
-                if self.terminal_state.use_alternate_screen {
-                    1
-                } else {
-                    2
-                }
-            } // Alternate Screen Buffer (Cursor Save)
-            2004 => {
-                if terminal_mode.bracketed_paste_mode {
-                    1
-                } else {
-                    2
-                }
-            } // Bracketed Paste Mode
-            _ => 0, // Mode not recognized
-        }
-    }
-
-    /// F0311: Get standard mode status for DECRQM queries
-    fn get_standard_mode_status(&self, mode: u16) -> u8 {
-        let terminal_mode = &self.terminal_state.mode;
-        match mode {
-            4 => {
-                if terminal_mode.insert_mode {
-                    1
-                } else {
-                    2
-                }
-            } // IRM - Insert/Replace Mode
-            20 => {
-                if terminal_mode.local_echo_mode {
-                    1
-                } else {
-                    2
-                }
-            } // LNM - Line Feed/New Line Mode
-            _ => 0, // Mode not recognized
-        }
-    }
-
-    // F0315: Terminal Title Support - Title change detection and consumption methods
-
-    /// Check if the terminal title has changed since last consumption
-    pub fn has_title_changed(&self) -> bool {
-        self.terminal_state.title_changed
-    }
-
-    /// Get the current terminal title without consuming the change flag
+    /// The window title the program set (OSC 0 or 2).
     pub fn get_current_terminal_title(&self) -> Option<String> {
         self.terminal_state.terminal_title.clone()
     }
 
-    /// Get the terminal title and mark the change as consumed
-    pub fn get_and_consume_terminal_title(&mut self) -> Option<String> {
-        if self.terminal_state.title_changed {
-            self.terminal_state.title_changed = false;
-            self.terminal_state.terminal_title.clone()
-        } else {
-            None
+    /// Writes `c` at the cursor with the current attributes. A wide character also takes the
+    /// next cell.
+    fn put_char_at_cursor(&mut self, c: char, width: usize) {
+        let CursorState { x, y, .. } = *self.terminal_state.get_cursor();
+        let screen_width = self.terminal_state.screen_width;
+        let mut cell = self.terminal_state.current_attributes.clone();
+        cell.character = c;
+        let row = &mut self.terminal_state.get_active_screen()[y];
+        // Writing over half of a wide character leaves its other half blank.
+        if row[x].character == WIDE_CONTINUATION && x > 0 {
+            row[x - 1].character = ' ';
+        }
+        let end = x + width;
+        if end < screen_width && row[end].character == WIDE_CONTINUATION {
+            row[end].character = ' ';
+        }
+        if width == 2 && x + 1 < screen_width {
+            let mut continuation = cell.clone();
+            continuation.character = WIDE_CONTINUATION;
+            row[x + 1] = continuation;
+        }
+        row[x] = cell;
+    }
+
+    /// Applies one SGR sequence. Parameters come either separated by semicolons
+    /// (`38;2;r;g;b`) or as colon sub-parameters of one parameter (`38:2::r:g:b`, `4:3`).
+    fn apply_sgr(&mut self, params: &Params) {
+        let groups: Vec<&[u16]> = params.iter().collect();
+        if groups.is_empty() {
+            self.terminal_state.current_attributes = TerminalCell::default();
+            return;
+        }
+        let mut i = 0;
+        while i < groups.len() {
+            let group = groups[i];
+            i += 1;
+            let attributes = &mut self.terminal_state.current_attributes;
+            match group[0] {
+                code @ (38 | 48 | 58) => {
+                    let color = if group.len() > 1 {
+                        extended_color(&group[1..], true)
+                    } else {
+                        // The color's parameters follow as separate parameters.
+                        let rest: Vec<u16> = groups[i..].iter().map(|g| g[0]).collect();
+                        let (color, used) = match rest.first() {
+                            Some(5) => (
+                                rest.get(1)
+                                    .and_then(|&n| u8::try_from(n).ok())
+                                    .map(TermColor::Indexed),
+                                2,
+                            ),
+                            Some(2) => (extended_color(&rest, false), 4),
+                            _ => (None, rest.len().min(1)),
+                        };
+                        i += used.min(rest.len());
+                        color
+                    };
+                    match code {
+                        38 => attributes.fg_color = color,
+                        48 => attributes.bg_color = color,
+                        // Underline color: underlines take the text color here.
+                        _ => {}
+                    }
+                }
+                0 => *attributes = TerminalCell::default(),
+                1 => attributes.bold = true,
+                2 => attributes.dim = true,
+                3 => attributes.italic = true,
+                // `4:0` is "no underline"; every other style is an underline.
+                4 => attributes.underline = group.get(1) != Some(&0),
+                5 | 6 => attributes.blink = true,
+                7 => attributes.reverse = true,
+                8 => attributes.hidden = true,
+                9 => attributes.strikethrough = true,
+                21 => attributes.underline = true,
+                22 => {
+                    attributes.bold = false;
+                    attributes.dim = false;
+                }
+                23 => attributes.italic = false,
+                24 => attributes.underline = false,
+                25 => attributes.blink = false,
+                27 => attributes.reverse = false,
+                28 => attributes.hidden = false,
+                29 => attributes.strikethrough = false,
+                n @ 30..=37 => attributes.fg_color = Some(TermColor::Indexed((n - 30) as u8)),
+                39 => attributes.fg_color = None,
+                n @ 40..=47 => attributes.bg_color = Some(TermColor::Indexed((n - 40) as u8)),
+                49 => attributes.bg_color = None,
+                n @ 90..=97 => attributes.fg_color = Some(TermColor::Indexed((n - 90 + 8) as u8)),
+                n @ 100..=107 => {
+                    attributes.bg_color = Some(TermColor::Indexed((n - 100 + 8) as u8))
+                }
+                // Fonts, frames, overlines and ideogram marks are not shown.
+                other => log::debug!("SGR {} is not shown", other),
+            }
         }
     }
 
-    /// Get the current icon name
-    pub fn get_current_icon_name(&self) -> Option<String> {
-        self.terminal_state.icon_name.clone()
+    /// The first parameter of `params` or `default` when it is missing or 0.
+    fn param_or(params: &Params, index: usize, default: u16) -> u16 {
+        match params.iter().nth(index).and_then(|p| p.first().copied()) {
+            Some(0) | None => default,
+            Some(n) => n,
+        }
+    }
+
+    /// The state of DEC private mode `mode`, or `None` when it is not one this terminal knows.
+    fn private_mode(&self, mode: u16) -> Option<bool> {
+        let state = &self.terminal_state;
+        let m = &state.mode;
+        Some(match mode {
+            1 => m.cursor_key_mode,
+            5 => m.reverse_video,
+            6 => m.origin_mode,
+            7 => m.auto_wrap_mode,
+            9 => m.mouse_tracking == MouseTracking::X10,
+            25 => state.get_cursor().visible,
+            47 | 1047 | 1049 => state.use_alternate_screen,
+            66 => m.keypad_mode,
+            1000 => m.mouse_tracking == MouseTracking::Normal,
+            1002 => m.mouse_tracking == MouseTracking::ButtonEvent,
+            1003 => m.mouse_tracking == MouseTracking::AnyEvent,
+            1006 => m.mouse_sgr_mode,
+            2004 => m.bracketed_paste_mode,
+            _ => return None,
+        })
+    }
+
+    /// Sets (`on`) or resets DEC private mode `mode`.
+    fn set_private_mode(&mut self, mode: u16, on: bool) {
+        let state = &mut self.terminal_state;
+        let tracking = |kind: MouseTracking| if on { kind } else { MouseTracking::Off };
+        match mode {
+            1 => state.mode.cursor_key_mode = on,
+            5 => state.mode.reverse_video = on,
+            6 => {
+                state.mode.origin_mode = on;
+                state.set_cursor_position(0, 0);
+            }
+            7 => state.mode.auto_wrap_mode = on,
+            9 => state.mode.mouse_tracking = tracking(MouseTracking::X10),
+            25 => state.get_cursor_mut().visible = on,
+            66 => state.mode.keypad_mode = on,
+            1000 => state.mode.mouse_tracking = tracking(MouseTracking::Normal),
+            1002 => state.mode.mouse_tracking = tracking(MouseTracking::ButtonEvent),
+            1003 => state.mode.mouse_tracking = tracking(MouseTracking::AnyEvent),
+            1006 => state.mode.mouse_sgr_mode = on,
+            2004 => state.mode.bracketed_paste_mode = on,
+            47 => {
+                if on {
+                    state.switch_to_alternate_screen();
+                } else {
+                    state.switch_to_primary_screen();
+                }
+            }
+            1047 => {
+                if on {
+                    state.switch_to_alternate_screen();
+                } else {
+                    // Leaving clears the alternate screen for the next program.
+                    state.clear_alternate_screen();
+                    state.switch_to_primary_screen();
+                }
+            }
+            1048 => {
+                if on {
+                    state.save_cursor();
+                } else {
+                    state.restore_cursor();
+                }
+            }
+            1049 => {
+                if on && !state.use_alternate_screen {
+                    state.save_cursor();
+                    state.switch_to_alternate_screen();
+                    state.clear_alternate_screen();
+                } else if !on && state.use_alternate_screen {
+                    state.switch_to_primary_screen();
+                    state.restore_cursor();
+                }
+            }
+            // Cursor blinking, focus events and the alternative mouse encodings change
+            // nothing that is drawn or reported here.
+            other => log::debug!("DEC private mode {} is not supported", other),
+        }
+    }
+
+    /// The state of ANSI mode `mode`, or `None` when it is not one this terminal knows.
+    fn ansi_mode(&self, mode: u16) -> Option<bool> {
+        match mode {
+            4 => Some(self.terminal_state.mode.insert_mode),
+            20 => Some(self.terminal_state.mode.newline_mode),
+            _ => None,
+        }
+    }
+
+    fn set_ansi_mode(&mut self, mode: u16, on: bool) {
+        match mode {
+            4 => self.terminal_state.mode.insert_mode = on,
+            20 => self.terminal_state.mode.newline_mode = on,
+            other => log::debug!("ANSI mode {} is not supported", other),
+        }
+    }
+}
+
+/// A color from the parameters after 38, 48 or 58: `5;n` for a palette entry, `2;r;g;b` for
+/// a 24-bit color. In the colon form (`colon`), `2` may be followed by a color space id before
+/// the components.
+fn extended_color(params: &[u16], colon: bool) -> Option<TermColor> {
+    let byte = |i: usize| params.get(i).and_then(|&n| u8::try_from(n).ok());
+    match params.first()? {
+        5 => byte(1).map(TermColor::Indexed),
+        2 => {
+            let start = if colon && params.len() >= 5 { 2 } else { 1 };
+            Some(TermColor::Rgb(
+                byte(start)?,
+                byte(start + 1)?,
+                byte(start + 2)?,
+            ))
+        }
+        _ => None,
     }
 }
 

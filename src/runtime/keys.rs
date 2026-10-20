@@ -75,6 +75,90 @@ pub fn key_matches(configured: &str, name: &str) -> bool {
     configured_mods == pressed_mods && keys_equal
 }
 
+/// The keys besides single characters that bindings can name.
+const SPECIAL_KEYS: [&str; 15] = [
+    "Space",
+    "Enter",
+    "Tab",
+    "Backspace",
+    "Delete",
+    "Insert",
+    "Esc",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "Up",
+    "Down",
+    "Left",
+    "Right",
+];
+
+/// Checks a key name written in `hot_keys` or `on_keypress`: modifiers (`Ctrl`, `Alt`, `Cmd`,
+/// `Shift`, any case) joined by `+` to a single character, a special key (`Enter`, `PageUp`,
+/// `F1` to `F24`...) or `+` itself. Names that could never match a key press are errors, and
+/// so are the keys boxmux keeps for itself: `q` quits and, on Unix, `Ctrl+z` suspends.
+pub fn check_key_name(configured: &str) -> Result<(), String> {
+    let configured = configured.trim();
+    let (modifiers, base) = match configured.strip_suffix("++") {
+        Some(rest) => (rest, "+"),
+        None if configured == "+" => ("", "+"),
+        None => match configured.rsplit_once('+') {
+            Some((modifiers, base)) => (modifiers, base),
+            None => ("", configured),
+        },
+    };
+    let mut seen = Vec::new();
+    let named_modifiers = if modifiers.is_empty() {
+        Vec::new()
+    } else {
+        modifiers.split('+').collect()
+    };
+    for modifier in named_modifiers {
+        let known = ["ctrl", "alt", "cmd", "shift"];
+        let lower = modifier.to_ascii_lowercase();
+        if !known.contains(&lower.as_str()) {
+            return Err(format!(
+                "'{}' is not a modifier; use Ctrl, Alt, Cmd or Shift",
+                modifier
+            ));
+        }
+        if seen.contains(&lower) {
+            return Err(format!("{} is named twice", modifier));
+        }
+        seen.push(lower);
+    }
+    let character = base.chars().count() == 1;
+    let function_key = base
+        .strip_prefix(['F', 'f'])
+        .and_then(|n| n.parse::<u8>().ok())
+        .is_some_and(|n| (1..=24).contains(&n));
+    let special = SPECIAL_KEYS.iter().any(|k| k.eq_ignore_ascii_case(base));
+    if base.is_empty() || !(character || function_key || special) {
+        return Err(format!(
+            "'{}' is not a key; use a single character, F1 to F24, or one of {}",
+            base,
+            SPECIAL_KEYS.join(", ")
+        ));
+    }
+    if character && base.trim().is_empty() {
+        return Err("write the space bar as Space".to_string());
+    }
+    if character && seen.contains(&"shift".to_string()) {
+        return Err(format!(
+            "Shift is part of the character: write the shifted character itself (for example A, not Shift+a), not Shift+{}",
+            base
+        ));
+    }
+    if seen.is_empty() && base == "q" {
+        return Err("q always quits boxmux and cannot be bound".to_string());
+    }
+    if cfg!(unix) && seen == ["ctrl"] && base == "z" {
+        return Err("Ctrl+z suspends boxmux and cannot be bound".to_string());
+    }
+    Ok(())
+}
+
 /// The bytes a terminal program receives for a key press. `application_cursor_keys` is the
 /// program's DECCKM mode (arrows send `ESC O A` instead of `ESC [ A`).
 pub fn pty_key_bytes(event: &KeyEvent, application_cursor_keys: bool) -> Vec<u8> {
@@ -172,6 +256,67 @@ pub fn pty_key_bytes(event: &KeyEvent, application_cursor_keys: bool) -> Vec<u8>
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn key_names_in_bindings_are_checked() {
+        for good in [
+            "a",
+            "A",
+            "Ctrl+r",
+            "ctrl+alt+Delete",
+            "F12",
+            "f1",
+            "Shift+Tab",
+            "Space",
+            "+",
+            "Ctrl++",
+            "Cmd+PageUp",
+        ] {
+            assert_eq!(check_key_name(good), Ok(()), "{}", good);
+        }
+        for (bad, why) in [
+            ("Ctrl+Enterr", "not a key"),
+            ("F25", "not a key"),
+            ("Hyper+a", "not a modifier"),
+            ("Ctrl+Ctrl+a", "named twice"),
+            ("Shift+a", "shifted character"),
+            ("q", "quits"),
+            ("", "not a key"),
+            ("Ctrl+", "not a key"),
+        ] {
+            let error = check_key_name(bad).unwrap_err();
+            assert!(error.contains(why), "{}: {}", bad, error);
+        }
+        // Only q itself quits; with a modifier it is an ordinary key.
+        assert_eq!(check_key_name("Alt+q"), Ok(()));
+        assert_eq!(check_key_name("Ctrl+z").is_err(), cfg!(unix));
+    }
+
+    #[test]
+    fn every_name_a_key_press_gets_passes_the_check() {
+        let codes = [
+            KeyCode::Char('x'),
+            KeyCode::Char('X'),
+            KeyCode::Char(' '),
+            KeyCode::Char('+'),
+            KeyCode::Enter,
+            KeyCode::BackTab,
+            KeyCode::PageDown,
+            KeyCode::F(24),
+        ];
+        let modifiers = [
+            KeyModifiers::NONE,
+            KeyModifiers::CONTROL,
+            KeyModifiers::ALT | KeyModifiers::SUPER,
+            KeyModifiers::SHIFT,
+        ];
+        for code in codes {
+            for modifier in modifiers {
+                let name = key_name(&KeyEvent::new(code, modifier)).unwrap();
+                assert_eq!(check_key_name(&name), Ok(()), "{}", name);
+            }
+        }
+    }
+
     use super::*;
 
     fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {

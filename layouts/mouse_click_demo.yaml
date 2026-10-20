@@ -1,11 +1,11 @@
 app:
   layouts:
     - id: "mouse_demo"
-      title: "Mouse Click Support Demo (F0091)"
+      title: "Mouse Click Support Demo"
       root: true
       children:
         - id: "header"
-          title: "F0091 - Mouse Click Support Demo"
+          title: "Mouse Click Support Demo"
           position:
             x1: "0%"
             y1: "0%"
@@ -129,7 +129,7 @@ app:
             • Immediate execution of choices (no Enter key needed)
             • Threaded execution for non-blocking operations
             
-            This demonstrates F0091 Mouse Click Support working with:
+            This demonstrates mouse click support working with:
             • Background threading
             
             Click away!

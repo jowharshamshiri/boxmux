@@ -11,7 +11,6 @@ pub mod styled;
 pub mod tab_bar;
 pub mod theme;
 
-use crate::chart::{ChartComponent, ChartConfig};
 use crate::model::app::AppContext;
 use crate::model::bounds::Bounds;
 use crate::model::layout::Layout;
@@ -110,27 +109,13 @@ fn generated_content(ctx: &AppContext, muxbox: &MuxBox, bounds: &Bounds) -> Opti
         }
     } else if let Some(chart_type) = muxbox.chart_type {
         let data = data_text(muxbox.chart_data.as_ref(), muxbox).unwrap_or_default();
-        let chart = ChartComponent::with_data_and_config(
-            muxbox.id.clone(),
-            ChartComponent::parse_chart_data(&data),
-            ChartConfig {
-                chart_type,
-                width,
-                height,
-                title: None,
-                show_title: false,
-                ..ChartConfig::default()
-            },
-        );
-        chart.generate()
+        match crate::chart::parse_chart_data(&data) {
+            Ok(points) => crate::chart::chart_text(chart_type, &points, width, height),
+            Err(e) => e,
+        }
     } else {
         let data = data_text(muxbox.table_data.as_ref(), muxbox).unwrap_or_default();
-        crate::table::table_text(
-            &data,
-            &muxbox.table_config.clone().unwrap_or_default(),
-            width,
-            height,
-        )
+        crate::table::table_text(&data, &muxbox.table_config.clone().unwrap_or_default())
     };
     Some(crate::text::sanitize_output(&text))
 }

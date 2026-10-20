@@ -31,6 +31,14 @@ for earlier versions need the changes listed under "Migrating".
   true/false argument), `update_box_script` is `replace_box_script`, script arguments are one
   argument per line, `spawn_pty_process --libs` is gone (use `app.libs`), and the new `--socket`
   option chooses the control socket.
+- Key names in `hot_keys` and `on_keypress` are checked: names that can never match (`Shift+a`,
+  `Ctrl+Enterr`) and bindings for `q` or (on Unix) `Ctrl+z` are load errors.
+- Chart data lines that are not a label and a number are an error shown in the box instead of
+  being skipped. Histograms always show how the values are distributed.
+- Table filters on a column the table does not have leave no rows; JSON tables keep the key
+  order of the first object.
+- Boxes sent with `add_box` and `replace_box` are checked against the schema (`position` is
+  required) and must use loaded plugin components.
 - The control socket speaks one JSON request and one JSON reply per connection; see the API
   documentation. Its default location is per user (`$XDG_RUNTIME_DIR/boxmux.sock`,
   `/tmp/boxmux-<uid>.sock`, or the `boxmux-<user>` pipe on Windows).
@@ -48,6 +56,11 @@ for earlier versions need the changes listed under "Migrating".
   mouse pointer.
 - Variables: defaults may contain references (`${A:${B}}`); `$${` writes a literal `${`.
 - PTY programs can copy to the clipboard (OSC 52); 24-bit color in PTY boxes.
+- The PTY emulator draws the program's cursor and handles absolute cursor movement, character
+  insertion, deletion, erasing and repetition, DEC line-drawing characters, several modes in
+  one sequence, all mouse tracking modes, bracketed paste and secondary device attributes.
+- Pie charts are drawn as circles, line charts join their points, scatter charts place numeric
+  labels on the x axis, and tables can be zebra-striped.
 - The light or dark theme follows the terminal's background color when the terminal reports it.
 - An example plugin (`examples/plugins/gauge`).
 - Release and documentation scripts (`scripts/release.sh`, `scripts/deploy-docs.sh`) and
@@ -69,6 +82,13 @@ for earlier versions need the changes listed under "Migrating".
 - Escape sequences split between two reads of a PTY are understood; deferred line wrapping,
   wide characters and backspace behave like a real terminal.
 - Configuration errors name the file, line and setting, and the program exits with an error.
+- Lines scrolled off a PTY screen are kept in its scrollback; insert and delete line respect
+  the scroll region.
+- Boxes of a layout that is not shown no longer refresh; `start_box_refresh` and
+  `stop_box_refresh` work for any box that refreshes; `replace_box_script` keeps the box's
+  other tabs and its refresh interval.
+- Table columns are measured in display width and cut cleanly instead of panicking on
+  non-ASCII text; row numbers continue across pages.
 
 ### Removed
 

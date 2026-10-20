@@ -193,7 +193,10 @@ boxmux replace_box_script report "cd /var/log" "tail -n 50 syslog"   # one argum
 ```
 
 If the old script is still running it is stopped, and the new one starts once it has ended.
-A periodic refresh the box already has keeps its interval.
+The box's other tabs (content, menu, socket, terminals) stay. A periodic refresh the box
+already has keeps its interval and its pause; a box that had no script refreshes from now on
+like a box configured with one: with its own `refresh_interval`, or the one it inherits from
+an enclosing box or its layout.
 
 Errors: `the script is empty`; a box in `Pty` mode whose layout is not shown cannot start
 (`box '<id>' is not in the shown layout, so it has no size for a terminal`).
@@ -202,7 +205,8 @@ Errors: `the script is empty`; a box in `Pty` mode whose layout is not shown can
 
 `stop_box_refresh` pauses the periodic run of the box's script; `start_box_refresh` resumes
 it and runs the script right away (unless it is still running). For a plugin box with a
-`refresh_interval` they pause and resume its periodic redraw.
+`refresh_interval` they pause and resume its periodic redraw. A box of a layout that is not
+shown can be paused or resumed too; refreshes only run while their layout is shown.
 
 | Field | Type | Required | Meaning |
 |-------|------|----------|---------|
@@ -219,10 +223,10 @@ boxmux start_box_refresh clock
 
 Errors:
 
-- `box '<id>' has no script running in the shown layout` - the box has no script (or plugin
-  refresh), or its layout has not been shown yet in this session;
-- `box '<id>' has no refresh_interval` - the box runs its script only once (it has no
-  `refresh_interval` of its own or inherited, or it is a `Pty` box).
+- `there is no box '<id>'`;
+- `box '<id>' has no script` - nor a plugin with a `refresh_interval`;
+- `box '<id>' does not refresh: it has no refresh_interval, or its script runs in a PTY` - the
+  box runs its script only once.
 
 ### replace_box
 
@@ -431,12 +435,12 @@ and after it was killed:
 | `pid` | while running | The process id (on Unix also its process group id) |
 | `rows`, `cols` | while a PTY process runs | The terminal size |
 
-A tab that never ran anything (static content) reports `idle`; a socket tab reports
-`exited with code 0`, or `failed: the sender reported a failure` after
-`replace_box_content` with `success: false`. A process ended by a signal it did not get from
-boxmux reports `failed: ended by ...`.
+A script tab that has not run yet reports `idle`. A process ended by a signal it did not get
+from boxmux reports `failed: ended by ...`.
 
-Error: `box '<id>' has no tabs`.
+Errors: `box '<id>' has no tabs`, and
+`the visible tab of box '<id>' ('<label>') does not show a process` when the visible tab is
+static content, a menu or a socket tab.
 
 ### send_pty_input
 
@@ -471,7 +475,8 @@ Sends a signal to the process group of the process feeding the box's visible tab
 | `box_id` | string | yes | The box |
 | `signal` | integer | yes | The signal number, e.g. `2` (SIGINT), `15` (SIGTERM), `19` (SIGSTOP on Linux) |
 
-The CLI accepts signal numbers from 1 up.
+The signal number must be 1 or more; 0 and negative numbers are refused
+(`signal <n> is not a signal number`).
 
 ```bash
 boxmux send_signal shell 2
@@ -497,9 +502,13 @@ things to keep in mind:
 - Positions are strings, as in YAML: `"50%"` or a cell count such as `"12"`. A JSON number is
   an error (`invalid type: integer `10`, expected a string`).
 - `script` may be an array of lines or a single string.
-- Unknown fields and unknown color names are errors.
-- Give `id` and `position`. `position` is not enforced here: a box sent without one is placed
-  at the top-left cell with a size of one cell.
+- The box is checked against the box definition of the schema when the request is read, like
+  a box in a configuration file: `id` and `position` are required, and unknown fields and
+  unknown color names are errors. The error names the field, for example
+  `invalid request: box: "position" is a required property` or
+  `box.children[0] ('c').border_color: "pink" is not one of ...`. The CLI checks the box
+  before sending it.
+- A `plugin_component` must be offered by a plugin the instance loaded.
 - Variables (`${NAME}`) are not substituted in boxes sent through the socket; such text
   reaches the shell (in scripts) or the screen as written.
 

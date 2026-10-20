@@ -192,6 +192,9 @@ impl Executor {
 
     /// Sends a Unix signal to a run's process tree.
     pub fn signal(&self, run: RunId, signal: i32) -> Result<(), String> {
+        if signal <= 0 {
+            return Err(format!("signal {} is not a signal number", signal));
+        }
         let active = self
             .runs
             .get(&run)

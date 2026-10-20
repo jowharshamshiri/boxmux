@@ -3,9 +3,9 @@ use boxmux_lib::platform;
 use boxmux_lib::runtime::display::TerminalDisplay;
 use boxmux_lib::runtime::event::Event;
 use boxmux_lib::runtime::Runtime;
-use boxmux_lib::socket::protocol::{Reply, SocketFunction};
+use boxmux_lib::socket::protocol::{BoxDefinition, Reply, SocketFunction};
 use boxmux_lib::socket::{client, server::SocketServer};
-use boxmux_lib::{AppContext, Config, MuxBox};
+use boxmux_lib::{AppContext, Config};
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -256,8 +256,8 @@ fn lines(args: &ArgMatches, name: &str) -> Vec<String> {
         .collect()
 }
 
-fn parse_box(json: &str) -> Result<Box<MuxBox>, String> {
-    serde_json::from_str(json).map_err(|e| format!("invalid box JSON: {}", e))
+fn parse_box(json: &str) -> Result<BoxDefinition, String> {
+    json.parse().map_err(|e| format!("invalid box: {}", e))
 }
 
 /// Sends a control command to a running instance and prints its reply.

@@ -215,9 +215,12 @@ impl<D: Display> Runtime<D> {
     fn next_wakeup(&self) -> Instant {
         let now = Instant::now();
         let mut wake = now + Duration::from_secs(1);
-        for refresh in self.refresh.values() {
+        let shown = self.shown_box_ids();
+        for (box_id, refresh) in &self.refresh {
             if let Some(due) = refresh.next_due.filter(|_| !refresh.paused) {
-                wake = wake.min(due);
+                if shown.contains(box_id) {
+                    wake = wake.min(due);
+                }
             }
         }
         if let Some(notice) = &self.notice {
@@ -392,41 +395,62 @@ impl<D: Display> Runtime<D> {
         self.dirty = false;
     }
 
-    /// Starts the scripts of the shown layout that have not run yet, and schedules the
-    /// redraws of plugin boxes that refresh.
-    fn activate_layout_runs(&mut self) {
-        let Some(layout) = self.ctx.app.get_active_layout() else {
-            return;
-        };
-        let now = Instant::now();
-        let boxes: Vec<(String, RefreshAction, Option<u64>)> = layout
-            .get_all_muxboxes()
-            .iter()
-            .filter_map(|muxbox| {
-                let interval = self.ctx.app.refresh_interval(&muxbox.id);
-                if muxbox.script.is_some() {
-                    let interval = interval.filter(|_| muxbox.execution_mode != ExecutionMode::Pty);
-                    Some((muxbox.id.clone(), RefreshAction::Script, interval))
-                } else if muxbox.plugin_component.is_some() && interval.is_some() {
-                    Some((muxbox.id.clone(), RefreshAction::Redraw, interval))
-                } else {
-                    None
-                }
+    /// What the periodic refresh of `box_id` does and how often, from the configuration: a box
+    /// with a script runs it (once, when there is no interval, and always once for a PTY
+    /// script, which keeps running); a plugin box with an interval is redrawn. `None` for a box
+    /// with neither.
+    fn refresh_settings(&self, box_id: &str) -> Option<(RefreshAction, Option<Duration>)> {
+        let muxbox = self.ctx.app.get_muxbox_by_id(box_id)?;
+        let interval = self
+            .ctx
+            .app
+            .refresh_interval(box_id)
+            .map(Duration::from_millis);
+        if muxbox.script.is_some() {
+            let interval = interval.filter(|_| muxbox.execution_mode != ExecutionMode::Pty);
+            Some((RefreshAction::Script, interval))
+        } else if muxbox.plugin_component.is_some() && interval.is_some() {
+            Some((RefreshAction::Redraw, interval))
+        } else {
+            None
+        }
+    }
+
+    /// The ids of the boxes of the shown layout, in configuration order. Only their refreshes
+    /// run; the others wait until their layout is shown.
+    fn shown_box_ids(&self) -> Vec<String> {
+        self.ctx
+            .app
+            .get_active_layout()
+            .map(|layout| {
+                layout
+                    .get_all_muxboxes()
+                    .iter()
+                    .map(|muxbox| muxbox.id.clone())
+                    .collect()
             })
-            .collect();
-        for (box_id, action, interval) in boxes {
+            .unwrap_or_default()
+    }
+
+    /// Schedules the scripts and plugin redraws of the shown layout that are not scheduled yet,
+    /// and runs what is due.
+    fn activate_layout_runs(&mut self) {
+        let now = Instant::now();
+        for box_id in self.shown_box_ids() {
             if self.refresh.contains_key(&box_id) {
                 continue;
             }
-            self.refresh.insert(
-                box_id.clone(),
-                Refresh {
-                    action,
-                    interval: interval.map(Duration::from_millis),
-                    next_due: Some(now),
-                    paused: false,
-                },
-            );
+            if let Some((action, interval)) = self.refresh_settings(&box_id) {
+                self.refresh.insert(
+                    box_id,
+                    Refresh {
+                        action,
+                        interval,
+                        next_due: Some(now),
+                        paused: false,
+                    },
+                );
+            }
         }
         self.run_due_refreshes(now);
     }
@@ -434,10 +458,13 @@ impl<D: Display> Runtime<D> {
     /// Starts every box script whose refresh is due and that is not still running from the
     /// previous refresh.
     fn run_due_refreshes(&mut self, now: Instant) {
+        let shown = self.shown_box_ids();
         let due: Vec<String> = self
             .refresh
             .iter()
-            .filter(|(_, r)| !r.paused && r.next_due.is_some_and(|due| due <= now))
+            .filter(|(id, r)| {
+                shown.contains(*id) && !r.paused && r.next_due.is_some_and(|due| due <= now)
+            })
             .map(|(id, _)| id.clone())
             .collect();
         for box_id in due {

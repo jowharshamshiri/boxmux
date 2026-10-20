@@ -31,9 +31,17 @@ impl<D: Display> Runtime<D> {
                 self.display.set_size(cols, rows);
                 self.screen_resized();
             }
+            // Pasted text goes to the focused terminal; nothing else takes text.
             TermEvent::Paste(text) => {
                 if let Some(run) = self.focused_terminal_run() {
-                    self.write_to_terminal(run, text.as_bytes());
+                    let bytes = self
+                        .executor
+                        .get(run)
+                        .and_then(|r| r.pty())
+                        .map(|session| session.paste_bytes(&text));
+                    if let Some(bytes) = bytes {
+                        self.write_to_terminal(run, &bytes);
+                    }
                 }
             }
             TermEvent::FocusGained | TermEvent::FocusLost => {}

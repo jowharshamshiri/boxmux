@@ -51,6 +51,7 @@ impl TerminalDisplay {
             self.out,
             terminal::EnterAlternateScreen,
             event::EnableMouseCapture,
+            event::EnableBracketedPaste,
             cursor::Hide,
             terminal::Clear(terminal::ClearType::All)
         )?;
@@ -72,6 +73,7 @@ pub fn restore_terminal() {
     let _ = crossterm::execute!(
         out,
         event::DisableMouseCapture,
+        event::DisableBracketedPaste,
         cursor::Show,
         terminal::LeaveAlternateScreen
     );
@@ -182,7 +184,11 @@ impl Display for TerminalDisplay {
 
     fn reassert_modes(&mut self) -> io::Result<()> {
         crate::platform::ensure_raw_mode();
-        queue!(self.out, event::EnableMouseCapture)?;
+        queue!(
+            self.out,
+            event::EnableMouseCapture,
+            event::EnableBracketedPaste
+        )?;
         self.out.flush()
     }
 

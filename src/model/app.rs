@@ -315,26 +315,32 @@ impl AppContext {
             .map(|spec| crate::plugin::library_path(&base.join(&spec.path)))
             .collect();
         let plugins = crate::plugin::Plugins::load(&paths)?;
-        let missing: Vec<String> = self
-            .app
-            .layouts
-            .iter()
-            .flat_map(|layout| layout.get_all_muxboxes())
-            .filter_map(|muxbox| {
-                let component = muxbox.plugin_component.as_ref()?;
-                (!plugins.offers(component)).then(|| {
-                    format!(
-                        "box '{}' uses plugin component '{}', which no loaded plugin offers",
-                        muxbox.id, component
-                    )
-                })
-            })
-            .collect();
-        if !missing.is_empty() {
-            return Err(missing.join("\n"));
-        }
+        check_plugin_components(&self.app, &plugins)?;
         self.plugins = Arc::new(plugins);
         Ok(())
+    }
+}
+
+/// Fails, naming each one, when boxes of `app` use plugin components no plugin offers.
+pub fn check_plugin_components(app: &App, plugins: &crate::plugin::Plugins) -> Result<(), String> {
+    let missing: Vec<String> = app
+        .layouts
+        .iter()
+        .flat_map(|layout| layout.get_all_muxboxes())
+        .filter_map(|muxbox| {
+            let component = muxbox.plugin_component.as_ref()?;
+            (!plugins.offers(component)).then(|| {
+                format!(
+                    "box '{}' uses plugin component '{}', which no loaded plugin offers",
+                    muxbox.id, component
+                )
+            })
+        })
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(missing.join("\n"))
     }
 }
 

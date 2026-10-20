@@ -127,7 +127,7 @@ boxmux layouts/network_operations.yaml
 boxmux layouts/database_admin.yaml
 
 # Adjust refresh rate (optional)
-boxmux layouts/devops_control_center.yaml --frame_delay 50
+boxmux layouts/devops_control_center.yaml --frame-delay 50
 ```
 
 ## Creating Custom Showcases

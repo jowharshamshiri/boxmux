@@ -223,12 +223,16 @@ app:
 
 Modifier and special key names are matched ignoring case (`ctrl+r` = `Ctrl+r`, `enter` =
 `Enter`); single characters must match exactly. Modifiers can be written in any order.
-`Ctrl++` is Ctrl with the plus key. Key names are not checked when the file is loaded, so a
-misspelled name never fires.
+`Ctrl++` is Ctrl with the plus key.
+
+Key names in `hot_keys` and every `on_keypress` are checked when the file is loaded, and a
+name that could never match a key press is an error naming it: an unknown key or modifier
+(`Ctrl+Enterr`, `Hyper+x`), a modifier named twice, or `Shift+` with a character (write the
+shifted character, `A`, instead of `Shift+a`).
 
 Things to know:
 
-- A plain `q` always quits, so it cannot be bound.
+- A plain `q` always quits, and on Unix `Ctrl+z` suspends BoxMux; binding either is an error.
 - Keys that BoxMux uses (Tab, arrows, Enter, Page Up/Down, Home/End, Ctrl+C) do their usual job
   and then also run any binding for them.
 - When the focused box shows a running terminal, every key except Tab and Shift+Tab goes to the

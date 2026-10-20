@@ -209,6 +209,21 @@ impl PtySession {
         }
     }
 
+    /// The bytes that deliver pasted `text` to the program: wrapped in the bracketed paste
+    /// markers when it asked for them (mode 2004), so it can tell a paste from typing. The
+    /// end marker is taken out of the text, so a paste cannot end the bracket early.
+    pub fn paste_bytes(&self, text: &str) -> Vec<u8> {
+        let bracketed = lock(&self.emulator)
+            .get_terminal_state()
+            .mode
+            .bracketed_paste_mode;
+        if bracketed {
+            format!("\x1b[200~{}\x1b[201~", text.replace("\x1b[201~", "")).into_bytes()
+        } else {
+            text.as_bytes().to_vec()
+        }
+    }
+
     /// Whether the program switched the arrow keys to application mode (DECCKM).
     pub fn application_cursor_keys(&self) -> bool {
         lock(&self.emulator)

@@ -1,14 +1,15 @@
 //! The pieces a terminal screen is made of: cells, colors, cursor, modes and mouse events.
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventType {
     Press,
     Release,
+    /// The pointer moved; with a button when it is a drag.
     Motion,
     Wheel,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseButton {
     Left,
     Middle,
@@ -19,12 +20,28 @@ pub enum MouseButton {
     WheelRight,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MouseModifiers {
     pub shift: bool,
     pub ctrl: bool,
     pub alt: bool,
     pub meta: bool,
+}
+
+/// Which mouse events a program asked for (DEC private modes 9, 1000, 1002 and 1003). Each
+/// mode replaces the previous one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MouseTracking {
+    #[default]
+    Off,
+    /// Mode 9: button presses only, without modifiers.
+    X10,
+    /// Mode 1000: presses and releases.
+    Normal,
+    /// Mode 1002: presses, releases and motion while a button is held.
+    ButtonEvent,
+    /// Mode 1003: presses, releases and all motion.
+    AnyEvent,
 }
 
 /// A color a program set: an entry of the 256-color palette or a 24-bit color.
@@ -55,36 +72,21 @@ impl TermColor {
 /// The character in the right half of a two-column character's cells.
 pub const WIDE_CONTINUATION: char = '\0';
 
+/// One cell of the screen: a character and the attributes it is drawn with.
 #[derive(Debug, Clone, PartialEq)]
-/// F0306: Extended TerminalCell with comprehensive SGR attribute support
 pub struct TerminalCell {
     pub character: char,
     pub fg_color: Option<TermColor>,
     pub bg_color: Option<TermColor>,
-
-    // Basic text attributes
     pub bold: bool,
-    pub dim: bool, // F0306: Faint/dim text
+    pub dim: bool,
     pub italic: bool,
+    /// Any underline style: single, double or curly.
     pub underline: bool,
-    pub double_underline: bool, // F0306: Double underline
-    pub blink: bool,            // F0306: Blinking text
+    pub blink: bool,
     pub reverse: bool,
-    pub hidden: bool, // F0306: Concealed/hidden text
+    pub hidden: bool,
     pub strikethrough: bool,
-
-    // Extended attributes
-    pub font_id: Option<u8>, // F0306: Alternative font selection (0-9)
-    pub framed: bool,        // F0306: Framed text
-    pub encircled: bool,     // F0306: Encircled text
-    pub overlined: bool,     // F0306: Overlined text
-
-    // Ideogram attributes (rarely used)
-    pub ideogram_underline: bool,        // F0306: Ideogram underline
-    pub ideogram_double_underline: bool, // F0306: Ideogram double underline
-    pub ideogram_overline: bool,         // F0306: Ideogram overline
-    pub ideogram_double_overline: bool,  // F0306: Ideogram double overline
-    pub ideogram_stress: bool,           // F0306: Ideogram stress marking
 }
 
 impl Default for TerminalCell {
@@ -93,90 +95,112 @@ impl Default for TerminalCell {
             character: ' ',
             fg_color: None,
             bg_color: None,
-
-            // Basic text attributes
             bold: false,
             dim: false,
             italic: false,
             underline: false,
-            double_underline: false,
             blink: false,
             reverse: false,
             hidden: false,
             strikethrough: false,
-
-            // Extended attributes
-            font_id: None,
-            framed: false,
-            encircled: false,
-            overlined: false,
-
-            // Ideogram attributes
-            ideogram_underline: false,
-            ideogram_double_underline: false,
-            ideogram_overline: false,
-            ideogram_double_overline: false,
-            ideogram_stress: false,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+impl TerminalCell {
+    /// A blank cell with the background of `attributes`: what erasing leaves behind.
+    pub fn blank(attributes: &TerminalCell) -> Self {
+        TerminalCell {
+            bg_color: attributes.bg_color,
+            ..TerminalCell::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CursorState {
     pub x: usize,
     pub y: usize,
     pub visible: bool,
-    pub style: CursorStyle,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub enum CursorStyle {
+/// The characters a G0 or G1 slot holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Charset {
     #[default]
-    Block,
-    Underline,
-    Bar,
-    BlinkingBlock,
-    BlinkingUnderline,
-    BlinkingBar,
+    Ascii,
+    /// `#` is the pound sign.
+    Uk,
+    /// The DEC special graphics set: `q` is a horizontal line, `x` a vertical one, `l` `k` `m`
+    /// `j` the corners, and so on.
+    DecLineDrawing,
 }
 
-/// F0314: Line attributes for double-width and double-height lines
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum LineAttribute {
-    #[default]
-    Normal, // Standard single-width, single-height line
-    DoubleWidth,        // DECDWL - Double-width line
-    DoubleHeightTop,    // DECDHL - Double-height line (top half)
-    DoubleHeightBottom, // DECDHL - Double-height line (bottom half)
+impl Charset {
+    pub fn translate(self, c: char) -> char {
+        match self {
+            Charset::Ascii => c,
+            Charset::Uk if c == '#' => '£',
+            Charset::Uk => c,
+            Charset::DecLineDrawing => match c {
+                '`' => '◆',
+                'a' => '▒',
+                'b' => '␉',
+                'c' => '␌',
+                'd' => '␍',
+                'e' => '␊',
+                'f' => '°',
+                'g' => '±',
+                'h' => '␤',
+                'i' => '␋',
+                'j' => '┘',
+                'k' => '┐',
+                'l' => '┌',
+                'm' => '└',
+                'n' => '┼',
+                'o' => '⎺',
+                'p' => '⎻',
+                'q' => '─',
+                'r' => '⎼',
+                's' => '⎽',
+                't' => '├',
+                'u' => '┤',
+                'v' => '┴',
+                'w' => '┬',
+                'x' => '│',
+                'y' => '≤',
+                'z' => '≥',
+                '{' => 'π',
+                '|' => '≠',
+                '}' => '£',
+                '~' => '·',
+                other => other,
+            },
+        }
+    }
 }
 
-/// F0306: SGR sequence state tracking for extended color support
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct SGRState {
-    pub expecting_extended_fg: bool, // Expecting 38;5;n or 38;2;r;g;b sequence
-    pub expecting_extended_bg: bool, // Expecting 48;5;n or 48;2;r;g;b sequence
-    pub extended_fg_mode: Option<u8>, // 5 for palette, 2 for RGB
-    pub extended_bg_mode: Option<u8>, // 5 for palette, 2 for RGB
-    pub rgb_components: Vec<u8>,     // RGB components being collected
-    pub palette_index: Option<u8>,   // 256-color palette index
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMode {
-    pub cursor_key_mode: bool, // DECCKM - Application cursor keys
-    pub keypad_mode: bool,     // DECPAM - Application keypad
-    pub auto_wrap_mode: bool,  // DECAWM - Auto wrap
-    pub origin_mode: bool,     // DECOM - Origin mode
-    pub insert_mode: bool,     // IRM - Insert/Replace mode
-    pub local_echo_mode: bool, // LNM - Linefeed/Newline mode
-    pub reverse_video: bool,   // DECSCNM - Screen mode (reverse)
-    // F0310: Mouse Protocol Support
-    pub mouse_x10_mode: bool,          // 1000 - X10 mouse reporting
-    pub mouse_normal_mode: bool,       // 1002 - Normal mouse reporting
-    pub mouse_button_event_mode: bool, // 1002 - Button event tracking
-    pub mouse_any_event_mode: bool,    // 1003 - Any event tracking
-    pub mouse_sgr_mode: bool,          // 1006 - SGR extended reporting
-    pub bracketed_paste_mode: bool,    // 2004 - Bracketed paste mode
+    /// DECCKM: arrow keys send application sequences.
+    pub cursor_key_mode: bool,
+    /// DECKPAM: the keypad sends application sequences.
+    pub keypad_mode: bool,
+    /// DECAWM: text continues on the next line at the right edge.
+    pub auto_wrap_mode: bool,
+    /// DECOM: cursor positions are relative to the scrolling region.
+    pub origin_mode: bool,
+    /// IRM: printed characters push the rest of the line right.
+    pub insert_mode: bool,
+    /// LNM: line feed also returns to the first column.
+    pub newline_mode: bool,
+    /// DECSCNM: the whole screen is shown in reverse video.
+    pub reverse_video: bool,
+    pub mouse_tracking: MouseTracking,
+    /// Mode 1006: mouse reports use the SGR encoding.
+    pub mouse_sgr_mode: bool,
+    /// Mode 2004: pasted text is wrapped in `ESC [ 200 ~` and `ESC [ 201 ~`.
+    pub bracketed_paste_mode: bool,
 }
 
 impl Default for TerminalMode {
@@ -187,23 +211,18 @@ impl Default for TerminalMode {
             auto_wrap_mode: true,
             origin_mode: false,
             insert_mode: false,
-            local_echo_mode: false,
+            newline_mode: false,
             reverse_video: false,
-            // F0310: Mouse Protocol Support - all disabled by default
-            mouse_x10_mode: false,
-            mouse_normal_mode: false,
-            mouse_button_event_mode: false,
-            mouse_any_event_mode: false,
+            mouse_tracking: MouseTracking::Off,
             mouse_sgr_mode: false,
             bracketed_paste_mode: false,
         }
     }
 }
 
-#[derive(Debug, Clone)]
-/// F0307: Scrolling region for DECSTBM (Set Top and Bottom Margins)
-#[derive(Default)]
+/// The lines scrolling happens in (DECSTBM), 0-based and inclusive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ScrollRegion {
-    pub top: usize,    // Top margin (0-based, inclusive)
-    pub bottom: usize, // Bottom margin (0-based, inclusive)
+    pub top: usize,
+    pub bottom: usize,
 }
