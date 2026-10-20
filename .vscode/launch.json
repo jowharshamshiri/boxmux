@@ -1,44 +1,37 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'boxmux'",
+            "name": "Debug boxmux on a layout",
             "cargo": {
-                "args": [
-                    "build",
-                    "--bin=boxmux",
-                    "--package=boxmux"
-                ],
-                "filter": {
-                    "name": "boxmux",
-                    "kind": "bin"
-                }
+                "args": ["build", "--bin=boxmux", "--package=boxmux"],
+                "filter": { "name": "boxmux", "kind": "bin" }
             },
-            "args": [
-                "layouts/system_monitor_pro.yaml"
-            ],
+            "args": ["layouts/system_monitor_pro.yaml", "--log-file", "boxmux-debug.log", "--log-level", "debug"],
+            // boxmux draws a full-screen interface, so it needs a real terminal.
+            "terminal": "integrated",
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'boxmux'",
+            "name": "Debug library tests",
             "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=boxmux",
-                    "--package=boxmux"
-                ],
-                "filter": {
-                    "name": "boxmux",
-                    "kind": "bin"
-                }
+                "args": ["test", "--no-run", "--lib", "--package=boxmux"],
+                "filter": { "name": "boxmux_lib", "kind": "lib" }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug end-to-end tests",
+            "cargo": {
+                "args": ["test", "--no-run", "--test=live_ux", "--package=boxmux"],
+                "filter": { "name": "live_ux", "kind": "test" }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
