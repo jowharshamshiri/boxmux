@@ -1,4 +1,4 @@
-use crate::ansi_processor::{AnsiProcessor, TerminalState};
+use crate::terminal::{Emulator, TerminalState};
 
 /// F0313: Test default tab stops initialization (every 8 columns)
 #[test]
@@ -94,7 +94,7 @@ fn test_tab_backward_at_beginning() {
 /// F0313: Test HTS (ESC H) - Set tab stop at current cursor position
 #[test]
 fn test_set_tab_stop_esc_h() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to column 10
     processor.terminal_state.get_cursor_mut().x = 10;
@@ -112,7 +112,7 @@ fn test_set_tab_stop_esc_h() {
 /// F0313: Test TBC g (CSI 0 g) - Clear tab stop at current cursor position  
 #[test]
 fn test_clear_tab_stop_current() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Column 8 should have default tab stop
     assert!(processor.terminal_state.tab_stops[8]);
@@ -134,7 +134,7 @@ fn test_clear_tab_stop_current() {
 /// F0313: Test TBC g (CSI 3 g) - Clear all tab stops
 #[test]
 fn test_clear_all_tab_stops() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Verify default tab stops exist
     assert!(processor.terminal_state.tab_stops[8]);
@@ -153,7 +153,7 @@ fn test_clear_all_tab_stops() {
 /// F0313: Test CHT (CSI I) - Cursor Horizontal Tabulation (tab forward)
 #[test]
 fn test_csi_tab_forward() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Start at column 0
     processor.terminal_state.get_cursor_mut().x = 0;
@@ -170,7 +170,7 @@ fn test_csi_tab_forward() {
 /// F0313: Test CBT (CSI Z) - Cursor Backward Tabulation (tab backward)
 #[test]
 fn test_csi_tab_backward() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Start at column 20
     processor.terminal_state.get_cursor_mut().x = 20;
@@ -187,7 +187,7 @@ fn test_csi_tab_backward() {
 /// F0313: Test horizontal tab character (\t) uses proper tab stops
 #[test]
 fn test_horizontal_tab_character() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Start at column 0
     processor.terminal_state.get_cursor_mut().x = 0;
@@ -204,7 +204,7 @@ fn test_horizontal_tab_character() {
 /// F0313: Test tab stops with custom positions
 #[test]
 fn test_custom_tab_stops() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Clear all default tab stops
     processor.process_bytes(b"\x1b[3g");

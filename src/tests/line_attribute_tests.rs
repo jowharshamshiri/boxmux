@@ -1,4 +1,4 @@
-use crate::ansi_processor::{AnsiProcessor, LineAttribute, TerminalState};
+use crate::terminal::{Emulator, LineAttribute, TerminalState};
 
 /// F0314: Test line attribute initialization (all normal)
 #[test]
@@ -17,7 +17,7 @@ fn test_line_attribute_initialization() {
 /// F0314: Test setting double-width line with DECDWL (ESC # 6)
 #[test]
 fn test_decdwl_double_width_line() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to line 5
     processor.terminal_state.get_cursor_mut().y = 5;
@@ -45,7 +45,7 @@ fn test_decdwl_double_width_line() {
 /// F0314: Test setting double-height line top half with DECDHL (ESC # 3)
 #[test]
 fn test_decdhl_double_height_line_top() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to line 8
     processor.terminal_state.get_cursor_mut().y = 8;
@@ -73,7 +73,7 @@ fn test_decdhl_double_height_line_top() {
 /// F0314: Test setting double-height line bottom half with DECDHL (ESC # 4)
 #[test]
 fn test_decdhl_double_height_line_bottom() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to line 12
     processor.terminal_state.get_cursor_mut().y = 12;
@@ -101,7 +101,7 @@ fn test_decdhl_double_height_line_bottom() {
 /// F0314: Test resetting line to normal with DECSWL (ESC # 5)
 #[test]
 fn test_decswl_reset_to_normal() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to line 10
     processor.terminal_state.get_cursor_mut().y = 10;
@@ -126,7 +126,7 @@ fn test_decswl_reset_to_normal() {
 /// F0314: Test line attribute sequence on double-height line pair
 #[test]
 fn test_double_height_line_pair() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Set up a double-height line pair on lines 15 and 16
     processor.terminal_state.get_cursor_mut().y = 15;
@@ -159,7 +159,7 @@ fn test_double_height_line_pair() {
 /// F0314: Test line attributes in alternate screen buffer
 #[test]
 fn test_line_attributes_alternate_screen() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Switch to alternate screen
     processor.terminal_state.use_alternate_screen = true;
@@ -184,7 +184,7 @@ fn test_line_attributes_alternate_screen() {
 /// F0314: Test line attributes persistence during scrolling
 #[test]
 fn test_line_attributes_with_scrolling() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Set double-width on line 0
     processor.terminal_state.get_cursor_mut().y = 0;
@@ -217,7 +217,7 @@ fn test_line_attributes_with_scrolling() {
 /// F0314: Test line attribute resize behavior
 #[test]
 fn test_line_attributes_after_resize() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Set some line attributes
     processor.terminal_state.get_cursor_mut().y = 5;
@@ -276,7 +276,7 @@ fn test_line_attributes_after_resize() {
 /// F0314: Test multiple line attribute changes on same line
 #[test]
 fn test_multiple_attribute_changes() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Move cursor to line 3
     processor.terminal_state.get_cursor_mut().y = 3;
@@ -313,7 +313,7 @@ fn test_multiple_attribute_changes() {
 /// F0314: Test line attribute edge cases
 #[test]
 fn test_line_attribute_edge_cases() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Test at first line (y=0)
     processor.terminal_state.get_cursor_mut().y = 0;
@@ -341,7 +341,7 @@ fn test_line_attribute_edge_cases() {
 /// F0314: Test line attributes with terminal modes
 #[test]
 fn test_line_attributes_with_terminal_modes() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Set line attribute in origin mode
     processor.terminal_state.mode.origin_mode = true;
@@ -367,7 +367,7 @@ fn test_line_attributes_with_terminal_modes() {
 /// F0314: Test comprehensive line attribute integration
 #[test]
 fn test_comprehensive_line_attribute_integration() {
-    let mut processor = AnsiProcessor::new();
+    let mut processor = Emulator::new();
 
     // Create a pattern of different line attributes
     let test_patterns = [

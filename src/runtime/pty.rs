@@ -1,10 +1,10 @@
 //! Pseudo-terminal sessions: a process running in a PTY, its terminal emulator, and the thread
 //! that reads its output.
 
-use crate::ansi_processor::AnsiProcessor;
 use crate::model::stream::RunId;
 use crate::platform::ProcessTree;
 use crate::runtime::event::{Event, RunEvent, RunOutcome};
+use crate::terminal::Emulator;
 use crossbeam_channel::Sender;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
@@ -32,7 +32,7 @@ impl TerminalSize {
 pub struct PtySession {
     master: Box<dyn MasterPty + Send>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    emulator: Arc<Mutex<AnsiProcessor>>,
+    emulator: Arc<Mutex<Emulator>>,
     /// Set by the reader when the screen changed and the runtime has not looked at it yet;
     /// one notification is sent per transition to set.
     dirty: Arc<AtomicBool>,
@@ -84,7 +84,7 @@ impl PtySession {
             Arc::new(Mutex::new(pair.master.take_writer().map_err(|e| {
                 format!("cannot write to the pseudo-terminal: {}", e)
             })?));
-        let emulator = Arc::new(Mutex::new(AnsiProcessor::with_screen_size(
+        let emulator = Arc::new(Mutex::new(Emulator::with_screen_size(
             usize::from(size.cols.max(1)),
             usize::from(size.rows.max(1)),
         )));
@@ -228,11 +228,11 @@ impl PtySession {
     /// program did not ask for mouse events. `column` and `row` are 0-based within the terminal.
     pub fn mouse_report(
         &self,
-        event_type: crate::ansi_processor::MouseEventType,
-        button: Option<crate::ansi_processor::MouseButton>,
+        event_type: crate::terminal::MouseEventType,
+        button: Option<crate::terminal::MouseButton>,
         column: usize,
         row: usize,
-        modifiers: crate::ansi_processor::MouseModifiers,
+        modifiers: crate::terminal::MouseModifiers,
     ) -> Option<String> {
         lock(&self.emulator)
             .get_terminal_state()
