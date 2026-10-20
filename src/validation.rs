@@ -4,20 +4,19 @@
 
 use crate::model::common::ExecutionMode;
 use crate::{App, MuxBox};
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 /// App JSON schema, embedded at compile time so validation works regardless of the current
 /// working directory or where the binary is installed.
 pub const APP_SCHEMA: &str = include_str!("../schemas/app_schema.json");
 
-static APP_SCHEMA_VALUE: once_cell::sync::Lazy<Value> = once_cell::sync::Lazy::new(|| {
-    serde_json::from_str(APP_SCHEMA).expect("embedded app schema must be valid JSON")
-});
-
-static APP_SCHEMA_COMPILED: once_cell::sync::Lazy<JSONSchema> = once_cell::sync::Lazy::new(|| {
-    JSONSchema::compile(&APP_SCHEMA_VALUE).expect("embedded app schema must compile")
+static APP_SCHEMA_COMPILED: LazyLock<Validator> = LazyLock::new(|| {
+    let schema: Value =
+        serde_json::from_str(APP_SCHEMA).expect("embedded app schema must be valid JSON");
+    jsonschema::validator_for(&schema).expect("embedded app schema must compile")
 });
 
 /// One problem in a configuration, with the place it was found.
@@ -38,16 +37,18 @@ impl std::error::Error for ValidationError {}
 
 /// Checks a configuration document against the embedded schema.
 pub fn validate_schema(document: &Value) -> Result<(), Vec<ValidationError>> {
-    let errors: Vec<ValidationError> = match APP_SCHEMA_COMPILED.validate(document) {
-        Ok(()) => return Ok(()),
-        Err(errors) => errors
-            .map(|error| ValidationError {
-                location: describe_path(document, &error.instance_path.to_string()),
-                message: error.to_string(),
-            })
-            .collect(),
-    };
-    Err(errors)
+    let errors: Vec<ValidationError> = APP_SCHEMA_COMPILED
+        .iter_errors(document)
+        .map(|error| ValidationError {
+            location: describe_path(document, &error.instance_path().to_string()),
+            message: error.to_string(),
+        })
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// Turns a JSON pointer such as `/app/layouts/0/children/2/border_color` into a readable
@@ -328,7 +329,7 @@ mod tests {
 
     #[test]
     fn embedded_schema_compiles() {
-        once_cell::sync::Lazy::force(&APP_SCHEMA_COMPILED);
+        LazyLock::force(&APP_SCHEMA_COMPILED);
     }
 
     /// The properties the schema allows for one object definition.
