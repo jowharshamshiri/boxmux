@@ -42,6 +42,9 @@ for earlier versions need the changes listed under "Migrating".
 - The control socket speaks one JSON request and one JSON reply per connection; see the API
   documentation. Its default location is per user (`$XDG_RUNTIME_DIR/boxmux.sock`,
   `/tmp/boxmux-<uid>.sock`, or the `boxmux-<user>` pipe on Windows).
+- Configuration files are read with `serde-saphyr` instead of the unmaintained `serde_yaml`.
+  YAML tags other than the standard ones (`!custom value`) are load errors; `yes`, `no`, `on` and
+  `off` remain text.
 
 ### Added
 

@@ -73,10 +73,10 @@ impl<'a> Resolver<'a> {
 
 /// Converts a `variables` mapping from the YAML document into a scope. Values may be strings,
 /// numbers or booleans; anything else is an error naming the variable.
-fn scope_from_value(value: &serde_yaml::Value, location: &str) -> Result<Scope, String> {
+fn scope_from_value(value: &serde_json::Value, location: &str) -> Result<Scope, String> {
     let mapping = match value {
-        serde_yaml::Value::Mapping(mapping) => mapping,
-        serde_yaml::Value::Null => return Ok(Scope::new()),
+        serde_json::Value::Object(mapping) => mapping,
+        serde_json::Value::Null => return Ok(Scope::new()),
         _ => {
             return Err(format!(
                 "{}.variables must be a mapping of names to values",
@@ -86,10 +86,7 @@ fn scope_from_value(value: &serde_yaml::Value, location: &str) -> Result<Scope, 
     };
     mapping
         .iter()
-        .map(|(key, value)| {
-            let name = key
-                .as_str()
-                .ok_or_else(|| format!("{}.variables has a name that is not a string", location))?;
+        .map(|(name, value)| {
             let text = scalar_text(value).ok_or_else(|| {
                 format!(
                     "{}.variables.{} must be a string, number or boolean",
@@ -101,11 +98,11 @@ fn scope_from_value(value: &serde_yaml::Value, location: &str) -> Result<Scope, 
         .collect()
 }
 
-fn scalar_text(value: &serde_yaml::Value) -> Option<String> {
+fn scalar_text(value: &serde_json::Value) -> Option<String> {
     match value {
-        serde_yaml::Value::String(s) => Some(s.clone()),
-        serde_yaml::Value::Number(n) => Some(n.to_string()),
-        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
 }
@@ -116,7 +113,7 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::Deserialize;
-    let value = Option::<serde_yaml::Value>::deserialize(deserializer)?;
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
     value
         .map(|value| scope_from_value(&value, "variables").map_err(serde::de::Error::custom))
         .transpose()
@@ -127,7 +124,7 @@ where
 /// around it, its layout and the app. Mapping keys and the `variables` mappings themselves are
 /// not substituted.
 pub fn substitute_document(
-    document: &mut serde_yaml::Value,
+    document: &mut serde_json::Value,
     environment: &dyn Fn(&str) -> Option<String>,
 ) -> Result<(), String> {
     let Some(app) = document.get_mut("app") else {
@@ -143,20 +140,19 @@ pub fn substitute_document(
 
 /// Walks `node`, whose own `variables` (if any) are already the last entry of `scopes`.
 fn substitute_node(
-    node: &mut serde_yaml::Value,
+    node: &mut serde_json::Value,
     scopes: &mut Vec<Scope>,
     location: &str,
     environment: &dyn Fn(&str) -> Option<String>,
 ) -> Result<(), String> {
-    let serde_yaml::Value::Mapping(mapping) = node else {
+    let serde_json::Value::Object(mapping) = node else {
         return Ok(());
     };
     for (key, value) in mapping.iter_mut() {
-        let key = key.as_str().unwrap_or_default();
-        match key {
+        match key.as_str() {
             "variables" => {}
             "layouts" | "children" => {
-                let serde_yaml::Value::Sequence(items) = value else {
+                let serde_json::Value::Array(items) = value else {
                     continue;
                 };
                 for (index, item) in items.iter_mut().enumerate() {
@@ -179,29 +175,26 @@ fn substitute_node(
 
 /// Substitutes in every string inside `value` (nested sequences and mappings included).
 fn substitute_strings(
-    value: &mut serde_yaml::Value,
+    value: &mut serde_json::Value,
     scopes: &[Scope],
     environment: &dyn Fn(&str) -> Option<String>,
 ) {
     match value {
-        serde_yaml::Value::String(text) => {
+        serde_json::Value::String(text) => {
             let innermost_first: Vec<&Scope> = scopes.iter().rev().collect();
             *text = Resolver::new(innermost_first, environment).substitute(text);
         }
-        serde_yaml::Value::Sequence(items) => {
+        serde_json::Value::Array(items) => {
             for item in items {
                 substitute_strings(item, scopes, environment);
             }
         }
-        serde_yaml::Value::Mapping(mapping) => {
+        serde_json::Value::Object(mapping) => {
             for (_, item) in mapping.iter_mut() {
                 substitute_strings(item, scopes, environment);
             }
         }
-        serde_yaml::Value::Tagged(tagged) => {
-            substitute_strings(&mut tagged.value, scopes, environment)
-        }
-        serde_yaml::Value::Null | serde_yaml::Value::Bool(_) | serde_yaml::Value::Number(_) => {}
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
     }
 }
 

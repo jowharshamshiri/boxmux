@@ -197,15 +197,15 @@ fn verify(
     box_id: &str,
     position: &InputBounds,
 ) -> Result<(), String> {
-    let mut before: serde_yaml::Value = serde_yaml::from_str(original)
+    let mut before = crate::yaml::parse(original)
         .map_err(|e| format!("the configuration file no longer parses: {}", e))?;
-    let after: serde_yaml::Value = serde_yaml::from_str(edited).map_err(|e| {
+    let after = crate::yaml::parse(edited).map_err(|e| {
         format!(
             "saving the position of box '{}' would break the file: {}",
             box_id, e
         )
     })?;
-    let expected = serde_yaml::to_value(position).map_err(|e| e.to_string())?;
+    let expected = serde_json::to_value(position).map_err(|e| e.to_string())?;
     if !set_position_in_value(&mut before, box_id, expected) {
         return Err(format!("box '{}' is not in the configuration file", box_id));
     }
@@ -219,12 +219,12 @@ fn verify(
 }
 
 fn set_position_in_value(
-    node: &mut serde_yaml::Value,
+    node: &mut serde_json::Value,
     box_id: &str,
-    position: serde_yaml::Value,
+    position: serde_json::Value,
 ) -> bool {
     match node {
-        serde_yaml::Value::Mapping(mapping) => {
+        serde_json::Value::Object(mapping) => {
             let is_box = mapping.get("id").and_then(|v| v.as_str()) == Some(box_id)
                 && mapping.contains_key("position");
             if is_box {
@@ -235,7 +235,7 @@ fn set_position_in_value(
                 .iter_mut()
                 .any(|(_, value)| set_position_in_value(value, box_id, position.clone()))
         }
-        serde_yaml::Value::Sequence(items) => items
+        serde_json::Value::Array(items) => items
             .iter_mut()
             .any(|item| set_position_in_value(item, box_id, position.clone())),
         _ => false,

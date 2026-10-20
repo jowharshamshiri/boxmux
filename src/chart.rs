@@ -581,8 +581,8 @@ mod tests {
             .into_iter()
             .zip(ALL)
         {
-            assert_eq!(serde_yaml::from_str::<ChartType>(name).unwrap(), kind);
+            assert_eq!(crate::yaml::from_str::<ChartType>(name).unwrap(), kind);
         }
-        assert!(serde_yaml::from_str::<ChartType>("Bar").is_err());
+        assert!(crate::yaml::from_str::<ChartType>("Bar").is_err());
     }
 }

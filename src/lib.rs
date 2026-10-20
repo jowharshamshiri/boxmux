@@ -11,6 +11,7 @@ pub mod terminal;
 pub mod text;
 pub mod utils;
 pub mod validation;
+pub mod yaml;
 
 #[cfg(test)]
 pub mod tests;
