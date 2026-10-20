@@ -51,8 +51,10 @@ See the [Configuration Reference](/docs/configuration).
   output to a file.
 - `libs` lists script files sourced before every script.
 - Scripts get `BOXMUX_SOCKET` and `BOXMUX_BOX` in their environment.
-- When BoxMux exits, every process it started is stopped (whole process groups on Unix,
-  process trees on Windows).
+- When BoxMux exits, also after a crash, every script that is still running is stopped with
+  everything it started (its process group on Unix, its process tree on Windows). A background
+  process whose script has already finished and that let go of the script's output
+  (`server >/dev/null 2>&1 &`) is detached and keeps running.
 
 ## Menus, keys and tabs
 
