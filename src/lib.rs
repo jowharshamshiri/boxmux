@@ -1,48 +1,23 @@
-pub mod model;
-
-#[macro_use]
-pub mod thread_manager;
-pub mod ansi_color_processor;
 pub mod ansi_processor;
-pub mod circular_buffer;
-pub mod color_utils;
-pub mod components;
-pub mod defaults;
-pub mod draw_loop;
-pub mod draw_utils;
-pub mod input_loop;
-pub mod live_yaml_sync;
+pub mod chart;
+pub mod model;
+pub mod platform;
 pub mod plugin;
-pub mod pty_manager;
-pub mod resize_loop;
-pub mod socket_loop;
+pub mod render;
+pub mod runtime;
+pub mod socket;
 pub mod table;
+pub mod text;
 pub mod utils;
 pub mod validation;
 
 #[cfg(test)]
 pub mod tests;
 
-pub use ansi_color_processor::*;
-pub use ansi_processor::*;
-// Re-export components selectively to avoid ambiguous MouseButton re-export
-pub use components::{
-    Border, BoxRenderer, ChartComponent, ChoiceContent, ChoiceMenu, ErrorDisplay,
-    HorizontalScrollbar, ProgressBar, RenderableContent, SelectionStyle, TabBar, TableComponent,
-    TextContent, VerticalScrollbar,
-};
-pub use draw_loop::*;
-pub use input_loop::*;
-pub use model::app::*;
-pub use model::common::*;
-pub use model::layout::*;
-pub use model::muxbox::*;
-pub use plugin::*;
-pub use pty_manager::*;
-pub use table::*;
-pub use thread_manager::*;
-pub use utils::*;
-pub use validation::*;
-
-#[macro_use]
-pub extern crate lazy_static;
+pub use model::app::{load_app_from_str, load_app_from_yaml, App, AppContext};
+pub use model::bounds::{Anchor, Bounds, InputBounds, Position};
+pub use model::choice::Choice;
+pub use model::common::{Config, ExecutionMode};
+pub use model::layout::Layout;
+pub use model::muxbox::MuxBox;
+pub use model::stream::{RunId, RunOrigin, Stream, StreamKind, StreamStatus};

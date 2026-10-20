@@ -66,9 +66,8 @@ mod ansi_processor_integration_tests {
 
         processor.process_string("Start\x1b[5;10HMiddle\x1b[1;1HBegin");
 
-        // After positioning cursor and writing, should track position
-        assert!(processor.get_cursor_y() <= 10); // Rough bounds check
-        assert!(processor.get_cursor_x() >= 0);
+        // The cursor ends after "Begin" on the first row.
+        assert_eq!((processor.get_cursor_x(), processor.get_cursor_y()), (5, 0));
     }
 
     #[test]
@@ -115,7 +114,7 @@ mod ansi_processor_integration_tests {
         // Large output simulation
         let mut large_output = String::new();
         for i in 0..1000 {
-            large_output.push_str(&format!("\x1b[{}m Line {}\x1b[0m\n", 31 + (i % 7), i));
+            large_output.push_str(&format!("\x1b[{}m Line {}\x1b[0m\r\n", 31 + (i % 7), i));
         }
 
         let start = std::time::Instant::now();
@@ -124,7 +123,10 @@ mod ansi_processor_integration_tests {
 
         // Should process reasonably quickly (less than 100ms for 1000 lines)
         assert!(duration.as_millis() < 100);
-        assert!(processor.get_processed_text().lines().count() >= 1000);
+        // The screen keeps the last lines; the rest scrolled off the top.
+        let text = processor.get_processed_text();
+        assert!(text.contains("Line 999"), "{}", text);
+        assert!(!text.contains("Line 0\n"), "{}", text);
     }
 
     #[test]

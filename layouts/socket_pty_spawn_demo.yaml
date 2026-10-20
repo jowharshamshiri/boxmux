@@ -41,7 +41,6 @@ app:
             y2: "65%"
           border_color: "green"
           content: "Ready to receive PTY processes via socket commands..."
-          pty: false
 
         - id: "output_box"
           title: "Output Redirect Target"

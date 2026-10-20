@@ -23,25 +23,25 @@ app:
             - id: "deploy"
               content: "Deploy Application (Ctrl+d)"
               script: ["echo 'Starting deployment...'; sleep 1; echo 'Deploying to server...'; sleep 1; echo 'Deployment complete!'"]
-              thread: true
+              execution_mode: Thread
               redirect_output: "output_log"  # Output goes to log box
               
             - id: "build"
               content: "Build Project (F2)" 
               script: ["echo 'Starting build...'; sleep 2; echo 'Compiling...'; sleep 1; echo 'Build finished!'"]
-              thread: true
+              execution_mode: Thread
               redirect_output: "output_log"
               
             - id: "test"
               content: "Run Tests (F3)"
               script: ["echo 'Running tests...'; sleep 1; echo 'Test 1: PASS'; sleep 1; echo 'Test 2: PASS'; echo 'All tests passed!'"]
-              thread: true
+              execution_mode: Thread
               redirect_output: "output_log"
               
             - id: "restart"
               content: "Restart Service (Ctrl+r)"
               script: ["echo 'Stopping service...'; sleep 1; echo 'Starting service...'; sleep 1; echo 'Service restarted!'"]
-              thread: true
+              execution_mode: Thread
               redirect_output: "output_log"
 
         - id: "output_log"

@@ -11,13 +11,12 @@ app:
             y1: 0%
             x2: 100%
             y2: 80%
-          pty: true
+          execution_mode: Pty
           script:
             - "echo 'PTY Test Started'"
             - "for i in {1..5}; do echo \"Line $i\"; sleep 1; done"
             - "echo 'PTY Test Complete'"
-          refresh_interval: 5000
-          
+
         - id: "regular_box"
           title: "Regular Script MuxBox (No PTY)"
           position:
@@ -25,7 +24,6 @@ app:
             y1: 80%
             x2: 100%
             y2: 100%
-          pty: false
           script:
             - "echo 'Regular script output'"
             - "date"

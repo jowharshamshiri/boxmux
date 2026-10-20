@@ -1,0 +1,24 @@
+# Colored output: SGR escape sequences in static content, in script output and in a terminal.
+app:
+  layouts:
+    - id: colors
+      root: true
+      title: ANSI colors
+      children:
+        - id: static
+          title: Static content
+          position: {x1: "0%", y1: "0%", x2: "49%", y2: "49%"}
+          content: "Normal text\n\x1b[31mRed\x1b[0m, \x1b[32mgreen\x1b[0m, \x1b[33myellow\x1b[0m, \x1b[34mblue\x1b[0m\n\x1b[1;31mBold red\x1b[0m\n\x1b[41;97mWhite on red\x1b[0m\n\x1b[38;5;208m256-color orange\x1b[0m"
+        - id: script_output
+          title: Script output
+          position: {x1: "50%", y1: "0%", x2: "100%", y2: "49%"}
+          execution_mode: Thread
+          script: |
+            printf '\033[32mok\033[0m  service A\n'
+            printf '\033[31mFAIL\033[0m service B\n'
+            printf 'progress 10%%\rprogress 100%%\n'
+        - id: terminal
+          title: Terminal
+          position: {x1: "0%", y1: "50%", x2: "100%", y2: "100%"}
+          execution_mode: Pty
+          script: "ls -la --color=always /; exec bash"

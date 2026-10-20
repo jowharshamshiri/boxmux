@@ -1,1046 +1,456 @@
-use crate::model::common::Config;
-use crate::{App, Layout, MuxBox};
+//! Validation of BoxMux configurations: the JSON schema checks the shape and allowed values of
+//! every field, and the semantic checks verify what a schema cannot express (unique ids and
+//! references between boxes, layouts and choices).
+
+use crate::model::common::ExecutionMode;
+use crate::{App, MuxBox};
 use jsonschema::JSONSchema;
-use serde_json::{Map, Value};
-use std::collections::HashSet;
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 
-/// App JSON schema, embedded at compile time so validation works regardless of
-/// the current working directory or where the binary is installed.
-const APP_SCHEMA: &str = include_str!("../schemas/app_schema.json");
+/// App JSON schema, embedded at compile time so validation works regardless of the current
+/// working directory or where the binary is installed.
+pub const APP_SCHEMA: &str = include_str!("../schemas/app_schema.json");
 
-/// Embedded schema parsed once.
 static APP_SCHEMA_VALUE: once_cell::sync::Lazy<Value> = once_cell::sync::Lazy::new(|| {
     serde_json::from_str(APP_SCHEMA).expect("embedded app schema must be valid JSON")
 });
 
-/// Embedded schema compiled once. Recompiling this 30KB schema on every config
-/// load is expensive (regex compilation), so it is built a single time and shared.
 static APP_SCHEMA_COMPILED: once_cell::sync::Lazy<JSONSchema> = once_cell::sync::Lazy::new(|| {
     JSONSchema::compile(&APP_SCHEMA_VALUE).expect("embedded app schema must compile")
 });
 
-/// Configuration schema validation errors
-#[derive(Debug, Clone)]
-pub enum ValidationError {
-    InvalidFieldType {
-        field: String,
-        expected: String,
-        actual: String,
-    },
-    MissingRequiredField {
-        field: String,
-    },
-    InvalidFieldValue {
-        field: String,
-        value: String,
-        constraint: String,
-    },
-    DuplicateId {
-        id: String,
-        location: String,
-    },
-    InvalidReference {
-        field: String,
-        reference: String,
-        target_type: String,
-    },
-    SchemaStructure {
-        message: String,
-    },
-    JsonSchemaValidation {
-        field: String,
-        message: String,
-    },
-    DeprecationWarning {
-        field: String,
-        message: String,
-    },
+/// One problem in a configuration, with the place it was found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationError {
+    /// Where the problem is, e.g. `app.layouts[0].children[2] (box 'logs').border_color`.
+    pub location: String,
+    pub message: String,
 }
 
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ValidationError::InvalidFieldType {
-                field,
-                expected,
-                actual,
-            } => {
-                write!(
-                    f,
-                    "Field '{}' expected type '{}' but got '{}'",
-                    field, expected, actual
-                )
-            }
-            ValidationError::MissingRequiredField { field } => {
-                write!(f, "Required field '{}' is missing", field)
-            }
-            ValidationError::InvalidFieldValue {
-                field,
-                value,
-                constraint,
-            } => {
-                write!(
-                    f,
-                    "Field '{}' has invalid value '{}' (constraint: {})",
-                    field, value, constraint
-                )
-            }
-            ValidationError::DuplicateId { id, location } => {
-                write!(f, "Duplicate ID '{}' found in {}", id, location)
-            }
-            ValidationError::InvalidReference {
-                field,
-                reference,
-                target_type,
-            } => {
-                write!(
-                    f,
-                    "Field '{}' references unknown {} '{}'",
-                    field, target_type, reference
-                )
-            }
-            ValidationError::SchemaStructure { message } => {
-                write!(f, "Schema structure error: {}", message)
-            }
-            ValidationError::JsonSchemaValidation { field, message } => {
-                write!(
-                    f,
-                    "JSON Schema validation error in '{}': {}",
-                    field, message
-                )
-            }
-            ValidationError::DeprecationWarning { field, message } => {
-                write!(f, "Deprecation warning for '{}': {}", field, message)
-            }
-        }
+        write!(f, "{}: {}", self.location, self.message)
     }
 }
 
 impl std::error::Error for ValidationError {}
 
-/// Schema validation result
-pub type ValidationResult = Result<(), Vec<ValidationError>>;
-
-/// Central schema validator for BoxMux configurations
-pub struct SchemaValidator {
-    errors: Vec<ValidationError>,
-    warnings: Vec<ValidationError>,
-    muxbox_ids: HashSet<String>,
-    layout_ids: HashSet<String>,
+/// Checks a configuration document against the embedded schema.
+pub fn validate_schema(document: &Value) -> Result<(), Vec<ValidationError>> {
+    let errors: Vec<ValidationError> = match APP_SCHEMA_COMPILED.validate(document) {
+        Ok(()) => return Ok(()),
+        Err(errors) => errors
+            .map(|error| ValidationError {
+                location: describe_path(document, &error.instance_path.to_string()),
+                message: error.to_string(),
+            })
+            .collect(),
+    };
+    Err(errors)
 }
 
-impl SchemaValidator {
-    pub fn new() -> Self {
-        Self {
-            errors: Vec::new(),
-            warnings: Vec::new(),
-            muxbox_ids: HashSet::new(),
-            layout_ids: HashSet::new(),
-        }
-    }
-
-    /// Validate a complete BoxMux application configuration
-    pub fn validate_app(&mut self, app: &App) -> ValidationResult {
-        self.clear();
-
-        // Collect all IDs first for reference validation
-        self.collect_ids(app);
-
-        // Validate application structure
-        if app.layouts.is_empty() {
-            self.add_error(ValidationError::MissingRequiredField {
-                field: "layouts".to_string(),
-            });
-        }
-
-        // Validate each layout
-        for (idx, layout) in app.layouts.iter().enumerate() {
-            let _ = self.validate_layout(layout, &format!("layouts[{}]", idx));
-        }
-
-        // Validate root layout constraints
-        self.validate_root_layout_constraints(app);
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors.clone())
-        }
-    }
-
-    /// Validate a single layout
-    pub fn validate_layout(&mut self, layout: &Layout, path: &str) -> ValidationResult {
-        // Validate required fields
-        if layout.id.is_empty() {
-            self.add_error(ValidationError::MissingRequiredField {
-                field: format!("{}.id", path),
-            });
-        }
-
-        // Validate muxboxes if present
-        if let Some(muxboxes) = &layout.children {
-            for (idx, muxbox) in muxboxes.iter().enumerate() {
-                let _ = self.validate_muxbox(muxbox, &format!("{}.children[{}]", path, idx));
-            }
-        }
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors.clone())
-        }
-    }
-
-    /// Validate a single muxbox
-    pub fn validate_muxbox(&mut self, muxbox: &MuxBox, path: &str) -> ValidationResult {
-        // Validate required fields
-        if muxbox.id.is_empty() {
-            self.add_error(ValidationError::MissingRequiredField {
-                field: format!("{}.id", path),
-            });
-        }
-
-        // Validate position bounds
-        self.validate_input_bounds_schema(&muxbox.position, &format!("{}.position", path));
-
-        // Validate child muxboxes recursively
-        if let Some(children) = &muxbox.children {
-            for (idx, child) in children.iter().enumerate() {
-                let _ = self.validate_muxbox(child, &format!("{}.children[{}]", path, idx));
-            }
-        }
-
-        // Validate script commands if present
-        if let Some(scripts) = &muxbox.script {
-            for (idx, script) in scripts.iter().enumerate() {
-                if script.trim().is_empty() {
-                    self.add_error(ValidationError::InvalidFieldValue {
-                        field: format!("{}.script[{}]", path, idx),
-                        value: "empty".to_string(),
-                        constraint: "script commands cannot be empty".to_string(),
-                    });
+/// Turns a JSON pointer such as `/app/layouts/0/children/2/border_color` into a readable
+/// location that names the layouts and boxes on the way.
+fn describe_path(document: &Value, pointer: &str) -> String {
+    let mut location = String::new();
+    let mut node = Some(document);
+    for segment in pointer.split('/').filter(|s| !s.is_empty()) {
+        node = node.and_then(|n| match n {
+            Value::Array(items) => segment.parse::<usize>().ok().and_then(|i| items.get(i)),
+            Value::Object(map) => map.get(segment),
+            _ => None,
+        });
+        match segment.parse::<usize>() {
+            Ok(index) => {
+                location.push_str(&format!("[{}]", index));
+                if let Some(id) = node.and_then(|n| n.get("id")).and_then(Value::as_str) {
+                    location.push_str(&format!(" ('{}')", id));
                 }
             }
-        }
-
-        // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(
-            &muxbox.execution_mode,
-            &format!("{}.execution_mode", path),
-        );
-
-        // Validate choices if present
-        if let Some(choices) = &muxbox.choices {
-            for (idx, choice) in choices.iter().enumerate() {
-                let _ = self.validate_choice(choice, &format!("{}.choices[{}]", path, idx));
-            }
-        }
-
-        // Return both errors and warnings for comprehensive validation
-        let mut all_issues = self.errors.clone();
-        all_issues.extend(self.warnings.clone());
-
-        if all_issues.is_empty() {
-            Ok(())
-        } else {
-            Err(all_issues)
-        }
-    }
-
-    /// Validate configuration schema
-    pub fn validate_config(&mut self, config: &Config) -> ValidationResult {
-        self.clear();
-
-        if config.frame_delay == 0 {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: "frame_delay".to_string(),
-                value: "0".to_string(),
-                constraint: "frame_delay must be greater than 0".to_string(),
-            });
-        }
-
-        if config.frame_delay > 1000 {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: "frame_delay".to_string(),
-                value: config.frame_delay.to_string(),
-                constraint: "frame_delay should not exceed 1000ms for usability".to_string(),
-            });
-        }
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors.clone())
-        }
-    }
-
-    /// Validate YAML content against the app JSON schema embedded in the binary.
-    ///
-    /// The schema is compiled in via `include_str!`, so validation never depends
-    /// on the current working directory or where the binary is installed.
-    pub fn validate_app_yaml(&mut self, yaml_content: &str) -> ValidationResult {
-        self.clear();
-
-        // Parse YAML content to JSON
-        let yaml_value: Value = match serde_yaml::from_str(yaml_content) {
-            Ok(value) => value,
-            Err(e) => {
-                self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Invalid YAML syntax: {}", e),
-                });
-                return Err(self.errors.clone());
-            }
-        };
-
-        // Validate against the pre-compiled embedded schema (compiled once).
-        if let Err(errors) = APP_SCHEMA_COMPILED.validate(&yaml_value) {
-            for error in errors {
-                let error_path = if error.instance_path.to_string().is_empty() {
-                    "app".to_string()
-                } else {
-                    format!("app.{}", error.instance_path)
-                };
-                self.add_error(ValidationError::JsonSchemaValidation {
-                    field: error_path,
-                    message: error.to_string(),
-                });
-            }
-        }
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors.clone())
-        }
-    }
-
-    /// Validate a JSON value against schema source text.
-    fn validate_against_schema_content(
-        &mut self,
-        value: &Value,
-        schema_content: &str,
-        schema_label: &str,
-        field_name: &str,
-    ) -> ValidationResult {
-        // Parse schema
-        let schema_json: Value = match serde_json::from_str(schema_content) {
-            Ok(schema) => schema,
-            Err(e) => {
-                self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Invalid JSON schema in '{}': {}", schema_label, e),
-                });
-                return Err(self.errors.clone());
-            }
-        };
-
-        // Compile and validate schema
-        let compiled_schema = match JSONSchema::compile(&schema_json) {
-            Ok(schema) => schema,
-            Err(e) => {
-                self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Failed to compile schema '{}': {}", schema_label, e),
-                });
-                return Err(self.errors.clone());
-            }
-        };
-
-        // Validate the value against the schema
-        if let Err(errors) = compiled_schema.validate(value) {
-            for error in errors {
-                let error_path = if error.instance_path.to_string().is_empty() {
-                    field_name.to_string()
-                } else {
-                    format!("{}.{}", field_name, error.instance_path)
-                };
-
-                self.add_error(ValidationError::JsonSchemaValidation {
-                    field: error_path,
-                    message: error.to_string(),
-                });
-            }
-            return Err(self.errors.clone());
-        }
-
-        Ok(())
-    }
-
-    /// Validate JSON configuration against schema
-    pub fn validate_json_config(&mut self, config: &Value) -> ValidationResult {
-        self.clear();
-
-        if !config.is_object() {
-            self.add_error(ValidationError::SchemaStructure {
-                message: "Configuration must be a JSON object".to_string(),
-            });
-            return Err(self.errors.clone());
-        }
-
-        let obj = config.as_object().unwrap();
-
-        // Validate required top-level fields
-        if !obj.contains_key("layouts") {
-            self.add_error(ValidationError::MissingRequiredField {
-                field: "layouts".to_string(),
-            });
-        } else if !obj["layouts"].is_array() {
-            self.add_error(ValidationError::InvalidFieldType {
-                field: "layouts".to_string(),
-                expected: "array".to_string(),
-                actual: self.get_json_type(&obj["layouts"]),
-            });
-        }
-
-        // Validate optional config section
-        if let Some(config_section) = obj.get("config") {
-            if !config_section.is_object() {
-                self.add_error(ValidationError::InvalidFieldType {
-                    field: "config".to_string(),
-                    expected: "object".to_string(),
-                    actual: self.get_json_type(config_section),
-                });
-            } else {
-                self.validate_json_config_section(config_section.as_object().unwrap());
-            }
-        }
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors.clone())
-        }
-    }
-
-    /// Validate a single choice
-    pub fn validate_choice(
-        &mut self,
-        choice: &crate::model::choice::Choice,
-        path: &str,
-    ) -> ValidationResult {
-        // Validate required fields
-        if choice.id.is_empty() {
-            self.add_error(ValidationError::MissingRequiredField {
-                field: format!("{}.id", path),
-            });
-        }
-
-        // Validate ExecutionMode integration and deprecation warnings
-        self.validate_execution_mode_fields(
-            &choice.execution_mode,
-            &format!("{}.execution_mode", path),
-        );
-
-        // Return both errors and warnings for comprehensive validation
-        let mut all_issues = self.errors.clone();
-        all_issues.extend(self.warnings.clone());
-
-        if all_issues.is_empty() {
-            Ok(())
-        } else {
-            Err(all_issues)
-        }
-    }
-
-    /// Validate ExecutionMode field consistency and provide deprecation warnings
-    fn validate_execution_mode_fields(
-        &mut self,
-        execution_mode: &crate::model::common::ExecutionMode,
-        _path: &str,
-    ) {
-        use crate::model::common::ExecutionMode;
-
-        // T0330: Legacy thread/pty fields removed - no more deprecation warnings needed
-
-        // Validate ExecutionMode enum values
-        match execution_mode {
-            ExecutionMode::Immediate | ExecutionMode::Thread | ExecutionMode::Pty => {
-                // Valid enum values
-            }
-        }
-
-        // T0330: Legacy field conflict checking removed - no more legacy fields exist
-    }
-
-    /// Helper methods
-    fn clear(&mut self) {
-        self.errors.clear();
-        self.warnings.clear();
-        self.muxbox_ids.clear();
-        self.layout_ids.clear();
-    }
-
-    fn add_error(&mut self, error: ValidationError) {
-        match error {
-            ValidationError::DeprecationWarning { .. } => {
-                self.warnings.push(error);
-            }
-            _ => {
-                self.errors.push(error);
-            }
-        }
-    }
-
-    /// Get warnings (non-fatal validation issues)
-    pub fn get_warnings(&self) -> &Vec<ValidationError> {
-        &self.warnings
-    }
-
-    fn collect_ids(&mut self, app: &App) {
-        for layout in &app.layouts {
-            if !self.layout_ids.insert(layout.id.clone()) {
-                self.add_error(ValidationError::DuplicateId {
-                    id: layout.id.clone(),
-                    location: "layouts".to_string(),
-                });
-            }
-            self.collect_muxbox_ids_recursive(&layout.children, "muxboxes");
-        }
-    }
-
-    fn collect_muxbox_ids_recursive(&mut self, muxboxes: &Option<Vec<MuxBox>>, location: &str) {
-        if let Some(muxbox_list) = muxboxes {
-            for muxbox in muxbox_list {
-                if !self.muxbox_ids.insert(muxbox.id.clone()) {
-                    self.add_error(ValidationError::DuplicateId {
-                        id: muxbox.id.clone(),
-                        location: location.to_string(),
-                    });
+            Err(_) => {
+                if !location.is_empty() {
+                    location.push('.');
                 }
-                self.collect_muxbox_ids_recursive(&muxbox.children, location);
+                location.push_str(segment);
+            }
+        }
+    }
+    if location.is_empty() {
+        "configuration".to_string()
+    } else {
+        location
+    }
+}
 
-                // Check choice IDs if they exist
-                if let Some(choices) = &muxbox.choices {
-                    for choice in choices {
-                        if !self.muxbox_ids.insert(choice.id.clone()) {
-                            self.add_error(ValidationError::DuplicateId {
-                                id: choice.id.clone(),
-                                location: "choices".to_string(),
-                            });
-                        }
+/// Checks the relationships a schema cannot: ids are unique, references point at things that
+/// exist, and combinations of fields make sense.
+pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
+    let mut errors = Vec::new();
+    let mut error =
+        |location: String, message: String| errors.push(ValidationError { location, message });
+
+    if app.layouts.is_empty() {
+        error(
+            "app.layouts".into(),
+            "at least one layout is required".into(),
+        );
+    }
+
+    let mut layout_ids = HashSet::new();
+    let mut box_locations: HashMap<String, String> = HashMap::new();
+    let mut box_layout: HashMap<String, String> = HashMap::new();
+    let mut choice_owner: HashMap<String, String> = HashMap::new();
+    let mut boxes: Vec<(String, &MuxBox)> = Vec::new();
+
+    for (layout_index, layout) in app.layouts.iter().enumerate() {
+        let layout_location = format!("app.layouts[{}] ('{}')", layout_index, layout.id);
+        if !layout_ids.insert(layout.id.clone()) {
+            error(
+                layout_location.clone(),
+                format!("layout id '{}' is used more than once", layout.id),
+            );
+        }
+        let mut stack: Vec<(String, &MuxBox)> = layout
+            .children
+            .iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, b)| {
+                (
+                    format!("{}.children[{}] ('{}')", layout_location, i, b.id),
+                    b,
+                )
+            })
+            .collect();
+        let mut selected = Vec::new();
+        while let Some((location, muxbox)) = stack.pop() {
+            if let Some(previous) = box_locations.insert(muxbox.id.clone(), location.clone()) {
+                error(
+                    location.clone(),
+                    format!("box id '{}' is also used at {}", muxbox.id, previous),
+                );
+            }
+            box_layout.insert(muxbox.id.clone(), layout.id.clone());
+            if muxbox.selected == Some(true) {
+                selected.push(muxbox.id.clone());
+            }
+            let mut box_choice_ids = HashSet::new();
+            for choice in muxbox.choices.iter().flatten() {
+                if !box_choice_ids.insert(choice.id.clone()) {
+                    error(
+                        format!("{}.choices", location),
+                        format!(
+                            "choice id '{}' is used more than once in this box",
+                            choice.id
+                        ),
+                    );
+                }
+                if let Some(owner) = choice_owner.insert(choice.id.clone(), muxbox.id.clone()) {
+                    if owner != muxbox.id {
+                        error(
+                            format!("{}.choices", location),
+                            format!(
+                                "choice id '{}' is also used by box '{}'; hot keys need choice ids to be unique",
+                                choice.id, owner
+                            ),
+                        );
                     }
                 }
             }
+            for (i, child) in muxbox.children.iter().flatten().enumerate() {
+                stack.push((
+                    format!("{}.children[{}] ('{}')", location, i, child.id),
+                    child,
+                ));
+            }
+            boxes.push((location, muxbox));
+        }
+        if selected.len() > 1 {
+            error(
+                layout_location.clone(),
+                format!(
+                    "only one box per layout can be `selected`; found {}",
+                    selected.join(", ")
+                ),
+            );
         }
     }
 
-    fn validate_root_layout_constraints(&mut self, app: &App) {
-        let mut root_count = 0;
-        for layout in &app.layouts {
-            if layout.root == Some(true) {
-                root_count += 1;
+    let roots: Vec<&str> = app
+        .layouts
+        .iter()
+        .filter(|l| l.root == Some(true))
+        .map(|l| l.id.as_str())
+        .collect();
+    if roots.len() > 1 {
+        error(
+            "app.layouts".into(),
+            format!("only one layout can be `root`; found {}", roots.join(", ")),
+        );
+    }
+
+    for (location, muxbox) in &boxes {
+        if let Some(target) = &muxbox.redirect_output {
+            if !box_locations.contains_key(target) {
+                error(
+                    format!("{}.redirect_output", location),
+                    format!("there is no box '{}'", target),
+                );
             }
         }
-
-        if root_count > 1 {
-            self.add_error(ValidationError::SchemaStructure {
-                message:
-                    "Multiple root layouts detected. Only one layout can be marked as 'root: true'."
-                        .to_string(),
-            });
+        if let Some(target) = &muxbox.next_focus_id {
+            match box_layout.get(target) {
+                None => error(
+                    format!("{}.next_focus_id", location),
+                    format!("there is no box '{}'", target),
+                ),
+                Some(target_layout) if Some(target_layout) != box_layout.get(&muxbox.id) => error(
+                    format!("{}.next_focus_id", location),
+                    format!(
+                        "box '{}' is in layout '{}'; focus can only move within a layout",
+                        target, target_layout
+                    ),
+                ),
+                Some(_) => {}
+            }
         }
-    }
-
-    fn validate_input_bounds_schema(
-        &mut self,
-        bounds: &crate::model::common::InputBounds,
-        path: &str,
-    ) {
-        // Validate that bounds strings are not empty
-        if bounds.x1.trim().is_empty() {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: format!("{}.x1", path),
-                value: "empty".to_string(),
-                constraint: "bounds coordinates cannot be empty".to_string(),
-            });
-        }
-
-        if bounds.y1.trim().is_empty() {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: format!("{}.y1", path),
-                value: "empty".to_string(),
-                constraint: "bounds coordinates cannot be empty".to_string(),
-            });
-        }
-
-        if bounds.x2.trim().is_empty() {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: format!("{}.x2", path),
-                value: "empty".to_string(),
-                constraint: "bounds coordinates cannot be empty".to_string(),
-            });
-        }
-
-        if bounds.y2.trim().is_empty() {
-            self.add_error(ValidationError::InvalidFieldValue {
-                field: format!("{}.y2", path),
-                value: "empty".to_string(),
-                constraint: "bounds coordinates cannot be empty".to_string(),
-            });
-        }
-    }
-
-    fn validate_json_config_section(&mut self, config: &Map<String, Value>) {
-        if let Some(frame_delay) = config.get("frame_delay") {
-            if let Some(delay) = frame_delay.as_u64() {
-                if delay == 0 {
-                    self.add_error(ValidationError::InvalidFieldValue {
-                        field: "config.frame_delay".to_string(),
-                        value: "0".to_string(),
-                        constraint: "frame_delay must be greater than 0".to_string(),
-                    });
+        for (i, choice) in muxbox.choices.iter().flatten().enumerate() {
+            if let Some(target) = &choice.redirect_output {
+                if !box_locations.contains_key(target) {
+                    error(
+                        format!("{}.choices[{}].redirect_output", location, i),
+                        format!("there is no box '{}'", target),
+                    );
                 }
-            } else {
-                self.add_error(ValidationError::InvalidFieldType {
-                    field: "config.frame_delay".to_string(),
-                    expected: "number".to_string(),
-                    actual: self.get_json_type(frame_delay),
-                });
+            }
+            if choice.script.is_none() && choice.redirect_output.is_some() {
+                error(
+                    format!("{}.choices[{}]", location, i),
+                    "redirect_output needs a script whose output it redirects".into(),
+                );
+            }
+        }
+        if muxbox.execution_mode == ExecutionMode::Pty && muxbox.refresh_interval.is_some() {
+            error(
+                format!("{}.refresh_interval", location),
+                "a PTY box runs its script once as an interactive session; refresh_interval does not apply".into(),
+            );
+        }
+        if muxbox.refresh_interval.is_some()
+            && muxbox.script.is_none()
+            && muxbox.plugin_component.is_none()
+        {
+            error(
+                format!("{}.refresh_interval", location),
+                "refresh_interval needs a script to rerun or a plugin_component to redraw".into(),
+            );
+        }
+        if muxbox.refresh_interval == Some(0) {
+            error(
+                format!("{}.refresh_interval", location),
+                "must be at least 1 millisecond".into(),
+            );
+        }
+        if muxbox.chart_data.is_some() && muxbox.chart_type.is_none() {
+            error(
+                format!("{}.chart_data", location),
+                "chart_data needs a chart_type".into(),
+            );
+        }
+        if muxbox.chart_type.is_some() && muxbox.chart_data.is_none() && muxbox.script.is_none() {
+            error(
+                format!("{}.chart_type", location),
+                "a chart needs chart_data, or a script whose output is the data".into(),
+            );
+        }
+        if muxbox.table_config.is_some() && muxbox.table_data.is_none() && muxbox.script.is_none() {
+            error(
+                format!("{}.table_config", location),
+                "a table needs table_data, or a script whose output is the data".into(),
+            );
+        }
+        let sources: Vec<&str> = [
+            (muxbox.plugin_component.is_some(), "plugin_component"),
+            (muxbox.chart_type.is_some(), "chart_type"),
+            (
+                muxbox.table_data.is_some() || muxbox.table_config.is_some(),
+                "table_data/table_config",
+            ),
+        ]
+        .iter()
+        .filter(|(set, _)| *set)
+        .map(|(_, name)| *name)
+        .collect();
+        if sources.len() > 1 {
+            error(
+                location.clone(),
+                format!(
+                    "a box shows one kind of generated content; it has {}",
+                    sources.join(" and ")
+                ),
+            );
+        }
+        for (min, max, name) in [
+            (muxbox.min_width, muxbox.max_width, "width"),
+            (muxbox.min_height, muxbox.max_height, "height"),
+        ] {
+            if let (Some(min), Some(max)) = (min, max) {
+                if min > max {
+                    error(
+                        format!("{}.min_{}", location, name),
+                        format!("min_{} {} is larger than max_{} {}", name, min, name, max),
+                    );
+                }
             }
         }
     }
 
-    fn get_json_type(&self, value: &Value) -> String {
-        match value {
-            Value::Null => "null".to_string(),
-            Value::Bool(_) => "boolean".to_string(),
-            Value::Number(_) => "number".to_string(),
-            Value::String(_) => "string".to_string(),
-            Value::Array(_) => "array".to_string(),
-            Value::Object(_) => "object".to_string(),
+    for (key, choice_id) in app.hot_keys.iter().flatten() {
+        if !choice_owner.contains_key(choice_id) {
+            error(
+                format!("app.hot_keys.{}", key),
+                format!("there is no choice '{}'", choice_id),
+            );
         }
     }
-}
 
-impl Default for SchemaValidator {
-    fn default() -> Self {
-        Self::new()
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::common::{Config, InputBounds};
-    use crate::{App, Layout, MuxBox};
 
-    fn create_test_muxbox(id: &str) -> MuxBox {
-        MuxBox {
-            id: id.to_string(),
-            position: InputBounds {
-                x1: "10".to_string(),
-                y1: "20".to_string(),
-                x2: "90".to_string(),
-                y2: "80".to_string(),
-            },
-            ..Default::default()
-        }
+    #[test]
+    fn embedded_schema_compiles() {
+        once_cell::sync::Lazy::force(&APP_SCHEMA_COMPILED);
     }
 
-    fn create_test_layout(id: &str) -> Layout {
-        Layout {
-            id: id.to_string(),
-            children: Some(vec![create_test_muxbox("muxbox1")]),
-            ..Default::default()
-        }
+    /// The properties the schema allows for one object definition.
+    fn schema_properties(definition: &Value) -> Vec<String> {
+        let mut keys: Vec<String> = definition["properties"]
+            .as_object()
+            .expect("the definition has properties")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
     }
 
-    fn create_test_app() -> App {
-        let mut app = App::new();
-        app.layouts = vec![create_test_layout("layout1")];
-        app
+    /// The keys a struct reads and writes, from serializing its default value.
+    fn struct_fields<T: serde::Serialize + Default>() -> Vec<String> {
+        let mut keys: Vec<String> = serde_json::to_value(T::default())
+            .unwrap()
+            .as_object()
+            .expect("the struct serializes to an object")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
     }
 
     #[test]
-    fn test_validate_app_success() {
-        let mut validator = SchemaValidator::new();
-        let app = create_test_app();
-
-        let result = validator.validate_app(&app);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_app_no_layouts() {
-        let mut validator = SchemaValidator::new();
-        let app = App::new();
-
-        let result = validator.validate_app(&app);
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert_eq!(errors.len(), 1);
-        assert!(matches!(
-            errors[0],
-            ValidationError::MissingRequiredField { .. }
-        ));
-    }
-
-    #[test]
-    fn test_validate_config_success() {
-        let mut validator = SchemaValidator::new();
-        let config = Config::new(60);
-
-        let result = validator.validate_config(&config);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_config_zero_frame_delay() {
-        let mut validator = SchemaValidator::new();
-        let config = Config {
-            frame_delay: 0,
-            locked: false,
-            calibrate: false,
-        };
-
-        let result = validator.validate_config(&config);
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert_eq!(errors.len(), 1);
-        assert!(matches!(
-            errors[0],
-            ValidationError::InvalidFieldValue { .. }
-        ));
-    }
-
-    #[test]
-    fn test_validate_config_excessive_frame_delay() {
-        let mut validator = SchemaValidator::new();
-        let config = Config {
-            frame_delay: 2000,
-            locked: false,
-            calibrate: false,
-        };
-
-        let result = validator.validate_config(&config);
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert_eq!(errors.len(), 1);
-        assert!(matches!(
-            errors[0],
-            ValidationError::InvalidFieldValue { .. }
-        ));
-    }
-
-    #[test]
-    fn test_validate_json_config_success() {
-        let mut validator = SchemaValidator::new();
-        let config = serde_json::json!({
-            "layouts": [
-                {
-                    "id": "layout1",
-                    "children": [
-                        {
-                            "id": "muxbox1",
-                            "bounds": {
-                                "x1": "10",
-                                "y1": "20",
-                                "x2": "90",
-                                "y2": "80"
-                            }
-                        }
-                    ]
-                }
-            ],
-            "config": {
-                "frame_delay": 60
-            }
-        });
-
-        let result = validator.validate_json_config(&config);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_json_config_missing_layouts() {
-        let mut validator = SchemaValidator::new();
-        let config = serde_json::json!({
-            "config": {
-                "frame_delay": 60
-            }
-        });
-
-        let result = validator.validate_json_config(&config);
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert_eq!(errors.len(), 1);
-        assert!(matches!(
-            errors[0],
-            ValidationError::MissingRequiredField { .. }
-        ));
-    }
-
-    #[test]
-    fn test_validate_empty_bounds() {
-        let mut validator = SchemaValidator::new();
-        let muxbox = MuxBox {
-            id: "test_muxbox".to_string(),
-            position: InputBounds {
-                x1: "".to_string(), // Empty bound
-                y1: "20".to_string(),
-                x2: "90".to_string(),
-                y2: "80".to_string(),
-            },
-            ..Default::default()
-        };
-
-        let result = validator.validate_muxbox(&muxbox, "test_muxbox");
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::InvalidFieldValue { .. })));
-    }
-
-    #[test]
-    fn test_validation_error_formatting() {
-        // Test that ValidationError instances format correctly for user display
-        let duplicate_error = ValidationError::DuplicateId {
-            id: "muxbox1".to_string(),
-            location: "muxboxes".to_string(),
-        };
+    fn the_schema_and_the_configuration_structs_have_the_same_fields() {
+        let schema: Value = serde_json::from_str(APP_SCHEMA).unwrap();
+        let definitions = &schema["definitions"];
         assert_eq!(
-            duplicate_error.to_string(),
-            "Duplicate ID 'muxbox1' found in muxboxes"
+            schema_properties(definitions.get("box").unwrap()),
+            struct_fields::<crate::MuxBox>(),
+            "box"
         );
-
-        let missing_field_error = ValidationError::MissingRequiredField {
-            field: "layouts".to_string(),
-        };
         assert_eq!(
-            missing_field_error.to_string(),
-            "Required field 'layouts' is missing"
+            schema_properties(definitions.get("layout").unwrap()),
+            struct_fields::<crate::Layout>(),
+            "layout"
         );
+        assert_eq!(
+            schema_properties(definitions.get("choice").unwrap()),
+            struct_fields::<crate::Choice>(),
+            "choice"
+        );
+        assert_eq!(
+            schema_properties(&schema["properties"]["app"]),
+            struct_fields::<crate::App>(),
+            "app"
+        );
+        assert_eq!(
+            schema_properties(&definitions["box"]["properties"]["table_config"]),
+            struct_fields::<crate::table::TableSettings>(),
+            "table_config"
+        );
+    }
 
-        let schema_error = ValidationError::SchemaStructure {
-            message:
-                "Multiple root layouts detected. Only one layout can be marked as 'root: true'."
-                    .to_string(),
-        };
-        assert_eq!(schema_error.to_string(), "Schema structure error: Multiple root layouts detected. Only one layout can be marked as 'root: true'.");
+    fn semantic_errors(yaml: &str) -> Vec<String> {
+        let root: crate::model::app::TemplateRoot = serde_yaml::from_str(yaml).unwrap();
+        validate_semantics(&root.app)
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .map(|e| e.to_string())
+            .collect()
     }
 
     #[test]
-    fn test_json_schema_validation_success() {
-        let mut validator = SchemaValidator::new();
-        let yaml_content = r#"
+    fn generated_content_needs_data_and_only_one_kind() {
+        let errors = semantic_errors(
+            r#"
 app:
   layouts:
-    - id: 'test_layout'
-      title: 'Test Layout'
+    - id: l
       children:
-        - id: 'muxbox1'
-          position:
-            x1: "0%"
-            y1: "0%"
-            x2: "100%"
-            y2: "100%"
-          content: 'Test content'
-          tab_order: 1
-"#;
-
-        let result = validator.validate_app_yaml(yaml_content);
-
-        // This should pass if schema files exist and are valid
-        match result {
-            Ok(_) => {
-                // Schema validation passed - verify it actually validated something
-                // This is acceptable - schema validation completed successfully
-            }
-            Err(errors) => {
-                // If schemas don't exist, that's expected - just verify the error is about missing schema files
-                let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
-                let combined = error_messages.join("; ");
-                assert!(
-                    combined.contains("Failed to load schema file")
-                        || combined.contains("No such file")
-                );
-            }
-        }
+        - id: chart_without_data
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          chart_type: bar
+        - id: both
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          chart_type: line
+          chart_data: "a,1"
+          table_data: "h\n1"
+        - id: sizes
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          min_width: 20
+          max_width: 10
+"#,
+        );
+        let all = errors.join("\n");
+        assert!(
+            all.contains("chart_without_data") && all.contains("needs chart_data"),
+            "{}",
+            all
+        );
+        assert!(
+            all.contains("'both'") && all.contains("one kind of generated content"),
+            "{}",
+            all
+        );
+        assert!(
+            all.contains("min_width 20 is larger than max_width 10"),
+            "{}",
+            all
+        );
+        assert_eq!(errors.len(), 3, "{}", all);
     }
 
     #[test]
-    fn test_json_schema_validation_invalid_yaml() {
-        let mut validator = SchemaValidator::new();
-        let invalid_yaml = r#"
-app:
-  layouts:
-    - id: 'test'
-      children:
-        - id: 'muxbox1'
-          position:
-            x1: "0%"
-            y1: "0%"
-            x2: "100%"
-            # Missing y2 - should cause validation error
-          border_color: 'invalid_color'  # Invalid color
-"#;
-
-        let result = validator.validate_app_yaml(invalid_yaml);
-
-        match result {
-            Ok(_) => {
-                // If schemas don't exist, the validation will skip JSON schema validation
-                // and this is expected behavior - no assertion needed
-            }
-            Err(errors) => {
-                // Should contain validation errors or schema loading errors
-                assert!(!errors.is_empty());
-                let error_messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
-                let combined = error_messages.join("; ");
-                // Either schema validation errors or schema file missing
-                assert!(
-                    combined.contains("JSON Schema validation error")
-                        || combined.contains("Failed to load schema file")
-                        || combined.contains("No such file")
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_json_schema_validation_malformed_yaml() {
-        let mut validator = SchemaValidator::new();
-        let malformed_yaml = r#"
-app:
-  layouts:
-    - id: 'test'
-      children:
-        - id: 'muxbox1'
-          position:
-            x1: "0%"
-            y1: "0%"
-            x2: "100%"
-            y2: "100%"
-          invalid_field_that_should_not_exist: 'invalid'
-          border_color: 123  # Wrong type - should be string
-"#;
-
-        let result = validator.validate_app_yaml(malformed_yaml);
-
-        match result {
-            Ok(_) => {
-                // If schemas don't exist, validation is skipped
-                // This is acceptable behavior - no assertion needed
-            }
-            Err(errors) => {
-                assert!(!errors.is_empty());
-                // Verify we get meaningful error reporting
-                for error in &errors {
-                    match error {
-                        ValidationError::JsonSchemaValidation { field, message } => {
-                            assert!(!field.is_empty());
-                            assert!(!message.is_empty());
-                        }
-                        ValidationError::SchemaStructure { message } => {
-                            assert!(!message.is_empty());
-                        }
-                        _ => {} // Other error types are acceptable
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_json_schema_validation_error_formatting() {
-        let json_schema_error = ValidationError::JsonSchemaValidation {
-            field: "app.layouts[0].children[0].border_color".to_string(),
-            message: "invalid_color is not one of the allowed values".to_string(),
-        };
-
-        let formatted = json_schema_error.to_string();
-        assert!(formatted.contains("JSON Schema validation error"));
-        assert!(formatted.contains("app.layouts[0].children[0].border_color"));
-        assert!(formatted.contains("invalid_color is not one of the allowed values"));
-    }
-
-    #[test]
-    fn test_validate_against_schema_content_rejects_malformed_schema() {
-        let mut validator = SchemaValidator::new();
-        let test_value = serde_json::json!({
-            "test": "value"
+    fn schema_errors_name_the_box_they_are_in() {
+        let document: Value = serde_json::json!({
+            "app": {"layouts": [{"id": "main", "children": [
+                {"id": "logs", "position": {"x1": "0", "y1": "0", "x2": "1", "y2": "1"},
+                 "border_color": "purple"}
+            ]}]}
         });
-
-        let result = validator.validate_against_schema_content(
-            &test_value,
-            "{ this is not valid json",
-            "broken schema",
-            "test",
+        let errors = validate_schema(&document).unwrap_err();
+        assert_eq!(errors.len(), 1, "{:?}", errors);
+        assert_eq!(
+            errors[0].location,
+            "app.layouts[0] ('main').children[0] ('logs').border_color"
         );
-
-        assert!(result.is_err());
-        let errors = result.unwrap_err();
-        assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ValidationError::SchemaStructure { .. }));
-        assert!(errors[0].to_string().contains("Invalid JSON schema"));
-    }
-
-    #[test]
-    fn test_embedded_app_schema_compiles_and_validates() {
-        // The embedded schema must be valid JSON Schema so production validation
-        // never fails for schema-loading reasons regardless of working directory.
-        let mut validator = SchemaValidator::new();
-        let minimal_app = r#"
-app:
-  layouts:
-    - id: 'main'
-      root: true
-      children:
-        - id: 'box1'
-          position:
-            x1: '0%'
-            y1: '0%'
-            x2: '100%'
-            y2: '100%'
-"#;
-        assert!(
-            validator.validate_app_yaml(minimal_app).is_ok(),
-            "embedded schema must accept a minimal valid app"
-        );
-    }
-
-    #[test]
-    fn test_comprehensive_validation_with_multiple_errors() {
-        let mut validator = SchemaValidator::new();
-
-        // Create an app with multiple validation errors
-        let mut app = App::new();
-
-        // Error 1: Multiple root layouts
-        let mut layout1 = create_test_layout("layout1");
-        layout1.root = Some(true);
-        let mut layout2 = create_test_layout("layout2");
-        layout2.root = Some(true); // Second root - should cause error
-
-        // Error 2: Duplicate muxbox IDs
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox1_dup = create_test_muxbox("muxbox1"); // Duplicate ID
-        layout1.children = Some(vec![muxbox1]);
-        layout2.children = Some(vec![muxbox1_dup]);
-
-        app.layouts = vec![layout1, layout2];
-
-        let result = validator.validate_app(&app);
-        assert!(result.is_err());
-
-        let errors = result.unwrap_err();
-        assert!(
-            errors.len() >= 2,
-            "Should have at least 2 validation errors"
-        );
-
-        // Check for multiple root layouts error
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::SchemaStructure { .. })));
-
-        // Check for duplicate ID error
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::DuplicateId { .. })));
     }
 }

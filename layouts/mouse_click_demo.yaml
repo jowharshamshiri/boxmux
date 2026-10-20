@@ -29,7 +29,7 @@ app:
             y1: "15"
             x2: "33"
             y2: "50"
-          tab_order: "1"  # Makes this box selectable
+          tab_order: 1  # Makes this box selectable
           content: |
             This box is SELECTABLE!
             
@@ -46,7 +46,7 @@ app:
             y1: "15"
             x2: "66"
             y2: "50"
-          tab_order: "2"  # Makes this box selectable
+          tab_order: 2  # Makes this box selectable
           content: |
             This box is also SELECTABLE!
             
@@ -63,7 +63,7 @@ app:
             y1: "15"
             x2: "100"
             y2: "50"
-          tab_order: "3"  # Makes this box selectable
+          tab_order: 3  # Makes this box selectable
           content: |
             Third selectable box!
             
@@ -81,7 +81,7 @@ app:
             y1: "50"
             x2: "50"
             y2: "100"
-          tab_order: "4"
+          tab_order: 4
           choices:
             - id: "hello_choice"
               content: "Click Me: Say Hello"
@@ -97,13 +97,13 @@ app:
               content: "Click Me: System Info"
               script: ["echo 'System Information:'; echo 'OS: '$(uname -s); echo 'Architecture: '$(uname -m); echo 'Hostname: '$(hostname)"]
               redirect_output: "output_box" 
-              thread: true
+              execution_mode: Thread
 
             - id: "count_choice"
               content: "Click Me: Count to 5"
               script: ["for i in 1 2 3 4 5; do echo \"Count: $i\"; sleep 0.5; done; echo 'Counting complete!'"]
               redirect_output: "output_box"
-              thread: true
+              execution_mode: Thread
 
             - id: "clear_choice"
               content: "Click Me: Clear Output"
@@ -121,7 +121,7 @@ app:
             y1: "50"
             x2: "100"
             y2: "100"
-          tab_order: "5"
+          tab_order: 5
           content: |
             Output MuxBox - Results from clicked choices appear here
             

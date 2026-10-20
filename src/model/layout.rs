@@ -1,10 +1,9 @@
-use crate::{model::muxbox::MuxBox, screen_bounds, Bounds, EntityType, FieldUpdate, Updatable};
-use core::hash::Hash;
+use crate::model::muxbox::MuxBox;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{collections::HashMap, hash::Hasher};
+use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, Serialize, Default, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Layout {
     pub id: String,
     pub title: Option<String>,
@@ -14,150 +13,54 @@ pub struct Layout {
     pub fill_char: Option<char>,
     pub selected_fill_char: Option<char>,
     pub highlighted_fill_char: Option<char>,
-    pub border_color: Option<String>,
-    pub selected_border_color: Option<String>,
-    pub highlighted_border_color: Option<String>,
-    pub bg_color: Option<String>,
-    pub selected_bg_color: Option<String>,
-    pub highlighted_bg_color: Option<String>,
-    pub fg_color: Option<String>,
-    pub selected_fg_color: Option<String>,
-    pub highlighted_fg_color: Option<String>,
-    pub title_fg_color: Option<String>,
-    pub title_bg_color: Option<String>,
-    pub title_position: Option<String>,
-    pub selected_title_bg_color: Option<String>,
-    pub selected_title_fg_color: Option<String>,
-    pub highlighted_title_bg_color: Option<String>,
-    pub highlighted_title_fg_color: Option<String>,
-    pub menu_fg_color: Option<String>,
-    pub menu_bg_color: Option<String>,
-    pub selected_menu_fg_color: Option<String>,
-    pub selected_menu_bg_color: Option<String>,
-    pub highlighted_menu_fg_color: Option<String>,
-    pub highlighted_menu_bg_color: Option<String>,
-    pub error_border_color: Option<String>,
-    pub error_bg_color: Option<String>,
-    pub error_fg_color: Option<String>,
-    pub error_title_bg_color: Option<String>,
-    pub error_title_fg_color: Option<String>,
-    pub error_selected_border_color: Option<String>,
-    pub error_selected_bg_color: Option<String>,
-    pub error_selected_fg_color: Option<String>,
-    pub error_selected_title_bg_color: Option<String>,
-    pub error_selected_title_fg_color: Option<String>,
-    pub overflow_behavior: Option<String>,
+    pub border_color: Option<crate::model::appearance::ColorName>,
+    pub selected_border_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_border_color: Option<crate::model::appearance::ColorName>,
+    pub bg_color: Option<crate::model::appearance::ColorName>,
+    pub selected_bg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_bg_color: Option<crate::model::appearance::ColorName>,
+    pub fg_color: Option<crate::model::appearance::ColorName>,
+    pub selected_fg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_fg_color: Option<crate::model::appearance::ColorName>,
+    pub title_fg_color: Option<crate::model::appearance::ColorName>,
+    pub title_bg_color: Option<crate::model::appearance::ColorName>,
+    pub title_position: Option<crate::model::appearance::TitlePosition>,
+    pub selected_title_bg_color: Option<crate::model::appearance::ColorName>,
+    pub selected_title_fg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_title_bg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_title_fg_color: Option<crate::model::appearance::ColorName>,
+    pub menu_fg_color: Option<crate::model::appearance::ColorName>,
+    pub menu_bg_color: Option<crate::model::appearance::ColorName>,
+    pub selected_menu_fg_color: Option<crate::model::appearance::ColorName>,
+    pub selected_menu_bg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_menu_fg_color: Option<crate::model::appearance::ColorName>,
+    pub highlighted_menu_bg_color: Option<crate::model::appearance::ColorName>,
+    pub error_border_color: Option<crate::model::appearance::ColorName>,
+    pub error_bg_color: Option<crate::model::appearance::ColorName>,
+    pub error_fg_color: Option<crate::model::appearance::ColorName>,
+    pub error_title_bg_color: Option<crate::model::appearance::ColorName>,
+    pub error_title_fg_color: Option<crate::model::appearance::ColorName>,
+    pub error_selected_border_color: Option<crate::model::appearance::ColorName>,
+    pub error_selected_bg_color: Option<crate::model::appearance::ColorName>,
+    pub error_selected_fg_color: Option<crate::model::appearance::ColorName>,
+    pub error_selected_title_bg_color: Option<crate::model::appearance::ColorName>,
+    pub error_selected_title_fg_color: Option<crate::model::appearance::ColorName>,
+    pub overflow_behavior: Option<crate::model::appearance::Overflow>,
     pub root: Option<bool>,
     #[serde(default)]
     pub on_keypress: Option<HashMap<String, Vec<String>>>,
-    pub active: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub muxbox_ids_in_tab_order: Option<Vec<String>>,
-}
-
-impl Hash for Layout {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-        self.title.hash(state);
-        self.refresh_interval.hash(state);
-        if let Some(children) = &self.children {
-            for muxbox in children {
-                muxbox.hash(state);
-            }
-        }
-        self.fill.hash(state);
-        self.fill_char.hash(state);
-        self.selected_fill_char.hash(state);
-        self.highlighted_fill_char.hash(state);
-        self.border_color.hash(state);
-        self.selected_border_color.hash(state);
-        self.highlighted_border_color.hash(state);
-        self.bg_color.hash(state);
-        self.selected_bg_color.hash(state);
-        self.highlighted_bg_color.hash(state);
-        self.fg_color.hash(state);
-        self.selected_fg_color.hash(state);
-        self.highlighted_fg_color.hash(state);
-        self.title_fg_color.hash(state);
-        self.title_bg_color.hash(state);
-        self.title_position.hash(state);
-        self.selected_title_bg_color.hash(state);
-        self.selected_title_fg_color.hash(state);
-        self.highlighted_title_bg_color.hash(state);
-        self.highlighted_title_fg_color.hash(state);
-        self.menu_fg_color.hash(state);
-        self.menu_bg_color.hash(state);
-        self.selected_menu_fg_color.hash(state);
-        self.selected_menu_bg_color.hash(state);
-        self.highlighted_menu_fg_color.hash(state);
-        self.highlighted_menu_bg_color.hash(state);
-        self.error_border_color.hash(state);
-        self.error_bg_color.hash(state);
-        self.error_fg_color.hash(state);
-        self.error_title_bg_color.hash(state);
-        self.error_title_fg_color.hash(state);
-        self.error_selected_border_color.hash(state);
-        self.error_selected_bg_color.hash(state);
-        self.error_selected_fg_color.hash(state);
-        self.error_selected_title_bg_color.hash(state);
-        self.error_selected_title_fg_color.hash(state);
-        self.overflow_behavior.hash(state);
-        self.root.hash(state);
-        self.active.hash(state);
-    }
+    #[serde(
+        default,
+        deserialize_with = "crate::model::variables::deserialize_scope"
+    )]
+    pub variables: Option<crate::model::variables::Scope>,
+    /// Whether this layout is the one shown. Runtime state; the configuration picks the first
+    /// shown layout with `root`.
+    #[serde(skip)]
+    pub active: bool,
 }
 
 impl Layout {
-    pub fn new() -> Self {
-        Layout {
-            id: String::new(),
-            title: None,
-            refresh_interval: None,
-            children: None,
-            fill: None,
-            fill_char: None,
-            selected_fill_char: None,
-            highlighted_fill_char: None,
-            border_color: None,
-            selected_border_color: None,
-            highlighted_border_color: None,
-            bg_color: None,
-            selected_bg_color: None,
-            highlighted_bg_color: None,
-            fg_color: None,
-            selected_fg_color: None,
-            highlighted_fg_color: None,
-            title_fg_color: None,
-            title_bg_color: None,
-            title_position: None,
-            selected_title_bg_color: None,
-            selected_title_fg_color: None,
-            highlighted_title_bg_color: None,
-            highlighted_title_fg_color: None,
-            menu_fg_color: None,
-            menu_bg_color: None,
-            selected_menu_fg_color: None,
-            selected_menu_bg_color: None,
-            highlighted_menu_fg_color: None,
-            highlighted_menu_bg_color: None,
-            error_border_color: None,
-            error_bg_color: None,
-            error_fg_color: None,
-            error_title_bg_color: None,
-            error_title_fg_color: None,
-            error_selected_border_color: None,
-            error_selected_bg_color: None,
-            error_selected_fg_color: None,
-            error_selected_title_bg_color: None,
-            error_selected_title_fg_color: None,
-            overflow_behavior: None,
-            root: Some(false),
-            on_keypress: None,
-            active: Some(false),
-            muxbox_ids_in_tab_order: None,
-        }
-    }
-
     pub fn get_muxbox_by_id(&self, id: &str) -> Option<&MuxBox> {
         fn recursive_search<'a>(muxboxes: &'a [MuxBox], id: &str) -> Option<&'a MuxBox> {
             for muxbox in muxboxes {
@@ -202,6 +105,28 @@ impl Layout {
         }
     }
 
+    /// The boxes enclosing `id`, nearest first; `None` when the layout has no such box.
+    pub fn ancestors_of(&self, id: &str) -> Option<Vec<&MuxBox>> {
+        fn search<'a>(muxboxes: &'a [MuxBox], id: &str, path: &mut Vec<&'a MuxBox>) -> bool {
+            for muxbox in muxboxes {
+                if muxbox.id == id {
+                    return true;
+                }
+                path.push(muxbox);
+                if search(muxbox.children.as_deref().unwrap_or_default(), id, path) {
+                    return true;
+                }
+                path.pop();
+            }
+            false
+        }
+        let mut path = Vec::new();
+        search(self.children.as_deref()?, id, &mut path).then(|| {
+            path.reverse();
+            path
+        })
+    }
+
     pub fn get_selected_muxboxes(&self) -> Vec<&MuxBox> {
         fn recursive_collect<'a>(muxboxes: &'a [MuxBox], selected_muxboxes: &mut Vec<&'a MuxBox>) {
             for muxbox in muxboxes {
@@ -237,50 +162,32 @@ impl Layout {
         }
     }
 
-    pub fn get_muxboxes_in_tab_order(&mut self) -> Vec<&MuxBox> {
-        fn collect_muxboxes_recursive<'a>(muxbox: &'a MuxBox, muxboxes: &mut Vec<&'a MuxBox>) {
-            // Check if muxbox has a tab order and add it to the list
-            if muxbox.tab_order.is_some() {
-                muxboxes.push(muxbox);
-            }
-
-            // If children exist, iterate over them recursively
-            if let Some(children) = &muxbox.children {
-                for child in children {
-                    collect_muxboxes_recursive(child, muxboxes);
+    /// Calls `visit` on every box of the layout, nested ones included, parents first.
+    pub fn for_each_muxbox_mut(&mut self, visit: &mut dyn FnMut(&mut MuxBox)) {
+        fn walk(muxboxes: &mut [MuxBox], visit: &mut dyn FnMut(&mut MuxBox)) {
+            for muxbox in muxboxes {
+                visit(muxbox);
+                if let Some(children) = muxbox.children.as_deref_mut() {
+                    walk(children, visit);
                 }
             }
         }
-
-        if self.muxbox_ids_in_tab_order.is_some() {
-            let mut muxboxes = Vec::new();
-            for muxbox_id in self.muxbox_ids_in_tab_order.as_ref().unwrap() {
-                if let Some(muxbox) = self.get_muxbox_by_id(muxbox_id) {
-                    muxboxes.push(muxbox);
-                }
-            }
-            muxboxes
-        } else {
-            let mut muxboxes = Vec::new();
-            // Start recursion for each top-level child
-            if let Some(children) = &self.children {
-                for muxbox in children {
-                    collect_muxboxes_recursive(muxbox, &mut muxboxes);
-                }
-            }
-
-            // Sort muxboxes by their tab order
-            muxboxes.sort_by(|a, b| {
-                a.tab_order
-                    .as_ref()
-                    .unwrap()
-                    .cmp(b.tab_order.as_ref().unwrap())
-            });
-
-            self.muxbox_ids_in_tab_order = Some(muxboxes.iter().map(|p| p.id.clone()).collect());
-
-            muxboxes
+        if let Some(children) = self.children.as_deref_mut() {
+            walk(children, visit);
         }
+    }
+
+    /// The focusable boxes of the layout, in focus order: ascending `tab_order`, and boxes with
+    /// the same `tab_order` in the order they appear in the configuration.
+    pub fn get_muxboxes_in_tab_order(&self) -> Vec<&MuxBox> {
+        let mut focusable: Vec<&MuxBox> = self
+            .get_all_muxboxes()
+            .into_iter()
+            .filter(|muxbox| muxbox.tab_order.is_some())
+            .collect();
+        // sort_by_key is stable, which keeps configuration order among equal tab orders.
+        focusable.sort_by_key(|muxbox| muxbox.tab_order);
+        focusable
     }
 
     pub fn get_all_muxboxes(&self) -> Vec<&MuxBox> {
@@ -301,54 +208,66 @@ impl Layout {
     }
 
     pub fn select_next_muxbox(&mut self) {
-        let muxboxes = self.get_muxboxes_in_tab_order();
-        if muxboxes.is_empty() {
-            return; // Early return if there are no muxboxes
-        }
-
-        let selected_muxbox_index = muxboxes.iter().position(|p| p.selected.unwrap_or(false));
-
-        let next_muxbox_index = match selected_muxbox_index {
-            Some(index) => (index + 1) % muxboxes.len(), // Get next muxbox, wrap around if at the end
-            None => 0, // No muxbox is selected, select the first one
-        };
-
-        let next_muxbox_id = muxboxes[next_muxbox_index].id.clone();
-        self.select_only_muxbox(&next_muxbox_id);
+        self.step_focus(true);
     }
 
     pub fn select_previous_muxbox(&mut self) {
-        let muxboxes = self.get_muxboxes_in_tab_order();
-        if muxboxes.is_empty() {
-            return; // Early return if there are no muxboxes
+        self.step_focus(false);
+    }
+
+    /// Moves the focus one step: to the focused box's `next_focus_id` when Tab is pressed on a
+    /// box that has one, otherwise to the next (previous) box in tab order, wrapping around.
+    fn step_focus(&mut self, forward: bool) {
+        let order: Vec<String> = self
+            .get_muxboxes_in_tab_order()
+            .iter()
+            .map(|muxbox| muxbox.id.clone())
+            .collect();
+        if order.is_empty() {
+            return;
         }
-
-        let selected_muxbox_index = muxboxes.iter().position(|p| p.selected.unwrap_or(false));
-
-        let previous_muxbox_index = match selected_muxbox_index {
-            Some(index) => {
-                if index == 0 {
-                    muxboxes.len() - 1 // Wrap around to the last muxbox if the first one is currently selected
-                } else {
-                    index - 1 // Select the previous muxbox
+        let focused = self
+            .get_selected_muxboxes()
+            .first()
+            .map(|muxbox| (muxbox.id.clone(), muxbox.next_focus_id.clone()));
+        if forward {
+            // A box can name the box Tab moves to, overriding the tab order.
+            if let Some((_, Some(target))) = &focused {
+                if self.get_muxbox_by_id(target).is_some() {
+                    self.select_only_muxbox(target);
+                    return;
                 }
             }
-            None => muxboxes.len() - 1, // No muxbox is selected, select the last one
+        }
+        let current = focused
+            .as_ref()
+            .and_then(|(id, _)| order.iter().position(|candidate| candidate == id));
+        let next = match (current, forward) {
+            (Some(i), true) => (i + 1) % order.len(),
+            (Some(i), false) => (i + order.len() - 1) % order.len(),
+            (None, true) => 0,
+            (None, false) => order.len() - 1,
         };
-
-        let previous_muxbox_id = muxboxes[previous_muxbox_index].id.clone();
-        self.select_only_muxbox(&previous_muxbox_id);
+        self.select_only_muxbox(&order[next]);
     }
 
     pub fn deselect_all_muxboxes(&mut self) {
-        if let Some(children) = &mut self.children {
-            for muxbox in children {
+        fn deselect(muxboxes: &mut [MuxBox]) {
+            for muxbox in muxboxes {
                 muxbox.selected = Some(false);
+                if let Some(children) = muxbox.children.as_mut() {
+                    deselect(children);
+                }
             }
+        }
+        if let Some(children) = self.children.as_mut() {
+            deselect(children);
         }
     }
 
-    pub fn replace_muxbox_recursive(&mut self, replacement_muxbox: &MuxBox) -> Option<bool> {
+    /// Replaces the box with the same id as `replacement_muxbox`, wherever it is nested.
+    /// Returns whether a box was replaced.
+    pub fn replace_muxbox_recursive(&mut self, replacement_muxbox: &MuxBox) -> bool {
         fn replace_in_muxboxes(muxboxes: &mut [MuxBox], replacement: &MuxBox) -> bool {
             for muxbox in muxboxes {
                 if muxbox.id == replacement.id {
@@ -364,11 +283,9 @@ impl Layout {
             false
         }
 
-        if let Some(ref mut children) = self.children {
-            Some(replace_in_muxboxes(children, replacement_muxbox))
-        } else {
-            Some(false)
-        }
+        self.children
+            .as_deref_mut()
+            .is_some_and(|children| replace_in_muxboxes(children, replacement_muxbox))
     }
 
     pub fn find_muxbox_with_choice(&self, choice_id: &str) -> Option<&MuxBox> {
@@ -398,1562 +315,215 @@ impl Layout {
             None
         }
     }
-
-    pub fn find_muxbox_at_coordinates(&self, x: u16, y: u16) -> Option<&MuxBox> {
-        let root_bounds = screen_bounds();
-        self.find_muxbox_at_coordinates_with_bounds(x, y, &root_bounds)
-    }
-
-    pub fn find_muxbox_at_coordinates_with_bounds(
-        &self,
-        x: u16,
-        y: u16,
-        root_bounds: &Bounds,
-    ) -> Option<&MuxBox> {
-        fn find_in_muxboxes_at_coords<'a>(
-            muxboxes: &'a [MuxBox],
-            x: usize,
-            y: usize,
-            parent_bounds: &Bounds,
-        ) -> Option<&'a MuxBox> {
-            // Pick the box that is VISUALLY on top at this cell, matching the
-            // renderer exactly. The renderer draws children sorted ascending by
-            // z_index with a stable sort, so the top-most box is the one with the
-            // highest z_index and, among equal z_index, the one that appears LATER
-            // in the children list (drawn last = on top). Adjacent boxes share an
-            // edge cell under inclusive bounds (e.g. a box's bottom row == the next
-            // box's tab-bar row), so returning the first match instead of the
-            // top-most one sends clicks/hover to the wrong (underneath) box.
-            let mut top: Option<(&MuxBox, Bounds)> = None;
-            let mut top_z = i32::MIN;
-            for muxbox in muxboxes {
-                let bounds = muxbox.bounds_with_parent(parent_bounds);
-                if bounds.contains_point(x, y) {
-                    let z = muxbox.effective_z_index();
-                    // `>=` so a later, equal-z box (drawn on top) replaces an earlier one.
-                    if top.is_none() || z >= top_z {
-                        top_z = z;
-                        top = Some((muxbox, bounds));
-                    }
-                }
-            }
-
-            if let Some((muxbox, bounds)) = top {
-                // Check children first (they take priority over parent)
-                if let Some(ref children) = muxbox.children {
-                    if let Some(child_muxbox) = find_in_muxboxes_at_coords(children, x, y, &bounds)
-                    {
-                        return Some(child_muxbox);
-                    }
-                }
-                // Return this muxbox (highest z_index among candidates)
-                return Some(muxbox);
-            }
-            None
-        }
-
-        if let Some(ref children) = self.children {
-            find_in_muxboxes_at_coords(children, x as usize, y as usize, root_bounds)
-        } else {
-            None
-        }
-    }
-
-    fn generate_children_diff(&self, other: &Self) -> Vec<FieldUpdate> {
-        let mut updates = Vec::new();
-
-        // Get references to children, defaulting to an empty slice if None
-        let self_children = self.children.as_deref().unwrap_or(&[]);
-        let other_children = other.children.as_deref().unwrap_or(&[]);
-
-        // Compare each pair of children
-        for (self_child, other_child) in self_children.iter().zip(other_children) {
-            let child_diffs = self_child.generate_diff(other_child);
-            updates.extend(child_diffs.into_iter());
-        }
-
-        // Handle extra children in other
-        if self_children.len() < other_children.len() {
-            for other_child in &other_children[self_children.len()..] {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::MuxBox,
-                    entity_id: Some(other_child.id.clone()),
-                    field_name: "children".to_string(),
-                    new_value: serde_json::to_value(other_child).unwrap(),
-                });
-            }
-        }
-
-        // Handle extra children in self
-        if self_children.len() > other_children.len() {
-            for self_child in &self_children[other_children.len()..] {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::MuxBox,
-                    entity_id: Some(self_child.id.clone()),
-                    field_name: "children".to_string(),
-                    new_value: Value::Null, // Representing removal
-                });
-            }
-        }
-
-        updates
-    }
-
-    fn apply_children_updates(&mut self, updates: Vec<FieldUpdate>) {
-        for update in updates {
-            if update.entity_type != EntityType::MuxBox {
-                continue;
-            }
-            if let Some(entity_id) = &update.entity_id {
-                // Check if the update is for a child muxbox
-                if self
-                    .children
-                    .as_ref()
-                    .is_some_and(|children| children.iter().any(|p| p.id == *entity_id))
-                {
-                    // Find the child muxbox and apply the update
-                    if let Some(child_muxbox) = self
-                        .children
-                        .as_mut()
-                        .unwrap()
-                        .iter_mut()
-                        .find(|p| p.id == *entity_id)
-                    {
-                        child_muxbox.apply_updates(vec![FieldUpdate {
-                            entity_type: EntityType::MuxBox,
-                            entity_id: Some(child_muxbox.id.clone()),
-                            field_name: update.field_name.clone(),
-                            new_value: update.new_value.clone(),
-                        }]);
-                    }
-                }
-            }
-
-            // If the entity_id matches the parent itself and field is "children", apply to all children
-            if update.field_name == "children" {
-                match update.new_value {
-                    Value::Null => {
-                        // Removing all children
-                        self.children = None;
-                    }
-                    _ => {
-                        if let Ok(new_children) =
-                            serde_json::from_value::<Vec<MuxBox>>(update.new_value.clone())
-                        {
-                            if self.children.is_none() {
-                                // Assign new children
-                                self.children = Some(new_children);
-                            } else {
-                                let self_children = self.children.as_mut().unwrap();
-                                for new_child in new_children {
-                                    if let Some(existing_child) =
-                                        self_children.iter_mut().find(|p| p.id == new_child.id)
-                                    {
-                                        // Update existing child
-                                        *existing_child = new_child;
-                                    } else {
-                                        // Add new child
-                                        self_children.push(new_child);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl Clone for Layout {
-    fn clone(&self) -> Self {
-        let mut cloned_children = None;
-        if let Some(ref children) = self.children {
-            cloned_children = Some(children.to_vec());
-        }
-
-        Layout {
-            id: self.id.clone(),
-            title: self.title.clone(),
-            refresh_interval: self.refresh_interval,
-            children: cloned_children,
-            fill: self.fill,
-            fill_char: self.fill_char,
-            selected_fill_char: self.selected_fill_char,
-            highlighted_fill_char: self.highlighted_fill_char,
-            border_color: self.border_color.clone(),
-            selected_border_color: self.selected_border_color.clone(),
-            highlighted_border_color: self.highlighted_border_color.clone(),
-            bg_color: self.bg_color.clone(),
-            selected_bg_color: self.selected_bg_color.clone(),
-            highlighted_bg_color: self.highlighted_bg_color.clone(),
-            fg_color: self.fg_color.clone(),
-            selected_fg_color: self.selected_fg_color.clone(),
-            highlighted_fg_color: self.highlighted_fg_color.clone(),
-            title_fg_color: self.title_fg_color.clone(),
-            title_bg_color: self.title_bg_color.clone(),
-            title_position: self.title_position.clone(),
-            selected_title_bg_color: self.selected_title_bg_color.clone(),
-            selected_title_fg_color: self.selected_title_fg_color.clone(),
-            highlighted_title_bg_color: self.highlighted_title_bg_color.clone(),
-            highlighted_title_fg_color: self.highlighted_title_fg_color.clone(),
-            menu_fg_color: self.menu_fg_color.clone(),
-            menu_bg_color: self.menu_bg_color.clone(),
-            selected_menu_fg_color: self.selected_menu_fg_color.clone(),
-            selected_menu_bg_color: self.selected_menu_bg_color.clone(),
-            highlighted_menu_fg_color: self.highlighted_menu_fg_color.clone(),
-            highlighted_menu_bg_color: self.highlighted_menu_bg_color.clone(),
-            error_border_color: self.error_border_color.clone(),
-            error_bg_color: self.error_bg_color.clone(),
-            error_fg_color: self.error_fg_color.clone(),
-            error_title_bg_color: self.error_title_bg_color.clone(),
-            error_title_fg_color: self.error_title_fg_color.clone(),
-            error_selected_border_color: self.error_selected_border_color.clone(),
-            error_selected_bg_color: self.error_selected_bg_color.clone(),
-            error_selected_fg_color: self.error_selected_fg_color.clone(),
-            error_selected_title_bg_color: self.error_selected_title_bg_color.clone(),
-            error_selected_title_fg_color: self.error_selected_title_fg_color.clone(),
-            overflow_behavior: self.overflow_behavior.clone(),
-            root: self.root,
-            on_keypress: self.on_keypress.clone(),
-            active: self.active,
-            muxbox_ids_in_tab_order: self.muxbox_ids_in_tab_order.clone(),
-        }
-    }
-}
-
-// Implement Updatable for Layout
-impl Updatable for Layout {
-    fn generate_diff(&self, other: &Self) -> Vec<FieldUpdate> {
-        let mut updates = Vec::new();
-
-        // Compare each field
-        if self.title != other.title {
-            if let Some(new_value) = &other.title {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "title".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-        if self.refresh_interval != other.refresh_interval {
-            if let Some(new_value) = other.refresh_interval {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "refresh_interval".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        updates.extend(self.generate_children_diff(other));
-
-        // Compare other fields similarly...
-        if self.fill != other.fill {
-            if let Some(new_value) = other.fill {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "fill".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.fill_char != other.fill_char {
-            if let Some(new_value) = other.fill_char {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "fill_char".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_fill_char != other.selected_fill_char {
-            if let Some(new_value) = other.selected_fill_char {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_fill_char".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.border_color != other.border_color {
-            if let Some(new_value) = &other.border_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "border_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_border_color != other.selected_border_color {
-            if let Some(new_value) = &other.selected_border_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_border_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.bg_color != other.bg_color {
-            if let Some(new_value) = &other.bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_bg_color != other.selected_bg_color {
-            if let Some(new_value) = &other.selected_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.fg_color != other.fg_color {
-            if let Some(new_value) = &other.fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_fg_color != other.selected_fg_color {
-            if let Some(new_value) = &other.selected_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.title_fg_color != other.title_fg_color {
-            if let Some(new_value) = &other.title_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "title_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.title_bg_color != other.title_bg_color {
-            if let Some(new_value) = &other.title_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "title_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.title_position != other.title_position {
-            if let Some(new_value) = &other.title_position {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "title_position".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_title_bg_color != other.selected_title_bg_color {
-            if let Some(new_value) = &other.selected_title_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_title_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_title_fg_color != other.selected_title_fg_color {
-            if let Some(new_value) = &other.selected_title_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "selected_title_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.menu_fg_color != other.menu_fg_color {
-            if let Some(new_value) = &other.menu_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "menu_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.menu_bg_color != other.menu_bg_color {
-            if let Some(new_value) = &other.menu_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "menu_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_menu_fg_color != other.selected_menu_fg_color {
-            if let Some(new_value) = &other.selected_menu_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "selected_menu_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.selected_menu_bg_color != other.selected_menu_bg_color {
-            if let Some(new_value) = &other.selected_menu_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "selected_menu_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_border_color != other.error_border_color {
-            if let Some(new_value) = &other.error_border_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_border_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_bg_color != other.error_bg_color {
-            if let Some(new_value) = &other.error_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_fg_color != other.error_fg_color {
-            if let Some(new_value) = &other.error_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_title_bg_color != other.error_title_bg_color {
-            if let Some(new_value) = &other.error_title_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_title_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_title_fg_color != other.error_title_fg_color {
-            if let Some(new_value) = &other.error_title_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_title_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_selected_border_color != other.error_selected_border_color {
-            if let Some(new_value) = &other.error_selected_border_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_selected_border_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_selected_bg_color != other.error_selected_bg_color {
-            if let Some(new_value) = &other.error_selected_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_selected_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_selected_fg_color != other.error_selected_fg_color {
-            if let Some(new_value) = &other.error_selected_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_selected_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_selected_title_bg_color != other.error_selected_title_bg_color {
-            if let Some(new_value) = &other.error_selected_title_bg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_selected_title_bg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.error_selected_title_fg_color != other.error_selected_title_fg_color {
-            if let Some(new_value) = &other.error_selected_title_fg_color {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()),
-                    field_name: "error_selected_title_fg_color".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.overflow_behavior != other.overflow_behavior {
-            if let Some(new_value) = &other.overflow_behavior {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "overflow_behavior".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.root != other.root {
-            if let Some(new_value) = other.root {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "root".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.on_keypress != other.on_keypress {
-            if let Some(new_value) = &other.on_keypress {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "on_keypress".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.active != other.active {
-            if let Some(new_value) = other.active {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "active".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        if self.muxbox_ids_in_tab_order != other.muxbox_ids_in_tab_order {
-            if let Some(new_value) = &other.muxbox_ids_in_tab_order {
-                updates.push(FieldUpdate {
-                    entity_type: EntityType::Layout,
-                    entity_id: Some(self.id.clone()), // This is the entity id of the layout, not the muxbox
-                    field_name: "muxbox_ids_in_tab_order".to_string(),
-                    new_value: serde_json::to_value(new_value).unwrap(),
-                });
-            }
-        }
-
-        updates
-    }
-
-    fn apply_updates(&mut self, updates: Vec<FieldUpdate>) {
-        let updates_for_children = updates.clone();
-
-        for update in updates {
-            if update.entity_type != EntityType::Layout {
-                continue;
-            }
-            match update.field_name.as_str() {
-                "title" => {
-                    if let Some(new_title) = update.new_value.as_str() {
-                        self.title = Some(new_title.to_string());
-                    }
-                }
-                "refresh_interval" => {
-                    if let Some(new_refresh_interval) = update.new_value.as_u64() {
-                        self.refresh_interval = Some(new_refresh_interval);
-                    }
-                }
-                "fill" => {
-                    if let Some(new_fill) = update.new_value.as_bool() {
-                        self.fill = Some(new_fill);
-                    }
-                }
-                "fill_char" => {
-                    if let Some(new_fill_char) = update.new_value.as_str() {
-                        self.fill_char = new_fill_char.chars().next();
-                    }
-                }
-                "selected_fill_char" => {
-                    if let Some(new_selected_fill_char) = update.new_value.as_str() {
-                        self.selected_fill_char = new_selected_fill_char.chars().next();
-                    }
-                }
-                "border_color" => {
-                    if let Some(new_border_color) = update.new_value.as_str() {
-                        self.border_color = Some(new_border_color.to_string());
-                    }
-                }
-                "selected_border_color" => {
-                    if let Some(new_selected_border_color) = update.new_value.as_str() {
-                        self.selected_border_color = Some(new_selected_border_color.to_string());
-                    }
-                }
-                "bg_color" => {
-                    if let Some(new_bg_color) = update.new_value.as_str() {
-                        self.bg_color = Some(new_bg_color.to_string());
-                    }
-                }
-                "selected_bg_color" => {
-                    if let Some(new_selected_bg_color) = update.new_value.as_str() {
-                        self.selected_bg_color = Some(new_selected_bg_color.to_string());
-                    }
-                }
-                "fg_color" => {
-                    if let Some(new_fg_color) = update.new_value.as_str() {
-                        self.fg_color = Some(new_fg_color.to_string());
-                    }
-                }
-                "selected_fg_color" => {
-                    if let Some(new_selected_fg_color) = update.new_value.as_str() {
-                        self.selected_fg_color = Some(new_selected_fg_color.to_string());
-                    }
-                }
-                "title_fg_color" => {
-                    if let Some(new_title_fg_color) = update.new_value.as_str() {
-                        self.title_fg_color = Some(new_title_fg_color.to_string());
-                    }
-                }
-                "title_bg_color" => {
-                    if let Some(new_title_bg_color) = update.new_value.as_str() {
-                        self.title_bg_color = Some(new_title_bg_color.to_string());
-                    }
-                }
-                "title_position" => {
-                    if let Some(new_title_position) = update.new_value.as_str() {
-                        self.title_position = Some(new_title_position.to_string());
-                    }
-                }
-                "selected_title_bg_color" => {
-                    if let Some(new_selected_title_bg_color) = update.new_value.as_str() {
-                        self.selected_title_bg_color =
-                            Some(new_selected_title_bg_color.to_string());
-                    }
-                }
-                "selected_title_fg_color" => {
-                    if let Some(new_selected_title_fg_color) = update.new_value.as_str() {
-                        self.selected_title_fg_color =
-                            Some(new_selected_title_fg_color.to_string());
-                    }
-                }
-                "menu_fg_color" => {
-                    if let Some(new_menu_fg_color) = update.new_value.as_str() {
-                        self.menu_fg_color = Some(new_menu_fg_color.to_string());
-                    }
-                }
-                "menu_bg_color" => {
-                    if let Some(new_menu_bg_color) = update.new_value.as_str() {
-                        self.menu_bg_color = Some(new_menu_bg_color.to_string());
-                    }
-                }
-                "selected_menu_fg_color" => {
-                    if let Some(new_selected_menu_fg_color) = update.new_value.as_str() {
-                        self.selected_menu_fg_color = Some(new_selected_menu_fg_color.to_string());
-                    }
-                }
-                "selected_menu_bg_color" => {
-                    if let Some(new_selected_menu_bg_color) = update.new_value.as_str() {
-                        self.selected_menu_bg_color = Some(new_selected_menu_bg_color.to_string());
-                    }
-                }
-                "error_border_color" => {
-                    if let Some(new_error_border_color) = update.new_value.as_str() {
-                        self.error_border_color = Some(new_error_border_color.to_string());
-                    }
-                }
-                "error_bg_color" => {
-                    if let Some(new_error_bg_color) = update.new_value.as_str() {
-                        self.error_bg_color = Some(new_error_bg_color.to_string());
-                    }
-                }
-                "error_fg_color" => {
-                    if let Some(new_error_fg_color) = update.new_value.as_str() {
-                        self.error_fg_color = Some(new_error_fg_color.to_string());
-                    }
-                }
-                "error_title_bg_color" => {
-                    if let Some(new_error_title_bg_color) = update.new_value.as_str() {
-                        self.error_title_bg_color = Some(new_error_title_bg_color.to_string());
-                    }
-                }
-                "error_title_fg_color" => {
-                    if let Some(new_error_title_fg_color) = update.new_value.as_str() {
-                        self.error_title_fg_color = Some(new_error_title_fg_color.to_string());
-                    }
-                }
-                "error_selected_border_color" => {
-                    if let Some(new_error_selected_border_color) = update.new_value.as_str() {
-                        self.error_selected_border_color =
-                            Some(new_error_selected_border_color.to_string());
-                    }
-                }
-                "error_selected_bg_color" => {
-                    if let Some(new_error_selected_bg_color) = update.new_value.as_str() {
-                        self.error_selected_bg_color =
-                            Some(new_error_selected_bg_color.to_string());
-                    }
-                }
-                "error_selected_fg_color" => {
-                    if let Some(new_error_selected_fg_color) = update.new_value.as_str() {
-                        self.error_selected_fg_color =
-                            Some(new_error_selected_fg_color.to_string());
-                    }
-                }
-                "error_selected_title_bg_color" => {
-                    if let Some(new_error_selected_title_bg_color) = update.new_value.as_str() {
-                        self.error_selected_title_bg_color =
-                            Some(new_error_selected_title_bg_color.to_string());
-                    }
-                }
-                "error_selected_title_fg_color" => {
-                    if let Some(new_error_selected_title_fg_color) = update.new_value.as_str() {
-                        self.error_selected_title_fg_color =
-                            Some(new_error_selected_title_fg_color.to_string());
-                    }
-                }
-                "overflow_behavior" => {
-                    if let Some(new_overflow_behavior) = update.new_value.as_str() {
-                        self.overflow_behavior = Some(new_overflow_behavior.to_string());
-                    }
-                }
-                "root" => {
-                    if let Some(new_root) = update.new_value.as_bool() {
-                        self.root = Some(new_root);
-                    }
-                }
-                "on_keypress" => {
-                    if let Some(new_on_keypress) = update.new_value.as_object() {
-                        self.on_keypress = Some(
-                            new_on_keypress
-                                .iter()
-                                .map(|(k, v)| {
-                                    (
-                                        k.clone(),
-                                        v.as_array()
-                                            .unwrap()
-                                            .iter()
-                                            .map(|v| v.as_str().unwrap().to_string())
-                                            .collect(),
-                                    )
-                                })
-                                .collect(),
-                        );
-                    }
-                }
-                "active" => {
-                    if let Some(new_active) = update.new_value.as_bool() {
-                        self.active = Some(new_active);
-                    }
-                }
-                "muxbox_ids_in_tab_order" => {
-                    if let Some(new_muxbox_ids_in_tab_order) = update.new_value.as_array() {
-                        self.muxbox_ids_in_tab_order = Some(
-                            new_muxbox_ids_in_tab_order
-                                .iter()
-                                .map(|v| v.as_str().unwrap().to_string())
-                                .collect(),
-                        );
-                    }
-                }
-
-                _ => {
-                    log::warn!(
-                        "Layout::apply_updates: Ignoring unknown field name: {}",
-                        update.field_name
-                    );
-                }
-            }
-        }
-        self.apply_children_updates(updates_for_children);
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::common::InputBounds;
-    use crate::model::muxbox::MuxBox;
 
-    // === Helper Functions ===
-
-    /// Creates a basic test muxbox with the given id.
-    /// This helper demonstrates how to create a MuxBox for Layout testing.
-    fn create_test_muxbox(id: &str) -> MuxBox {
+    fn muxbox(id: &str, tab_order: Option<u32>, children: Option<Vec<MuxBox>>) -> MuxBox {
         MuxBox {
             id: id.to_string(),
-            title: Some(format!("Test MuxBox {}", id)),
-            position: InputBounds {
-                x1: "0%".to_string(),
-                y1: "0%".to_string(),
-                x2: "100%".to_string(),
-                y2: "100%".to_string(),
-            },
-            tab_order: Some(id.to_string()),
-            selected: Some(false),
-            ..Default::default()
-        }
-    }
-
-    /// Creates a test Layout with the given id and optional children.
-    /// This helper demonstrates how to create a Layout for testing.
-    fn create_test_layout(id: &str, children: Option<Vec<MuxBox>>) -> Layout {
-        Layout {
-            id: id.to_string(),
-            title: Some(format!("Test Layout {}", id)),
+            tab_order,
             children,
-            root: Some(false),
-            active: Some(false),
-            ..Default::default()
+            ..MuxBox::default()
         }
     }
 
-    // === Layout Default Tests ===
-
-    /// Tests that Layout::default() creates a layout with expected default values.
-    /// This test demonstrates the default Layout construction behavior.
-    #[test]
-    fn test_layout_default() {
-        let layout = Layout::default();
-        assert_eq!(layout.id, "");
-        assert_eq!(layout.title, None);
-        assert_eq!(layout.children, None);
-        assert_eq!(layout.root, None);
-        assert_eq!(layout.active, None);
-        assert_eq!(layout.refresh_interval, None);
-        assert_eq!(layout.muxbox_ids_in_tab_order, None);
-    }
-
-    /// Tests that Layout::new() creates a layout with expected default values.
-    /// This test demonstrates the Layout::new() construction behavior.
-    #[test]
-    fn test_layout_new() {
-        let layout = Layout::new();
-        assert_eq!(layout.id, "");
-        assert_eq!(layout.title, None);
-        assert_eq!(layout.children, None);
-        assert_eq!(layout.root, Some(false));
-        assert_eq!(layout.active, Some(false));
-        assert_eq!(layout.refresh_interval, None);
-        assert_eq!(layout.muxbox_ids_in_tab_order, None);
-    }
-
-    // === Layout Creation Tests ===
-
-    /// Tests creating a Layout with specific values.
-    /// This test demonstrates how to create a Layout with custom properties.
-    #[test]
-    fn test_layout_creation() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let children = vec![muxbox1, muxbox2];
-
-        let layout = Layout {
-            id: "test_layout".to_string(),
-            title: Some("Test Layout".to_string()),
+    fn layout(children: Vec<MuxBox>) -> Layout {
+        Layout {
+            id: "layout".to_string(),
             children: Some(children),
-            root: Some(true),
-            active: Some(true),
-            refresh_interval: Some(1000),
-            ..Default::default()
-        };
-
-        assert_eq!(layout.id, "test_layout");
-        assert_eq!(layout.title, Some("Test Layout".to_string()));
-        assert_eq!(layout.children.as_ref().unwrap().len(), 2);
-        assert_eq!(layout.root, Some(true));
-        assert_eq!(layout.active, Some(true));
-        assert_eq!(layout.refresh_interval, Some(1000));
+            ..Layout::default()
+        }
     }
 
-    // === Layout MuxBox Management Tests ===
-
-    /// Tests that Layout::get_muxbox_by_id() finds muxboxes correctly.
-    /// This test demonstrates the muxbox retrieval feature.
-    #[test]
-    fn test_layout_get_muxbox_by_id() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        let found_muxbox = layout.get_muxbox_by_id("muxbox1");
-        assert!(found_muxbox.is_some());
-        assert_eq!(found_muxbox.unwrap().id, "muxbox1");
-
-        let not_found = layout.get_muxbox_by_id("nonexistent");
-        assert!(not_found.is_none());
+    fn selected_ids(layout: &Layout) -> Vec<String> {
+        layout
+            .get_selected_muxboxes()
+            .iter()
+            .map(|muxbox| muxbox.id.clone())
+            .collect()
     }
 
-    /// Tests that Layout::get_muxbox_by_id() finds nested muxboxes correctly.
-    /// This test demonstrates the recursive muxbox retrieval feature.
-    #[test]
-    fn test_layout_get_muxbox_by_id_nested() {
-        let child_muxbox = create_test_muxbox("child");
-        let parent_muxbox = MuxBox {
-            id: "parent".to_string(),
-            children: Some(vec![child_muxbox]),
-            ..Default::default()
-        };
-        let layout = create_test_layout("test", Some(vec![parent_muxbox]));
-
-        let found_child = layout.get_muxbox_by_id("child");
-        assert!(found_child.is_some());
-        assert_eq!(found_child.unwrap().id, "child");
+    fn focus_order(layout: &Layout) -> Vec<String> {
+        layout
+            .get_muxboxes_in_tab_order()
+            .iter()
+            .map(|muxbox| muxbox.id.clone())
+            .collect()
     }
 
-    /// Tests that Layout::get_muxbox_by_id_mut() finds and allows modification.
-    /// This test demonstrates the mutable muxbox retrieval feature.
     #[test]
-    fn test_layout_get_muxbox_by_id_mut() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
+    fn tab_order_is_numeric_and_includes_nested_boxes() {
+        let layout = layout(vec![
+            muxbox("ten", Some(10), None),
+            muxbox(
+                "parent",
+                None,
+                Some(vec![
+                    muxbox("two", Some(2), None),
+                    muxbox("nine", Some(9), None),
+                ]),
+            ),
+            muxbox("unfocusable", None, None),
+        ]);
+        // As strings, "10" would sort before "2" and "9".
+        assert_eq!(focus_order(&layout), vec!["two", "nine", "ten"]);
+    }
 
-        let found_muxbox = layout.get_muxbox_by_id_mut("muxbox1");
-        assert!(found_muxbox.is_some());
+    #[test]
+    fn equal_tab_orders_keep_configuration_order() {
+        let layout = layout(vec![
+            muxbox("b", Some(1), None),
+            muxbox("a", Some(1), None),
+            muxbox("c", Some(0), None),
+        ]);
+        assert_eq!(focus_order(&layout), vec!["c", "b", "a"]);
+    }
 
-        // Modify the muxbox
-        found_muxbox.unwrap().title = Some("Modified Title".to_string());
-
-        // Verify the modification
-        let verified_muxbox = layout.get_muxbox_by_id("muxbox1");
+    #[test]
+    fn focus_steps_wrap_around_in_both_directions() {
+        let mut layout = layout(vec![
+            muxbox("a", Some(1), None),
+            muxbox("p", None, Some(vec![muxbox("b", Some(2), None)])),
+            muxbox("c", Some(3), None),
+        ]);
+        layout.select_next_muxbox();
         assert_eq!(
-            verified_muxbox.unwrap().title,
-            Some("Modified Title".to_string())
+            selected_ids(&layout),
+            vec!["a"],
+            "nothing focused: Tab focuses the first"
         );
+        layout.select_next_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["b"], "nested boxes take part");
+        layout.select_next_muxbox();
+        layout.select_next_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["a"], "wraps to the first");
+        layout.select_previous_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["c"], "wraps to the last");
     }
 
-    /// Tests that Layout::get_muxbox_by_id_mut() handles empty layout.
-    /// This test demonstrates edge case handling in mutable muxbox retrieval.
     #[test]
-    fn test_layout_get_muxbox_by_id_mut_empty() {
-        let mut layout = create_test_layout("test", None);
-
-        let found_muxbox = layout.get_muxbox_by_id_mut("nonexistent");
-        assert!(found_muxbox.is_none());
+    fn next_focus_id_overrides_the_tab_order_going_forward() {
+        let mut first = muxbox("first", Some(1), None);
+        first.next_focus_id = Some("third".into());
+        let mut layout = layout(vec![
+            first,
+            muxbox("second", Some(2), None),
+            // Not in the tab order at all, but reachable through next_focus_id.
+            muxbox("third", None, None),
+        ]);
+        layout.select_only_muxbox("first");
+        layout.select_next_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["third"]);
+        // From a box outside the tab order, Tab starts over at the first box.
+        layout.select_next_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["first"]);
+        // Shift+Tab ignores next_focus_id and follows the tab order backwards.
+        layout.select_previous_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["second"]);
     }
 
-    // === Layout MuxBox Selection Tests ===
-
-    /// Tests that Layout::get_selected_muxboxes() returns selected muxboxes.
-    /// This test demonstrates the selected muxbox retrieval feature.
     #[test]
-    fn test_layout_get_selected_muxboxes() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.selected = Some(true);
-        muxbox2.selected = Some(false);
-        muxbox3.selected = Some(true);
-
-        let layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 2);
-        assert_eq!(selected[0].id, "muxbox1");
-        assert_eq!(selected[1].id, "muxbox3");
+    fn ancestors_are_listed_nearest_first() {
+        let layout = layout(vec![muxbox(
+            "outer",
+            None,
+            Some(vec![muxbox(
+                "inner",
+                None,
+                Some(vec![muxbox("leaf", None, None)]),
+            )]),
+        )]);
+        let ids = |id: &str| {
+            layout
+                .ancestors_of(id)
+                .map(|a| a.iter().map(|b| b.id.clone()).collect::<Vec<_>>())
+        };
+        assert_eq!(
+            ids("leaf"),
+            Some(vec!["inner".to_string(), "outer".to_string()])
+        );
+        assert_eq!(ids("outer"), Some(vec![]));
+        assert_eq!(ids("missing"), None);
     }
 
-    /// Tests that Layout::get_selected_muxboxes() handles no selected muxboxes.
-    /// This test demonstrates edge case handling in selected muxbox retrieval.
     #[test]
-    fn test_layout_get_selected_muxboxes_none() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
+    fn focus_steps_without_focusable_boxes_change_nothing() {
+        let mut layout = layout(vec![muxbox("a", None, None)]);
+        layout.select_next_muxbox();
+        layout.select_previous_muxbox();
+        assert!(selected_ids(&layout).is_empty());
     }
 
-    /// Tests that Layout::select_only_muxbox() selects only the specified muxbox.
-    /// This test demonstrates the exclusive muxbox selection feature.
     #[test]
-    fn test_layout_select_only_muxbox() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.selected = Some(true);
-        muxbox2.selected = Some(true);
-        muxbox3.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        layout.select_only_muxbox("muxbox2");
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox2");
-    }
-
-    /// Tests that Layout::select_only_muxbox() handles nonexistent muxbox.
-    /// This test demonstrates edge case handling in muxbox selection.
-    #[test]
-    fn test_layout_select_only_muxbox_nonexistent() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        muxbox1.selected = Some(true);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1]));
-
-        layout.select_only_muxbox("nonexistent");
-
-        // All muxboxes should be deselected
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
-    }
-
-    /// Tests that Layout::deselect_all_muxboxes() deselects all muxboxes.
-    /// This test demonstrates the muxbox deselection feature.
-    #[test]
-    fn test_layout_deselect_all_muxboxes() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.selected = Some(true);
-        muxbox2.selected = Some(true);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
+    fn select_only_and_deselect_reach_nested_boxes() {
+        let mut layout = layout(vec![
+            muxbox("a", None, None),
+            muxbox("p", None, Some(vec![muxbox("nested", None, None)])),
+        ]);
+        layout.select_only_muxbox("nested");
+        assert_eq!(selected_ids(&layout), vec!["nested"]);
+        layout.select_only_muxbox("a");
+        assert_eq!(selected_ids(&layout), vec!["a"]);
+        layout.get_muxbox_by_id_mut("nested").unwrap().selected = Some(true);
         layout.deselect_all_muxboxes();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
+        assert!(selected_ids(&layout).is_empty());
     }
 
-    // === Layout Tab Order Tests ===
-
-    /// Tests that Layout::get_muxboxes_in_tab_order() returns muxboxes in tab order.
-    /// This test demonstrates the tab order retrieval feature.
     #[test]
-    fn test_layout_get_muxboxes_in_tab_order() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.tab_order = Some("3".to_string());
-        muxbox2.tab_order = Some("1".to_string());
-        muxbox3.tab_order = Some("2".to_string());
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        let muxboxes_in_order = layout.get_muxboxes_in_tab_order();
-        assert_eq!(muxboxes_in_order.len(), 3);
-        assert_eq!(muxboxes_in_order[0].id, "muxbox2"); // tab_order: "1"
-        assert_eq!(muxboxes_in_order[1].id, "muxbox3"); // tab_order: "2"
-        assert_eq!(muxboxes_in_order[2].id, "muxbox1"); // tab_order: "3"
-    }
-
-    /// Tests that Layout::get_muxboxes_in_tab_order() ignores muxboxes without tab_order.
-    /// This test demonstrates tab order filtering behavior.
-    #[test]
-    fn test_layout_get_muxboxes_in_tab_order_filtered() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = None; // No tab order
-        muxbox3.tab_order = Some("2".to_string());
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        let muxboxes_in_order = layout.get_muxboxes_in_tab_order();
-        assert_eq!(muxboxes_in_order.len(), 2);
-        assert_eq!(muxboxes_in_order[0].id, "muxbox1");
-        assert_eq!(muxboxes_in_order[1].id, "muxbox3");
-    }
-
-    /// Tests that Layout::get_muxboxes_in_tab_order() handles nested muxboxes.
-    /// This test demonstrates recursive tab order retrieval.
-    #[test]
-    fn test_layout_get_muxboxes_in_tab_order_nested() {
-        let mut child_muxbox = create_test_muxbox("child");
-        child_muxbox.tab_order = Some("2".to_string());
-
-        let mut parent_muxbox = create_test_muxbox("parent");
-        parent_muxbox.tab_order = Some("1".to_string());
-        parent_muxbox.children = Some(vec![child_muxbox]);
-
-        let mut layout = create_test_layout("test", Some(vec![parent_muxbox]));
-
-        let muxboxes_in_order = layout.get_muxboxes_in_tab_order();
-        assert_eq!(muxboxes_in_order.len(), 2);
-        assert_eq!(muxboxes_in_order[0].id, "parent");
-        assert_eq!(muxboxes_in_order[1].id, "child");
-    }
-
-    /// Tests that Layout::select_next_muxbox() advances selection correctly.
-    /// This test demonstrates the next muxbox selection feature.
-    #[test]
-    fn test_layout_select_next_muxbox() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-        muxbox3.tab_order = Some("3".to_string());
-
-        muxbox1.selected = Some(true);
-        muxbox2.selected = Some(false);
-        muxbox3.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        layout.select_next_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox2");
-    }
-
-    /// Tests that Layout::select_next_muxbox() wraps around to first muxbox.
-    /// This test demonstrates the wrap-around behavior in next muxbox selection.
-    #[test]
-    fn test_layout_select_next_muxbox_wrap_around() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-
-        muxbox1.selected = Some(false);
-        muxbox2.selected = Some(true); // Last muxbox selected
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        layout.select_next_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox1"); // Wrapped to first
-    }
-
-    /// Tests that Layout::select_next_muxbox() handles no selection.
-    /// This test demonstrates next muxbox selection with no current selection.
-    #[test]
-    fn test_layout_select_next_muxbox_no_selection() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-
-        muxbox1.selected = Some(false);
-        muxbox2.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        layout.select_next_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox1"); // First muxbox selected
-    }
-
-    /// Tests that Layout::select_previous_muxbox() moves selection backwards.
-    /// This test demonstrates the previous muxbox selection feature.
-    #[test]
-    fn test_layout_select_previous_muxbox() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-        let mut muxbox3 = create_test_muxbox("muxbox3");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-        muxbox3.tab_order = Some("3".to_string());
-
-        muxbox1.selected = Some(false);
-        muxbox2.selected = Some(true);
-        muxbox3.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2, muxbox3]));
-
-        layout.select_previous_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox1");
-    }
-
-    /// Tests that Layout::select_previous_muxbox() wraps around to last muxbox.
-    /// This test demonstrates the wrap-around behavior in previous muxbox selection.
-    #[test]
-    fn test_layout_select_previous_muxbox_wrap_around() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-
-        muxbox1.selected = Some(true); // First muxbox selected
-        muxbox2.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        layout.select_previous_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox2"); // Wrapped to last
-    }
-
-    /// Tests that Layout::select_previous_muxbox() handles no selection.
-    /// This test demonstrates previous muxbox selection with no current selection.
-    #[test]
-    fn test_layout_select_previous_muxbox_no_selection() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.tab_order = Some("1".to_string());
-        muxbox2.tab_order = Some("2".to_string());
-
-        muxbox1.selected = Some(false);
-        muxbox2.selected = Some(false);
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        layout.select_previous_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].id, "muxbox2"); // Last muxbox selected
-    }
-
-    /// Tests that Layout navigation handles empty muxbox lists.
-    /// This test demonstrates edge case handling in muxbox navigation.
-    #[test]
-    fn test_layout_navigation_empty_muxboxes() {
-        let mut layout = create_test_layout("test", None);
-
-        // These should not panic
-        layout.select_next_muxbox();
-        layout.select_previous_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
-    }
-
-    /// Tests that Layout navigation handles muxboxes without tab order.
-    /// This test demonstrates edge case handling with non-tabbable muxboxes.
-    #[test]
-    fn test_layout_navigation_no_tab_order() {
-        let mut muxbox1 = create_test_muxbox("muxbox1");
-        let mut muxbox2 = create_test_muxbox("muxbox2");
-
-        muxbox1.tab_order = None;
-        muxbox2.tab_order = None;
-
-        let mut layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        // These should not panic
-        layout.select_next_muxbox();
-        layout.select_previous_muxbox();
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
-    }
-
-    // === Layout All MuxBoxes Tests ===
-
-    /// Tests that Layout::get_all_muxboxes() returns all muxboxes.
-    /// This test demonstrates the all muxboxes retrieval feature.
-    #[test]
-    fn test_layout_get_all_muxboxes() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-
-        let all_muxboxes = layout.get_all_muxboxes();
-        assert_eq!(all_muxboxes.len(), 2);
-        assert_eq!(all_muxboxes[0].id, "muxbox1");
-        assert_eq!(all_muxboxes[1].id, "muxbox2");
-    }
-
-    /// Tests that Layout::get_all_muxboxes() includes nested muxboxes.
-    /// This test demonstrates recursive muxbox retrieval.
-    #[test]
-    fn test_layout_get_all_muxboxes_nested() {
-        let child_muxbox = create_test_muxbox("child");
-        let parent_muxbox = MuxBox {
-            id: "parent".to_string(),
-            children: Some(vec![child_muxbox]),
-            ..Default::default()
-        };
-        let layout = create_test_layout("test", Some(vec![parent_muxbox]));
-
-        let all_muxboxes = layout.get_all_muxboxes();
-        assert_eq!(all_muxboxes.len(), 2);
-        assert_eq!(all_muxboxes[0].id, "parent");
-        assert_eq!(all_muxboxes[1].id, "child");
-    }
-
-    /// Tests that Layout::get_all_muxboxes() handles empty layout.
-    /// This test demonstrates edge case handling in all muxboxes retrieval.
-    #[test]
-    fn test_layout_get_all_muxboxes_empty() {
-        let layout = create_test_layout("test", None);
-
-        let all_muxboxes = layout.get_all_muxboxes();
-        assert_eq!(all_muxboxes.len(), 0);
-    }
-
-    // === Layout Clone Tests ===
-
-    /// Tests that Layout implements Clone correctly.
-    /// This test demonstrates Layout cloning behavior.
-    #[test]
-    fn test_layout_clone() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout1 = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-        let layout2 = layout1.clone();
-
-        assert_eq!(layout1.id, layout2.id);
-        assert_eq!(layout1.title, layout2.title);
+    fn replacing_finds_nested_boxes_and_reports_misses() {
+        let mut layout = layout(vec![muxbox(
+            "p",
+            None,
+            Some(vec![muxbox("nested", None, None)]),
+        )]);
+        let mut replacement = muxbox("nested", Some(4), None);
+        replacement.title = Some("new".into());
+        assert!(layout.replace_muxbox_recursive(&replacement));
         assert_eq!(
-            layout1.children.as_ref().unwrap().len(),
-            layout2.children.as_ref().unwrap().len()
+            layout.get_muxbox_by_id("nested").unwrap().title.as_deref(),
+            Some("new")
         );
-        assert_eq!(layout1.root, layout2.root);
-        assert_eq!(layout1.active, layout2.active);
+        assert!(!layout.replace_muxbox_recursive(&muxbox("missing", None, None)));
+        assert!(!Layout::default().replace_muxbox_recursive(&replacement));
     }
 
-    /// Tests that Layout cloning includes nested muxboxes.
-    /// This test demonstrates Layout cloning with nested structure.
     #[test]
-    fn test_layout_clone_nested() {
-        let child_muxbox = create_test_muxbox("child");
-        let parent_muxbox = MuxBox {
-            id: "parent".to_string(),
-            children: Some(vec![child_muxbox]),
-            ..Default::default()
-        };
-        let layout1 = create_test_layout("test", Some(vec![parent_muxbox]));
-        let layout2 = layout1.clone();
-
+    fn choices_are_found_in_any_tab_of_nested_boxes() {
+        let mut nested = muxbox("nested", None, None);
+        nested.content = Some("text".into());
+        nested.choices = Some(vec![crate::model::choice::Choice {
+            id: "deploy".into(),
+            content: Some("Deploy".into()),
+            script: None,
+            redirect_output: None,
+            append_output: None,
+            execution_mode: Default::default(),
+            selected: false,
+            waiting: false,
+        }]);
+        nested.initialize_streams();
+        let layout = layout(vec![muxbox("p", None, Some(vec![nested]))]);
         assert_eq!(
-            layout1.children.as_ref().unwrap()[0]
-                .children
-                .as_ref()
-                .unwrap()
-                .len(),
-            layout2.children.as_ref().unwrap()[0]
-                .children
-                .as_ref()
-                .unwrap()
-                .len()
+            layout
+                .find_muxbox_with_choice("deploy")
+                .map(|b| b.id.as_str()),
+            Some("nested")
         );
-        assert_eq!(
-            layout1.children.as_ref().unwrap()[0]
-                .children
-                .as_ref()
-                .unwrap()[0]
-                .id,
-            layout2.children.as_ref().unwrap()[0]
-                .children
-                .as_ref()
-                .unwrap()[0]
-                .id
-        );
+        assert!(layout.find_muxbox_with_choice("other").is_none());
     }
 
-    // === Layout Hash Tests ===
-
-    /// Tests that Layout implements Hash correctly.
-    /// This test demonstrates Layout hashing behavior.
     #[test]
-    fn test_layout_hash() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout1 = create_test_layout("test", Some(vec![muxbox1.clone(), muxbox2.clone()]));
-        let layout2 = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-        let layout3 = create_test_layout("other", Some(vec![]));
-
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher1 = DefaultHasher::new();
-        let mut hasher2 = DefaultHasher::new();
-        let mut hasher3 = DefaultHasher::new();
-
-        layout1.hash(&mut hasher1);
-        layout2.hash(&mut hasher2);
-        layout3.hash(&mut hasher3);
-
-        assert_eq!(hasher1.finish(), hasher2.finish());
-        assert_ne!(hasher1.finish(), hasher3.finish());
-    }
-
-    // === Layout PartialEq Tests ===
-
-    /// Tests that Layout implements PartialEq correctly.
-    /// This test demonstrates Layout equality comparison.
-    #[test]
-    fn test_layout_equality() {
-        let muxbox1 = create_test_muxbox("muxbox1");
-        let muxbox2 = create_test_muxbox("muxbox2");
-        let layout1 = create_test_layout("test", Some(vec![muxbox1.clone(), muxbox2.clone()]));
-        let layout2 = create_test_layout("test", Some(vec![muxbox1, muxbox2]));
-        let layout3 = create_test_layout("other", Some(vec![]));
-
-        assert_eq!(layout1, layout2);
-        assert_ne!(layout1, layout3);
-    }
-
-    /// Tests that Layout equality considers all fields.
-    /// This test demonstrates comprehensive Layout equality checking.
-    #[test]
-    fn test_layout_equality_comprehensive() {
-        let muxbox = create_test_muxbox("muxbox");
-
-        let layout1 = Layout {
-            id: "test".to_string(),
-            title: Some("Test".to_string()),
-            children: Some(vec![muxbox.clone()]),
-            root: Some(true),
-            active: Some(false),
-            ..Default::default()
-        };
-
-        let layout2 = Layout {
-            id: "test".to_string(),
-            title: Some("Test".to_string()),
-            children: Some(vec![muxbox.clone()]),
-            root: Some(true),
-            active: Some(false),
-            ..Default::default()
-        };
-
-        let layout3 = Layout {
-            id: "test".to_string(),
-            title: Some("Test".to_string()),
-            children: Some(vec![muxbox]),
-            root: Some(false), // Different root value
-            active: Some(false),
-            ..Default::default()
-        };
-
-        assert_eq!(layout1, layout2);
-        assert_ne!(layout1, layout3);
-    }
-
-    // === Layout Edge Cases ===
-
-    /// Tests that Layout handles operations on empty children gracefully.
-    /// This test demonstrates edge case handling with empty children.
-    #[test]
-    fn test_layout_empty_children_operations() {
-        let mut layout = create_test_layout("test", Some(vec![]));
-
-        // These should not panic
-        let muxboxes = layout.get_all_muxboxes();
-        assert_eq!(muxboxes.len(), 0);
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
-
-        let tab_ordered = layout.get_muxboxes_in_tab_order();
-        assert_eq!(tab_ordered.len(), 0);
-
-        layout.select_next_muxbox();
-        layout.select_previous_muxbox();
-        layout.select_only_muxbox("nonexistent");
-        layout.deselect_all_muxboxes();
-    }
-
-    /// Tests that Layout handles None children gracefully.
-    /// This test demonstrates edge case handling with None children.
-    #[test]
-    fn test_layout_none_children_operations() {
-        let mut layout = create_test_layout("test", None);
-
-        // These should not panic
-        let muxboxes = layout.get_all_muxboxes();
-        assert_eq!(muxboxes.len(), 0);
-
-        let selected = layout.get_selected_muxboxes();
-        assert_eq!(selected.len(), 0);
-
-        let tab_ordered = layout.get_muxboxes_in_tab_order();
-        assert_eq!(tab_ordered.len(), 0);
-
-        layout.select_next_muxbox();
-        layout.select_previous_muxbox();
-        layout.select_only_muxbox("nonexistent");
-        layout.deselect_all_muxboxes();
+    fn unknown_layout_keys_and_the_runtime_active_flag_are_rejected() {
+        for key in ["active: true", "border: true"] {
+            let yaml = format!("id: l\n{}\nchildren: []\n", key);
+            assert!(
+                serde_yaml::from_str::<Layout>(&yaml).is_err(),
+                "`{}` must not be accepted",
+                key
+            );
+        }
     }
 }

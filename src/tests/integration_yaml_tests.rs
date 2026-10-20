@@ -1,13 +1,11 @@
-#[cfg(test)]
-mod integration_yaml_tests {
-    use crate::model::app::load_app_from_yaml;
-    use std::env;
-    use std::fs;
-    use tempfile::NamedTempFile;
+use crate::model::app::load_app_from_yaml;
+use std::env;
+use std::fs;
+use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_yaml_loading_with_variables() {
-        let yaml_content = r#"
+#[test]
+fn test_yaml_loading_with_variables() {
+    let yaml_content = r#"
 app:
   variables:
     TEST_VAR: "test_value"
@@ -24,37 +22,37 @@ app:
           content: 'Global: ${TEST_VAR}, Local: ${LOCAL_VAR}'
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
+    let result = load_app_from_yaml(temp_file.path());
 
-        assert!(
-            result.is_ok(),
-            "YAML loading should succeed with variables: {:?}",
-            result.err()
-        );
+    assert!(
+        result.is_ok(),
+        "YAML loading should succeed with variables: {:?}",
+        result.err()
+    );
 
-        let app = result.unwrap();
-        assert!(app.variables.is_some());
-        assert_eq!(
-            app.variables.as_ref().unwrap().get("TEST_VAR"),
-            Some(&"test_value".to_string())
-        );
+    let app = result.unwrap();
+    assert!(app.variables.is_some());
+    assert_eq!(
+        app.variables.as_ref().unwrap().get("TEST_VAR"),
+        Some(&"test_value".to_string())
+    );
 
-        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
-        assert!(muxbox.variables.is_some());
-        assert_eq!(
-            muxbox.variables.as_ref().unwrap().get("LOCAL_VAR"),
-            Some(&"local_value".to_string())
-        );
-    }
+    let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+    assert!(muxbox.variables.is_some());
+    assert_eq!(
+        muxbox.variables.as_ref().unwrap().get("LOCAL_VAR"),
+        Some(&"local_value".to_string())
+    );
+}
 
-    #[test]
-    fn test_yaml_loading_with_env_variables() {
-        env::set_var("YAML_TEST_VAR", "env_test_value");
+#[test]
+fn test_yaml_loading_with_env_variables() {
+    env::set_var("YAML_TEST_VAR", "env_test_value");
 
-        let yaml_content = r#"
+    let yaml_content = r#"
 app:
   layouts:
     - id: 'main'
@@ -67,22 +65,22 @@ app:
           content: 'Env var: $YAML_TEST_VAR'
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        assert!(
-            result.is_ok(),
-            "YAML loading should succeed with env variables: {:?}",
-            result.err()
-        );
+    let result = load_app_from_yaml(temp_file.path());
+    assert!(
+        result.is_ok(),
+        "YAML loading should succeed with env variables: {:?}",
+        result.err()
+    );
 
-        env::remove_var("YAML_TEST_VAR");
-    }
+    env::remove_var("YAML_TEST_VAR");
+}
 
-    #[test]
-    fn test_yaml_loading_with_defaults() {
-        let yaml_content = r#"
+#[test]
+fn test_yaml_loading_with_defaults() {
+    let yaml_content = r#"
 app:
   layouts:
     - id: 'main'
@@ -95,20 +93,20 @@ app:
           content: 'Value: ${MISSING_VAR:fallback_value}'
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        assert!(
-            result.is_ok(),
-            "YAML loading should succeed with default values: {:?}",
-            result.err()
-        );
-    }
+    let result = load_app_from_yaml(temp_file.path());
+    assert!(
+        result.is_ok(),
+        "YAML loading should succeed with default values: {:?}",
+        result.err()
+    );
+}
 
-    #[test]
-    fn test_schema_validation_accepts_variables() {
-        let yaml_content = r#"
+#[test]
+fn test_schema_validation_accepts_variables() {
+    let yaml_content = r#"
 app:
   variables:
     APP_NAME: "Test App"
@@ -126,21 +124,21 @@ app:
           content: 'App: ${APP_NAME}, MuxBox: ${MUXBOX_VAR}'
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        // This test specifically verifies that JSON schema validation passes
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        assert!(
-            result.is_ok(),
-            "Schema validation should accept variables field: {:?}",
-            result.err()
-        );
-    }
+    // This test specifically verifies that JSON schema validation passes
+    let result = load_app_from_yaml(temp_file.path());
+    assert!(
+        result.is_ok(),
+        "Schema validation should accept variables field: {:?}",
+        result.err()
+    );
+}
 
-    #[test]
-    fn test_schema_validation_rejects_invalid_variables() {
-        let yaml_content = r#"
+#[test]
+fn test_schema_validation_rejects_invalid_variables() {
+    let yaml_content = r#"
 app:
   variables: "invalid_not_object"
   layouts:
@@ -154,28 +152,28 @@ app:
           content: 'Test'
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        assert!(
-            result.is_err(),
-            "Schema validation should reject invalid variables field"
-        );
+    let result = load_app_from_yaml(temp_file.path());
+    assert!(
+        result.is_err(),
+        "Schema validation should reject invalid variables field"
+    );
 
-        let error_msg = result.err().unwrap().to_string();
-        assert!(
-            error_msg.contains("JSON Schema validation failed"),
-            "Error should mention schema validation failure: {}",
-            error_msg
-        );
-    }
+    let error_msg = result.err().unwrap().to_string();
+    assert!(
+        error_msg.contains("app.variables"),
+        "the error names the invalid setting: {}",
+        error_msg
+    );
+}
 
-    #[test]
-    fn test_full_yaml_pipeline_integration() {
-        env::set_var("INTEGRATION_TEST_VAR", "integration_value");
+#[test]
+fn test_full_yaml_pipeline_integration() {
+    env::set_var("INTEGRATION_TEST_VAR", "integration_value");
 
-        let yaml_content = r#"
+    let yaml_content = r#"
 app:
   variables:
     GLOBAL_VAR: "global_value"
@@ -199,30 +197,29 @@ app:
             - "echo Default: ${MISSING:default_val}"
 "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    fs::write(&temp_file, yaml_content).expect("Failed to write temp file");
 
-        // Test complete pipeline: variable substitution + schema validation + app loading
-        let result = load_app_from_yaml(temp_file.path().to_str().unwrap());
-        assert!(
-            result.is_ok(),
-            "Full YAML pipeline should work: {:?}",
-            result.err()
-        );
+    // Test complete pipeline: variable substitution + schema validation + app loading
+    let result = load_app_from_yaml(temp_file.path());
+    assert!(
+        result.is_ok(),
+        "Full YAML pipeline should work: {:?}",
+        result.err()
+    );
 
-        let app = result.unwrap();
+    let app = result.unwrap();
 
-        // Verify structure is correct
-        assert_eq!(app.layouts.len(), 1);
-        assert_eq!(app.layouts[0].id, "integration_test");
-        assert!(app.layouts[0].children.is_some());
-        assert_eq!(app.layouts[0].children.as_ref().unwrap().len(), 1);
+    // Verify structure is correct
+    assert_eq!(app.layouts.len(), 1);
+    assert_eq!(app.layouts[0].id, "integration_test");
+    assert!(app.layouts[0].children.is_some());
+    assert_eq!(app.layouts[0].children.as_ref().unwrap().len(), 1);
 
-        // Verify variables are preserved
-        assert!(app.variables.is_some());
-        let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
-        assert!(muxbox.variables.is_some());
+    // Verify variables are preserved
+    assert!(app.variables.is_some());
+    let muxbox = &app.layouts[0].children.as_ref().unwrap()[0];
+    assert!(muxbox.variables.is_some());
 
-        env::remove_var("INTEGRATION_TEST_VAR");
-    }
+    env::remove_var("INTEGRATION_TEST_VAR");
 }

@@ -46,7 +46,6 @@ app:
             x2: "65%"
             y2: "75%"
           border_color: "green"
-          pty: false  # Will be enabled when PTY process is spawned
           content: "Waiting for PTY process to be spawned via socket..."
 
         - id: "command_log"

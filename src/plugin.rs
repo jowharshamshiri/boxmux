@@ -1,532 +1,313 @@
-use crate::model::common::Bounds;
-use crate::AppContext;
-use libloading::{Library, Symbol};
+//! Plugins: shared libraries that draw the content of boxes with a `plugin_component`.
+//!
+//! A plugin is a C-ABI shared library listed under the app's `plugins` setting. Only strings
+//! cross the library boundary, as UTF-8 JSON in NUL-terminated buffers:
+//!
+//! ```c
+//! uint32_t boxmux_plugin_abi_version(void);          // must return 1
+//! char *boxmux_plugin_describe(void);                // {"name": "...", "components": ["..."]}
+//! char *boxmux_plugin_render(const char *request);   // see below
+//! void boxmux_plugin_free(char *text);               // frees strings returned above
+//! ```
+//!
+//! A render request is `{"component": "...", "config": {...}, "width": N, "height": N}`; the
+//! reply is `{"content": "lines of text"}` or `{"error": "what went wrong"}`. The content may
+//! contain SGR color sequences and is shown in the box's content area.
+
+use libloading::Library;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::ffi::{c_char, CStr, CString};
+use std::path::{Path, PathBuf};
 
-// Type aliases for complex plugin function signatures
-type RenderFunction = fn(&PluginContext, &ComponentConfig) -> Result<String, PluginError>;
-type UpdateFunction = fn(&PluginContext, &ComponentConfig) -> Result<ComponentState, PluginError>;
-type EventHandler = fn(&PluginContext, &PluginEvent) -> Result<(), PluginError>;
+/// The plugin interface version this boxmux speaks.
+pub const ABI_VERSION: u32 = 1;
 
-// Type aliases for Symbol<> function signatures
-type RenderSymbol<'a> = Symbol<'a, RenderFunction>;
-type UpdateSymbol<'a> = Symbol<'a, UpdateFunction>;
-type EventSymbol<'a> = Symbol<'a, EventHandler>;
+type AbiVersionFn = unsafe extern "C" fn() -> u32;
+type DescribeFn = unsafe extern "C" fn() -> *mut c_char;
+type RenderFn = unsafe extern "C" fn(*const c_char) -> *mut c_char;
+type FreeFn = unsafe extern "C" fn(*mut c_char);
 
-/// Plugin manifest structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginManifest {
-    pub name: String,
-    pub version: String,
-    pub author: String,
-    pub description: String,
-    pub entry_point: String,
-    pub component_types: Vec<String>,
-    pub dependencies: Vec<PluginDependency>,
-    pub permissions: Vec<PluginPermission>,
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Description {
+    name: String,
+    components: Vec<String>,
 }
 
-/// Plugin dependency specification
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginDependency {
-    pub name: String,
-    pub version: String,
-    pub required: bool,
+#[derive(Serialize)]
+struct RenderRequest<'a> {
+    component: &'a str,
+    config: &'a serde_json::Value,
+    width: usize,
+    height: usize,
 }
 
-/// Plugin permission types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PluginPermission {
-    FileSystem { paths: Vec<String> },
-    Network { hosts: Vec<String> },
-    Process { commands: Vec<String> },
-    Environment { variables: Vec<String> },
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenderReply {
+    content: Option<String>,
+    error: Option<String>,
 }
 
-/// Plugin component definition
-pub struct PluginComponent {
-    pub component_type: String,
-    pub render_fn: RenderFunction,
-    pub update_fn: Option<UpdateFunction>,
-    pub event_handler: Option<EventHandler>,
+struct Plugin {
+    name: String,
+    path: PathBuf,
+    render: RenderFn,
+    free: FreeFn,
+    // Declared last so it is dropped after the function pointers above stop being used.
+    _library: Library,
 }
 
-/// Plugin execution context
-#[derive(Debug, Clone)]
-pub struct PluginContext {
-    pub app_context: AppContext,
-    pub muxbox_bounds: Bounds,
-    pub plugin_data: HashMap<String, serde_json::Value>,
-    pub permissions: Vec<PluginPermission>,
-}
-
-/// Component configuration from YAML
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComponentConfig {
-    pub component_type: String,
-    pub properties: HashMap<String, serde_json::Value>,
-    pub data_source: Option<String>,
-    pub refresh_interval: Option<u64>,
-}
-
-/// Component state for updates
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComponentState {
-    pub content: String,
-    pub metadata: HashMap<String, serde_json::Value>,
-    pub needs_refresh: bool,
-}
-
-/// Plugin events
-#[derive(Debug, Clone)]
-pub enum PluginEvent {
-    KeyPress(String),
-    MouseEvent {
-        x: u16,
-        y: u16,
-        action: String,
-    },
-    Timer {
-        interval: u64,
-    },
-    DataUpdate {
-        source: String,
-        data: serde_json::Value,
-    },
-    MuxBoxResize {
-        new_bounds: Bounds,
-    },
-}
-
-/// Plugin errors
-#[derive(Debug, Clone)]
-pub enum PluginError {
-    InitializationFailed(String),
-    RenderFailed(String),
-    PermissionDenied(String),
-    InvalidConfiguration(String),
-    RuntimeError(String),
-}
-
-/// Plugin registry for managing loaded plugins
-#[derive(Debug)]
-pub struct PluginRegistry {
-    plugins: HashMap<String, LoadedPlugin>,
-    component_types: HashMap<String, String>, // component_type -> plugin_name
-    security_manager: PluginSecurityManager,
-}
-
-/// Loaded plugin instance
-struct LoadedPlugin {
-    manifest: PluginManifest,
-    components: HashMap<String, PluginComponent>,
-    library: Option<Library>,
-    is_active: bool,
-    load_time: std::time::SystemTime,
-}
-
-impl std::fmt::Debug for LoadedPlugin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LoadedPlugin")
-            .field("manifest", &self.manifest)
-            .field(
-                "components",
-                &format!("{} components", self.components.len()),
+impl Plugin {
+    fn load(path: &Path) -> Result<(Plugin, Vec<String>), String> {
+        let fail = |what: String| format!("plugin {}: {}", path.display(), what);
+        // SAFETY: loading a library runs its initializers; the user listed it in the
+        // configuration as a boxmux plugin, which is the trust decision.
+        let library = unsafe { Library::new(path) }.map_err(|e| fail(e.to_string()))?;
+        let symbol = |name: &str| -> Result<*const (), String> {
+            let with_nul = format!("{}\0", name);
+            // SAFETY: the address is only turned into a function pointer of the signature the
+            // plugin interface defines for `name`.
+            unsafe { library.get::<*const ()>(with_nul.as_bytes()) }
+                .map(|address| *address)
+                .map_err(|e| fail(format!("missing {}: {}", name, e)))
+        };
+        // SAFETY: each address is a function exported under the name the plugin interface
+        // gives it, with the signature it defines.
+        let (abi_version, describe, render, free) = unsafe {
+            (
+                std::mem::transmute::<*const (), AbiVersionFn>(symbol(
+                    "boxmux_plugin_abi_version",
+                )?),
+                std::mem::transmute::<*const (), DescribeFn>(symbol("boxmux_plugin_describe")?),
+                std::mem::transmute::<*const (), RenderFn>(symbol("boxmux_plugin_render")?),
+                std::mem::transmute::<*const (), FreeFn>(symbol("boxmux_plugin_free")?),
             )
-            .field("library_loaded", &self.library.is_some())
-            .field("is_active", &self.is_active)
-            .field("load_time", &self.load_time)
+        };
+        // SAFETY: the plugin interface defines this function as taking no arguments.
+        let version = unsafe { abi_version() };
+        if version != ABI_VERSION {
+            return Err(fail(format!(
+                "speaks plugin interface version {}, boxmux speaks {}",
+                version, ABI_VERSION
+            )));
+        }
+        // SAFETY: describe takes no arguments and returns a string freed with `free`.
+        let text = unsafe { take_string(describe(), free) }.map_err(fail)?;
+        let description: Description = serde_json::from_str(&text)
+            .map_err(|e| fail(format!("invalid description {}: {}", text, e)))?;
+        Ok((
+            Plugin {
+                name: description.name,
+                path: path.to_path_buf(),
+                render,
+                free,
+                _library: library,
+            },
+            description.components,
+        ))
+    }
+}
+
+/// Copies a string returned by a plugin and gives it back to the plugin to free.
+///
+/// # Safety
+/// `text` must be null or a NUL-terminated string allocated by the plugin whose `free` is
+/// given.
+unsafe fn take_string(text: *mut c_char, free: FreeFn) -> Result<String, String> {
+    if text.is_null() {
+        return Err("returned no string".to_string());
+    }
+    let copied = CStr::from_ptr(text).to_str().map(str::to_string);
+    free(text);
+    copied.map_err(|_| "returned a string that is not UTF-8".to_string())
+}
+
+/// The loaded plugins and the components they draw.
+#[derive(Default)]
+pub struct Plugins {
+    plugins: Vec<Plugin>,
+    /// Component type to the index of the plugin that draws it.
+    components: HashMap<String, usize>,
+}
+
+impl std::fmt::Debug for Plugins {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Plugins")
+            .field(
+                "plugins",
+                &self.plugins.iter().map(|p| &p.name).collect::<Vec<_>>(),
+            )
+            .field("components", &self.components.keys().collect::<Vec<_>>())
             .finish()
     }
 }
 
-/// Security manager for plugin permissions
-#[derive(Debug)]
-struct PluginSecurityManager {
-    allowed_paths: Vec<String>,
-    allowed_hosts: Vec<String>,
-    allowed_commands: Vec<String>,
-    _sandbox_enabled: bool,
-}
-
-impl Default for PluginRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PluginRegistry {
-    pub fn new() -> Self {
-        Self {
-            plugins: HashMap::new(),
-            component_types: HashMap::new(),
-            security_manager: PluginSecurityManager::new(),
-        }
-    }
-
-    /// Load a plugin from a directory
-    pub fn load_plugin<P: AsRef<Path>>(&mut self, plugin_path: P) -> Result<(), PluginError> {
-        let manifest_path = plugin_path.as_ref().join("plugin.toml");
-        let manifest = self.load_manifest(&manifest_path)?;
-
-        // Validate permissions
-        self.security_manager
-            .validate_permissions(&manifest.permissions)?;
-
-        // Try to load dynamic library first, fall back to mock if not available
-        let library_path = plugin_path.as_ref().join(&manifest.entry_point);
-        let (library, components) = if library_path.exists() {
-            self.load_dynamic_library(&library_path, &manifest)?
-        } else {
-            // Fall back to mock implementation for testing/development
-            (None, self.load_mock_components(&manifest)?)
-        };
-
-        let loaded_plugin = LoadedPlugin {
-            manifest: manifest.clone(),
-            components,
-            library,
-            is_active: true,
-            load_time: std::time::SystemTime::now(),
-        };
-
-        // Register component types
-        for component_type in &manifest.component_types {
-            self.component_types
-                .insert(component_type.clone(), manifest.name.clone());
-        }
-
-        self.plugins.insert(manifest.name.clone(), loaded_plugin);
-        Ok(())
-    }
-
-    /// Get a component by type
-    pub fn get_component(&self, component_type: &str) -> Option<&PluginComponent> {
-        if let Some(plugin_name) = self.component_types.get(component_type) {
-            if let Some(plugin) = self.plugins.get(plugin_name) {
-                return plugin.components.get(component_type);
-            }
-        }
-        None
-    }
-
-    /// Render a plugin component
-    pub fn render_component(
-        &self,
-        component_type: &str,
-        context: &PluginContext,
-        config: &ComponentConfig,
-    ) -> Result<String, PluginError> {
-        if let Some(component) = self.get_component(component_type) {
-            (component.render_fn)(context, config)
-        } else {
-            Err(PluginError::InvalidConfiguration(format!(
-                "Component type '{}' not found",
-                component_type
-            )))
-        }
-    }
-
-    /// Handle plugin events
-    pub fn handle_event(
-        &self,
-        component_type: &str,
-        context: &PluginContext,
-        event: &PluginEvent,
-    ) -> Result<(), PluginError> {
-        if let Some(component) = self.get_component(component_type) {
-            if let Some(handler) = &component.event_handler {
-                handler(context, event)
-            } else {
-                Ok(()) // No event handler defined
-            }
-        } else {
-            Err(PluginError::InvalidConfiguration(format!(
-                "Component type '{}' not found",
-                component_type
-            )))
-        }
-    }
-
-    /// List loaded plugins
-    pub fn list_plugins(&self) -> Vec<&PluginManifest> {
-        self.plugins.values().map(|p| &p.manifest).collect()
-    }
-
-    /// Unload a plugin
-    pub fn unload_plugin(&mut self, plugin_name: &str) -> Result<(), PluginError> {
-        if let Some(plugin) = self.plugins.remove(plugin_name) {
-            // Remove component type registrations
-            for component_type in &plugin.manifest.component_types {
-                self.component_types.remove(component_type);
-            }
-            Ok(())
-        } else {
-            Err(PluginError::InvalidConfiguration(format!(
-                "Plugin '{}' not found",
-                plugin_name
-            )))
-        }
-    }
-
-    pub fn load_manifest<P: AsRef<Path>>(
-        &self,
-        manifest_path: P,
-    ) -> Result<PluginManifest, PluginError> {
-        // Try to read actual TOML file, fall back to mock for testing
-        if manifest_path.as_ref().exists() {
-            let content = std::fs::read_to_string(manifest_path).map_err(|e| {
-                PluginError::InitializationFailed(format!("Failed to read manifest: {}", e))
-            })?;
-
-            toml::from_str(&content).map_err(|e| {
-                PluginError::InitializationFailed(format!("Failed to parse manifest: {}", e))
-            })
-        } else {
-            // Return mock manifest for testing when no actual file exists
-            Ok(PluginManifest {
-                name: "test_plugin".to_string(),
-                version: "1.0.0".to_string(),
-                author: "BoxMux Team".to_string(),
-                description: "Test plugin".to_string(),
-                entry_point: "lib.so".to_string(),
-                component_types: vec!["custom_chart".to_string()],
-                dependencies: vec![],
-                permissions: vec![],
-            })
-        }
-    }
-
-    /// Load dynamic library and extract components
-    fn load_dynamic_library<P: AsRef<Path>>(
-        &self,
-        library_path: P,
-        manifest: &PluginManifest,
-    ) -> Result<(Option<Library>, HashMap<String, PluginComponent>), PluginError> {
-        unsafe {
-            let library = Library::new(library_path.as_ref()).map_err(|e| {
-                PluginError::InitializationFailed(format!("Failed to load library: {}", e))
-            })?;
-
-            let mut components = HashMap::new();
-
-            // For each component type, try to load the required functions
-            for component_type in &manifest.component_types {
-                let render_fn_name = format!("{}_render", component_type);
-                let update_fn_name = format!("{}_update", component_type);
-                let event_fn_name = format!("{}_event", component_type);
-
-                // Load render function (required)
-                let render_symbol: RenderSymbol =
-                    library.get(render_fn_name.as_bytes()).map_err(|e| {
-                        PluginError::InitializationFailed(format!(
-                            "Failed to load render function '{}': {}",
-                            render_fn_name, e
-                        ))
-                    })?;
-
-                // Load update function (optional)
-                let update_fn = library
-                    .get(update_fn_name.as_bytes())
-                    .ok()
-                    .map(|symbol: UpdateSymbol| *symbol.into_raw());
-
-                // Load event handler (optional)
-                let event_handler = library
-                    .get(event_fn_name.as_bytes())
-                    .ok()
-                    .map(|symbol: EventSymbol| *symbol.into_raw());
-
-                let component = PluginComponent {
-                    component_type: component_type.clone(),
-                    render_fn: *render_symbol.into_raw(),
-                    update_fn,
-                    event_handler,
-                };
-
-                components.insert(component_type.clone(), component);
-            }
-
-            Ok((Some(library), components))
-        }
-    }
-
-    /// Load mock components for testing/fallback
-    fn load_mock_components(
-        &self,
-        manifest: &PluginManifest,
-    ) -> Result<HashMap<String, PluginComponent>, PluginError> {
-        let mut components = HashMap::new();
-
-        // Mock component loading for testing when no dynamic library available
-        for component_type in &manifest.component_types {
-            let component = PluginComponent {
-                component_type: component_type.clone(),
-                render_fn: mock_render_function,
-                update_fn: Some(mock_update_function),
-                event_handler: Some(mock_event_handler),
-            };
-            components.insert(component_type.clone(), component);
-        }
-
-        Ok(components)
-    }
-}
-
-impl PluginSecurityManager {
-    fn new() -> Self {
-        Self {
-            allowed_paths: vec!["/tmp".to_string(), "/var/log".to_string()],
-            allowed_hosts: vec!["localhost".to_string()],
-            allowed_commands: vec!["echo".to_string(), "date".to_string()],
-            _sandbox_enabled: true,
-        }
-    }
-
-    fn validate_permissions(&self, permissions: &[PluginPermission]) -> Result<(), PluginError> {
-        for permission in permissions {
-            match permission {
-                PluginPermission::FileSystem { paths } => {
-                    for path in paths {
-                        if !self.is_path_allowed(path) {
-                            return Err(PluginError::PermissionDenied(format!(
-                                "File system access to '{}' not allowed",
-                                path
-                            )));
-                        }
-                    }
+impl Plugins {
+    /// Loads every library in `paths`. Fails when a library cannot be loaded, speaks another
+    /// interface version, or offers a component another plugin already offers.
+    pub fn load(paths: &[PathBuf]) -> Result<Plugins, String> {
+        let mut loaded = Plugins::default();
+        for path in paths {
+            let (plugin, components) = Plugin::load(path)?;
+            let index = loaded.plugins.len();
+            for component in components {
+                if let Some(&other) = loaded.components.get(&component) {
+                    return Err(format!(
+                        "plugin {}: component '{}' is also offered by {}",
+                        path.display(),
+                        component,
+                        loaded.plugins[other].path.display()
+                    ));
                 }
-                PluginPermission::Network { hosts } => {
-                    for host in hosts {
-                        if !self.is_host_allowed(host) {
-                            return Err(PluginError::PermissionDenied(format!(
-                                "Network access to '{}' not allowed",
-                                host
-                            )));
-                        }
-                    }
-                }
-                PluginPermission::Process { commands } => {
-                    for command in commands {
-                        if !self.is_command_allowed(command) {
-                            return Err(PluginError::PermissionDenied(format!(
-                                "Process execution of '{}' not allowed",
-                                command
-                            )));
-                        }
-                    }
-                }
-                PluginPermission::Environment { variables: _ } => {
-                    // Environment variable access is generally allowed
-                }
+                loaded.components.insert(component, index);
             }
+            loaded.plugins.push(plugin);
         }
-        Ok(())
+        Ok(loaded)
     }
 
-    fn is_path_allowed(&self, path: &str) -> bool {
-        self.allowed_paths
-            .iter()
-            .any(|allowed| path.starts_with(allowed))
+    pub fn offers(&self, component: &str) -> bool {
+        self.components.contains_key(component)
     }
 
-    fn is_host_allowed(&self, host: &str) -> bool {
-        self.allowed_hosts.contains(&host.to_string())
+    /// The text the plugin draws for `component` in a `width` x `height` area.
+    pub fn render(
+        &self,
+        component: &str,
+        config: Option<&HashMap<String, serde_json::Value>>,
+        width: usize,
+        height: usize,
+    ) -> Result<String, String> {
+        let index = *self
+            .components
+            .get(component)
+            .ok_or_else(|| "no loaded plugin offers this component".to_string())?;
+        let plugin = &self.plugins[index];
+        let config =
+            serde_json::to_value(config.cloned().unwrap_or_default()).map_err(|e| e.to_string())?;
+        let request = serde_json::to_string(&RenderRequest {
+            component,
+            config: &config,
+            width,
+            height,
+        })
+        .map_err(|e| e.to_string())?;
+        let request = CString::new(request).map_err(|e| e.to_string())?;
+        // SAFETY: render takes a NUL-terminated string, which outlives the call, and returns a
+        // string freed with the plugin's free.
+        let reply = unsafe { take_string((plugin.render)(request.as_ptr()), plugin.free) }?;
+        let reply: RenderReply =
+            serde_json::from_str(&reply).map_err(|e| format!("invalid reply {}: {}", reply, e))?;
+        match (reply.content, reply.error) {
+            (Some(content), None) => Ok(content),
+            (None, Some(error)) => Err(error),
+            _ => Err("the reply must have either content or error".to_string()),
+        }
     }
-
-    fn is_command_allowed(&self, command: &str) -> bool {
-        self.allowed_commands.contains(&command.to_string())
-    }
-}
-
-// Mock functions for testing - would be replaced by actual plugin code
-fn mock_render_function(
-    _context: &PluginContext,
-    config: &ComponentConfig,
-) -> Result<String, PluginError> {
-    Ok(format!("Custom component: {}", config.component_type))
-}
-
-fn mock_update_function(
-    _context: &PluginContext,
-    _config: &ComponentConfig,
-) -> Result<ComponentState, PluginError> {
-    Ok(ComponentState {
-        content: "Updated content".to_string(),
-        metadata: HashMap::new(),
-        needs_refresh: false,
-    })
-}
-
-fn mock_event_handler(_context: &PluginContext, event: &PluginEvent) -> Result<(), PluginError> {
-    if let PluginEvent::KeyPress(key) = event {
-        log::debug!("Plugin received key press: {}", key);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
+
+    /// A plugin compiled from Rust source, in its own directory.
+    fn build_plugin(dir: &Path, name: &str, source: &str) -> PathBuf {
+        let source_path = dir.join(format!("{}.rs", name));
+        std::fs::write(&source_path, source).unwrap();
+        let output = dir.join(libloading::library_filename(name));
+        let status = Command::new("rustc")
+            .args(["--crate-type", "cdylib", "--edition", "2021", "-o"])
+            .arg(&output)
+            .arg(&source_path)
+            .status()
+            .expect("rustc runs");
+        assert!(status.success(), "the test plugin compiles");
+        output
+    }
+
+    const CLOCK: &str = r##"
+use std::ffi::{c_char, CStr, CString};
+
+#[no_mangle]
+pub extern "C" fn boxmux_plugin_abi_version() -> u32 { 1 }
+
+#[no_mangle]
+pub extern "C" fn boxmux_plugin_describe() -> *mut c_char {
+    CString::new(r#"{"name": "clock", "components": ["clock", "broken"]}"#).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn boxmux_plugin_render(request: *const c_char) -> *mut c_char {
+    let request = unsafe { CStr::from_ptr(request) }.to_str().unwrap();
+    let reply = if request.contains("\"component\":\"broken\"") {
+        r#"{"error": "sensor offline"}"#.to_string()
+    } else {
+        // Echo the size and config back so the test sees what was sent.
+        format!(r#"{{"content": "request {}"}}"#, request.replace('"', "'"))
+    };
+    CString::new(reply).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn boxmux_plugin_free(text: *mut c_char) {
+    unsafe { drop(CString::from_raw(text)) };
+}
+"##;
 
     #[test]
-    fn test_plugin_registry_creation() {
-        let registry = PluginRegistry::new();
-        assert_eq!(registry.plugins.len(), 0);
-        assert_eq!(registry.component_types.len(), 0);
+    fn a_plugin_renders_its_components_and_reports_its_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = build_plugin(dir.path(), "clock", CLOCK);
+        let plugins = Plugins::load(&[path]).unwrap();
+        assert!(plugins.offers("clock") && plugins.offers("broken") && !plugins.offers("x"));
+
+        let config: HashMap<String, serde_json::Value> =
+            [("zone".to_string(), serde_json::json!("UTC"))].into();
+        let text = plugins.render("clock", Some(&config), 30, 4).unwrap();
+        assert!(
+            text.contains("'width':30") && text.contains("'height':4"),
+            "{}",
+            text
+        );
+        assert!(text.contains("'zone':'UTC'"), "{}", text);
+
+        assert_eq!(
+            plugins.render("broken", None, 10, 1),
+            Err("sensor offline".to_string())
+        );
+        assert!(plugins.render("missing", None, 10, 1).is_err());
     }
 
     #[test]
-    fn test_plugin_manifest_serialization() {
-        let manifest = PluginManifest {
-            name: "test".to_string(),
-            version: "1.0.0".to_string(),
-            author: "test_author".to_string(),
-            description: "Test plugin".to_string(),
-            entry_point: "lib.so".to_string(),
-            component_types: vec!["custom_type".to_string()],
-            dependencies: vec![],
-            permissions: vec![PluginPermission::FileSystem {
-                paths: vec!["/tmp".to_string()],
-            }],
-        };
-
-        let serialized = serde_json::to_string(&manifest).unwrap();
-        let deserialized: PluginManifest = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(manifest.name, deserialized.name);
-        assert_eq!(manifest.version, deserialized.version);
+    fn a_plugin_of_another_interface_version_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = CLOCK.replace("-> u32 { 1 }", "-> u32 { 7 }");
+        let path = build_plugin(dir.path(), "future", &source);
+        let error = Plugins::load(&[path]).unwrap_err();
+        assert!(error.contains("version 7"), "{}", error);
     }
 
     #[test]
-    fn test_security_manager_path_validation() {
-        let security_manager = PluginSecurityManager::new();
-
-        assert!(security_manager.is_path_allowed("/tmp/test"));
-        assert!(!security_manager.is_path_allowed("/etc/passwd"));
+    fn two_plugins_cannot_offer_the_same_component() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = build_plugin(dir.path(), "first", CLOCK);
+        let second = build_plugin(dir.path(), "second", CLOCK);
+        let error = Plugins::load(&[first, second]).unwrap_err();
+        assert!(error.contains("'clock'"), "{}", error);
     }
 
     #[test]
-    fn test_component_config_parsing() {
-        let config_json = r#"{
-            "component_type": "custom_chart",
-            "properties": {
-                "title": "Test Chart",
-                "data_source": "metrics"
-            },
-            "refresh_interval": 5000
-        }"#;
-
-        let config: ComponentConfig = serde_json::from_str(config_json).unwrap();
-        assert_eq!(config.component_type, "custom_chart");
-        assert_eq!(config.refresh_interval, Some(5000));
-    }
-
-    #[test]
-    fn test_plugin_error_display() {
-        let error = PluginError::PermissionDenied("Test error".to_string());
-        assert!(format!("{:?}", error).contains("Test error"));
+    fn a_library_that_is_not_a_plugin_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = build_plugin(
+            dir.path(),
+            "plain",
+            "#[no_mangle] pub extern \"C\" fn f() {}",
+        );
+        let error = Plugins::load(&[path]).unwrap_err();
+        assert!(error.contains("boxmux_plugin_abi_version"), "{}", error);
     }
 }

@@ -9,7 +9,6 @@ use crate::ansi_processor::AnsiProcessor;
 fn test_g0_character_set_designation() {
     // F0318: Test G0 character set designation with ESC ( sequences
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Initially should be ASCII
     assert_eq!(processor.get_terminal_state().charset_g0, None);
@@ -40,7 +39,6 @@ fn test_g0_character_set_designation() {
 fn test_g1_character_set_designation() {
     // F0318: Test G1 character set designation with ESC ) sequences
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Initially should be None
     assert_eq!(processor.get_terminal_state().charset_g1, None);
@@ -70,8 +68,7 @@ fn test_g1_character_set_designation() {
 #[test]
 fn test_active_character_set_default() {
     // F0318: Test that G0 is active by default
-    let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
+    let processor = AnsiProcessor::with_screen_size(80, 24);
 
     // Default should be G0 active (0)
     assert_eq!(processor.get_terminal_state().active_charset, 0);
@@ -81,7 +78,6 @@ fn test_active_character_set_default() {
 fn test_shift_in_shift_out() {
     // F0318: Test SO (Shift Out) and SI (Shift In) character set switching
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set up G0 and G1 character sets
     processor.process_string("\x1b(B"); // G0 = ASCII
@@ -103,7 +99,6 @@ fn test_shift_in_shift_out() {
 fn test_dec_special_character_set() {
     // F0318: Test DEC Special Character Set with box drawing characters
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set G0 to DEC Special Character Set
     processor.process_string("\x1b(0");
@@ -129,7 +124,6 @@ fn test_dec_special_character_set() {
 fn test_uk_character_set() {
     // F0318: Test UK character set designation
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set G0 to UK character set
     processor.process_string("\x1b(A");
@@ -150,7 +144,6 @@ fn test_uk_character_set() {
 fn test_character_set_persistence_across_operations() {
     // F0318: Test that character set settings persist across other operations
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set up character sets
     processor.process_string("\x1b(0"); // G0 = DEC
@@ -176,7 +169,6 @@ fn test_character_set_persistence_across_operations() {
 fn test_character_set_with_alternate_screen() {
     // F0318: Test character set behavior with alternate screen buffer
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set character sets in primary screen
     processor.process_string("\x1b(0"); // G0 = DEC
@@ -216,7 +208,6 @@ fn test_character_set_with_alternate_screen() {
 fn test_reset_character_sets() {
     // F0318: Test character set reset behavior
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set up character sets
     processor.process_string("\x1b(0"); // G0 = DEC
@@ -235,7 +226,6 @@ fn test_reset_character_sets() {
 fn test_multiple_character_set_switches() {
     // F0318: Test multiple character set switches in sequence
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Set up character sets
     processor.process_string("\x1b(B"); // G0 = ASCII
@@ -259,16 +249,16 @@ fn test_multiple_character_set_switches() {
 fn test_character_set_edge_cases() {
     // F0318: Test character set edge cases and invalid designations
     let mut processor = AnsiProcessor::with_screen_size(80, 24);
-    processor.set_screen_mode(true);
 
     // Test invalid character set designation (should be ignored or handle gracefully)
     processor.process_string("\x1b(X"); // Invalid character set
 
-    // Test empty designation
-    processor.process_string("\x1b("); // Incomplete sequence
+    processor.process_string("ok ");
 
-    // Processor should still be functional
+    // A designation split across two writes completes with the next byte, as on a real
+    // terminal: the `T` finishes `ESC ( T` and is not shown.
+    processor.process_string("\x1b(");
     processor.process_string("Test");
     let content = processor.get_processed_text();
-    assert!(content.contains("Test"));
+    assert_eq!(content, "ok est");
 }

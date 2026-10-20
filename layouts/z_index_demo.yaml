@@ -7,7 +7,7 @@ app:
       # Background box (z_index: -1, appears behind)
       - id: background
         title: "Background Layer"
-        bounds:
+        position:
           x1: 10%
           y1: 10%
           x2: 90%
@@ -20,7 +20,7 @@ app:
       # Middle box (default z_index: 0) 
       - id: middle
         title: "Middle Layer"
-        bounds:
+        position:
           x1: 20%
           y1: 20%
           x2: 80%
@@ -32,7 +32,7 @@ app:
       # Foreground box (z_index: 10, appears on top)
       - id: foreground
         title: "Foreground Layer"
-        bounds:
+        position:
           x1: 30%
           y1: 30%
           x2: 70%
@@ -50,7 +50,7 @@ app:
       # Nested example with child z-index
       - id: parent_container
         title: "Container with Nested Z-Index"
-        bounds:
+        position:
           x1: 60%
           y1: 10%
           x2: 95%
@@ -61,7 +61,7 @@ app:
         children:
           - id: child_behind
             title: "Child Behind"
-            bounds:
+            position:
               x1: 5%
               y1: 10%
               x2: 95%
@@ -72,7 +72,7 @@ app:
             
           - id: child_front
             title: "Child Front"
-            bounds:
+            position:
               x1: 10%
               y1: 20%
               x2: 90%

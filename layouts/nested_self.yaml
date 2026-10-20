@@ -39,7 +39,7 @@ app:
               
             - id: "pty_process"
               content: "Start PTY Process"
-              execution_mode: "Pty"
+              execution_mode: Pty
               script:
                 - "boxmux /Users/bahram/ws/prj/boxmux/layouts/multi_stream_tabs_demo.yaml"
               redirect_output: "multi_stream_box"
@@ -54,7 +54,7 @@ app:
             y2: "95%"
           border_color: "yellow"
           selected_border_color: "bright_yellow"
-          tab_order: "1"
+          tab_order: 1
           choices:
             - id: "external_stream"
               content: "Add External Stream"

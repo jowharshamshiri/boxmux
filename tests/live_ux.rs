@@ -1,562 +1,255 @@
-use boxmux_lib::components::TabBar;
-use boxmux_lib::{Bounds, InputBounds};
+//! End-to-end tests: the real `boxmux` binary in a pseudo-terminal, driven with keyboard and
+//! SGR mouse input, its screen read back through a small terminal emulator.
+
+#![cfg(unix)]
+
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use std::fs::{self, File, OpenOptions};
+use std::fs;
 use std::io::{Read, Write};
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
-use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+use unicode_width::UnicodeWidthChar;
 
 const WIDTH: u16 = 100;
 const HEIGHT: u16 = 30;
-const TIMEOUT: Duration = Duration::from_secs(8);
-static LIVE_UX_TEST_LOCK: Mutex<()> = Mutex::new(());
+const TIMEOUT: Duration = Duration::from_secs(10);
 
-#[test]
-fn live_choice_text_click_executes_exact_choice() {
-    let _lock = LIVE_UX_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _process_lock = LiveUxProcessLock::acquire();
-    let fixture = Fixture::new();
-    let yaml = fixture.write_yaml();
-    let mut app = LiveBoxMux::spawn(&yaml, fixture.log_path());
-
-    app.wait_for_text("Build Now");
-    app.wait_for_text("Run Tests");
-    app.click_text("Build Now");
-
-    fixture.wait_for_marker("build", "build");
-    fixture.assert_marker_missing("test");
+fn binary() -> &'static str {
+    env!("CARGO_BIN_EXE_boxmux")
 }
 
-#[test]
-fn live_click_after_choice_text_does_not_execute_choice() {
-    let _lock = LIVE_UX_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _process_lock = LiveUxProcessLock::acquire();
-    let fixture = Fixture::new();
-    let yaml = fixture.write_yaml();
-    let mut app = LiveBoxMux::spawn(&yaml, fixture.log_path());
-
-    let (x, y) = app.wait_for_text("Build Now");
-    app.click_at(x + "Build Now".len() + 3, y);
-
-    fixture.assert_marker_missing_after("build", Duration::from_millis(700));
-    fixture.assert_marker_missing("test");
-}
-
-#[test]
-fn live_close_glyph_click_closes_redirected_tab() {
-    let _lock = LIVE_UX_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _process_lock = LiveUxProcessLock::acquire();
-    let fixture = Fixture::new();
-    let yaml = fixture.write_close_tab_yaml();
-    let mut app = LiveBoxMux::spawn(&yaml, fixture.log_path());
-
-    app.wait_for_text("Open Closeable");
-    app.click_text("Open Closeable");
-    app.wait_for_text("CLOSE_ME_PAYLOAD");
-
-    let close_x = close_cell_for_output_fixture();
-    app.click_at(close_x, 2);
-    app.wait_until_text_absent("CLOSE_ME_PAYLOAD");
-}
-
-#[test]
-fn live_machinefabric_shape_central_close_glyph_click_closes_redirected_tab() {
-    let _lock = LIVE_UX_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _process_lock = LiveUxProcessLock::acquire();
-    let fixture = Fixture::new();
-    let yaml = fixture.write_machinefabric_shape_yaml();
-    let mut app = LiveBoxMux::spawn(&yaml, fixture.log_path());
-
-    app.wait_for_text("Dev website run");
-    app.click_text("Dev website run");
-    app.wait_for_text("MACHINEFABRIC_CENTRAL_PAYLOAD");
-
-    let (close_x, close_y) = close_cell_for_machinefabric_central_fixture();
-    app.click_at(close_x, close_y);
-    app.wait_until_text_absent("MACHINEFABRIC_CENTRAL_PAYLOAD");
-}
-
-fn close_cell_for_output_fixture() -> usize {
-    let tab_labels = vec!["Content".to_string(), "Choice".to_string()];
-    let tab_close_buttons = vec![false, true];
-    let fg = Some("white".to_string());
-    let bg = Some("black".to_string());
-    let close_cells = (0..WIDTH as usize)
-        .filter(|x| {
-            TabBar::calculate_tab_close_click(
-                *x,
-                44,
-                98,
-                &tab_labels,
-                &tab_close_buttons,
-                0,
-                &fg,
-                &bg,
-            ) == Some(1)
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        close_cells.len(),
-        1,
-        "fixture should expose exactly one close cell"
-    );
-    close_cells[0]
-}
-
-fn close_cell_for_machinefabric_central_fixture() -> (usize, usize) {
-    let bounds = machinefabric_central_bounds();
-    let tab_labels = vec!["Content".to_string(), "Choice".to_string()];
-    let tab_close_buttons = vec![false, true];
-    let fg = Some("white".to_string());
-    let bg = Some("black".to_string());
-    let close_cells = (0..WIDTH as usize)
-        .filter(|x| {
-            TabBar::calculate_tab_close_click(
-                *x,
-                bounds.x1,
-                bounds.x2,
-                &tab_labels,
-                &tab_close_buttons,
-                0,
-                &fg,
-                &bg,
-            ) == Some(1)
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        close_cells.len(),
-        1,
-        "MachineFabric-shaped central panel should expose exactly one close cell"
-    );
-    (close_cells[0], bounds.y1)
-}
-
-fn machinefabric_central_bounds() -> Bounds {
-    InputBounds {
-        x1: "25%".to_string(),
-        y1: "8%".to_string(),
-        x2: "73%".to_string(),
-        y2: "70%".to_string(),
-    }
-    .to_bounds(&Bounds {
-        x1: 0,
-        y1: 0,
-        x2: WIDTH as usize - 1,
-        y2: HEIGHT as usize - 1,
-    })
-}
-
+/// A temporary directory holding one test's configuration, socket, log and marker files.
 struct Fixture {
     tmp: TempDir,
 }
 
-struct LiveUxProcessLock {
-    file: File,
-}
-
-impl LiveUxProcessLock {
-    fn acquire() -> Self {
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open("/tmp/boxmux-live-ux.lock")
-            .expect("failed to open live UX process lock");
-        let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-        if rc != 0 {
-            panic!(
-                "failed to acquire live UX process lock: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        Self { file }
-    }
-}
-
-impl Drop for LiveUxProcessLock {
-    fn drop(&mut self) {
-        let rc = unsafe { libc::flock(self.file.as_raw_fd(), libc::LOCK_UN) };
-        if rc != 0 {
-            panic!(
-                "failed to release live UX process lock: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-    }
-}
-
 impl Fixture {
-    fn new() -> Self {
-        Self {
-            tmp: tempfile::tempdir().expect("failed to create live ux tempdir"),
-        }
+    fn new() -> Fixture {
+        let tmp = tempfile::tempdir().expect("temporary directory");
+        fs::create_dir(tmp.path().join("markers")).unwrap();
+        Fixture { tmp }
     }
 
-    fn marker_path(&self, name: &str) -> PathBuf {
-        self.tmp.path().join("markers").join(name)
+    fn path(&self, name: &str) -> PathBuf {
+        self.tmp.path().join(name)
     }
 
-    fn log_path(&self) -> PathBuf {
-        self.tmp.path().join("boxmux.log")
+    fn marker(&self, name: &str) -> PathBuf {
+        self.path("markers").join(name)
     }
 
-    fn write_yaml(&self) -> PathBuf {
-        let marker_dir = self.tmp.path().join("markers");
-        fs::create_dir(&marker_dir).expect("failed to create marker dir");
-
-        let yaml_path = self.tmp.path().join("live_ux.yaml");
-        let build_marker = shell_quote(&self.marker_path("build"));
-        let test_marker = shell_quote(&self.marker_path("test"));
-        let yaml = format!(
-            r#"app:
-  layouts:
-    - id: "live_ux"
-      title: "Live UX"
-      root: true
-      children:
-        - id: "menu"
-          title: "Commands"
-          position:
-            x1: "2"
-            y1: "2"
-            x2: "42"
-            y2: "14"
-          tab_order: "1"
-          choices:
-            - id: "build"
-              content: "Build Now"
-              execution_mode: "Immediate"
-              script: "printf build > {build_marker}"
-            - id: "test"
-              content: "Run Tests"
-              execution_mode: "Immediate"
-              script: "printf test > {test_marker}"
-        - id: "output"
-          title: "Output"
-          position:
-            x1: "44"
-            y1: "2"
-            x2: "98"
-            y2: "14"
-          content: "Waiting"
-"#
-        );
-        fs::write(&yaml_path, yaml).expect("failed to write live ux yaml");
-        yaml_path
+    fn socket(&self) -> PathBuf {
+        self.path("boxmux.sock")
     }
 
-    fn write_close_tab_yaml(&self) -> PathBuf {
-        let yaml_path = self.tmp.path().join("live_close_tab.yaml");
-        let yaml = r#"app:
-  layouts:
-    - id: "live_close_tab"
-      title: "Live Close Tab"
-      root: true
-      children:
-        - id: "menu"
-          title: "Commands"
-          position:
-            x1: "2"
-            y1: "2"
-            x2: "42"
-            y2: "14"
-          tab_order: "1"
-          choices:
-            - id: "close_me"
-              content: "Open Closeable"
-              execution_mode: "Immediate"
-              redirect_output: "output"
-              script: "printf CLOSE_ME_PAYLOAD"
-        - id: "output"
-          title: "Output"
-          position:
-            x1: "44"
-            y1: "2"
-            x2: "98"
-            y2: "14"
-          content: "READY"
-"#;
-        fs::write(&yaml_path, yaml).expect("failed to write live close tab yaml");
-        yaml_path
+    fn write_config(&self, yaml: &str) -> PathBuf {
+        let path = self.path("app.yaml");
+        fs::write(&path, yaml).unwrap();
+        path
     }
 
-    fn write_machinefabric_shape_yaml(&self) -> PathBuf {
-        let yaml_path = self.tmp.path().join("machinefabric_shape.yaml");
-        let yaml = r#"app:
-  layouts:
-    - id: "machinefabric_shape"
-      title: "MachineFabric Shape"
-      root: true
-      children:
-        - id: "run_menu"
-          title: "Run"
-          position:
-            x1: "1%"
-            y1: "8%"
-            x2: "24%"
-            y2: "45%"
-          tab_order: "1"
-          choices:
-            - id: "dev_run"
-              content: "Dev website run"
-              execution_mode: "Immediate"
-              redirect_output: "output"
-              script: "printf MACHINEFABRIC_CENTRAL_PAYLOAD"
-        - id: "tests"
-          title: "Test"
-          position:
-            x1: "1%"
-            y1: "46%"
-            x2: "24%"
-            y2: "91%"
-          content: "Website dev tests"
-        - id: "output"
-          title: "Content"
-          position:
-            x1: "25%"
-            y1: "8%"
-            x2: "73%"
-            y2: "70%"
-          content: "READY"
-          scroll: true
-          auto_scroll_bottom: true
-        - id: "inspector"
-          title: "Inspector"
-          position:
-            x1: "25%"
-            y1: "71%"
-            x2: "73%"
-            y2: "91%"
-          content: "Git status"
-        - id: "right"
-          title: "Fabric / Release / Models / Mon"
-          position:
-            x1: "74%"
-            y1: "46%"
-            x2: "99%"
-            y2: "91%"
-          content: "Fabric staging update"
-        - id: "footer"
-          title: "Content"
-          position:
-            x1: "0%"
-            y1: "92%"
-            x2: "100%"
-            y2: "99%"
-          content: "Run from repo root"
-"#;
-        fs::write(&yaml_path, yaml).expect("failed to write MachineFabric-shaped live yaml");
-        yaml_path
-    }
-
-    fn wait_for_marker(&self, name: &str, expected: &str) {
-        let path = self.marker_path(name);
+    fn wait_for_marker(&self, name: &str) -> String {
+        let path = self.marker(name);
         let start = Instant::now();
         loop {
-            match fs::read_to_string(&path) {
-                Ok(actual) if actual == expected => return,
-                Ok(actual) => panic!(
-                    "marker {} had unexpected content {:?}, expected {:?}",
-                    path.display(),
-                    actual,
-                    expected
-                ),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                    if start.elapsed() > TIMEOUT {
-                        panic!(
-                            "marker {} was not created within {:?}\nboxmux log:\n{}",
-                            path.display(),
-                            TIMEOUT,
-                            self.boxmux_log()
-                        );
-                    }
-                    thread::sleep(Duration::from_millis(25));
+            if let Ok(text) = fs::read_to_string(&path) {
+                if !text.is_empty() {
+                    return text;
                 }
-                Err(err) => panic!("failed to read marker {}: {}", path.display(), err),
             }
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "marker {} was not written\nlog:\n{}",
+                name,
+                self.log()
+            );
+            thread::sleep(Duration::from_millis(20));
         }
     }
 
-    fn assert_marker_missing(&self, name: &str) {
-        let path = self.marker_path(name);
-        assert!(
-            !path.exists(),
-            "marker {} exists with content {:?}",
-            path.display(),
-            fs::read_to_string(&path).ok()
-        );
+    fn assert_no_marker_after(&self, name: &str, wait: Duration) {
+        thread::sleep(wait);
+        assert!(!self.marker(name).exists(), "marker {} was written", name);
     }
 
-    fn assert_marker_missing_after(&self, name: &str, duration: Duration) {
-        thread::sleep(duration);
-        self.assert_marker_missing(name);
+    fn log(&self) -> String {
+        fs::read_to_string(self.path("boxmux.log")).unwrap_or_default()
     }
 
-    fn boxmux_log(&self) -> String {
-        fs::read_to_string(self.log_path())
-            .unwrap_or_else(|err| format!("failed to read {}: {}", self.log_path().display(), err))
+    /// Runs `boxmux --socket <socket> <args>` as a control client.
+    fn control(&self, args: &[&str]) -> std::process::Output {
+        let mut child = Command::new(binary())
+            .arg("--socket")
+            .arg(self.socket())
+            .args(args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("the control client starts");
+        let start = Instant::now();
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                return child.wait_with_output().unwrap();
+            }
+            if start.elapsed() > TIMEOUT {
+                child.kill().unwrap();
+                panic!(
+                    "`boxmux {}` did not finish: the socket hangs",
+                    args.join(" ")
+                );
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
     }
 }
 
+/// A running boxmux in a pseudo-terminal.
 struct LiveBoxMux {
     child: Box<dyn portable_pty::Child + Send + Sync>,
     writer: Box<dyn Write + Send>,
     output: Receiver<Vec<u8>>,
-    screen: TerminalScreen,
-    log_path: PathBuf,
+    /// Every byte boxmux wrote to the terminal.
+    raw: Vec<u8>,
+    screen: Screen,
     _reader: thread::JoinHandle<()>,
 }
 
 impl LiveBoxMux {
-    fn spawn(yaml_path: &Path, log_path: PathBuf) -> Self {
-        let binary = option_env!("CARGO_BIN_EXE_boxmux")
-            .expect("CARGO_BIN_EXE_boxmux must be set for live ux integration tests");
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let command = format!(
-            "cd {} && exec {} {} --frame_delay 20 --log-level error --log-file {}",
-            shell_quote(&repo_root),
-            shell_quote(Path::new(binary)),
-            shell_quote(yaml_path),
-            shell_quote(&log_path)
-        );
-
-        let pty_system = native_pty_system();
-        let pair = pty_system
+    fn spawn(fixture: &Fixture, config: &Path) -> LiveBoxMux {
+        let pair = native_pty_system()
             .openpty(PtySize {
                 rows: HEIGHT,
                 cols: WIDTH,
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .expect("failed to open PTY for live boxmux test");
-
-        let mut cmd = CommandBuilder::new("bash");
-        cmd.arg("-lc");
-        cmd.arg(command);
-
-        let child = pair
-            .slave
-            .spawn_command(cmd)
-            .expect("failed to spawn boxmux in PTY");
-        let writer = pair
-            .master
-            .take_writer()
-            .expect("failed to take PTY writer");
-        let mut reader = pair
-            .master
-            .try_clone_reader()
-            .expect("failed to clone PTY reader");
+            .expect("a PTY");
+        let mut command = CommandBuilder::new(binary());
+        command.arg(config);
+        command.args(["--frame-delay", "10", "--log-level", "debug", "--log-file"]);
+        command.arg(fixture.path("boxmux.log"));
+        command.arg("--socket");
+        command.arg(fixture.socket());
+        command.cwd(fixture.tmp.path());
+        command.env("TERM", "xterm-256color");
+        let child = pair.slave.spawn_command(command).expect("boxmux starts");
+        drop(pair.slave);
+        let writer = pair.master.take_writer().unwrap();
+        let mut reader = pair.master.try_clone_reader().unwrap();
         let (tx, rx) = mpsc::channel();
         let reader_thread = thread::spawn(move || {
-            let mut buf = [0_u8; 4096];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if tx.send(buf[..n].to_vec()).is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => break,
+            let mut buf = [0u8; 8192];
+            while let Ok(n) = reader.read(&mut buf) {
+                if n == 0 || tx.send(buf[..n].to_vec()).is_err() {
+                    break;
                 }
             }
         });
-
-        Self {
+        // Keep the master open for as long as the reader runs.
+        std::mem::forget(pair.master);
+        LiveBoxMux {
             child,
             writer,
             output: rx,
-            screen: TerminalScreen::new(WIDTH as usize, HEIGHT as usize),
-            log_path,
+            raw: Vec::new(),
+            screen: Screen::new(WIDTH as usize, HEIGHT as usize),
             _reader: reader_thread,
         }
+    }
+
+    fn pid(&self) -> i32 {
+        self.child.process_id().expect("boxmux has a pid") as i32
+    }
+
+    fn pump(&mut self, wait: Duration) {
+        if let Ok(bytes) = self.output.recv_timeout(wait) {
+            self.accept(bytes);
+            while let Ok(bytes) = self.output.try_recv() {
+                self.accept(bytes);
+            }
+        }
+    }
+
+    fn accept(&mut self, bytes: Vec<u8>) {
+        self.screen.apply(&bytes);
+        self.raw.extend(bytes);
     }
 
     fn wait_for_text(&mut self, needle: &str) -> (usize, usize) {
         let start = Instant::now();
         loop {
-            self.drain_available_output(Duration::from_millis(50));
-            if let Some(pos) = self.screen.find_text(needle) {
-                return pos;
+            self.pump(Duration::from_millis(30));
+            if let Some(at) = self.screen.find(needle) {
+                return at;
             }
-            if start.elapsed() > TIMEOUT {
-                panic!(
-                    "text {:?} was not rendered within {:?}\n{}\nboxmux log:\n{}",
-                    needle,
-                    TIMEOUT,
-                    self.screen.text(),
-                    self.boxmux_log()
-                );
-            }
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "{:?} did not appear:\n{}",
+                needle,
+                self.screen.text()
+            );
         }
     }
 
-    fn wait_until_text_absent(&mut self, needle: &str) {
+    fn wait_until_gone(&mut self, needle: &str) {
         let start = Instant::now();
         loop {
-            self.drain_available_output(Duration::from_millis(50));
-            if self.screen.find_text(needle).is_none() {
+            self.pump(Duration::from_millis(30));
+            if self.screen.find(needle).is_none() {
                 return;
             }
-            if start.elapsed() > TIMEOUT {
-                panic!(
-                    "text {:?} was still rendered after {:?}\n{}\nboxmux log:\n{}",
-                    needle,
-                    TIMEOUT,
-                    self.screen.text(),
-                    self.boxmux_log()
-                );
-            }
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "{:?} is still shown:\n{}",
+                needle,
+                self.screen.text()
+            );
         }
+    }
+
+    fn send(&mut self, bytes: &str) {
+        self.writer.write_all(bytes.as_bytes()).unwrap();
+        self.writer.flush().unwrap();
+    }
+
+    fn press(&mut self, x: usize, y: usize) {
+        self.send(&format!("\x1b[<0;{};{}M", x + 1, y + 1));
+    }
+
+    fn drag_to(&mut self, x: usize, y: usize) {
+        self.send(&format!("\x1b[<32;{};{}M", x + 1, y + 1));
+    }
+
+    fn release(&mut self, x: usize, y: usize) {
+        self.send(&format!("\x1b[<0;{};{}m", x + 1, y + 1));
+    }
+
+    fn click(&mut self, x: usize, y: usize) {
+        self.press(x, y);
+        self.release(x, y);
     }
 
     fn click_text(&mut self, text: &str) {
         let (x, y) = self.wait_for_text(text);
-        self.click_at(x, y);
+        self.click(x, y);
     }
 
-    fn click_at(&mut self, zero_based_x: usize, zero_based_y: usize) {
-        let x = zero_based_x + 1;
-        let y = zero_based_y + 1;
-        write!(self.writer, "\x1b[<0;{};{}M\x1b[<0;{};{}m", x, y, x, y)
-            .expect("failed to write SGR mouse click to PTY");
-        self.writer
-            .flush()
-            .expect("failed to flush PTY mouse click");
-    }
-
-    fn drain_available_output(&mut self, first_wait: Duration) {
-        match self.output.recv_timeout(first_wait) {
-            Ok(bytes) => self.screen.apply(&bytes),
-            Err(mpsc::RecvTimeoutError::Timeout) => return,
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                panic!("boxmux PTY output disconnected\n{}", self.screen.text())
+    /// Waits for boxmux to exit and returns whether it exited successfully.
+    fn wait_for_exit(&mut self) -> bool {
+        let start = Instant::now();
+        loop {
+            self.pump(Duration::from_millis(20));
+            if let Some(status) = self.child.try_wait().unwrap() {
+                // Collect what was written just before exiting.
+                self.pump(Duration::from_millis(100));
+                return status.success();
             }
+            assert!(start.elapsed() < TIMEOUT, "boxmux did not exit");
         }
-
-        while let Ok(bytes) = self.output.try_recv() {
-            self.screen.apply(&bytes);
-        }
-    }
-
-    fn boxmux_log(&self) -> String {
-        fs::read_to_string(&self.log_path)
-            .unwrap_or_else(|err| format!("failed to read {}: {}", self.log_path.display(), err))
     }
 }
 
@@ -567,198 +260,416 @@ impl Drop for LiveBoxMux {
     }
 }
 
-struct TerminalScreen {
+const MENU: &str = r#"
+app:
+  layouts:
+    - id: main
+      title: Live
+      root: true
+      children:
+        - id: menu
+          title: Commands
+          position: {x1: "2", y1: "2", x2: "42", y2: "14"}
+          tab_order: 1
+          choices:
+            - id: build
+              content: Build Now
+              script: ["printf build > markers/build"]
+            - id: test
+              content: Run Tests
+              script: ["printf test > markers/test"]
+            - id: show
+              content: Show Output
+              redirect_output: output
+              script: ["echo REDIRECTED_PAYLOAD"]
+        - id: output
+          title: Output
+          position: {x1: "44", y1: "2", x2: "98", y2: "14"}
+          content: READY
+"#;
+
+#[test]
+fn clicking_a_choice_label_runs_exactly_that_choice() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(MENU);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("Run Tests");
+    app.click_text("Build Now");
+    assert_eq!(fixture.wait_for_marker("build"), "build");
+    fixture.assert_no_marker_after("test", Duration::from_millis(300));
+}
+
+#[test]
+fn clicking_beside_a_choice_label_runs_nothing() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(MENU);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    let (x, y) = app.wait_for_text("Build Now");
+    app.click(x + "Build Now".len() + 4, y);
+    fixture.assert_no_marker_after("build", Duration::from_millis(700));
+}
+
+#[test]
+fn redirected_output_opens_a_tab_that_its_close_button_closes() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(MENU);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.click_text("Show Output");
+    app.wait_for_text("REDIRECTED_PAYLOAD");
+    let (x, y) = app.wait_for_text("×");
+    app.click(x, y);
+    app.wait_until_gone("REDIRECTED_PAYLOAD");
+    app.wait_for_text("READY");
+}
+
+#[test]
+fn control_commands_answer_and_change_the_screen() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(MENU);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("READY");
+
+    let output = fixture.control(&["replace_box_content", "output", "FROM_THE_SOCKET"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    app.wait_for_text("FROM_THE_SOCKET");
+
+    let output = fixture.control(&["replace_box_content", "nonexistent", "x"]);
+    assert!(!output.status.success(), "an unknown box is an error");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("nonexistent"), "{}", stderr);
+
+    let output = fixture.control(&["query_pty_status", "menu"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stdout.is_empty() || !stderr.is_empty(),
+        "query_pty_status answers"
+    );
+}
+
+#[test]
+fn keys_typed_into_a_focused_terminal_reach_the_program() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: shell
+          title: Terminal
+          position: {x1: "0", y1: "0", x2: "60", y2: "12"}
+          tab_order: 1
+          execution_mode: Pty
+          script: ['printf "ready> "; read line; echo "got:$line"; sleep 30']
+"#,
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("ready>");
+    app.send("abc q\r");
+    app.wait_for_text("got:abc q");
+}
+
+#[test]
+fn quitting_leaves_no_process_behind() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: worker
+          position: {x1: "0", y1: "0", x2: "40", y2: "10"}
+          execution_mode: Thread
+          script: ['sleep 300 & echo $! > markers/child', 'echo started', 'wait']
+"#,
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("started");
+    let child: i32 = fixture.wait_for_marker("child").trim().parse().unwrap();
+    app.send("q");
+    assert!(app.wait_for_exit(), "q exits successfully");
+    let start = Instant::now();
+    while unsafe { libc::kill(child, 0) } == 0 {
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "the script's child {} survived",
+            child
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn dragging_a_box_saves_its_new_position_to_the_configuration() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: mover
+          title: Mover
+          position: {x1: "10", y1: "5", x2: "30", y2: "10"}
+          content: drag me
+"#,
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("drag me");
+    // The top border, away from the title.
+    app.press(12, 5);
+    app.drag_to(16, 7);
+    app.release(16, 7);
+    let start = Instant::now();
+    loop {
+        let text = fs::read_to_string(&config).unwrap();
+        if text.contains("x1: \"14\"") {
+            assert!(
+                text.contains("y1: \"7\"")
+                    && text.contains("x2: \"34\"")
+                    && text.contains("y2: \"12\""),
+                "{}",
+                text
+            );
+            boxmux_lib::load_app_from_yaml(&config).expect("the saved configuration still loads");
+            break;
+        }
+        assert!(
+            start.elapsed() < TIMEOUT,
+            "position not saved:\n{}\nlog:\n{}",
+            text,
+            fixture.log()
+        );
+        app.pump(Duration::from_millis(30));
+    }
+}
+
+#[test]
+fn a_termination_signal_restores_the_terminal() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(MENU);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("READY");
+    let before = app.raw.len();
+    assert_eq!(unsafe { libc::kill(app.pid(), libc::SIGTERM) }, 0);
+    app.wait_for_exit();
+    let after = String::from_utf8_lossy(&app.raw[before..]).to_string();
+    assert!(
+        after.contains("\x1b[?1049l"),
+        "the alternate screen is left: {:?}",
+        after
+    );
+    assert!(
+        after.contains("\x1b[?25h"),
+        "the cursor is shown again: {:?}",
+        after
+    );
+}
+
+#[test]
+fn an_invalid_configuration_is_reported_and_exits_with_failure() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config("app:\n  layouts:\n    - id: main\n      children:\n        - id: a\n          position: {x1: \"0\", y1: \"0\", x2: \"5\", y2: \"5\"}\n          border_color: purple\n");
+    let output = Command::new(binary())
+        .arg(&config)
+        .arg("--socket")
+        .arg(fixture.socket())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("border_color"), "{}", stderr);
+}
+
+/// Enough of a terminal to read what boxmux draws: cursor movement, erasing and UTF-8 text.
+struct Screen {
     width: usize,
     height: usize,
     cells: Vec<Vec<char>>,
-    cursor_x: usize,
-    cursor_y: usize,
-    saved_cursor: Option<(usize, usize)>,
+    x: usize,
+    y: usize,
+    pending: Vec<u8>,
 }
 
-impl TerminalScreen {
-    fn new(width: usize, height: usize) -> Self {
-        Self {
+impl Screen {
+    fn new(width: usize, height: usize) -> Screen {
+        Screen {
             width,
             height,
             cells: vec![vec![' '; width]; height],
-            cursor_x: 0,
-            cursor_y: 0,
-            saved_cursor: None,
+            x: 0,
+            y: 0,
+            pending: Vec::new(),
         }
     }
 
     fn apply(&mut self, bytes: &[u8]) {
+        self.pending.extend_from_slice(bytes);
+        let data = std::mem::take(&mut self.pending);
         let mut i = 0;
-        while i < bytes.len() {
-            match bytes[i] {
-                b'\x1b' => i = self.apply_escape(bytes, i + 1),
+        while i < data.len() {
+            match data[i] {
+                0x1b => match self.escape(&data, i) {
+                    Some(next) => i = next,
+                    None => {
+                        self.pending = data[i..].to_vec();
+                        return;
+                    }
+                },
                 b'\r' => {
-                    self.cursor_x = 0;
+                    self.x = 0;
                     i += 1;
                 }
                 b'\n' => {
-                    self.cursor_y = (self.cursor_y + 1).min(self.height.saturating_sub(1));
+                    self.y = (self.y + 1).min(self.height - 1);
                     i += 1;
                 }
-                b'\x08' => {
-                    self.cursor_x = self.cursor_x.saturating_sub(1);
-                    i += 1;
+                byte if byte < 0x20 => i += 1,
+                _ => {
+                    let len = match data[i] {
+                        b if b < 0x80 => 1,
+                        b if b >= 0xf0 => 4,
+                        b if b >= 0xe0 => 3,
+                        _ => 2,
+                    };
+                    if i + len > data.len() {
+                        self.pending = data[i..].to_vec();
+                        return;
+                    }
+                    if let Ok(text) = std::str::from_utf8(&data[i..i + len]) {
+                        for ch in text.chars() {
+                            self.put(ch);
+                        }
+                    }
+                    i += len;
                 }
-                byte if byte.is_ascii_graphic() || byte == b' ' => {
-                    self.put(byte as char);
-                    i += 1;
-                }
-                byte if byte >= 0x80 => {
-                    i += self.skip_utf8_width(bytes, i);
-                }
-                _ => i += 1,
             }
         }
     }
 
-    fn apply_escape(&mut self, bytes: &[u8], i: usize) -> usize {
-        if i >= bytes.len() {
-            return i;
-        }
-
-        match bytes[i] {
-            b'[' => self.apply_csi(bytes, i + 1),
-            b']' => self.skip_osc(bytes, i + 1),
-            b'7' => {
-                self.saved_cursor = Some((self.cursor_x, self.cursor_y));
-                i + 1
-            }
-            b'8' => {
-                if let Some((x, y)) = self.saved_cursor {
-                    self.cursor_x = x.min(self.width.saturating_sub(1));
-                    self.cursor_y = y.min(self.height.saturating_sub(1));
+    /// Handles the escape sequence at `i`; `None` when it is not complete yet.
+    fn escape(&mut self, data: &[u8], i: usize) -> Option<usize> {
+        match *data.get(i + 1)? {
+            b'[' => {
+                let mut j = i + 2;
+                while (0x20..0x40).contains(data.get(j)?) {
+                    j += 1;
                 }
-                i + 1
+                let params: Vec<usize> = String::from_utf8_lossy(&data[i + 2..j])
+                    .trim_start_matches('?')
+                    .split(';')
+                    .map(|p| p.parse().unwrap_or(0))
+                    .collect();
+                let n = |k: usize| params.get(k).copied().filter(|v| *v > 0).unwrap_or(1);
+                match data[j] {
+                    b'H' | b'f' => {
+                        self.y = (n(0) - 1).min(self.height - 1);
+                        self.x = (n(1) - 1).min(self.width - 1);
+                    }
+                    b'J' if params.first() == Some(&2) => {
+                        for row in &mut self.cells {
+                            row.fill(' ');
+                        }
+                    }
+                    b'K' => {
+                        for x in self.x..self.width {
+                            self.cells[self.y][x] = ' ';
+                        }
+                    }
+                    _ => {}
+                }
+                Some(j + 1)
             }
-            _ => i + 1,
-        }
-    }
-
-    fn apply_csi(&mut self, bytes: &[u8], mut i: usize) -> usize {
-        let start = i;
-        while i < bytes.len() {
-            let byte = bytes[i];
-            if (0x40..=0x7e).contains(&byte) {
-                let params = String::from_utf8_lossy(&bytes[start..i]);
-                self.handle_csi(&params, byte as char);
-                return i + 1;
-            }
-            i += 1;
-        }
-        i
-    }
-
-    fn handle_csi(&mut self, params: &str, command: char) {
-        let clean_params = params
-            .trim_start_matches('?')
-            .split(';')
-            .map(|part| part.parse::<usize>().unwrap_or(0))
-            .collect::<Vec<_>>();
-        let n = |index: usize, default: usize| -> usize {
-            clean_params
-                .get(index)
-                .copied()
-                .filter(|v| *v > 0)
-                .unwrap_or(default)
-        };
-
-        match command {
-            'H' | 'f' => {
-                self.cursor_y = n(0, 1).saturating_sub(1).min(self.height.saturating_sub(1));
-                self.cursor_x = n(1, 1).saturating_sub(1).min(self.width.saturating_sub(1));
-            }
-            'A' => self.cursor_y = self.cursor_y.saturating_sub(n(0, 1)),
-            'B' => self.cursor_y = (self.cursor_y + n(0, 1)).min(self.height.saturating_sub(1)),
-            'C' => self.cursor_x = (self.cursor_x + n(0, 1)).min(self.width.saturating_sub(1)),
-            'D' => self.cursor_x = self.cursor_x.saturating_sub(n(0, 1)),
-            'J' if clean_params.first().copied().unwrap_or(0) == 2 => self.clear(),
-            'K' => {
-                for x in self.cursor_x..self.width {
-                    self.cells[self.cursor_y][x] = ' ';
+            b']' => {
+                let mut j = i + 2;
+                loop {
+                    match *data.get(j)? {
+                        0x07 => return Some(j + 1),
+                        0x1b if data.get(j + 1) == Some(&b'\\') => return Some(j + 2),
+                        _ => j += 1,
+                    }
                 }
             }
-            's' => self.saved_cursor = Some((self.cursor_x, self.cursor_y)),
-            'u' => {
-                if let Some((x, y)) = self.saved_cursor {
-                    self.cursor_x = x.min(self.width.saturating_sub(1));
-                    self.cursor_y = y.min(self.height.saturating_sub(1));
-                }
-            }
-            _ => {}
+            _ => Some(i + 2),
         }
-    }
-
-    fn skip_osc(&self, bytes: &[u8], mut i: usize) -> usize {
-        while i < bytes.len() {
-            if bytes[i] == b'\x07' {
-                return i + 1;
-            }
-            if bytes[i] == b'\x1b' && bytes.get(i + 1) == Some(&b'\\') {
-                return i + 2;
-            }
-            i += 1;
-        }
-        i
-    }
-
-    fn skip_utf8_width(&mut self, bytes: &[u8], i: usize) -> usize {
-        let width = if bytes[i] & 0b1110_0000 == 0b1100_0000 {
-            2
-        } else if bytes[i] & 0b1111_0000 == 0b1110_0000 {
-            3
-        } else if bytes[i] & 0b1111_1000 == 0b1111_0000 {
-            4
-        } else {
-            1
-        };
-        self.put(' ');
-        width
     }
 
     fn put(&mut self, ch: char) {
-        if self.cursor_y < self.height && self.cursor_x < self.width {
-            self.cells[self.cursor_y][self.cursor_x] = ch;
+        let width = ch.width().unwrap_or(0);
+        if width == 0 {
+            return;
         }
-        self.cursor_x += 1;
-        if self.cursor_x >= self.width {
-            self.cursor_x = 0;
-            self.cursor_y = (self.cursor_y + 1).min(self.height.saturating_sub(1));
+        if self.x < self.width {
+            self.cells[self.y][self.x] = ch;
+            if width == 2 && self.x + 1 < self.width {
+                self.cells[self.y][self.x + 1] = '\0';
+            }
         }
+        self.x = (self.x + width).min(self.width - 1);
     }
 
-    fn clear(&mut self) {
-        for row in &mut self.cells {
-            row.fill(' ');
-        }
-        self.cursor_x = 0;
-        self.cursor_y = 0;
+    fn row(&self, y: usize) -> String {
+        self.cells[y].iter().filter(|c| **c != '\0').collect()
     }
 
-    fn find_text(&self, needle: &str) -> Option<(usize, usize)> {
-        self.cells.iter().enumerate().find_map(|(y, row)| {
-            let line = row.iter().collect::<String>();
-            line.find(needle).map(|x| (x, y))
+    /// The cell where `needle` starts.
+    fn find(&self, needle: &str) -> Option<(usize, usize)> {
+        (0..self.height).find_map(|y| {
+            let row = self.row(y);
+            let byte = row.find(needle)?;
+            Some((row[..byte].chars().map(|c| c.width().unwrap_or(0)).sum(), y))
         })
     }
 
     fn text(&self) -> String {
-        self.cells
-            .iter()
-            .map(|row| row.iter().collect::<String>())
+        (0..self.height)
+            .map(|y| self.row(y))
             .collect::<Vec<_>>()
             .join("\n")
     }
 }
 
-fn shell_quote(path: &Path) -> String {
-    let value = path
-        .to_str()
-        .unwrap_or_else(|| panic!("path is not valid UTF-8: {}", path.display()));
-    format!("'{}'", value.replace('\'', "'\\''"))
+#[test]
+fn the_socket_option_goes_before_or_after_a_control_command_but_interface_options_do_not() {
+    let fixture = Fixture::new();
+    let socket = fixture.socket();
+    for args in [
+        vec![
+            "--socket",
+            socket.to_str().unwrap(),
+            "query_pty_status",
+            "b",
+        ],
+        vec![
+            "query_pty_status",
+            "--socket",
+            socket.to_str().unwrap(),
+            "b",
+        ],
+    ] {
+        let output = Command::new(binary()).args(&args).output().unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Nothing listens on the socket: the command was understood and tried to connect.
+        assert!(
+            stderr.contains("cannot reach a boxmux instance"),
+            "{:?}: {}",
+            args,
+            stderr
+        );
+    }
+    let output = Command::new(binary())
+        .args(["--frame-delay", "5", "query_pty_status", "b"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("frame-delay cannot be used"));
 }
