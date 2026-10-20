@@ -357,27 +357,18 @@ pub fn load_app_from_yaml(path: &Path) -> Result<App, String> {
 
 /// Like [`load_app_from_yaml`], for configuration text named `source` in error messages.
 pub fn load_app_from_str(contents: &str, source: &str) -> Result<App, String> {
-    let mut document: serde_yaml::Value =
-        serde_yaml::from_str(contents).map_err(|e| format_yaml_error(&e, contents, source))?;
-    document
-        .apply_merge()
-        .map_err(|e| format!("{}: invalid merge key: {}", source, e))?;
+    let mut document = crate::yaml::parse(contents)
+        .map_err(|e| crate::yaml::describe_error(&e, contents, source))?;
 
     crate::model::variables::substitute_document(&mut document, &|name| std::env::var(name).ok())
         .map_err(|e| format!("{}: {}", source, e))?;
 
-    let json = serde_json::to_value(&document).map_err(|e| {
-        format!(
-            "{}: configuration cannot be represented as data: {}",
-            source, e
-        )
-    })?;
-    validate_schema(&json).map_err(|errors| {
+    validate_schema(&document).map_err(|errors| {
         let lines: Vec<String> = errors.iter().map(|e| format!("  {}", e)).collect();
         format!("{}: invalid configuration:\n{}", source, lines.join("\n"))
     })?;
 
-    let root: TemplateRoot = serde_yaml::from_value(document)
+    let root: TemplateRoot = serde_json::from_value(document)
         .map_err(|e| format!("{}: invalid configuration: {}", source, e))?;
     let mut app = root.app;
     validate_semantics(&app).map_err(|errors| {
@@ -386,26 +377,6 @@ pub fn load_app_from_str(contents: &str, source: &str) -> Result<App, String> {
     })?;
     app.setup();
     Ok(app)
-}
-
-/// A YAML syntax error with the offending line of `contents` and a caret under the column.
-fn format_yaml_error(error: &serde_yaml::Error, contents: &str, source: &str) -> String {
-    let Some(location) = error.location() else {
-        return format!("{}: {}", source, error);
-    };
-    let (line, column) = (location.line(), location.column());
-    let mut message = format!("{}:{}:{}: {}", source, line, column, error);
-    if let Some(text) = contents.lines().nth(line.saturating_sub(1)) {
-        let number = line.to_string();
-        message.push_str(&format!(
-            "\n{} | {}\n{} | {}^",
-            number,
-            text,
-            " ".repeat(number.len()),
-            " ".repeat(column.saturating_sub(1))
-        ));
-    }
-    message
 }
 
 #[cfg(test)]

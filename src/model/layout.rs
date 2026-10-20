@@ -533,7 +533,7 @@ mod tests {
         for key in ["active: true", "border: true"] {
             let yaml = format!("id: l\n{}\nchildren: []\n", key);
             assert!(
-                serde_yaml::from_str::<Layout>(&yaml).is_err(),
+                crate::yaml::from_str::<Layout>(&yaml).is_err(),
                 "`{}` must not be accepted",
                 key
             );

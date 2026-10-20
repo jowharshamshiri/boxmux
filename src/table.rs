@@ -347,7 +347,7 @@ mod tests {
     use super::*;
 
     fn settings(yaml: &str) -> TableSettings {
-        serde_yaml::from_str(yaml).unwrap()
+        crate::yaml::from_str(yaml).unwrap()
     }
 
     #[test]

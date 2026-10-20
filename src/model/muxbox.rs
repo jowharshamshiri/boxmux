@@ -352,14 +352,14 @@ mod tests {
     }
 
     fn muxbox_from_yaml(yaml: &str) -> MuxBox {
-        let mut muxbox: MuxBox = serde_yaml::from_str(yaml).expect("valid box");
+        let mut muxbox: MuxBox = crate::yaml::from_str(yaml).expect("valid box");
         muxbox.initialize_streams();
         muxbox
     }
 
     #[test]
     fn unknown_keys_are_rejected_instead_of_ignored() {
-        let result: Result<MuxBox, _> = serde_yaml::from_str(
+        let result: Result<MuxBox, _> = crate::yaml::from_str(
             "id: a\nposition: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}\npty: true\n",
         );
         let message = result.expect_err("`pty` is not a box field").to_string();
@@ -373,7 +373,7 @@ mod tests {
         );
         muxbox.parent_layout_id = Some("layout".into());
         muxbox.tab_scroll_offset = 1;
-        let yaml = serde_yaml::to_string(&muxbox).unwrap();
+        let yaml = serde_saphyr::to_string(&muxbox).unwrap();
         for runtime_key in [
             "streams",
             "selected_stream_id",
@@ -388,7 +388,7 @@ mod tests {
                 yaml
             );
         }
-        let reloaded: MuxBox = serde_yaml::from_str(&yaml).expect("serialized box loads again");
+        let reloaded: MuxBox = crate::yaml::from_str(&yaml).expect("serialized box loads again");
         assert_eq!(reloaded.id, "a");
     }
 

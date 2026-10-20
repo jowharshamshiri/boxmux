@@ -68,23 +68,20 @@ where
     #[serde(untagged)]
     enum ScriptFormat {
         Single(String),
-        Sequence(Vec<serde_yaml::Value>),
+        Sequence(Vec<serde_json::Value>),
     }
 
-    fn element_text<E: Error>(value: serde_yaml::Value) -> Result<String, E> {
+    fn element_text<E: Error>(value: serde_json::Value) -> Result<String, E> {
         match value {
-            serde_yaml::Value::String(s) => Ok(s),
-            serde_yaml::Value::Number(n) => Ok(n.to_string()),
-            serde_yaml::Value::Bool(b) => Ok(b.to_string()),
-            serde_yaml::Value::Mapping(_) => serde_yaml::to_string(&value)
+            serde_json::Value::String(s) => Ok(s),
+            serde_json::Value::Number(n) => Ok(n.to_string()),
+            serde_json::Value::Bool(b) => Ok(b.to_string()),
+            serde_json::Value::Object(_) => serde_saphyr::to_string(&value)
                 .map(|text| text.trim_end().to_string())
                 .map_err(|e| E::custom(format!("script element cannot be shown as text: {}", e))),
-            serde_yaml::Value::Null => Err(E::custom("script element is empty")),
-            serde_yaml::Value::Sequence(_) => Err(E::custom(
+            serde_json::Value::Null => Err(E::custom("script element is empty")),
+            serde_json::Value::Array(_) => Err(E::custom(
                 "script elements must be strings, not nested lists",
-            )),
-            serde_yaml::Value::Tagged(_) => Err(E::custom(
-                "script elements must be strings, not tagged values",
             )),
         }
     }
@@ -123,12 +120,12 @@ mod tests {
             script: Option<Vec<String>>,
         }
         let holder: Holder =
-            serde_yaml::from_str("script: |\n  cat <<EOF\n    indented\n\n  EOF\n").unwrap();
+            crate::yaml::from_str("script: |\n  cat <<EOF\n    indented\n\n  EOF\n").unwrap();
         assert_eq!(
             holder.script.unwrap(),
             vec!["cat <<EOF\n  indented\n\nEOF\n".to_string()]
         );
-        let holder: Holder = serde_yaml::from_str("script:\n  - echo a: b\n  - 42\n").unwrap();
+        let holder: Holder = crate::yaml::from_str("script:\n  - echo a: b\n  - 42\n").unwrap();
         assert_eq!(holder.script.unwrap(), vec!["echo a: b", "42"]);
     }
 

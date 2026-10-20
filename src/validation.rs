@@ -463,7 +463,7 @@ mod tests {
     }
 
     fn semantic_errors(yaml: &str) -> Vec<String> {
-        let root: crate::model::app::TemplateRoot = serde_yaml::from_str(yaml).unwrap();
+        let root: crate::model::app::TemplateRoot = crate::yaml::from_str(yaml).unwrap();
         validate_semantics(&root.app)
             .err()
             .unwrap_or_default()
