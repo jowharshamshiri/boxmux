@@ -33,6 +33,11 @@ path = "src/lib.rs"
 name = "boxmux"
 path = "src/main.rs"
 
+# Runs itself as a child process that panics, so it has its own main.
+[[test]]
+name = "panic_cleanup"
+harness = false
+
 [dependencies]
 chrono = "0.4"
 clap = "4.0"
