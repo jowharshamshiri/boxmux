@@ -1,602 +1,416 @@
 ---
 title: Advanced Features
-description: Mouse support, hot keys, clipboard integration, navigation, and performance monitoring.
+description: Variables, script libraries, output redirection and saving, hot keys and key handlers, focus order, layering, anchored sizing, socket control from scripts, embedded terminals and plugins.
 ---
 
 
 ## Table of Contents
 
-- [Mouse Click Support](#mouse-click-support)
-- [Hot Key Actions](#hot-key-actions)
-- [Enhanced Navigation](#enhanced-navigation)
-- [Clipboard Integration](#clipboard-integration)
-- [Enhanced Scrolling](#enhanced-scrolling)
-- [Performance Monitoring](#performance-monitoring)
-- [Configuration Schema Validation](#configuration-schema-validation)
-- [Manual Socket Implementation](#manual-socket-implementation)
-- [Real-World Examples](#real-world-examples)
+- [Variables](#variables)
+- [Script libraries](#script-libraries)
+- [Output handling](#output-handling)
+- [Hot keys and key handlers](#hot-keys-and-key-handlers)
+- [Focus order](#focus-order)
+- [Layering with z_index](#layering-with-z_index)
+- [Anchors and size limits](#anchors-and-size-limits)
+- [Controlling BoxMux from its own scripts](#controlling-boxmux-from-its-own-scripts)
+- [Embedded terminals](#embedded-terminals)
+- [Plugins](#plugins)
 
-## Mouse Click Support
+## Variables
 
-BoxMux provides mouse interaction for navigation and control.
+`variables` can be set on the app, on a layout and on any box. `${NAME}` is replaced by the
+value of `NAME`, looked up in this order:
 
-### Features
+1. the box the string belongs to,
+2. its enclosing boxes, nearest first,
+3. the layout,
+4. the app,
+5. the process environment.
 
-- **Box Selection**: Click to select and focus boxes
-- **Menu Activation**: Click menu items to trigger actions
-- **Parent Box Auto-selection**: Menu clicks automatically select parent box
-- **Scrollable Content**: Auto-selectability for boxes with scrollable content
-- **Non-blocking Execution**: Threaded execution prevents UI freezing
-- **Visual Feedback**: Immediate visual feedback on clicks
+`${NAME:default}` uses `default` when `NAME` is not defined anywhere, and the default may
+itself contain references: `${PORT:${DEFAULT_PORT}}`. Values may be strings, numbers or
+booleans.
 
-### Usage
+Substitution happens once, in every string of the file (titles, content, scripts, colors,
+positions), before the file is checked. Substituted values are not scanned again, so a value
+containing `${...}` is inserted as written. The result of a substitution is text, so settings
+that take a number or a boolean (`refresh_interval`, `tab_order`, `z_index`, `append_output`
+and so on) cannot come from a variable.
+
+Some forms are left for the shell:
+
+- `$${` writes a literal `${`.
+- A reference to a name defined nowhere, without a default, is left as written, so the shell
+  can expand it when the script runs (for example a loop variable `${i}`).
+- Shell syntax such as `${X:-y}`, `${#list[@]}` or `${file%.txt}` is left as written.
 
 ```yaml
-# Enable mouse interaction (enabled by default)
 app:
-  mouse_enabled: true
+  variables:
+    ENVIRONMENT: staging
+    DEFAULT_HOST: localhost
   layouts:
-    - id: 'interactive'
+    - id: main
+      root: true
+      title: Services (${ENVIRONMENT})
+      variables:
+        REGION: eu-west
       children:
-        - id: 'sensitive_menu'
-          title: 'Actions (Click to Execute)'
-          choices:
-            - id: 'deploy'
-              content: 'Deploy Application'
-              script: ['./deploy.sh']
-            - id: 'test'
-              content: 'Run Tests'
-              script: ['cargo test']
-              
-        - id: 'output_box'
-          title: 'Output (Click to Focus)'
-          position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
-          content: 'Click this box to focus and enable scrolling'
+        - id: services
+          title: Services
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          variables:
+            SERVICE: api
+          children:
+            - id: api_status
+              title: ${SERVICE} on ${HOST:${DEFAULT_HOST}}
+              position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+              refresh_interval: 5000
+              script:
+                - echo "Checking ${SERVICE} in ${ENVIRONMENT} (${REGION})"
+                - for i in 1 2 3; do echo "attempt ${i}"; done
+            - id: db_status
+              title: database
+              position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+              variables:
+                SERVICE: database
+              script:
+                - echo "Checking ${SERVICE} for user ${USER:unknown}"
 ```
 
-### Mouse Interaction Behavior
+Here `api_status` takes `SERVICE` from its enclosing box, `db_status` overrides it, `HOST`
+falls back to `DEFAULT_HOST` unless the environment defines it, and `${i}` reaches the shell
+unchanged. See [Variables](/docs/variables) for more.
 
-- **Single Click**: Select box and focus for keyboard input
-- **Menu Clicks**: Execute choice action and redirect output to target box
-- **Box Focus**: Enable keyboard scrolling and input routing
-- **Visual Indicators**: Focused boxes show distinct border colors
+## Script libraries
 
-## Hot Key Actions
+`app.libs` lists script files that are sourced before every script BoxMux runs (box scripts,
+choices, key handlers and terminals). Relative paths are relative to the YAML file.
 
-Global keyboard shortcuts to trigger specific choice actions without menu navigation.
+```yaml
+app:
+  libs:
+    - lib/helpers.sh
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: report
+          title: Report
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          script:
+            - print_header "Disk"
+            - df -h
+```
 
-### Features
+with `lib/helpers.sh`:
 
-- **Global Shortcuts**: F1-F24 function keys for instant action execution
-- **Direct Choice Execution**: Bypass menu navigation for frequently used commands
-- **Background Execution**: Actions run in background threads
-- **Output Redirection**: Hot key actions support output redirection
-- **Visual Feedback**: Hot key mappings shown in box titles
+```bash
+print_header() {
+    echo "== $1 =="
+}
+```
 
-### Configuration
+Each library is sourced with `. 'path'`, in `bash`, `sh`, `zsh` and PowerShell alike, so write
+the libraries for the shell the app uses (`app.shell`).
+
+## Output handling
+
+| Setting | Where | Effect |
+|---------|-------|--------|
+| `redirect_output` | box, choice | Shows the output in another box (any layout), in a tab of its own. Needs a script. |
+| `append_output` | box, choice | Adds each run's output after the previous output instead of replacing it. |
+| `auto_scroll_bottom` | box | Scrolls to the newest line when the visible tab gets new output. |
+| `save_in_file` | box | After each run of the box's script, writes its output (without color codes) to this file, replacing the file's contents. Relative paths are relative to the YAML file. |
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: actions
+          title: Actions
+          position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+          tab_order: 1
+          choices:
+            - id: build
+              content: Build
+              script:
+                - cargo build 2>&1
+              execution_mode: Thread
+              redirect_output: log
+            - id: stamp
+              content: Add timestamp
+              script:
+                - date
+              redirect_output: log
+              append_output: true
+
+        - id: log
+          title: Log
+          position: {x1: 30%, y1: 0%, x2: 100%, y2: 70%}
+          auto_scroll_bottom: true
+          content: Output of the actions appears here in new tabs.
+
+        - id: uptime
+          title: Uptime (saved to uptime.txt)
+          position: {x1: 30%, y1: 70%, x2: 100%, y2: 100%}
+          refresh_interval: 10000
+          save_in_file: uptime.txt
+          script:
+            - uptime
+```
+
+## Hot keys and key handlers
+
+`app.hot_keys` maps a key to the id of a choice. Pressing the key runs that choice as if it had
+been selected, provided the choice is in the layout being shown. The choice must exist, or the
+file does not load.
+
+`on_keypress` maps a key to script lines. It can be set on the app, on a layout and on a box:
+
+- App and layout handlers run in the background; their output is not shown, and a failure
+  appears as a message on the bottom row. A handler that is still running is not started again.
+- A box handler runs when that box has the focus and its visible tab is not a menu. Its output
+  appears in a tab of the box, or of its `redirect_output` box, streamed line by line.
 
 ```yaml
 app:
   hot_keys:
-    'F1': 'build'           # F1 triggers build action
-    'F2': 'test'            # F2 triggers test action
-    'F3': 'deploy'          # F3 triggers deploy action
-    'F5': 'refresh_all'     # F5 refreshes all boxes
-    'F9': 'git_status'      # F9 shows git status
-    'F12': 'system_info'    # F12 shows system info
-    
+    F5: refresh_now
+    Ctrl+t: run_tests
+  on_keypress:
+    Ctrl+l:
+      - date >> keypress.log
   layouts:
-    - id: 'development'
-      title: 'Dev Environment (F1=Build, F2=Test, F3=Deploy)'
-      children:
-        - id: 'menu'
-          title: 'Quick Actions'
-          choices:
-            - id: 'build'
-              content: 'Build Project [F1]'
-              script: ['cargo build']
-              redirect_output: 'output'
-              
-            - id: 'test'
-              content: 'Run Tests [F2]'
-              script: ['cargo test']
-              redirect_output: 'output'
-              
-            - id: 'deploy'
-              content: 'Deploy [F3]'
-              script: ['./deploy.sh']
-              redirect_output: 'output'
-              
-        - id: 'output'
-          title: 'Build/Test Output'
-          position: {x1: 0%, y1: 40%, x2: 100%, y2: 100%}
-```
-
-### Hot Key Best Practices
-
-```yaml
-# Group related actions by function key ranges
-app:
-  hot_keys:
-    # Build/Test (F1-F4)
-    'F1': 'build_debug'
-    'F2': 'build_release'
-    'F3': 'test_unit'
-    'F4': 'test_integration'
-    
-    # Git operations (F5-F8)
-    'F5': 'git_status'
-    'F6': 'git_pull'
-    'F7': 'git_commit'
-    'F8': 'git_push'
-    
-    # System monitoring (F9-F12)
-    'F9': 'cpu_usage'
-    'F10': 'memory_usage'
-    'F11': 'disk_usage'
-    'F12': 'system_logs'
-```
-
-## Enhanced Navigation
-
-Keyboard navigation with Home/End scrolling and proportional scrollbars.
-
-### Features
-
-- **Home/End Horizontal**: Home/End keys scroll to beginning/end of lines (0%/100%)
-- **Ctrl+Home/End Vertical**: Ctrl+Home/End scroll to top/bottom of content (0%/100%)
-- **Proportional Scrollbars**: Scrollbar knob size reflects content proportions
-- **Accurate Positioning**: Knob position accurately represents scroll location
-- **Visual Feedback**: Scrollbars show exact scroll state and content ratio
-
-### Navigation Keys
-
-```
-Home          - Scroll to beginning of current line (horizontal 0%)
-End           - Scroll to end of current line (horizontal 100%)
-Ctrl+Home     - Scroll to top of content (vertical 0%)
-Ctrl+End      - Scroll to bottom of content (vertical 100%)
-Arrow Keys    - Line-by-line scrolling
-Page Up/Down  - Page-based scrolling
-```
-
-### Navigation Configuration
-
-```yaml
-# Box with enhanced navigation
-- id: 'large_content'
-  title: 'Large Content (Home/End/Ctrl+Home/End navigation)'
-  position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
-  scrollable: true
-  navigation_enabled: true
-  script:
-    - |
-      echo "=== Large Content for Navigation Demo ==="
-      for i in {1..100}; do
-        echo "Line $i: This is a very long line that extends beyond the box width to demonstrate horizontal scrolling capabilities in BoxMux boxes"
-      done
-```
-
-### Proportional Scrollbar Behavior
-
-- **Large Knob**: When content is only slightly larger than viewport (e.g., 1 extra line)
-- **Small Knob**: When there's much more content than fits in viewport
-- **Reaches End**: Knob reaches bottom/right edge when scrolled to 100%
-- **Smooth Movement**: Knob position reflects exact scroll percentage
-
-```yaml
-# Example: Different content ratios
-- id: 'small_overflow'
-  title: 'Small Overflow (Large Knob)'
-  script: ['seq 1 25']  # Only 5 extra lines - large scrollbar knob
-  
-- id: 'large_overflow' 
-  title: 'Large Overflow (Small Knob)'
-  script: ['seq 1 1000'] # Many extra lines - small scrollbar knob
-```
-
-## Clipboard Integration
-
-BoxMux provides platform-specific clipboard integration with visual feedback.
-
-### Features
-
-- **Ctrl+C Integration**: Copy focused box content to system clipboard
-- **Visual Feedback**: Brief visual indication when content is copied
-- **Platform Support**: Works on macOS, Linux, and Windows
-- **Content Selection**: Copies complete box content or selected regions
-
-### Usage
-
-1. **Navigate** to a box using Tab key or mouse
-2. **Press Ctrl+C** to copy box content to clipboard
-3. **Visual flash** indicates successful copy operation
-4. **Paste** content in any application using standard clipboard operations
-
-### Configuration
-
-```yaml
-# Enable clipboard for specific boxes
-- id: 'results_box'
-  title: 'Command Results'
-  clipboard_enabled: true  # Allow clipboard copying
-  script:
-    - ps aux | head -20
-```
-
-### Implementation Details
-
-- Platform-specific clipboard APIs:
-  - **macOS**: `pbcopy` command integration
-  - **Linux**: `xclip` or `xsel` command integration
-  - **Windows**: Windows clipboard API
-- Visual feedback through brief color change
-- Error handling for clipboard access failures
-
-## Enhanced Scrolling
-
-BoxMux provides advanced scrolling capabilities with position preservation and navigation controls.
-
-### Features
-
-- **Position Preservation**: Maintains scroll position during auto-refresh
-- **Page Navigation**: Page Up/Down keyboard support for efficient scrolling  
-- **Visual Indicators**: Scroll position indicators and scrollbar detection
-- **Smooth Scrolling**: Smooth scrolling with configurable scroll amounts
-- **Auto-sizing**: Automatic scrollbar detection for focusable boxes
-
-### Keyboard Controls
-
-- **Arrow Keys**: Line-by-line scrolling (Up/Down)
-- **Page Up/Down**: Page-based scrolling (10x scroll amount)
-- **Home/End**: Jump to beginning/end of content
-- **Mouse Wheel**: Scroll support (where available)
-
-### Configuration
-
-```yaml
-# Box with enhanced scrolling
-- id: 'scrollable_output'
-  title: 'Large Output'
-  position: {x1: 10%, y1: 10%, x2: 90%, y2: 80%}
-  scroll: true
-  scroll_config:
-    preserve_position: true    # Maintain position during refresh
-    show_indicators: true      # Show scroll position
-    page_size: 10             # Lines per page scroll
-    smooth_scrolling: true    # Enable smooth scrolling
-  refresh_interval: 2000
-  script:
-    - ps aux | head -100  # Large output for scrolling demo
-```
-
-### Advanced Scrolling Features
-
-```yaml
-# Auto-refresh with scroll preservation
-- id: 'live_data'
-  title: 'Live Data Stream'
-  scroll: true
-  scroll_config:
-    preserve_position: true
-    auto_scroll_new: false    # Don't auto-scroll to new content
-    scroll_buffer_size: 1000  # Maximum lines to keep
-  refresh_interval: 1000
-  script:
-    - date && ps aux | head -50
-```
-
-## Performance Monitoring
-
-BoxMux includes built-in performance monitoring and benchmarking capabilities.
-
-### Performance Benchmarks
-
-BoxMux tracks performance metrics for core operations:
-
-- **ANSI Stripping**: 10k operations in ~1.5s
-- **Key Mapping**: 150k operations in ~2.2s  
-- **Bounds Calculation**: 100k operations in ~20ms
-- **Script Execution**: 100 operations in ~575ms
-- **Large Config Processing**: 1k operations in ~38ms
-
-### Monitoring Configuration
-
-```yaml
-# Performance monitoring box
-- id: 'performance'
-  title: 'System Performance'
-  position: {x1: 5%, y1: 10%, x2: 95%, y2: 50%}
-  performance_monitoring: true
-  refresh_interval: 5000
-  script:
-    - |
-      echo "BoxMux Performance Metrics:"
-      echo "=========================="
-      echo "Memory Usage: $(ps -o rss= -p $$) KB"
-      echo "CPU Usage: $(ps -o %cpu= -p $$)%"
-      echo "Uptime: $(uptime -p)"
-      echo "Active Boxes: $(pgrep -f boxmux | wc -l)"
-```
-
-### Performance Testing
-
-```yaml
-# Load testing configuration
-- id: 'load_test'
-  title: 'Load Test Results'
-  performance_test: true
-  test_config:
-    duration: 60        # Test duration in seconds
-    refresh_rate: 100   # Fast refresh for stress testing
-    data_volume: 'high' # High data volume test
-  script:
-    - |
-      # Generate high-volume output for testing
-      for i in {1..1000}; do
-        echo "Test line $i: $(date)"
-      done
-```
-
-## Configuration Schema Validation
-
-BoxMux includes comprehensive JSON Schema validation for YAML configurations.
-
-### Features
-
-- **Automatic Validation**: Configuration files validated on load
-- **Detailed Error Messages**: Line/column specific error reporting
-- **Schema Coverage**: Complete schema validation for all configuration sections
-- **Type Checking**: Strict type validation and required field checking
-
-### Error Reporting
-
-When loading invalid configuration:
-
-```bash
-$ boxmux invalid-config.yaml
-Error: Configuration validation failed
-  --> invalid-config.yaml:15:3
-   |
-15 |   position: "invalid"
-   |   ^^^^^^^^ expected object with x1, y1, x2, y2 properties
-   |
-   = help: position must be an object with percentage-based coordinates
-```
-
-### Schema Validation Configuration
-
-```yaml
-# Enable strict validation
-app:
-  validation:
-    schema_validation: true     # Enable JSON schema validation
-    strict_mode: true          # Fail on any validation error
-    validate_scripts: true     # Validate script syntax
-    validate_colors: true      # Validate color names
-```
-
-### Custom Validation Rules
-
-```yaml
-# Custom validation for specific fields
-app:
-  validation:
-    custom_rules:
-      - field: 'refresh_interval'
-        min_value: 100           # Minimum refresh interval
-        max_value: 300000        # Maximum refresh interval
-      - field: 'position'
-        validate_bounds: true    # Validate position bounds
-```
-
-## Manual Socket Implementation
-
-BoxMux uses a manual Unix socket implementation without external dependencies for maximum control and reliability.
-
-### Features
-
-- **Manual Implementation**: Direct Unix socket handling using `std::os::unix::net`
-- **No External Dependencies**: Self-contained socket communication
-- **Full Control**: Complete control over socket lifecycle and message handling
-- **Error Recovery**: Comprehensive error handling and connection recovery
-- **Performance**: Optimized for low-latency communication
-
-### Socket Commands
-
-BoxMux supports comprehensive socket API:
-
-```bash
-# Update box content
-echo '{"UpdateBox": {"box_id": "status", "content": "Connected"}}' | nc -U /tmp/boxmux.sock
-
-# Replace box script
-echo '{"ReplaceScript": {"box_id": "monitor", "script": ["uptime"]}}' | nc -U /tmp/boxmux.sock
-
-# Switch layouts
-echo '{"SwitchLayout": {"layout_id": "dashboard"}}' | nc -U /tmp/boxmux.sock
-
-# Add new box
-echo '{"AddBox": {"parent_id": "main", "box": {...}}}' | nc -U /tmp/boxmux.sock
-
-# Control refresh
-echo '{"StartRefresh": {"box_id": "logs"}}' | nc -U /tmp/boxmux.sock
-echo '{"StopRefresh": {"box_id": "logs"}}' | nc -U /tmp/boxmux.sock
-```
-
-### Socket Configuration
-
-```yaml
-# Socket server configuration
-app:
-  socket_config:
-    socket_path: '/tmp/boxmux.sock'
-    permissions: 0660
-    buffer_size: 8192
-    timeout: 5000
-    max_connections: 10
-```
-
-## Real-World Examples
-
-### DevOps Dashboard
-
-```yaml
-app:
-  layouts:
-    - id: 'devops'
+    - id: main
       root: true
-      title: 'DevOps Command Center'
       children:
-        # Live deployment logs
-        - id: 'deploy_logs'
-          title: 'Deployment Logs'
-          position: {x1: 5%, y1: 10%, x2: 60%, y2: 50%}
-          clipboard_enabled: true
-          scroll: true
-          scroll_config:
-            preserve_position: true
-            show_indicators: true
-          script:
-            - kubectl logs -f deployment/api-server
-            
-        # Performance monitoring
-        - id: 'cluster_perf'
-          title: 'Cluster Performance'
-          position: {x1: 65%, y1: 10%, x2: 95%, y2: 50%}
-          performance_monitoring: true
-          refresh_interval: 2000
-          script:
-            - kubectl top nodes
-            - echo "---"
-            - kubectl top pods
-            
-        # Interactive control box
-        - id: 'controls'
-          title: 'Deployment Controls'
-          position: {x1: 5%, y1: 55%, x2: 95%, y2: 90%}
-          tab_order: '1'
+        - id: menu
+          title: Actions (F5, Ctrl+t)
+          position: {x1: 0%, y1: 0%, x2: 40%, y2: 100%}
+          tab_order: 1
           choices:
-            - id: 'scale_up'
-              content: 'Scale Up (3→5 replicas)'
+            - id: refresh_now
+              content: Show the date
               script:
-                - kubectl scale deployment/api-server --replicas=5
-              redirect_output: 'deploy_logs'
-            - id: 'rollback'
-              content: 'Rollback to Previous Version'  
+                - date
+            - id: run_tests
+              content: Run the tests
               script:
-                - kubectl rollout undo deployment/api-server
-              redirect_output: 'deploy_logs'
+                - cargo test 2>&1
+              execution_mode: Thread
+        - id: notes
+          title: Notes (press n here)
+          position: {x1: 40%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 2
+          content: Focus this box and press n.
+          on_keypress:
+            n:
+              - echo "Note taken at $(date)"
 ```
 
-### System Monitoring with Advanced Features
+### Key names
+
+| Kind | Names |
+|------|-------|
+| Characters | `a`, `A`, `1`, `/` ... (`a` and `A` are different keys) |
+| Space | `Space` |
+| Special keys | `Enter`, `Tab`, `Backspace`, `Delete`, `Insert`, `Esc`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`, `F1` ... `F24` |
+| Modifiers | `Ctrl+`, `Alt+`, `Cmd+`, and `Shift+` for keys that are not characters: `Ctrl+r`, `Alt+x`, `Shift+Up`, `Shift+Tab`, `Ctrl+Alt+Delete` |
+
+Modifier and special key names are matched ignoring case (`ctrl+r` = `Ctrl+r`, `enter` =
+`Enter`); single characters must match exactly. Modifiers can be written in any order.
+`Ctrl++` is Ctrl with the plus key. Key names are not checked when the file is loaded, so a
+misspelled name never fires.
+
+Things to know:
+
+- A plain `q` always quits, so it cannot be bound.
+- Keys that BoxMux uses (Tab, arrows, Enter, Page Up/Down, Home/End, Ctrl+C) do their usual job
+  and then also run any binding for them.
+- When the focused box shows a running terminal, every key except Tab and Shift+Tab goes to the
+  program, and no bindings run.
+- Which keys reach BoxMux depends on the terminal; some combinations (for example many `Cmd+`
+  keys on macOS) are taken by the terminal application.
+
+## Focus order
+
+- `tab_order` (a whole number) puts a box in the keyboard focus order. Tab moves forward and
+  Shift+Tab backward, wrapping around. Boxes without `tab_order` are not reached with the
+  keyboard, but can be focused with a click.
+- `next_focus_id` names the box Tab moves to from this box, instead of the next one in
+  `tab_order`. The target must be in the same layout. Shift+Tab still follows `tab_order`.
+- `selected: true` gives a box the focus when its layout is first shown; otherwise the first
+  box in `tab_order` gets it.
 
 ```yaml
 app:
   layouts:
-    - id: 'advanced_monitor'
+    - id: main
       root: true
-      title: 'Advanced System Monitor'
       children:
-        # System logs
-        - id: 'system_logs'
-          title: 'System Logs'
-          position: {x1: 5%, y1: 10%, x2: 48%, y2: 60%}
-          clipboard_enabled: true
-          scroll: true
-          scroll_config:
-            preserve_position: true
-            auto_scroll_new: true
-            scroll_buffer_size: 2000
-          script:
-            - tail -f /var/log/system.log | grep -E "(error|warning|critical)"
-            
-        # Performance metrics with clipboard
-        - id: 'perf_metrics'
-          title: 'Performance Metrics'
-          position: {x1: 52%, y1: 10%, x2: 95%, y2: 60%}
-          clipboard_enabled: true
-          performance_monitoring: true
+        - id: search
+          title: Search
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 20%}
+          tab_order: 1
+          next_focus_id: results
+          selected: true
+          content: Tab jumps to Results.
+        - id: filters
+          title: Filters
+          position: {x1: 0%, y1: 20%, x2: 30%, y2: 100%}
+          tab_order: 2
+          content: Reached with Shift+Tab from Search.
+        - id: results
+          title: Results
+          position: {x1: 30%, y1: 20%, x2: 100%, y2: 100%}
+          tab_order: 3
+          content: Tab from here goes back to Search.
+```
+
+## Layering with z_index
+
+Boxes are drawn in configuration order, and each box's children after it. Among siblings,
+`z_index` (a whole number, default `0`, negative allowed) changes the order: a higher value is
+drawn later, on top. Clicks and the mouse wheel go to the box visible under the pointer.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: background
+          title: Background
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          content: This box is drawn first.
+        - id: popup
+          title: On top
+          position: {x1: 30%, y1: 30%, x2: 70%, y2: 60%}
+          z_index: 10
+          content: This box covers the middle of the background.
+```
+
+## Anchors and size limits
+
+`min_width`, `min_height`, `max_width` and `max_height` (in cells) limit the size a box gets
+from its position. When a limit changes the size, `anchor` decides which point of the box stays
+where the position put it: `TopLeft`, `TopRight`, `BottomLeft`, `BottomRight`, `Center`
+(default), `CenterTop`, `CenterBottom`, `CenterLeft` or `CenterRight`. The box is then kept
+inside its parent. A minimum larger than the maximum is an error.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: sidebar
+          title: Sidebar
+          position: {x1: 0%, y1: 0%, x2: 20%, y2: 100%}
+          anchor: TopLeft
+          min_width: 24
+          max_width: 40
+          content: Between 24 and 40 columns wide, growing to the right.
+        - id: dialog
+          title: Dialog
+          position: {x1: 40%, y1: 40%, x2: 60%, y2: 60%}
+          anchor: Center
+          min_width: 30
+          min_height: 7
+          z_index: 1
+          content: At least 30x7, centered where the position puts it.
+```
+
+## Controlling BoxMux from its own scripts
+
+Every script BoxMux runs has two environment variables:
+
+- `BOXMUX_SOCKET`: the control socket of this instance.
+- `BOXMUX_BOX`: the id of the box the script's output goes to (its `redirect_output` box when
+  it has one; empty for app and layout key handlers).
+
+Scripts run in the directory BoxMux was started from.
+
+The `boxmux` control commands use `BOXMUX_SOCKET` when no `--socket` is given, so a script can
+change the interface it runs in (with `boxmux` on its `PATH`):
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: menu
+          title: Menu
+          position: {x1: 0%, y1: 0%, x2: 40%, y2: 100%}
+          tab_order: 1
+          choices:
+            - id: deploy
+              content: Deploy
+              script:
+                - boxmux replace_box_content status "Deploying..."
+                - sleep 2
+                - boxmux replace_box_content status "Deployed at $(date +%H:%M)"
+            - id: pause
+              content: Pause the clock
+              script:
+                - boxmux stop_box_refresh clock
+            - id: resume
+              content: Resume the clock
+              script:
+                - boxmux start_box_refresh clock
+        - id: status
+          title: Status
+          position: {x1: 40%, y1: 0%, x2: 100%, y2: 50%}
+          content: Idle
+        - id: clock
+          title: Clock
+          position: {x1: 40%, y1: 50%, x2: 100%, y2: 100%}
           refresh_interval: 1000
           script:
-            - |
-              echo "=== System Performance ==="
-              echo "CPU: $(top -l 1 | grep "CPU usage" | awk '{print $3}')"
-              echo "Memory: $(free | awk 'NR==2{printf "%.1f%%", $3/$2*100}')"
-              echo "Load: $(uptime | awk -F'load average:' '{print $2}')"
-              echo "Processes: $(ps aux | wc -l)"
-              echo "BoxMux Memory: $(ps -o rss= -p $$) KB"
-              
-        # Enhanced table with all features
-        - id: 'process_table'
-          title: 'Top Processes'
-          position: {x1: 5%, y1: 65%, x2: 95%, y2: 90%}
-          table_config:
-            headers: ['Command', 'CPU %', 'Memory %', 'PID', 'User']
-            sortable: true
-            filterable: true
-            page_size: 8
-            zebra_striping: true
-            show_row_numbers: true
-            border_style: 'rounded'
-          clipboard_enabled: true
-          refresh_interval: 3000
-          script:
-            - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s,%s\n", $11, $3, $4, $2, $1}' | 
-              sort -rn -k2 -t, | head -20
+            - date
 ```
 
-### Development Environment Monitor
+Other programs can do the same with the socket path, or by writing JSON requests to the socket
+directly. See the [API Reference](/docs/api) for every command.
+
+## Embedded terminals
+
+`execution_mode: Pty` runs a box's script (or a choice's) in a pseudo-terminal shown in the box,
+for programs like `htop`, `vim`, `less` or an interactive shell. The terminal is sized to the
+inside of the border and follows resizes. When the box has the focus, keys (except Tab and
+Shift+Tab) and pasted text go to the program. A Pty box cannot have `refresh_interval`.
+Terminals can also be started, stopped, restarted, queried and typed into through the control
+socket (`spawn_pty_process`, `kill_pty_process`, `restart_pty_process`, `query_pty_status`,
+`send_pty_input`, `send_signal`).
 
 ```yaml
 app:
   layouts:
-    - id: 'dev_monitor'
+    - id: main
       root: true
-      title: 'Development Environment'
       children:
-        # Build output
-        - id: 'build_output'
-          title: 'Build Output'
-          position: {x1: 5%, y1: 10%, x2: 60%, y2: 70%}
-          clipboard_enabled: true
-          scroll: true
-          scroll_config:
-            preserve_position: false  # Always show latest for builds
-            auto_scroll_new: true
+        - id: top
+          title: top
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 1
+          execution_mode: Pty
           script:
-            - cargo watch -x build
-            
-        # Git status with clipboard support
-        - id: 'git_status'
-          title: 'Git Status'
-          position: {x1: 65%, y1: 10%, x2: 95%, y2: 40%}
-          clipboard_enabled: true
-          refresh_interval: 5000
-          script:
-            - git status --porcelain
-            - echo "---"
-            - git log --oneline -5
-            
-        # Test results with performance monitoring
-        - id: 'test_results'
-          title: 'Test Suite'
-          position: {x1: 65%, y1: 45%, x2: 95%, y2: 70%}
-          performance_monitoring: true
-          clipboard_enabled: true
-          refresh_interval: 10000
-          script:
-            - |
-              echo "Running test suite..."
-              start_time=$(date +%s%3N)
-              cargo test --quiet 2>&1 | head -20
-              end_time=$(date +%s%3N)
-              duration=$((end_time - start_time))
-              echo "Test duration: ${duration}ms"
+            - top
 ```
+
+See [PTY Features](/docs/pty-features).
+
+## Plugins
+
+Shared libraries listed under `app.plugins` can draw the content of boxes that set
+`plugin_component`. Plugins run inside BoxMux with full privileges. See
+[Plugin System](/docs/plugin-system).
 
 ---
 
-For configuration details, see [Configuration Reference](configuration.md).  
-For basic usage, see [User Guide](user-guide.md).  
-For plugin development, see [Plugin System](plugin-system.md).
+For every setting, see the [Configuration Reference](/docs/configuration).

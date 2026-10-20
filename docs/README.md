@@ -1,136 +1,60 @@
-# Documentation Template
+# BoxMux documentation site
 
-A modern documentation template built with Svelte 5, MDSvex, and Tailwind CSS.
+The source of [boxmux.com](https://boxmux.com): a static SvelteKit site whose pages are written
+in Markdown (rendered with MDsveX) and styled with Tailwind CSS.
 
-[Template Preview](https://svelte-docs.codegio.com/)
-
-## Overview
-
-Create beautiful, modern documentation sites with minimal setup. This template combines the power of Svelte 5 with the flexibility of Markdown to deliver a superior documentation experience.
-
-## Features
-
-- **📚 MDSvex Integration** - Write documentation in Markdown with Svelte components
-- **🎨 Modern Design** - Built with Tailwind CSS and shadcn/ui components
-- **🌙 Dark Mode** - Automatic dark mode with system preference detection
-- **🔍 Search** - Built-in search functionality powered by FlexSearch
-- **📱 Responsive** - Mobile-first design that works on all devices
-- **📑 Auto-Navigation** - Automatic documentation structure generation
-- **📖 Table of Contents** - Dynamic table of contents for each page
-- **⚡ Fast** - Optimized for speed and performance
-- **🔒 Type Safe** - Full TypeScript support
-
-## Quick Start
-
-1. Click the green "Use this template" button
-2. Create a new repository
-3. Clone your repository:
-   ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
-   ```
-4. Install dependencies:
-   ```bash
-   cd your-repo-name
-   npm install
-   ```
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-## Project Structure
+## Layout
 
 ```
-your-project/
+docs/
 ├── src/
-│   ├── content/          # Documentation markdown files
+│   ├── content/        the documentation pages, one Markdown file per page
 │   ├── lib/
-│   │   ├── components/   # Core components
-│   │   │   ├── document/ # Document-related components
-│   │   │   ├── home/     # Home page components
-│   │   │   └── ui/       # UI components
-│   │   ├── hooks/        # Custom hooks
-│   │   ├── types/        # TypeScript type definitions
-│   │   ├── config.ts     # Site configuration
-│   │   ├── index.ts      # Library exports
-│   │   └── utils.ts      # Utility functions
-│   ├── routes/           # SvelteKit routes
-│   ├── app.css          # Global styles
-│   ├── app.d.ts         # TypeScript declarations
-│   └── app.html         # HTML template
-└── static/              # Static assets
+│   │   ├── config.ts   site title, quick links, home page features
+│   │   └── components/ layout, navigation and UI components
+│   └── routes/         the home page and /docs/[...slug]
+├── static/             images, logos, favicon and CNAME (boxmux.com)
+└── svelte.config.js    static adapter; output in docs/build
 ```
 
-## Writing Documentation
+Each file in `src/content/` becomes a page at `/docs/<file name>` (for example
+`src/content/plugin-system.md` is `/docs/plugin-system`). A file in a subdirectory with an
+`index.md` is served at the directory's name.
 
-Place your markdown files in the `src/content` directory. The folder structure will automatically generate the navigation.
+## Writing a page
+
+Every page starts with frontmatter; pages without it are not served:
 
 ```markdown
 ---
-title: Getting Started
-description: Learn how to use this template
+title: Plugin System
+description: One sentence describing the page.
 ---
 
-# Getting Started
+## First section
 
-Write your documentation here...
+...
 ```
 
-## Customization
+Link to other pages with `/docs/<name>`. Describe only what the code in this repository does,
+and make every complete YAML example one that BoxMux loads.
 
-### Themes
-Modify the theme in `src/app.css` or use pre-built themes from [shadcn-svelte](https://next.shadcn-svelte.com/themes).
+## Commands
 
-### Components
-Customize components in `src/lib/components` to match your brand.
-
-### Configuration
-Update site settings in `src/lib/config`:
-```typescript
-export const siteConfig = {
-    title: 'Your Documentation',
-    description: 'Your site description',
-    // ...other settings
-};
-```
-
-## Development
+You need Node.js 20 or newer.
 
 ```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+cd docs
+npm ci            # install the dependencies from package-lock.json
+npm run dev       # local preview with live reload
+npm run build     # build the static site into docs/build
+npm run preview   # serve the built site
+npm run check     # type-check the Svelte and TypeScript code
 ```
 
-## Deployment
+## Publishing
 
-This template can be deployed to any static hosting platform:
-
-- Vercel
-- Netlify
-- GitHub Pages
-- Cloudflare Pages
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - use this template for any project.
-
-## Acknowledgments
-
-- [Svelte](https://svelte.dev)
-- [shadcn-svelte](https://next.shadcn-svelte.com)
-- [Tailwind CSS](https://tailwindcss.com)
-- [MDSvex](https://mdsvex.com)
-
-## Support
-
-Need help with your documentation? [Contact us](mailto:info@codegio.com).
+`scripts/deploy-docs.sh` (from the repository root) builds the site and publishes `docs/build`
+to the `gh-pages` branch, which serves boxmux.com. `scripts/deploy-docs.sh --dry-run` builds and
+commits to a local `gh-pages` worktree without pushing. The script refuses to run while `docs/`
+has uncommitted changes.

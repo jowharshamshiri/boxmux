@@ -1,135 +1,60 @@
 ---
 title: Roadmap
-description: BoxMux development roadmap and project vision for future releases.
+description: What BoxMux does today and ideas that are not built yet.
 ---
 
 
-## Project Vision
+BoxMux aims to make terminal dashboards and tools something you describe in a configuration
+file rather than program. This page separates what exists from ideas that have not been built.
+There are no dates.
 
-**Create a declarative, accessible framework that makes building rich terminal interfaces as simple as writing configuration files.**
+## What exists
 
-### Core Objectives
+The [Features](/docs/features) page has the full list. In short:
 
-- **Accessibility**: Make TUI development accessible to non-programmers
-- **Performance**: Maintain high performance even with complex interfaces  
-- **Flexibility**: Support diverse use cases from system monitoring to development tools
+- One YAML file per interface, checked against a schema and for consistency when loaded,
+  with errors that name the location.
+- Several layouts per file; nested boxes positioned in percentages or cells, with anchors,
+  minimum and maximum sizes, and `z_index`.
+- Scripts run once or on an interval, in three execution modes (`Immediate`, `Thread`, `Pty`),
+  with output redirection, appending, auto-scrolling and saving to a file; `libs` sourced
+  before every script.
+- Menus (`choices`), `hot_keys` and `on_keypress` handlers; tabs for the outputs of a box.
+- Embedded terminals with a terminal emulator (256 and 24-bit color, alternate screen, mouse
+  reporting, scrollback).
+- Charts (bar, line, histogram, pie, scatter) and tables (CSV or JSON, sorting, filtering,
+  paging).
+- Plugins loaded from shared libraries through a C interface.
+- Variables with defaults, resolved from boxes, layouts, the app and the environment.
+- A control socket and matching `boxmux` subcommands for changing a running instance.
+- Mouse support: focus, menus, tabs, scrollbars, moving and resizing boxes with the result
+  written back to the YAML file.
+- Light and dark themes chosen from the terminal background or forced with a flag.
+- Linux, FreeBSD, macOS (untested) and Windows; tests run with `cargo test` and on virtual
+  machines with mg-test.
 
-## Current Status: v0.76.71205 (Production Ready)
+## Ideas not built yet
 
-BoxMux is a mature terminal UI framework with 79 implemented features (92% complete).
+None of the following exists in BoxMux today. They are possible directions, not commitments.
 
-### ✅ Completed Core Features
+- **Configuration reload**: watching the YAML file and applying changes to a running instance.
+  Today the file is read once at start; only positions changed with the mouse are written back.
+- **Automatic layouts**: grid or flex-style placement of boxes. Today every box has explicit
+  edges.
+- **Multi-file configuration**: including or importing other YAML files. Today one file holds
+  the whole interface (`libs` shares shell code, not configuration).
+- **Network control**: TCP or WebSocket access to a running instance. Today control is through
+  a local socket or named pipe only, without authentication beyond file and pipe permissions.
+- **Images**: sixel or other terminal graphics in boxes. Today boxes show text only.
+- **Plugin isolation**: running plugins out of process or limiting what they can do. Today a
+  plugin runs inside BoxMux with full privileges.
+- **More chart and table interaction**: sorting or paging a table with the keyboard or mouse.
+  Today `table_config` is fixed in the configuration (or replaced through the socket).
+- **Tooling**: a layout editor, a configuration generator, or editor integration based on the
+  JSON schema in `schemas/app_schema.json`.
+- **macOS testing**: macOS uses the Unix code path but is not tested on macOS machines.
 
-- **YAML Configuration System** - Declarative interface definition with JSON schema validation
-- **Multi-threaded Architecture** - Responsive UI with separate rendering/input threads
-- **Socket-based API** - External control via Unix domain sockets
-- **Rich Component Library** - Boxes, menus, charts, tables, real-time updates
-- **Auto-Scroll Output** - Auto-scroll for command output with scroll-to-bottom
-- **Data Visualization** - Charts and tables with sorting, filtering, pagination
-- **Plugin System** - Dynamic component loading with security validation
-- **Cross-platform Support** - Verified on macOS, Linux, Unix systems
-- **Performance Optimization** - Sub-millisecond input handling, efficient rendering
+## Suggesting changes
 
-### Recently Completed Features
-
-- **Auto-Scroll to Bottom**: Boxes automatically scroll to show latest content for logs and command output  
-- **Enhanced Data Visualization**: Table system with CSV/JSON parsing, sorting, filtering, pagination
-- **Chart Layout Improvements**: Smart chart layout engine with responsive sizing
-- **Plugin System**: Dynamic component loading with security validation
-- **Clipboard Integration**: Ctrl+C copies focused box content to clipboard
-- **Configuration Schema Validation**: JSON Schema validation for YAML configurations
-
-## Planned Enhancements
-
-### 🎯 Next Release (v0.8) - Enhanced Capabilities
-
-**Focus**: Advanced features and developer experience improvements
-
-#### Remaining Features
-
-- [ ] **Performance Profiling**
-  - Built-in performance monitoring and optimization tools
-  - Runtime metrics collection and display
-
-- [ ] **Advanced Process Control**  
-  - Visual process indicators and status monitoring
-  - Signal handling for background scripts
-
-- [ ] **Automatic Layout System**
-  - Grid and flex layouts built on percentage-based positioning
-  - Better error reporting with line numbers and context
-
-- [ ] **Plugin Architecture**
-  - Dynamic loading of custom box types
-  - Standardized plugin API
-  - Plugin marketplace and distribution
-  - Community-contributed components
-
-#### Medium Priority Features  
-
-- [ ] **Hot Configuration Reload**
-  - Watch configuration files for changes
-  - Safe state preservation during reload
-  - Error recovery and rollback mechanisms
-
-- [ ] **Performance Optimizations**
-  - Memory usage analysis and reduction
-  - Faster rendering pipeline optimizations
-  - Background processing improvements
-  - Built-in profiling and benchmarking tools
-
-### 🚀 Future Releases (v1.0+) - Advanced Features
-
-**Focus**: Enterprise features and ecosystem expansion
-
-#### Enterprise Features
-
-- [ ] **Multi-file Configuration System**
-  - Include/import system for modular configurations
-  - Template and component libraries
-  - Configuration inheritance and composition
-
-- [ ] **Network Communication**
-  - TCP/WebSocket support for remote interfaces
-  - Distributed dashboard capabilities
-  - Real-time collaboration features
-  - Authentication and secure remote access
-
-- [ ] **Advanced UI Features**
-  - Mouse support for terminal interactions
-  - Graphics and image support beyond ASCII
-  - Custom themes and visual customization
-  - Responsive design templates
-
-#### Developer Experience
-
-- [ ] **Enhanced Tooling**
-  - Configuration file generator and wizard
-  - Visual layout editor
-  - Debug mode with live configuration editing
-  - Integration with popular IDEs and editors
-
-### How to Contribute
-
-#### Feature Requests
-
-1. **Use issues** on GitHub
-2. **Provide detailed descriptions** with use cases
-
-#### Implementation
-
-1. **Pick up roadmap items** that interest you
-2. **Coordinate with maintainers** before starting
-3. **Follow contribution guidelines**
-4. **Submit pull requests** for review
-
-### Priority Determination
-
-### Feedback Channels
-
-- **GitHub Issues**: Feature requests and bug reports
-- **GitHub Discussions**: Roadmap discussions
-
----
-
-For the latest updates, see our [GitHub milestones](https://github.com/jowharshamshiri/boxmux/milestones) and [project boards](https://github.com/jowharshamshiri/boxmux/projects).
+Open an issue on [GitHub](https://github.com/jowharshamshiri/boxmux/issues) describing the use
+case. For code contributions, see `CONTRIBUTING.md` in the repository.

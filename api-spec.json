@@ -1,269 +1,305 @@
 {
-  "version": "1.0.0",
-  "channels": {
-    "boxmux-control": {
-      "description": "BoxMux control channel for managing boxes and layouts",
-      "commands": {
-        "replace-box-content": {
-          "description": "Replace the content of a specific box",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to update",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            },
-            "success": {
-              "type": "boolean",
-              "required": true,
-              "description": "Whether the content update was successful"
-            },
-            "content": {
-              "type": "string",
-              "required": true,
-              "description": "The new content for the box",
-              "validation": {
-                "maxLength": 1000000
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "replace-box-script": {
-          "description": "Replace the script commands for a specific box",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to update",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            },
-            "script": {
-              "type": "array",
-              "required": true,
-              "description": "Array of script commands",
-              "validation": {
-                "maxItems": 100
-              },
-              "items": {
-                "type": "string",
-                "validation": {
-                  "maxLength": 1000
-                }
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "stop-box-refresh": {
-          "description": "Stop automatic refresh for a specific box",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to stop refreshing",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "start-box-refresh": {
-          "description": "Start automatic refresh for a specific box",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to start refreshing",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "replace-box": {
-          "description": "Replace an entire box with a new box definition",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to replace",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            },
-            "new_box": {
-              "type": "object",
-              "required": true,
-              "description": "The new box definition object",
-              "validation": {
-                "maxDataSize": 100000
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "switch-active-layout": {
-          "description": "Switch to a different active layout",
-          "args": {
-            "layout_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the layout to activate",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "add-box": {
-          "description": "Add a new box to a specific layout",
-          "args": {
-            "layout_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the layout to add the box to",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            },
-            "box": {
-              "type": "object",
-              "required": true,
-              "description": "The box definition object to add",
-              "validation": {
-                "maxDataSize": 100000
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        },
-        "remove-box": {
-          "description": "Remove a box from the current layout",
-          "args": {
-            "box_id": {
-              "type": "string",
-              "required": true,
-              "description": "The ID of the box to remove",
-              "validation": {
-                "minLength": 1,
-                "maxLength": 256
-              }
-            }
-          },
-          "response": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "description": "Operation status"
-              },
-              "result": {
-                "type": "string",
-                "description": "Operation result message"
-              }
-            }
-          }
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://boxmux.com/api-spec.json",
+  "title": "BoxMux control socket request",
+  "description": "A request sent to a running boxmux instance over its control socket. A client connects, writes one request as a single line of JSON ending in a newline, reads one reply line (see #/definitions/reply), and the connection closes. Requests larger than 16 MiB are refused. Unknown commands and unknown fields are errors.",
+  "oneOf": [
+    { "$ref": "#/definitions/replace_box_content" },
+    { "$ref": "#/definitions/replace_box_script" },
+    { "$ref": "#/definitions/stop_box_refresh" },
+    { "$ref": "#/definitions/start_box_refresh" },
+    { "$ref": "#/definitions/replace_box" },
+    { "$ref": "#/definitions/add_box" },
+    { "$ref": "#/definitions/remove_box" },
+    { "$ref": "#/definitions/switch_active_layout" },
+    { "$ref": "#/definitions/spawn_pty_process" },
+    { "$ref": "#/definitions/kill_pty_process" },
+    { "$ref": "#/definitions/restart_pty_process" },
+    { "$ref": "#/definitions/query_pty_status" },
+    { "$ref": "#/definitions/send_pty_input" },
+    { "$ref": "#/definitions/send_signal" }
+  ],
+  "examples": [
+    { "command": "replace_box_content", "box_id": "status", "content": "Deploy finished" },
+    { "command": "replace_box_content", "box_id": "status", "content": "Deploy failed", "success": false },
+    { "command": "replace_box_script", "box_id": "clock", "script": ["date '+%H:%M:%S'"] },
+    { "command": "stop_box_refresh", "box_id": "clock" },
+    { "command": "start_box_refresh", "box_id": "clock" },
+    {
+      "command": "replace_box",
+      "box_id": "status",
+      "new_box": {
+        "id": "status",
+        "title": "Status",
+        "position": { "x1": "0%", "y1": "0%", "x2": "50%", "y2": "30%" },
+        "content": "Ready"
       }
+    },
+    {
+      "command": "add_box",
+      "layout_id": "main",
+      "muxbox": {
+        "id": "alerts",
+        "title": "Alerts",
+        "position": { "x1": "50%", "y1": "0%", "x2": "100%", "y2": "30%" },
+        "script": ["tail -n 20 /var/log/syslog"],
+        "refresh_interval": 5000
+      }
+    },
+    {
+      "command": "add_box",
+      "layout_id": "main",
+      "parent_id": "sidebar",
+      "muxbox": {
+        "id": "note",
+        "position": { "x1": "0%", "y1": "0%", "x2": "100%", "y2": "3" },
+        "content": "Nested box"
+      }
+    },
+    { "command": "remove_box", "box_id": "alerts" },
+    { "command": "switch_active_layout", "layout_id": "monitoring" },
+    { "command": "spawn_pty_process", "box_id": "shell", "script": ["htop"] },
+    { "command": "spawn_pty_process", "box_id": "menu", "script": ["top"], "redirect_output": "shell" },
+    { "command": "kill_pty_process", "box_id": "shell" },
+    { "command": "restart_pty_process", "box_id": "shell" },
+    { "command": "query_pty_status", "box_id": "shell" },
+    { "command": "send_pty_input", "box_id": "shell", "input": "ls -la\r" },
+    { "command": "send_signal", "box_id": "shell", "signal": 2 }
+  ],
+  "definitions": {
+    "box_id": {
+      "type": "string",
+      "description": "The id of a box. The box may be in any layout unless the command says otherwise."
+    },
+    "script": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Script lines. They are joined with newlines and run by the app's shell (bash by default; PowerShell on Windows), after the app's libs are sourced."
+    },
+    "box": {
+      "type": "object",
+      "description": "A box, written as in the configuration file (see schemas/app_schema.json#/definitions/box), including its children. Unknown fields are errors, and the changed application is checked with the same schema and semantic rules as the configuration file before it is applied."
+    },
+    "replace_box_content": {
+      "type": "object",
+      "description": "Shows text in the box's socket tab (labelled \"Socket\"), creating the tab if needed, and makes that tab visible. The text replaces what the tab showed before.",
+      "properties": {
+        "command": { "const": "replace_box_content" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "content": {
+          "type": "string",
+          "description": "The text to show. Lines are split on newlines; SGR color sequences are kept, other control sequences are removed."
+        },
+        "success": {
+          "type": "boolean",
+          "default": true,
+          "description": "false shows the tab in the box's error colors."
+        }
+      },
+      "required": ["command", "box_id", "content"],
+      "additionalProperties": false
+    },
+    "replace_box_script": {
+      "type": "object",
+      "description": "Replaces the box's script and runs it now. When the old script is still running it is stopped first and the new one starts when it has ended. A periodic refresh already scheduled for the box keeps its interval.",
+      "properties": {
+        "command": { "const": "replace_box_script" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "script": {
+          "$ref": "#/definitions/script",
+          "description": "The new script. It must contain at least one non-blank line."
+        }
+      },
+      "required": ["command", "box_id", "script"],
+      "additionalProperties": false
+    },
+    "stop_box_refresh": {
+      "type": "object",
+      "description": "Pauses the periodic run of the box's script. The box must have a refresh_interval (its own or inherited) and its layout must have been shown.",
+      "properties": {
+        "command": { "const": "stop_box_refresh" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "start_box_refresh": {
+      "type": "object",
+      "description": "Resumes the periodic run of the box's script and runs it now (unless it is still running). Same conditions as stop_box_refresh.",
+      "properties": {
+        "command": { "const": "start_box_refresh" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "replace_box": {
+      "type": "object",
+      "description": "Replaces a box's configuration. The new box keeps the old one's place in the layout tree. Everything running for the old box (and its children) is stopped, and the new box's script starts if its layout is shown.",
+      "properties": {
+        "command": { "const": "replace_box" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "new_box": {
+          "$ref": "#/definitions/box",
+          "description": "The replacement box. Its id must equal box_id."
+        }
+      },
+      "required": ["command", "box_id", "new_box"],
+      "additionalProperties": false
+    },
+    "add_box": {
+      "type": "object",
+      "description": "Adds a box to a layout, after the existing boxes at the top level of the layout or inside parent_id. Its id must not be used by any other box. Its script starts if the layout is shown.",
+      "properties": {
+        "command": { "const": "add_box" },
+        "layout_id": { "type": "string", "description": "The layout to add the box to." },
+        "parent_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "A box of that layout to nest the new box in. Absent or null adds the box at the top level."
+        },
+        "muxbox": { "$ref": "#/definitions/box", "description": "The new box." }
+      },
+      "required": ["command", "layout_id", "muxbox"],
+      "additionalProperties": false
+    },
+    "remove_box": {
+      "type": "object",
+      "description": "Removes a box and its children, and stops everything running for them or shown in them.",
+      "properties": {
+        "command": { "const": "remove_box" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "switch_active_layout": {
+      "type": "object",
+      "description": "Shows another layout and starts the scripts of its boxes that have not run yet.",
+      "properties": {
+        "command": { "const": "switch_active_layout" },
+        "layout_id": { "type": "string", "description": "The layout to show." }
+      },
+      "required": ["command", "layout_id"],
+      "additionalProperties": false
+    },
+    "spawn_pty_process": {
+      "type": "object",
+      "description": "Runs a script in a pseudo-terminal shown in a closeable tab labelled \"Terminal\", which becomes the visible tab. The target box must be in the shown layout. Only one process started this way per box_id can run at a time. The reply's result is {\"run\": <integer id of the run>}.",
+      "properties": {
+        "command": { "const": "spawn_pty_process" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "script": { "$ref": "#/definitions/script" },
+        "redirect_output": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Show the terminal in this box instead of box_id."
+        }
+      },
+      "required": ["command", "box_id", "script"],
+      "additionalProperties": false
+    },
+    "kill_pty_process": {
+      "type": "object",
+      "description": "Stops the process feeding the box's visible tab, whether it runs in a PTY or not, together with every process it started. Unix: SIGTERM to its process group, SIGKILL after 500 ms. Windows: taskkill /T, then /F.",
+      "properties": {
+        "command": { "const": "kill_pty_process" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "restart_pty_process": {
+      "type": "object",
+      "description": "Runs again whatever last ran in the box's visible tab. A process still running there is stopped first. Fails when nothing has ever run in that tab.",
+      "properties": {
+        "command": { "const": "restart_pty_process" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "query_pty_status": {
+      "type": "object",
+      "description": "Reports on the box's visible tab and the process feeding it. The reply's result is a #/definitions/process_status object.",
+      "properties": {
+        "command": { "const": "query_pty_status" },
+        "box_id": { "$ref": "#/definitions/box_id" }
+      },
+      "required": ["command", "box_id"],
+      "additionalProperties": false
+    },
+    "send_pty_input": {
+      "type": "object",
+      "description": "Writes input to the PTY process feeding the box's visible tab, as if typed. Fails when that process does not run in a PTY.",
+      "properties": {
+        "command": { "const": "send_pty_input" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "input": {
+          "type": "string",
+          "description": "Written byte for byte (UTF-8). Enter is a carriage return, \"\\r\"."
+        }
+      },
+      "required": ["command", "box_id", "input"],
+      "additionalProperties": false
+    },
+    "send_signal": {
+      "type": "object",
+      "description": "Sends a signal to the process group of the process feeding the box's visible tab. Unix only; on Windows the reply is an error.",
+      "properties": {
+        "command": { "const": "send_signal" },
+        "box_id": { "$ref": "#/definitions/box_id" },
+        "signal": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647,
+          "description": "The signal number, e.g. 2 (SIGINT), 15 (SIGTERM), 9 (SIGKILL)."
+        }
+      },
+      "required": ["command", "box_id", "signal"],
+      "additionalProperties": false
+    },
+    "reply": {
+      "type": "object",
+      "description": "The single line boxmux writes back for every request.",
+      "properties": {
+        "ok": { "type": "boolean", "description": "Whether the command succeeded." },
+        "result": {
+          "description": "Present only for commands that return data: query_pty_status (#/definitions/process_status) and spawn_pty_process (#/definitions/spawn_result).",
+          "anyOf": [
+            { "$ref": "#/definitions/process_status" },
+            { "$ref": "#/definitions/spawn_result" }
+          ]
+        },
+        "error": { "type": "string", "description": "Present only when ok is false: why the command failed." }
+      },
+      "required": ["ok"],
+      "additionalProperties": false
+    },
+    "spawn_result": {
+      "type": "object",
+      "properties": {
+        "run": { "type": "integer", "minimum": 1, "description": "The id of the started run, unique for the life of the boxmux instance." }
+      },
+      "required": ["run"],
+      "additionalProperties": false
+    },
+    "process_status": {
+      "type": "object",
+      "properties": {
+        "box_id": { "type": "string" },
+        "stream": { "type": "string", "description": "The label of the visible tab." },
+        "running": { "type": "boolean", "description": "Whether a process is feeding the visible tab." },
+        "pid": { "type": "integer", "description": "The process id (on Unix also its process group id). Present only while running." },
+        "status": {
+          "type": "string",
+          "description": "\"idle\", \"running\", \"exited with code <n>\", \"failed: <reason>\" or \"killed\"."
+        },
+        "rows": { "type": "integer", "description": "Terminal height. Present only while a PTY process is running." },
+        "cols": { "type": "integer", "description": "Terminal width. Present only while a PTY process is running." }
+      },
+      "required": ["box_id", "stream", "running", "status"],
+      "additionalProperties": false
     }
   }
 }

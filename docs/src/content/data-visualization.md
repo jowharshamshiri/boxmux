@@ -1,424 +1,298 @@
 ---
 title: Data Visualization
-description: Data visualization through charts and tables with features for displaying, sorting, and filtering structured data, including real-time updates.
+description: Charts and tables in BoxMux boxes - chart types, data formats, table data in CSV or JSON, and every table_config setting.
 ---
 
 
 ## Table of Contents
 
-- [Chart System](#chart-system)
-- [Table System](#table-system)
-- [Performance Features](#performance-features)
-- [Real-World Examples](#real-world-examples)
-- [Best Practices](#best-practices)
+- [Charts](#charts)
+- [Tables](#tables)
+- [Data from scripts](#data-from-scripts)
+- [Rules and limits](#rules-and-limits)
 
-## Chart System
+A box can show a chart (`chart_type`), a table (`table_data` / `table_config`) or content drawn
+by a plugin (`plugin_component`, see [Plugin System](/docs/plugin-system)). A box shows only one
+of these. The chart or table is drawn as text inside the border, with a one-column margin on
+the left and right, starting at the top-left corner. It uses the box's colors, and when it is
+larger than the box it scrolls (or wraps, or is cut off) according to `overflow_behavior`.
 
-BoxMux includes a Unicode-based charting system with responsive layout and multiple chart types.
+## Charts
 
-### Chart Types
-
-#### Bar Charts
-
-Perfect for categorical data comparison:
-
-```yaml
-- id: 'resource_usage'
-  title: 'Resource Usage'
-  chart_config:
-    chart_type: 'bar'
-    width: 50
-    height: 15
-    title: 'System Resources'
-    x_label: 'Resource'
-    y_label: 'Usage %'
-  chart_data: |
-    CPU,67
-    Memory,45
-    Disk,89
-    Network,23
-```
-
-#### Line Charts
-
-Ideal for time-series data and trends:
-
-```yaml
-- id: 'cpu_trend'
-  title: 'CPU Usage Over Time'
-  chart_config:
-    chart_type: 'line'
-    width: 60
-    height: 12
-    title: 'CPU Trend'
-  refresh_interval: 2000
-  script:
-    - top -l 1 | grep "CPU usage" | awk '{print NR","$3}' | sed 's/%//'
-```
-
-#### Histograms
-
-Great for distribution visualization:
-
-```yaml
-- id: 'response_times'
-  title: 'Response Time Distribution'
-  chart_config:
-    chart_type: 'histogram'
-    width: 45
-    height: 10
-    title: 'API Response Times'
-  chart_data: |
-    0-100ms,45
-    100-200ms,67
-    200-500ms,23
-    500ms+,5
-```
-
-### Chart Layout System
-
-BoxMux includes a smart chart layout engine with responsive design:
-
-- **Automatic sizing**: Charts adapt to box dimensions
-- **Smart alignment**: Proper axis alignment and labeling
-- **Responsive scaling**: Charts scale with terminal size changes
-- **Unicode rendering**: High-quality Unicode-based chart display
-
-### Chart Configuration Options
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `chart_type` | string | - | Chart type: 'bar', 'line', 'histogram' |
-| `width` | number | 40 | Chart width in characters |
-| `height` | number | 10 | Chart height in lines |
-| `title` | string | - | Chart title |
-| `x_label` | string | - | X-axis label |
-| `y_label` | string | - | Y-axis label |
-
-### Dynamic Chart Data
-
-Charts can display live data from scripts:
-
-```yaml
-- id: 'memory_chart'
-  title: 'Live Memory Usage'
-  chart_config:
-    chart_type: 'line'
-    width: 50
-    height: 15
-  refresh_interval: 1000
-  script:
-    - |
-      # Generate timestamp and memory usage
-      timestamp=$(date +%s)
-      memory=$(free | awk 'NR==2{printf "%.1f", $3/$2 * 100.0}')
-      echo "${timestamp},${memory}"
-```
-
-## Table System
-
-BoxMux provides a table system for displaying structured data.
-
-### Table Features
-
-- **Data Parsing**: Support for CSV and JSON data formats
-- **Sorting**: Text and numeric sorting with ascending/descending support
-- **Filtering**: Exact match and case-insensitive search
-- **Pagination**: Configurable page sizes with navigation info
-- **Visual Enhancement**: Zebra striping, row numbers, multiple border styles
-- **Column Management**: Width calculation with max width constraints
-
-### Table Configuration
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `headers` | array[string] | - | Column headers |
-| `sortable` | boolean | false | Enable column sorting |
-| `filterable` | boolean | false | Enable row filtering |
-| `page_size` | number | 10 | Rows per page |
-| `show_row_numbers` | boolean | false | Display row numbers |
-| `zebra_striping` | boolean | false | Alternating row colors |
-| `border_style` | string | 'single' | Border style |
-
-### Border Styles
-
-BoxMux supports multiple table border styles:
-
-- `none`: No borders
-- `single`: Single-line borders (default)
-- `double`: Double-line borders
-- `rounded`: Rounded corner borders
-- `thick`: Thick-line borders
-- `custom`: Custom border characters
-
-### Data Formats
-
-#### CSV Format
-
-```yaml
-- id: 'process_table'
-  title: 'System Processes'
-  table_config:
-    headers: ['Process', 'CPU %', 'Memory', 'PID']
-    sortable: true
-    filterable: true
-    page_size: 15
-    zebra_striping: true
-  refresh_interval: 5000
-  script:
-    - ps aux --no-headers | awk '{printf "%s,%.1f,%s,%s\n", $11, $3, $4, $2}' | head -20
-```
-
-#### JSON Format
-
-```yaml
-- id: 'service_status'
-  title: 'Service Status'
-  table_config:
-    headers: ['Service', 'Status', 'Port', 'Uptime']
-    sortable: true
-    show_row_numbers: true
-    border_style: 'double'
-  table_data: |
-    [
-      {"Service": "nginx", "Status": "running", "Port": "80", "Uptime": "5d 3h"},
-      {"Service": "mysql", "Status": "running", "Port": "3306", "Uptime": "2d 1h"},
-      {"Service": "redis", "Status": "stopped", "Port": "6379", "Uptime": "-"}
-    ]
-```
-
-### Table Operations
-
-#### Sorting
-
-Tables support intelligent sorting:
-
-- **Numeric sorting**: Automatically detects and sorts numeric values
-- **Text sorting**: Case-insensitive text sorting
-- **Ascending/Descending**: Toggle sort direction
-- **Multi-column**: Sort by multiple columns (planned feature)
-
-#### Filtering
-
-Tables include flexible filtering:
-
-- **Exact match**: Find exact value matches
-- **Case-insensitive**: Search ignoring case
-- **Column-specific**: Filter specific columns
-- **Real-time**: Filter results update immediately
-
-#### Pagination
-
-Table pagination features:
-
-- **Configurable page size**: Set rows per page
-- **Navigation info**: Current page and total pages
-- **Keyboard navigation**: Page Up/Down support
-- **Auto-sizing**: Page size adapts to box height
-
-## Performance Features
-
-### Efficient Rendering
-
-- **Unicode optimization**: Fast Unicode character rendering
-- **Memory efficiency**: Minimal memory usage for large datasets
-- **Incremental updates**: Only redraw changed content
-- **Viewport culling**: Only render visible content
-
-### Data Processing
-
-- **Stream processing**: Handle large datasets efficiently
-- **Lazy loading**: Load data on demand
-- **Caching**: Cache parsed data for faster access
-- **Incremental parsing**: Parse data incrementally
-
-## Real-World Examples
-
-### System Monitor Dashboard
+Set `chart_type` to `bar`, `line`, `histogram`, `pie` or `scatter`, and give the data in
+`chart_data`:
 
 ```yaml
 app:
   layouts:
-    - id: 'monitoring'
+    - id: main
       root: true
-      title: 'System Monitoring Dashboard'
       children:
-        # CPU usage chart
-        - id: 'cpu_chart'
-          title: 'CPU Usage'
-          position: {x1: 5%, y1: 10%, x2: 48%, y2: 45%}
-          chart_config:
-            chart_type: 'line'
-            width: 35
-            height: 12
-            title: 'CPU %'
-          refresh_interval: 2000
-          script:
-            - top -l 1 | grep "CPU usage" | awk '{print NR","$3}' | sed 's/%//'
-            
-        # Memory usage bar chart
-        - id: 'memory_chart'
-          title: 'Memory Breakdown'
-          position: {x1: 52%, y1: 10%, x2: 95%, y2: 45%}
-          chart_config:
-            chart_type: 'bar'
-            width: 35
-            height: 12
+        - id: resources
+          title: Resource usage
+          position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+          chart_type: bar
+          chart_data: |
+            CPU,67
+            Memory,45
+            Disk,89
+            Network,23
+```
+
+### Data format
+
+One data point per line, as a label and a number:
+
+- `label,value` (when the line contains a comma),
+- `label:value` (when it contains a colon and no comma),
+- `label value` (otherwise; the label is the first word).
+
+Empty lines and lines starting with `#` are skipped, as are lines whose value is not a number.
+Anything after the value (`CPU,67,extra`) is ignored. Points keep their order.
+
+### Chart types
+
+| `chart_type` | What it draws |
+|--------------|---------------|
+| `bar` | One horizontal bar per point, with the label on the left and the value on the right. |
+| `line` | The points in order, as dots, with a value scale on the left and labels underneath. Needs at least two points. |
+| `scatter` | The points in order, each with its own marker, with a value scale on the left and labels underneath. |
+| `pie` | Shaded slices proportional to the values, with a legend giving each label's percentage. The values must not add up to zero. |
+| `histogram` | Vertical bars. When the points fit side by side (about one per two columns), each point gets its own bar, proportional to its value with the fraction dropped, labelled with the value. With more points, the values are grouped into 6 to 12 ranges and each bar counts the points in its range, labelled with the range starts. Labels of the points are not shown. |
+
+The chart fills the box and is redrawn at the new size when the box or the terminal is
+resized. The chart has no title of its own; the box title serves as one.
+
+```yaml
+app:
+  layouts:
+    - id: charts
+      root: true
+      title: Chart types
+      children:
+        - id: trend
+          title: Requests per hour (line)
+          position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+          chart_type: line
+          chart_data: |
+            00h,120
+            04h,80
+            08h,340
+            12h,510
+            16h,470
+            20h,260
+        - id: share
+          title: Disk share (pie)
+          position: {x1: 50%, y1: 0%, x2: 100%, y2: 50%}
+          chart_type: pie
+          chart_data: |
+            System,30
+            Home,55
+            Free,15
+        - id: latency
+          title: Latency samples (scatter)
+          position: {x1: 0%, y1: 50%, x2: 50%, y2: 100%}
+          chart_type: scatter
+          chart_data: |
+            a,12
+            b,30
+            c,18
+            d,25
+        - id: sizes
+          title: Sizes (histogram)
+          position: {x1: 50%, y1: 50%, x2: 100%, y2: 100%}
+          chart_type: histogram
+          chart_data: |
+            v1,5
+            v2,12
+            v3,8
+            v4,15
+```
+
+## Tables
+
+`table_data` holds the table as CSV or as a JSON array of objects. `table_config` sets how it
+is drawn; it is optional.
+
+### CSV
+
+The first line is the header row; each further line is a row. Fields are separated by commas
+and trimmed of surrounding spaces. There is no quoting: a comma always separates two fields.
+Empty lines are skipped.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: staff
+          title: Staff
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          table_data: |
+            Name,Department,Salary
+            Alice,Engineering,75000
+            Bob,Marketing,65000
+            Carol,Engineering,78000
+            David,Sales,72000
+          table_config:
+            sort_column: Salary
+            sort_ascending: false
+            border_style: double
+```
+
+### JSON
+
+Data that starts with `[` is read as a JSON array of objects. The columns are the keys of the
+first object, in alphabetical order; keys that only later objects have are not shown. Strings,
+numbers and booleans are shown as written, `null` as an empty cell, and nested arrays or objects
+as JSON text. Data that is not valid JSON shows an error message in the box.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: products
+          title: Electronics
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          table_data: |
+            [
+              {"product": "Laptop", "price": 1299, "category": "Electronics"},
+              {"product": "Chair", "price": 299, "category": "Furniture"},
+              {"product": "Keyboard", "price": 149, "category": "Electronics"},
+              {"product": "Mouse", "price": 79, "category": "Electronics"}
+            ]
+          table_config:
+            sort_column: price
+            filters:
+              category: electronics
+            show_row_numbers: true
+```
+
+### `table_config`
+
+All settings are optional. Unknown keys are errors.
+
+| Key | Type | Default | Effect |
+|-----|------|---------|--------|
+| `show_headers` | boolean | `true` | Draw the header row. |
+| `sort_column` | string | none | Header of the column the rows are sorted by. Values that are both numbers compare as numbers; otherwise they compare as text (case-sensitive). A name that matches no header leaves the rows unsorted. |
+| `sort_ascending` | boolean | `true` | Sort order for `sort_column`. |
+| `filters` | map of column header to text | none | Show only rows whose value in each named column equals the text, ignoring case. Every filter must match. Filters naming a column the table does not have are ignored. |
+| `border_style` | `none`, `single`, `double`, `rounded`, `thick` | `single` | Lines drawn around and inside the table. |
+| `zebra_striping` | boolean | `false` | Accepted, but currently has no visible effect. |
+| `max_column_width` | number | `30` | Widest a column gets; longer values are cut and end with `…`. Columns are at least 3 wide. |
+| `show_row_numbers` | boolean | `false` | Add a `#` column numbering the rows shown, from 1. |
+| `page_size` | number | none | Rows per page. Without it the table is not paged. |
+| `current_page` | number | `0` | The page shown, counting from 0. Needs `page_size`. |
+| `show_page_info` | boolean | `false` | Add a line `Page N of M (R total rows)` under the table. Needs `page_size`. |
+
+Filtering happens first, then sorting, then paging. A table with no header or no rows shows
+`No data`.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: inventory
+          title: Inventory, page 1
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          table_data: |
+            ID,Item,Price
+            1,Widget A,12.99
+            2,Widget B,24.99
+            3,Gadget X,45.00
+            4,Tool Y,78.50
+            5,Device Z,199.99
+            6,Component 1,8.75
+            7,Component 2,15.25
+          table_config:
+            sort_column: Price
+            sort_ascending: false
+            border_style: rounded
+            max_column_width: 12
+            page_size: 3
+            current_page: 0
+            show_page_info: true
+```
+
+Paging and sorting are set in the configuration; there are no keys or clicks that change them
+while BoxMux runs. To show another page from a script, replace the box through the control
+socket (`boxmux replace_box`) with a different `current_page`.
+
+## Data from scripts
+
+Without `chart_data` (or `table_data`), a chart or table uses the output of the box's script:
+the text of the box's visible tab, with ANSI color codes removed. With a `refresh_interval`,
+the chart or table is redrawn from each new output.
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      title: Live data
+      children:
+        - id: disk
+          title: Disk use (%)
+          position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+          chart_type: bar
           refresh_interval: 5000
           script:
-            - |
-              free | awk 'NR==2{printf "Used,%.1f\nFree,%.1f\nCached,%.1f\n", 
-                                    $3/$2*100, $4/$2*100, $6/$2*100}'
-        
-        # Process table
-        - id: 'process_table'
-          title: 'Top Processes'
-          position: {x1: 5%, y1: 50%, x2: 95%, y2: 90%}
+            - df -P | awk 'NR > 1 { sub("%", "", $5); print $6 "," $5 }'
+
+        - id: files
+          title: Largest files here
+          position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+          refresh_interval: 10000
           table_config:
-            headers: ['Command', 'CPU %', 'Memory %', 'PID']
-            sortable: true
-            filterable: true
-            page_size: 12
-            zebra_striping: true
-            show_row_numbers: true
-            border_style: 'rounded'
-          refresh_interval: 3000
+            sort_column: Bytes
+            sort_ascending: false
+            page_size: 10
           script:
-            - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s\n", $11, $3, $4, $2}' | 
-              sort -rn -k2 -t, | head -25
+            - echo "Name,Bytes"
+            - ls -l | awk 'NR > 1 { print $9 "," $5 }'
 ```
 
-### Network Monitoring
+With `append_output: true`, each run's output is added to the previous output, so a line chart
+can grow over time. Nothing is ever removed from it, so use this for bounded sessions.
 
 ```yaml
-- id: 'network_dashboard'
-  title: 'Network Monitoring'
-  children:
-    # Network traffic chart
-    - id: 'traffic_chart'
-      title: 'Network Traffic'
-      position: {x1: 5%, y1: 10%, x2: 60%, y2: 50%}
-      chart_config:
-        chart_type: 'line'
-        width: 45
-        height: 15
-        title: 'Network I/O (MB/s)'
-      refresh_interval: 1000
-      script:
-        - |
-          # Network traffic monitoring script
-          interface=$(route get default | awk '/interface:/ {print $2}')
-          netstat -ibn | grep $interface | awk '{print NR","$7/1024/1024}'
-    
-    # Connection table
-    - id: 'connections'
-      title: 'Active Connections'
-      position: {x1: 65%, y1: 10%, x2: 95%, y2: 90%}
-      table_config:
-        headers: ['Protocol', 'Local', 'Remote', 'State']
-        sortable: true
-        filterable: true
-        page_size: 20
-        border_style: 'double'
-      refresh_interval: 2000
-      script:
-        - netstat -an | grep -E '^(tcp|udp)' | 
-          awk '{printf "%s,%s,%s,%s\n", $1, $4, $5, $6}' | head -30
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: samples
+          title: Random samples
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          chart_type: line
+          refresh_interval: 2000
+          append_output: true
+          script:
+            - echo "$(date +%S),$((RANDOM % 100))"
 ```
 
-### Database Analytics
+The scripts above use `bash`, the default shell on Unix. On Windows scripts run in PowerShell
+unless `app.shell` says otherwise.
 
-```yaml
-- id: 'db_analytics'
-  title: 'Database Analytics'
-  children:
-    # Query performance histogram
-    - id: 'query_perf'
-      title: 'Query Performance'
-      position: {x1: 5%, y1: 10%, x2: 50%, y2: 50%}
-      chart_config:
-        chart_type: 'histogram'
-        width: 35
-        height: 15
-        title: 'Query Duration Distribution'
-      refresh_interval: 10000
-      script:
-        - |
-          # PostgreSQL query duration analysis
-          psql -t -c "
-            SELECT 
-              CASE 
-                WHEN total_time < 100 THEN '<100ms'
-                WHEN total_time < 1000 THEN '100ms-1s'
-                WHEN total_time < 5000 THEN '1s-5s'
-                ELSE '>5s'
-              END as duration_range,
-              COUNT(*)
-            FROM pg_stat_statements 
-            GROUP BY 1
-            ORDER BY 1" | 
-          sed 's/|/,/g'
-    
-    # Active queries table
-    - id: 'active_queries'
-      title: 'Active Queries'
-      position: {x1: 55%, y1: 10%, x2: 95%, y2: 90%}
-      table_config:
-        headers: ['PID', 'Duration', 'State', 'Query']
-        sortable: true
-        filterable: true
-        page_size: 15
-        zebra_striping: true
-      refresh_interval: 5000
-      script:
-        - |
-          psql -t -c "
-            SELECT 
-              pid,
-              EXTRACT(EPOCH FROM (NOW() - query_start))::int as duration_sec,
-              state,
-              LEFT(query, 50) as query_preview
-            FROM pg_stat_activity 
-            WHERE state != 'idle' AND pid != pg_backend_pid()
-            ORDER BY query_start" |
-          sed 's/[[:space:]]*|[[:space:]]*/,/g'
-```
+## Rules and limits
 
-## Best Practices
+These are checked when the configuration is loaded:
 
-### Chart Design
+- `chart_data` needs a `chart_type`.
+- A chart needs `chart_data` or a `script`.
+- A box with `table_config` needs `table_data` or a `script`.
+- A box has at most one of `plugin_component`, `chart_type` and `table_data`/`table_config`.
 
-1. **Choose appropriate chart types**: Bar charts for comparisons, line charts for trends, histograms for distributions
-2. **Size appropriately**: Balance chart detail with box space
-3. **Use meaningful titles**: Clear chart and axis titles
-4. **Consider refresh rates**: Balance real-time updates with performance
-5. **Test with real data**: Verify charts with actual data ranges
+While drawing:
 
-### Table Design
-
-1. **Limit column count**: Keep tables readable with appropriate column counts
-2. **Use appropriate page sizes**: Balance data visibility with performance
-3. **Enable sorting for numeric data**: Make numeric columns sortable
-4. **Consider zebra striping**: Improve readability for wide tables
-5. **Use filtering for large datasets**: Help users find relevant data quickly
-
-### Performance Optimization
-
-1. **Optimize data scripts**: Use efficient commands to generate data
-2. **Cache expensive operations**: Cache slow database queries
-3. **Limit data volume**: Use appropriate limits in data generation scripts
-4. **Use appropriate refresh intervals**: Balance freshness with system load
-5. **Monitor memory usage**: Watch memory consumption with large datasets
-
-### Data Quality
-
-1. **Validate data formats**: Ensure scripts produce consistent formats
-2. **Handle missing data**: Gracefully handle missing or invalid data
-3. **Error handling**: Include error handling in data generation scripts
-4. **Test edge cases**: Verify behavior with empty or malformed data
-5. **Document data sources**: Clear documentation for data generation logic
-
----
-
-For configuration details, see [Configuration Reference](configuration.md).  
-For implementation examples, see [User Guide](user-guide.md).
+- A chart needs an area of at least 20 columns by 5 rows. The area is the inside of the
+  border less a one-column margin on each side, so the box must be at least 24 columns wide
+  and 7 rows tall; a smaller box shows `too small`.
+- A chart without data points shows `No chart data`.
+- Column widths count bytes, so text outside ASCII can make columns look uneven.

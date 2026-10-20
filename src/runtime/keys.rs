@@ -11,7 +11,8 @@ pub fn key_name(event: &KeyEvent) -> Option<String> {
         KeyCode::Char(c) => c.to_string(),
         KeyCode::Enter => "Enter".to_string(),
         KeyCode::Tab => "Tab".to_string(),
-        KeyCode::BackTab => "BackTab".to_string(),
+        // Shift+Tab: named like every other shifted special key.
+        KeyCode::BackTab => "Tab".to_string(),
         KeyCode::Backspace => "Backspace".to_string(),
         KeyCode::Delete => "Delete".to_string(),
         KeyCode::Insert => "Insert".to_string(),
@@ -39,9 +40,8 @@ pub fn key_name(event: &KeyEvent) -> Option<String> {
     }
     // Shift is part of the character for printable keys (`A` vs `a`), and a modifier for the
     // others.
-    if event.modifiers.contains(KeyModifiers::SHIFT)
-        && !matches!(event.code, KeyCode::Char(_) | KeyCode::BackTab)
-    {
+    let shifted = event.modifiers.contains(KeyModifiers::SHIFT) || event.code == KeyCode::BackTab;
+    if shifted && !matches!(event.code, KeyCode::Char(_)) {
         name.push_str("Shift+");
     }
     name.push_str(&base);
@@ -196,6 +196,13 @@ mod tests {
             key_name(&key(KeyCode::Char(' '), KeyModifiers::NONE)).unwrap(),
             "Space"
         );
+        // Terminals report Shift+Tab as BackTab, with or without the Shift flag.
+        for modifiers in [KeyModifiers::NONE, KeyModifiers::SHIFT] {
+            assert_eq!(
+                key_name(&key(KeyCode::BackTab, modifiers)).unwrap(),
+                "Shift+Tab"
+            );
+        }
         assert_eq!(
             key_name(&key(KeyCode::F(5), KeyModifiers::NONE)).unwrap(),
             "F5"

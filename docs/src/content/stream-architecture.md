@@ -1,274 +1,190 @@
 ---
 title: Stream Architecture
-description: BoxMux stream-based architecture - multiple input streams, tab system, stream switching, and lifecycle management for dynamic content display
+description: How BoxMux organizes what a box shows into streams (tabs), where script output goes, and how the runtime's single event loop and executor run scripts
 ---
 
-## Table of Contents
+## Streams are tabs
 
-- [Overview](#overview)
-- [Stream Types](#stream-types)
-- [Tab System](#tab-system)
-- [Stream Switching](#stream-switching)
-- [Close Buttons and Lifecycle](#close-buttons-and-lifecycle)
-- [Practical Examples](#practical-examples)
-- [Advanced Usage](#advanced-usage)
+Everything a box can show is held in **streams**, and each stream is one tab of the box. A
+box shows one stream at a time: its **visible tab**.
 
-## Overview
+Every stream has a kind:
 
-BoxMux uses a **stream-based architecture** where every box can display content from multiple input streams. Each stream appears as a separate tab in the box title bar, allowing users to switch between different content sources within the same box.
+| Kind | Holds | Created |
+|------|-------|---------|
+| Content | The box's static `content` | At load, when `content` is not empty |
+| Choices | The box's `choices` menu | At load, when `choices` is not empty |
+| Run | The output of one *origin* (see below): text lines, or a terminal screen for PTY runs | The box's own script tab at load (when the box has a `script`); every other one the first time its origin runs |
+| Socket | Text sent with the `replace_box_content` control command | The first time that command targets the box |
 
-This architecture enables:
-- **Multiple content sources** per box (base content, choice outputs, PTY sessions)
-- **Dynamic tab creation** based on active streams  
-- **Interactive stream switching** by clicking tabs
-- **Stream lifecycle management** with automatic cleanup
-- **Real-time updates** from background streams
+Tabs appear in this order: Content, Choices, the box's own script output, then every
+stream created while boxmux runs, in the order they were created.
 
-## Stream Types
+### Origins
 
-### Content Stream
-The default stream containing the box's base content and script output.
+A Run stream belongs to one **origin**, the thing that started the run:
 
-```yaml
-- id: 'content_box'
-  title: 'System Info'
-  content: 'Base system information'
-  script: ['uname -a']
-  # → Creates "Content" tab
-```
+| Origin | Started by | Tab label |
+|--------|-----------|-----------|
+| Box script | The box's `script`, once or every `refresh_interval` | `Output` (or the box title, see below); in another box: the source box's title or id |
+| Choice | Enter, a click or a `hot_keys` key on a choice with a `script` | The choice's `content` (its id when it has none) |
+| Key handler | A box's `on_keypress` handler | The key name, e.g. `Ctrl+r` |
+| Socket spawn | The `spawn_pty_process` control command | `Terminal` |
 
-### Choices Stream  
-Interactive menu options that appear as a separate stream.
+App- and layout-level `on_keypress` handlers have no stream: their output is not shown, and a
+failure appears as a notice at the bottom of the screen.
 
-```yaml
-- id: 'menu_box'
-  title: 'Actions Menu'
-  choices:
-    - id: 'deploy'
-      script: ['./deploy.sh']
-    - id: 'test'
-      script: ['./run-tests.sh']
-  # → Creates "Actions Menu" tab (uses box title)
-```
+Running the same origin again writes to the same tab instead of opening a new one. Runs of
+different origins never share a tab, even when they write into the same box: two boxes whose
+choices redirect to the same `log` box each get their own tab there.
 
-### Redirected Output Streams
-Output from choice executions in other boxes creates dedicated streams.
+A terminal program that sets a title (OSC 0 or 2) renames its tab to that title.
 
-```yaml
-- id: 'control_box'
-  title: 'Controls'
-  choices:
-    - id: 'deploy'
-      script: ['./deploy.sh']
-      redirect_output: 'output_box'  # Creates "Deploy" tab in output_box
+### Labels and the tab bar
 
-- id: 'output_box'
-  title: 'Output Display'
-  content: 'Waiting for operations...'
-  # → Shows both "Content" and "Deploy" tabs when deploy runs
-```
+When a box defines exactly one of `content`, `choices` and `script`, that tab is labelled with
+the box's `title` (or `Content`, `Choices`, `Output` when there is no title). With more than
+one, the tabs are labelled `Content`, `Choices` and `Output`.
 
-### PTY Streams
-Interactive terminal sessions for running terminal programs.
+The top border shows tabs when the box has more than one stream, or a stream that can be
+closed. Otherwise it shows the box's `title`, or the label of its only stream. Click a tab to
+show it; ◀ and ▶ scroll the tab bar when the tabs do not fit, and the last tab can always be
+scrolled into view.
 
-```yaml
-- id: 'terminal_box'  
-  title: 'Terminal'
-  pty: true
-  script: ['bash']
-  # → Creates "Terminal" tab with interactive shell
-```
+### Closeable tabs
 
-## Tab System
+| Stream | Has a `×` |
+|--------|-----------|
+| Content, Choices | No |
+| The box's own script output | No |
+| A box script redirected into another box (shown in that other box) | Yes |
+| Choice, key handler and socket spawn output | Yes |
+| Socket content | Yes |
 
-Tabs are automatically generated based on available streams in each box:
+Clicking `×` removes the tab and stops the process feeding it, if any. When the closed tab was
+visible, the first tab becomes visible. The next run of the same origin creates the tab again.
 
-### Tab Priority and Ordering
-1. **Content Stream** - Always first if present
-2. **Choices Stream** - Second if present  
-3. **Redirected Output Streams** - Ordered by creation time
-4. **PTY Streams** - Ordered by creation time
+### Which tab is visible
 
-### Tab Labels
-- **Content Stream**: "Content"
-- **Choices Stream**: Uses box title or "Choices" if no title
-- **Redirected Output**: Uses choice ID (e.g., "Deploy", "Test") 
-- **PTY Stream**: Uses box title or "PTY" if no title
+At start each box shows its first tab. A run started by the user (activating a choice,
+pressing a handled key, `replace_box_script`, `spawn_pty_process`, `restart_pty_process`)
+makes its tab visible and scrolls the tab bar to it. A box script started when its layout is
+shown, or by its `refresh_interval`, does not switch tabs. `replace_box_content` makes the
+socket tab visible.
 
-### Visual Indicators
-- **Active tab**: Highlighted with different color
-- **Background activity**: Subtle indicator for streams with new content
-- **Close buttons**: × symbol on closeable streams (redirected output, PTY)
+### Status
 
-## Stream Switching
+Each stream records the state of its content:
 
-Users can switch between streams by clicking tabs:
+| Status | Meaning |
+|--------|---------|
+| Idle | Static content, or nothing has run yet |
+| Running | A run is producing output |
+| Exited with a code | The last run ended with that exit code |
+| Failed | The last run could not start, was ended by a signal not sent by boxmux, or was reported failed through `replace_box_content` with `success: false` |
+| Killed | The last run was stopped by boxmux (tab closed, box removed or replaced, `kill_pty_process`, or a restart) |
 
-### Mouse Interaction
-```
-[Content] [Deploy] [Test]
-    ↑       ↑       ↑
-  Click to switch active stream
-```
+When the **visible** tab's status is a non-zero exit or a failure, the box is drawn in its
+error colors (`error_*` settings, red by default). A terminal tab whose program exited with
+code 0 or was killed gets a yellow border. While a choice's run is active, its menu entry
+shows ` …`. The `query_pty_status` control command reports the status of the visible tab.
 
-### Keyboard Navigation
-- **Tab**: Cycle through boxes
-- **Arrow keys**: Navigate within active stream content
-- **Mouse click**: Switch streams within focused box
+## Where output goes
 
-### Active Stream Behavior
-- Only the active stream content is displayed in the box
-- Scrolling and navigation apply to the active stream
-- Background streams continue updating but aren't visible
+### redirect_output
 
-## Close Buttons and Lifecycle
+By default a run writes into the box it belongs to. `redirect_output: <box id>` sends it to
+another box instead:
 
-### Closeable Streams
-Streams that can be terminated show close buttons (×):
-- **Redirected Output Streams** - From choice executions
-- **PTY Streams** - Interactive terminal sessions  
-- **Choice Execution Streams** - Running processes
-- **External Socket Streams** - Socket-controlled content
+- on a **box**, it applies to the box's `script` and to its `on_keypress` handlers;
+- on a **choice**, it applies to that choice's script;
+- for `spawn_pty_process`, the `redirect_output` field does the same.
 
-### Non-closeable Streams
-Core streams remain open:
-- **Content Streams** - Base box content
-- **Choices Streams** - Menu definitions
+The output then appears in a tab of the target box, labelled as described above. A box whose
+script is redirected keeps its own (empty) `Output` tab.
 
-### Stream Cleanup
-When a stream is closed:
-1. **Process termination** - Associated processes are killed
-2. **Resource cleanup** - File descriptors and threads cleaned up
-3. **Tab removal** - Tab disappears from box title bar
-4. **Stream switching** - Active stream switches to remaining stream
+The target must be an existing box; a choice can only have `redirect_output` when it has a
+script. Both are checked when the file is loaded.
 
-## Practical Examples
+### How runs write to their tab
 
-### Multi-Stream Development Box
-```yaml
-- id: 'dev_control'
-  title: 'Development'
-  content: 'Ready for development tasks'
-  choices:
-    - id: 'build'
-      script: ['cargo build --release']  
-      redirect_output: 'build_output'
-    - id: 'test'
-      script: ['cargo test']
-      redirect_output: 'test_output' 
-    - id: 'lint'
-      script: ['cargo clippy']
-      redirect_output: 'lint_output'
+| `execution_mode` | While running | When the run ends |
+|------------------|---------------|-------------------|
+| `Immediate` (default) | The tab keeps its previous content | The whole output (stdout and stderr together) replaces the content, or is added after it with `append_output: true` |
+| `Thread` | The tab is cleared when the run starts (not with `append_output: true`); each complete line of stdout or stderr is added as it arrives | Any last partial line is added |
+| `Pty` | The tab shows the program's terminal: scrollback plus screen, or only the screen while the program uses the alternate screen | The last screen stays |
 
-- id: 'build_output'
-  title: 'Build Results'
-  content: 'Build output will appear here...'
-  # Tabs: [Content] + [Build]/[Test]/[Lint] when commands run
+Box `on_keypress` handlers always run in `Thread` mode. Socket spawns always run in `Pty` mode.
 
-- id: 'terminal'
-  title: 'Terminal' 
-  pty: true
-  script: ['bash']
-  # Tab: [Terminal] with interactive shell
-```
+Output is cleaned before it is shown: a carriage return goes back to the start of the line
+(later text overwrites earlier text, as progress bars expect), backspace steps back, tabs
+advance to the next 8-column stop, SGR color sequences are kept, and other control characters
+and escape sequences are removed. Invalid UTF-8 is shown with replacement characters.
 
-**Result**: 
-- `dev_control` box shows [Content] [Development] tabs
-- `build_output` box starts with [Content], adds [Build]/[Test]/[Lint] tabs as commands run
-- `terminal` box shows [Terminal] tab with interactive bash session
-- Users can close Build/Test/Lint tabs with × button after completion
+### append_output
 
-### Real-time Monitoring Setup
-```yaml
-- id: 'monitoring'
-  title: 'System Monitor'
-  content: |
-    System monitoring dashboard
-    Click choices to start monitoring streams
-  choices:
-    - id: 'cpu'
-      script: ['top -l 0 -s 1']
-      redirect_output: 'metrics'
-      streaming: true
-    - id: 'disk'  
-      script: ['iostat 1']
-      redirect_output: 'metrics'
-      streaming: true
-    - id: 'network'
-      script: ['netstat -w 1'] 
-      redirect_output: 'metrics'
-      streaming: true
+`append_output: true` keeps earlier output and adds new output after it. It is read from the
+**box** for the box's script and its key handlers, and from the **choice** for a choice's runs.
+Socket spawns never append.
 
-- id: 'metrics'
-  title: 'Live Metrics'
-  content: 'Select monitoring options from control panel'
-  auto_scroll: true
-  # Tabs dynamically created: [Content] [CPU] [Disk] [Network]
-```
+### auto_scroll_bottom
 
-**Behavior**:
-- Users click CPU/Disk/Network choices to start monitoring streams
-- Each creates a dedicated tab in the `metrics` box
-- Users can switch between different metric streams using tabs
-- Close buttons (×) allow stopping individual monitoring streams
-- `auto_scroll: true` keeps latest metrics visible
+With `auto_scroll_bottom: true`, a box scrolls to its last line whenever its visible tab
+receives output. Terminal tabs always do this.
 
-## Advanced Usage
+### save_in_file
 
-### Stream Configuration Options
+`save_in_file: <path>` writes the content of the box's script tab to a file after each run of
+the box script, replacing the file, with color sequences removed. A relative path is relative
+to the YAML file. It does not apply to `Pty` scripts or to other origins.
 
-```yaml  
-- id: 'advanced_box'
-  title: 'Advanced Streams'
-  content: 'Base content'
-  
-  # Content stream behavior
-  auto_scroll: true          # Auto-scroll to bottom for new content
-  
-  # Choice stream with streaming output
-  choices:
-    - id: 'long_process'
-      script: ['./long-running-task.sh']
-      streaming: true          # Stream output line-by-line
-      redirect_output: 'output'
-      
-  # PTY stream configuration  
-  pty: true
-  script: ['htop']            # Interactive process monitor
-```
+## The runtime
 
-### Stream Monitoring and Control
+### One event loop
 
-Via Socket API:
-```bash
-# List all streams for a box
-boxmux query-streams --box-id advanced_box
+One thread owns the whole application state: the layouts, boxes, streams and runs. Every
+other thread only sends it events over a single channel:
 
-# Switch active stream  
-boxmux switch-stream --box-id advanced_box --stream-id long_process
+| Thread | Sends |
+|--------|-------|
+| Input reader | Keys, mouse events, paste, terminal resizes |
+| Signal listener | Termination (SIGTERM, SIGHUP, SIGINT), suspend and resume on Unix; Ctrl+C, Ctrl+Break and console close on Windows |
+| Control socket | One thread per connection forwards the command and waits up to 10 s for the answer |
+| Run readers | Output lines of `Thread` runs, the end of every run (with the whole output of `Immediate` runs), and "screen changed" notifications from PTY sessions |
 
-# Close specific stream
-boxmux close-stream --box-id advanced_box --stream-id long_process
+The loop takes the next event (or wakes up on time for a due refresh, an expiring notice or a
+pending frame), handles it and any others already waiting, starts box scripts whose refresh
+is due, and draws a frame if something changed. Frames are drawn at most once per
+`--frame-delay` milliseconds (30 by default), and only the cells that changed are written to
+the terminal.
 
-# Monitor stream status
-boxmux stream-status --box-id advanced_box
-```
+Because only this thread touches the state, control commands, key presses and script output
+are applied one after another, in the order they arrive.
 
-### Error Handling
+### The executor
 
-Streams handle failures gracefully:
-- **Process crashes**: Stream shows error state, remains closeable
-- **Script failures**: Error output captured in stream  
-- **PTY failures**: Automatic fallback to regular execution
-- **Socket disconnects**: Stream marked as disconnected but preserved
+The executor starts runs and keeps track of the active ones:
 
-### Performance Considerations
+- Every run executes in the app's `shell` (`bash -c` by default; `powershell -NoLogo
+  -NoProfile -NonInteractive -Command` on Windows), with the app's `libs` sourced first and the
+  script lines joined by newlines.
+- Non-PTY runs get no input (stdin is empty) and are detached from boxmux's terminal: on Unix
+  each runs in a new session, as the leader of its own process group; on Windows in a new
+  process group without a console window. stdout and stderr are read on background threads.
+- PTY runs get a pseudo-terminal sized to the box (see [PTY Features](/docs/pty-features)).
+- An origin has at most one active run. A box script whose previous run is still going when
+  its refresh is due is skipped for that interval, and the refresh keeps its cadence.
+- Stopping a run stops its whole process tree, including background processes the script
+  started: on Unix `SIGTERM` to the process group, then `SIGKILL` after 500 ms; on Windows
+  `taskkill /T`, then `taskkill /T /F`.
+- A restart (`replace_box_script` while the old script runs, `restart_pty_process`) stops the
+  run and starts the new one when the old one's end has been reported, so the two never
+  write to the tab at the same time.
+- When boxmux quits, every remaining process tree is killed at once.
 
-- **Stream limits**: No hard limit on streams per box
-- **Memory usage**: Each stream maintains its own buffer
-- **Update frequency**: Background streams throttled to prevent UI lag
-- **Cleanup timing**: Streams cleaned up immediately when closed
+### Layouts and runs
 
----
-
-The stream architecture provides a powerful foundation for building complex, multi-source terminal interfaces while maintaining simple YAML configuration syntax.
+Box scripts start the first time their layout is shown (at start, or after
+`switch_active_layout`). Once started, runs and periodic refreshes continue while another
+layout is shown. Removing or replacing a box through the control socket stops everything
+running for it.

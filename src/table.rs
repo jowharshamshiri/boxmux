@@ -92,7 +92,8 @@ pub struct TableSettings {
     /// Header of the column rows are sorted by.
     pub sort_column: Option<String>,
     pub sort_ascending: Option<bool>,
-    /// Only rows whose value in the named column contains the given text are shown.
+    /// Only rows whose value in the named column equals the given text, ignoring case, are
+    /// shown.
     pub filters: Option<std::collections::BTreeMap<String, String>>,
     pub border_style: Option<TableBorderStyle>,
     pub zebra_striping: Option<bool>,

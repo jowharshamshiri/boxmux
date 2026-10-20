@@ -1,6 +1,6 @@
 ---
 title: User Guide
-description: Complete guide for building terminal interfaces with BoxMux - from basic concepts to advanced techniques
+description: Building terminal interfaces with BoxMux, from a first box to menus, live output, interactive terminals, charts, tables and plugins
 ---
 
 
@@ -8,14 +8,15 @@ description: Complete guide for building terminal interfaces with BoxMux - from 
 
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
-- [Stream Architecture](#stream-architecture)
-- [Interactive UI Features](#interactive-ui-features)
-- [Building Interfaces](#building-interfaces)
-- [Common Patterns](#common-patterns)
-- [PTY Features](#pty-features)
-- [Data Visualization](#data-visualization)
-- [Plugin System](#plugin-system)
-- [Real-World Examples](#real-world-examples)
+- [Tabs and Streams](#tabs-and-streams)
+- [Mouse and Keyboard](#mouse-and-keyboard)
+- [Building an Interface](#building-an-interface)
+- [Common Layout Patterns](#common-layout-patterns)
+- [Interactive Terminals](#interactive-terminals)
+- [Charts and Tables](#charts-and-tables)
+- [Plugins](#plugins)
+- [Controlling BoxMux from Scripts](#controlling-boxmux-from-scripts)
+- [Complete Examples](#complete-examples)
 - [Best Practices](#best-practices)
 - [Techniques](#techniques)
 
@@ -23,7 +24,7 @@ description: Complete guide for building terminal interfaces with BoxMux - from 
 
 ### Your First Interface
 
-Create a simple "Hello World" interface:
+Save this as `hello.yaml`:
 
 ```yaml
 app:
@@ -42,30 +43,33 @@ app:
             x2: 75%
             y2: 60%
           content: '${WELCOME_MSG}'
-          border: true
           border_color: 'green'
 ```
 
 Run it:
 
 ```bash
-# If installed via cargo install
+# Installed with cargo install
 boxmux hello.yaml
 
-# If built from source
-./run_boxmux.sh hello.yaml
+# From a source checkout
+cargo run --release -- hello.yaml
 ```
 
-Notice the interface is already readable even though `hello.yaml` defines no colors: BoxMux applies an automatic light/dark theme based on your terminal. To force a theme, add `--light` or `--dark`:
+Press `q` to quit.
+
+The file defines no background or text colors, yet the interface is readable: BoxMux picks a light or dark theme to match your terminal. To force one, pass `--light` or `--dark`:
 
 ```bash
 boxmux hello.yaml --dark
 boxmux hello.yaml --light
 ```
 
+If the file has a mistake, BoxMux does not start. It prints what is wrong, and where, to stderr; see [Troubleshooting](/docs/troubleshooting#configuration-errors).
+
 ### Interactive Menu
 
-Add interactivity with menus:
+A box with `choices` is a menu. Selecting an entry runs its script:
 
 ```yaml
 app:
@@ -76,138 +80,185 @@ app:
       children:
         - id: 'menu'
           title: 'Actions'
-          position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
-          tab_order: '1'
+          position: {x1: 5%, y1: 10%, x2: 35%, y2: 90%}
+          tab_order: 1
           choices:
             - id: 'hello'
               content: 'Say Hello'
               script: ['echo "Hello, World!"']
+              redirect_output: 'output'
             - id: 'date'
-              content: 'Show Date'  
+              content: 'Show Date'
               script: ['date']
+              redirect_output: 'output'
             - id: 'files'
               content: 'List Files'
               script: ['ls -la']
+              redirect_output: 'output'
+        - id: 'output'
+          title: 'Output'
+          position: {x1: 40%, y1: 10%, x2: 95%, y2: 90%}
+          content: 'Pick an action on the left'
 ```
+
+`tab_order: 1` makes the menu reachable with Tab, and because it is the only box with a `tab_order`, it has the focus when the interface starts. Use Up and Down to move the selection and Enter to run it, or click an entry. Each choice's output opens in its own tab of the `output` box.
 
 ## Core Concepts
 
 ### 1. Layouts and Boxes
 
-**Layouts** define the overall structure of your interface. **Boxes** are the building blocks within layouts.
+A configuration has one `app` with one or more **layouts**. A layout is a screen of **boxes**; boxes can contain other boxes.
 
 ```yaml
 app:
-  layouts:                    # List of layout definitions
-    - id: 'main'             # Unique layout identifier
-      root: true             # This is the main layout
-      children:              # Boxes within this layout
-        - id: 'box1'       # Unique box identifier
-          title: 'Box'     # Box title
-          position:          # Box position and size
-            x1: 10%          # Left edge (percentage of parent)
+  layouts:                   # Required: at least one layout
+    - id: 'main'             # Unique layout id
+      root: true             # The layout shown at start (default: the first one)
+      title: 'Main'          # Also used as the terminal window title
+      children:              # The boxes of the layout
+        - id: 'box1'         # Unique box id (unique across the whole app)
+          title: 'Box'       # Shown in the top border
+          position:          # Required for every box
+            x1: 10%          # Left edge
             y1: 10%          # Top edge
             x2: 90%          # Right edge
             y2: 90%          # Bottom edge
 ```
 
-### 2. Positioning System
+Every key is checked when the file is loaded. A key BoxMux does not know, a value of the wrong type, a reference to a box that does not exist, or a duplicate id stops BoxMux with an error that names the place in the file.
 
-BoxMux uses percentage-based positioning for responsive design:
+### 2. Positioning
 
-- `x1, y1`: Top-left corner coordinates
-- `x2, y2`: Bottom-right corner coordinates
-- Values are percentages of the parent container
+Each edge of `position` is a string in one of two forms:
+
+- A **percentage** with up to two decimals, such as `50%` or `33.25%`. `0%` is the first cell and `100%` the last cell of the area the box sits in.
+- A **number of cells**, such as `"12"`, counted from the start of that area and clamped to it. Quote it: an unquoted `12` is a YAML number and is rejected.
+
+Positions are relative to the enclosing box (its outer edge, including the border) or, for top-level boxes, to the screen. If an edge pair is given in reverse order (`x1` larger than `x2`), the two are swapped.
 
 ```yaml
-# Common layout patterns
 # Full screen
 position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
 
-# Top half  
+# Top half
 position: {x1: 0%, y1: 0%, x2: 100%, y2: 50%}
 
-# Left sidebar
-position: {x1: 0%, y1: 0%, x2: 25%, y2: 100%}
+# Left sidebar, 30 cells wide
+position: {x1: "0", y1: 0%, x2: "29", y2: 100%}
 
 # Centered window
 position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
 ```
 
-### 3. Interactive Elements
+`min_width`, `min_height`, `max_width` and `max_height` (in cells) limit the size a box gets from its position. When a limit changes the size, `anchor` decides which point of the box stays in place: `TopLeft`, `TopRight`, `BottomLeft`, `BottomRight`, `Center` (the default), `CenterTop`, `CenterBottom`, `CenterLeft` or `CenterRight`. The box is then kept inside its parent.
 
-Create interactive menus with choices:
+Boxes can overlap. `z_index` (default 0) decides which of two overlapping sibling boxes is drawn on top; a box is always drawn over its parent.
 
-```yaml
-- id: 'menu_box'
-  tab_order: '1'           # Enable keyboard navigation
-  choices:
-    - id: 'action1'
-      content: 'Menu Option 1'
-      script: ['command to execute']
-      redirect_output: 'output_box'  # Send results to another box
-    - id: 'action2'
-      content: 'Menu Option 2'
-      script: ['another command']
-```
+### 3. Content, Scripts and Refresh
 
-### 4. Real-time Updates
-
-Add live data with refresh intervals:
+A box can show static `content`, the output of a `script`, a menu of `choices`, or several of these as tabs.
 
 ```yaml
 - id: 'live_box'
   title: 'Live Data'
-  refresh_interval: 2000   # Update every 2 seconds
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  refresh_interval: 2000   # Run the script again every 2 seconds
   script:
-    - date                 # Commands to run on each refresh
+    - date
     - uptime
 ```
 
-### 5. Variable System - Dynamic Configuration
+- `script` is a list of lines, or one multi-line string. The lines are joined and run as one script by the app's `shell` (`bash` by default; `powershell` on Windows; `sh`, `zsh` and `pwsh` can be chosen). Standard output and standard error both appear in the box.
+- Without `refresh_interval`, the script runs once, when its layout is first shown. With it, the script runs again every `refresh_interval` milliseconds. A run that is still going is not started a second time.
+- A layout's `refresh_interval` is the default for the boxes in it that have a script.
+- `append_output: true` adds each run's output to what is already shown instead of replacing it. `auto_scroll_bottom: true` keeps the newest lines in view.
+- `save_in_file: 'output.txt'` writes the output of the box's script to a file (relative to the YAML file) after each run.
+- Scripts run in the directory BoxMux was started from. They get two environment variables: `BOXMUX_BOX` (the box the output goes to) and `BOXMUX_SOCKET` (the control socket of this instance).
 
-BoxMux's variable system enables template-driven interfaces with environment-specific configuration:
+Text that fits in a box is centered in it. When it does not fit, `overflow_behavior` decides what happens:
 
-#### Basic Variable Usage
+| Value | Behavior |
+|-------|----------|
+| `scroll` (default) | Scrollbars appear on the border; scroll with the mouse or keys |
+| `wrap` | Long lines break; only vertical scrolling |
+| `truncate` | Lines are cut and end with `…`; no scrolling |
+
+### 4. Execution Modes
+
+`execution_mode` (on a box or a choice) decides how a script runs:
+
+| Mode | Behavior |
+|------|----------|
+| `Immediate` (default) | Runs in the background; the output appears when the script finishes |
+| `Thread` | Output appears line by line while the script runs |
+| `Pty` | The script runs in a terminal inside the box, and you can type into it |
+
+```yaml
+- id: 'build_log'
+  title: 'Build'
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 50%}
+  execution_mode: Thread
+  auto_scroll_bottom: true
+  script:
+    - cargo build 2>&1
+```
+
+When a run fails (non-zero exit status), the box shows it with its error colors: a red border and title unless `error_border_color` and the other `error_*` settings say otherwise.
+
+### 5. Menus (Choices)
+
+```yaml
+- id: 'menu_box'
+  title: 'Menu'
+  position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+  tab_order: 1                      # Reachable with Tab
+  choices:
+    - id: 'action1'                 # Unique across the whole app
+      content: 'Menu Option 1'      # The label (the id is shown when missing)
+      script: ['echo one']
+      redirect_output: 'output_box' # Show the output in another box
+    - id: 'action2'
+      content: 'Menu Option 2'
+      script: ['echo two']
+      execution_mode: Thread
+- id: 'output_box'
+  title: 'Output'
+  position: {x1: 30%, y1: 0%, x2: 100%, y2: 100%}
+```
+
+- Enter runs the selected entry; clicking an entry's label runs it.
+- While a choice runs, its entry shows ` …`. Selecting it again while it runs does not start a second copy; it shows the running tab.
+- The output opens in a tab named after the choice: in the box named by `redirect_output`, or in the menu's own box. In the menu's own box the output tab replaces the menu on screen; click the menu's tab to return to it. Redirecting to a separate output box avoids that.
+- `append_output: true` on a choice appends each run to its tab.
+
+### 6. Variables
+
+Variables fill in `${NAME}` anywhere in the file:
 
 ```yaml
 app:
   variables:
-    SERVER_NAME: "production-db"
-    DEFAULT_PORT: "5432"
+    SERVER_NAME: "db.example.com"
+    DEFAULT_PORT: 5432
   layouts:
     - id: 'database_monitor'
       title: 'Database Monitor - ${SERVER_NAME}'
       children:
         - id: 'connection_status'
           title: 'Connection Status'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
           script:
             - 'pg_isready -h ${SERVER_NAME} -p ${DEFAULT_PORT}'
-            - 'echo "Connected to ${SERVER_NAME}:${DEFAULT_PORT}"'
+            - 'echo "User: ${USER:unknown}"'
 ```
 
-#### Environment Integration
+- `${NAME:default}` uses `default` when `NAME` is not defined anywhere.
+- A name is looked up in the box's own `variables`, then the enclosing boxes (nearest first), the layout, the app, and finally the environment. A variable defined in the file therefore takes precedence over an environment variable of the same name.
+- A reference to a name that is not defined anywhere and has no default is left as written, and so is shell syntax such as `${i}`, `${X:-y}` or `${#list[@]}`. In a script, the shell then expands it. Write `$${` for a literal `${`.
+- Values may be strings, numbers or booleans. The result of a substitution is always text, so a variable cannot supply a number setting such as `refresh_interval`.
+- Variable values are inserted as written: a `${...}` inside a value is not expanded.
 
-Variables seamlessly integrate with environment variables:
-
-```yaml
-app:
-  variables:
-    ENVIRONMENT: "development"  # Overridden by $ENVIRONMENT if set
-  layouts:
-    - id: 'deployment_status'
-      title: 'Status - ${ENVIRONMENT}'
-      children:
-        - id: 'api_check'
-          script:
-            - 'echo "Environment: ${ENVIRONMENT}"'
-            - 'echo "User: ${USER:unknown}"'       # Uses $USER or "unknown"
-            - 'echo "Log Level: ${LOG_LEVEL:info}"' # Uses $LOG_LEVEL or "info"
-```
-
-#### Hierarchical Variables
-
-Child boxes inherit and can override parent variables:
+Nested boxes see the variables of the boxes around them and can override them:
 
 ```yaml
 app:
@@ -217,169 +268,101 @@ app:
     - id: 'infrastructure'
       children:
         - id: 'web_tier'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
           variables:
             SERVICE_TYPE: "frontend"
             PORT: "80"
           children:
             - id: 'nginx_server'
+              position: {x1: 5%, y1: 10%, x2: 95%, y2: 90%}
               variables:
                 SERVICE_NAME: "nginx"
-                PORT: "443"  # Overrides parent PORT
-              title: '${SERVICE_NAME} (${SERVICE_TYPE}) - ${REGION}'
-              # Resolves to: "nginx (frontend) - us-east-1"
+                PORT: "443"   # Overrides web_tier's PORT
+              title: '${SERVICE_NAME} (${SERVICE_TYPE}) - ${REGION}:${PORT}'
+              # Title: "nginx (frontend) - us-east-1:443"
 ```
 
-**Learn more**: See the complete [Variable System Guide](/docs/variables) for additional patterns and best practices.
+**Learn more**: [Variable System Guide](/docs/variables).
 
-## Stream Architecture
+## Tabs and Streams
 
-BoxMux uses a **stream-based architecture** where boxes can display content from multiple input streams, each appearing as a separate tab.
+Everything a box can show is a **stream**, and a box with more than one stream shows them as tabs in its top border:
 
-### Understanding Streams
+| Tab | Comes from | Can be closed |
+|-----|------------|---------------|
+| Content | The box's `content` | No |
+| Choices | The box's `choices` | No |
+| Output | The box's own `script` | No |
+| One per choice | A choice whose output goes to this box | Yes |
+| One per key | A box `on_keypress` handler | Yes |
+| Source box title | Another box's script redirected here with `redirect_output` | Yes |
+| Socket | Text sent with `replace_box_content` | Yes |
+| Terminal | A process started with `spawn_pty_process` | Yes |
 
-Every box can have multiple content streams:
+A box with a single stream shows its `title` (or the stream's name) instead of tabs; in a box with only `choices`, the menu's tab is labelled with the box title.
+
+- Click a tab to show it. Streams that are not shown keep receiving output.
+- Click `×` on a tab to close it. Closing a tab stops the process that feeds it.
+- When the tabs do not fit, `◀` and `▶` at the ends of the bar scroll it.
+- A terminal program can set its tab's label with the usual window-title escape sequence.
 
 ```yaml
-- id: 'control_center'
-  title: 'Control Center'
-  content: 'System control panel ready'  # → Content tab
-  choices:                               # → Control Center tab  
-    - id: 'deploy'
-      script: ['./deploy.sh']
-      redirect_output: 'output_display'  # → Deploy tab in output_display
-    - id: 'monitor'  
-      script: ['./monitor.sh']
-      redirect_output: 'output_display'  # → Monitor tab in output_display
-
-- id: 'output_display'
-  title: 'Output'
-  content: 'Command output will appear here...'
-  # Tabs: [Content] + [Deploy] + [Monitor] as commands run
+app:
+  layouts:
+    - id: 'dev'
+      children:
+        - id: 'dev_commands'
+          title: 'Development'
+          position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+          tab_order: 1
+          choices:
+            - id: 'build'
+              content: 'Build'
+              script: ['cargo build --release 2>&1']
+              execution_mode: Thread
+              redirect_output: 'results'
+            - id: 'test'
+              content: 'Test'
+              script: ['cargo test 2>&1']
+              execution_mode: Thread
+              redirect_output: 'results'
+            - id: 'lint'
+              content: 'Lint'
+              script: ['cargo clippy 2>&1']
+              redirect_output: 'results'
+        - id: 'results'
+          title: 'Results'
+          position: {x1: 30%, y1: 0%, x2: 100%, y2: 100%}
+          auto_scroll_bottom: true
+          content: 'Results appear here'
 ```
 
-### Tab System Usage
+The `results` box starts with its content. Running Build adds a "Build" tab, running Test adds a "Test" tab next to it, and so on. Each tab is reused when its choice runs again.
 
-**Tab Navigation:**
-- **Click tabs** to switch between streams within a box
-- **Close buttons (×)** appear on closeable streams (redirected output, PTY sessions)  
-- **Background streams** continue updating while inactive
+**Learn more**: [Stream Architecture](/docs/stream-architecture).
 
-**Example Workflow:**
-1. Click "Deploy" choice in control_center → Deploy tab appears in output_display
-2. Click "Monitor" choice → Monitor tab appears alongside Deploy tab
-3. Click between Deploy/Monitor tabs to view different command outputs  
-4. Click × on Deploy tab to terminate the deployment process
+## Mouse and Keyboard
 
-### Multi-Stream Development Setup
+| Action | How |
+|--------|-----|
+| Focus a box | Click it, or Tab / Shift+Tab through boxes with a `tab_order` |
+| Move the menu selection | Up / Down |
+| Run the selected choice | Enter, or click the entry's label |
+| Scroll | Mouse wheel over any box (3 lines per step), arrow keys, PageUp / PageDown, Home / End, Ctrl+Home / Ctrl+End |
+| Move a box | Drag its top border |
+| Resize a box | Drag its bottom-right corner (`⋱`) |
+| Copy the focused box's text | Ctrl+C |
+| Quit | `q` |
 
-```yaml
-- id: 'dev_commands'
-  title: 'Development'
-  choices:
-    - id: 'build'
-      script: ['cargo build --release']
-      redirect_output: 'build_results'
-      streaming: true               # Live output streaming
-    - id: 'test'
-      script: ['cargo test']  
-      redirect_output: 'test_results'
-      streaming: true
-    - id: 'lint'
-      script: ['cargo clippy']
-      redirect_output: 'lint_results'
+Moved and resized boxes are saved to the YAML file. Start BoxMux with `--lock` to turn moving and resizing off and never write the file.
 
-# Each command creates dedicated tabs in result boxes
-- id: 'build_results'
-  title: 'Build Output'
-  auto_scroll: true
-  content: 'Build results appear here...'
+When a box shows a running terminal program and has the focus, every key except Tab and Shift+Tab goes to that program, including `q` and Ctrl+C.
 
-- id: 'test_results'  
-  title: 'Test Output'
-  auto_scroll: true
-  content: 'Test results appear here...'
+**Learn more**: [Interactive UI](/docs/interactive-ui).
 
-- id: 'lint_results'
-  title: 'Lint Output' 
-  auto_scroll: true
-  content: 'Lint results appear here...'
-```
+## Building an Interface
 
-**Result:** Each box shows Content tab initially, then gains Build/Test/Lint tabs as commands execute. Users can monitor multiple processes simultaneously and close completed operations.
-
-### PTY Streams
-
-Interactive terminal sessions create dedicated streams:
-
-```yaml
-- id: 'terminal'
-  title: 'Terminal'
-  pty: true
-  script: ['bash']
-  # → Creates Terminal tab with interactive shell
-
-- id: 'monitor'
-  title: 'System Monitor'  
-  pty: true
-  script: ['htop']
-  # → Creates System Monitor tab with interactive htop
-```
-
-**Learn more**: See the complete [Stream Architecture Guide](/docs/stream-architecture) for advanced stream patterns.
-
-## Interactive UI Features
-
-BoxMux supports mouse-driven interface manipulation for dynamic layout editing:
-
-### Hover and Scrolling
-- **Hover highlighting** on every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) — no styling needed, the highlight uses the active theme
-- **Mouse wheel** scrolls whichever box is under the cursor, even if it is not the focused box
-
-### Box Resizing
-- **Drag bottom-right corner** to resize boxes in real-time
-- **Auto-save to YAML** preserves changes across restarts
-- **Visual feedback** with cursor style changes
-
-### Box Movement  
-- **Drag title bar** to move boxes to new positions
-- **Snap-to-grid** alignment for precise placement
-- **Live persistence** to original configuration files
-
-### Dynamic Interactions
-```yaml
-- id: 'resizable_demo'
-  title: 'Drag Corner to Resize →'
-  position: {x1: 10%, y1: 10%, x2: 60%, y2: 60%}
-  content: |
-    This box demonstrates interactive features:
-    
-    • Drag bottom-right corner to resize
-    • Drag title bar to move  
-    • Changes auto-save to YAML file
-    • Try it now!
-    
-- id: 'movable_demo'
-  title: '← Drag Title to Move'  
-  position: {x1: 40%, y1: 40%, x2: 90%, y2: 90%}
-  z_index: 2  # Appears on top for clear interaction
-  content: |
-    Interactive UI features:
-    
-    ✓ Real-time visual feedback
-    ✓ Automatic YAML persistence  
-    ✓ Boundary constraint enforcement
-    ✓ Smooth 60 FPS performance optimization
-```
-
-**Learn more**: See the complete [Interactive UI Guide](/docs/interactive-ui) for advanced interaction patterns.
-
-## Building Interfaces
-
-### Step-by-Step Interface Creation
-
-#### 1. Plan Your Layout
-
-Before writing YAML, sketch your interface:
+### 1. Sketch the Layout
 
 ```
 ┌─────────────────────────────┐
@@ -393,7 +376,7 @@ Before writing YAML, sketch your interface:
 └─────────────────────────────┘
 ```
 
-#### 2. Implement the Structure
+### 2. Write the Structure
 
 ```yaml
 app:
@@ -402,17 +385,15 @@ app:
       root: true
       title: 'My Dashboard'
       children:
-        # Header
         - id: 'header'
-          title: 'Dashboard Header'
+          title: 'Dashboard'
           position: {x1: 0%, y1: 0%, x2: 100%, y2: 15%}
           content: 'Welcome to the Dashboard'
-          
-        # Sidebar
+
         - id: 'sidebar'
           title: 'Navigation'
           position: {x1: 0%, y1: 15%, x2: 25%, y2: 85%}
-          tab_order: '1'
+          tab_order: 1
           choices:
             - id: 'system'
               content: 'System Info'
@@ -422,55 +403,60 @@ app:
               content: 'Processes'
               script: ['ps aux | head -10']
               redirect_output: 'main'
-              
-        # Main content
+
         - id: 'main'
           title: 'Main Content'
           position: {x1: 25%, y1: 15%, x2: 100%, y2: 85%}
           content: 'Select an option from the sidebar'
-          scroll: true
-          
-        # Footer
+
         - id: 'footer'
-          title: 'Status'
+          title: 'Clock'
           position: {x1: 0%, y1: 85%, x2: 100%, y2: 100%}
           refresh_interval: 1000
           script: ['date']
 ```
 
-#### 3. Add Styling
+### 3. Add Colors
 
-Styling is optional — without any color fields, BoxMux renders a readable light or dark theme automatically (see the [theme guide](/docs/styling/theme)). Set colors only where you want to override the theme defaults:
+Colors are optional; without them the theme supplies readable defaults (see [Theme](/docs/styling/theme)). The color names are `default` (the terminal's own color), `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white` and their `bright_` versions (`bright_black` through `bright_white`).
+
+Colors set on a layout apply to all its boxes; colors set on a box apply to it and the boxes inside it, unless they set their own:
 
 ```yaml
-# At layout level for consistent styling
 - id: 'dashboard'
   root: true
   title: 'Styled Dashboard'
   bg_color: 'black'
   fg_color: 'white'
   title_fg_color: 'bright_yellow'
-  title_bg_color: 'blue'
-  selected_bg_color: 'bright_blue'
   border_color: 'green'
-  # ... children boxes inherit these styles
+  selected_border_color: 'bright_cyan'   # Border of the focused box
+  selected_menu_bg_color: 'blue'         # The menu entry Enter runs
+  children:
+    - id: 'note'
+      position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
+      content: 'Styled with the layout colors'
 ```
 
-## Common Patterns
+The settings are `fg_color`, `bg_color`, `border_color`, `title_fg_color`, `title_bg_color`, `menu_fg_color` and `menu_bg_color`, each with `selected_` (focused box), `highlighted_` (box under the mouse pointer), `error_` and `error_selected_` (last run of the shown tab failed) variants where the [configuration reference](/docs/configuration) lists them. `fill: false` leaves a box's background unpainted, so whatever is beneath shows through.
 
-### Header/Sidebar/Main Layout
+## Common Layout Patterns
+
+These are the `children` of a layout; add content to each box.
+
+### Header, Sidebar and Main Area
 
 ```yaml
 children:
   - id: 'header'
     position: {x1: 0%, y1: 0%, x2: 100%, y2: 10%}
-  - id: 'sidebar'  
+  - id: 'sidebar'
     position: {x1: 0%, y1: 10%, x2: 20%, y2: 100%}
   - id: 'main'
     position: {x1: 20%, y1: 10%, x2: 100%, y2: 100%}
 ```
 
-### Two-Column Layout
+### Two Columns
 
 ```yaml
 children:
@@ -480,7 +466,7 @@ children:
     position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
 ```
 
-### Grid Layout (2x2)
+### 2x2 Grid
 
 ```yaml
 children:
@@ -494,211 +480,244 @@ children:
     position: {x1: 50%, y1: 50%, x2: 100%, y2: 100%}
 ```
 
-## PTY Features
+### Fixed-Width Sidebar
 
-PTY (pseudo-terminal) features enable running interactive terminal programs directly within BoxMux boxes.
-
-### When to Use PTY
-
-Use PTY for interactive programs that require:
-
-- Keyboard input (vim, nano, htop)
-- Terminal control sequences (colors, cursor movement)
-- Process interaction (ssh sessions, database shells)
-
-### PTY Box Example
+Cell counts keep the sidebar 30 columns wide at any terminal size:
 
 ```yaml
-# Interactive system monitor
-- id: 'system_monitor'
-  title: 'System Monitor ⚡'
-  pty: true
-  script:
-    - htop
-  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
-
-# Text editor
-- id: 'editor'
-  title: 'Configuration Editor ⚡'
-  pty: true
-  script:
-    - vim /etc/app/config.yaml
-  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+children:
+  - id: 'sidebar'
+    position: {x1: "0", y1: 0%, x2: "29", y2: 100%}
+  - id: 'main'
+    position: {x1: "30", y1: 0%, x2: 100%, y2: 100%}
 ```
 
-### PTY Choice Example
+### Bounded Size
+
+A dialog that takes half the screen, but never less than 40 by 10 cells nor more than 100 by 30:
 
 ```yaml
-# Interactive menu choices
+children:
+  - id: 'dialog'
+    position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
+    min_width: 40
+    min_height: 10
+    max_width: 100
+    max_height: 30
+    anchor: Center
+```
+
+## Interactive Terminals
+
+With `execution_mode: Pty`, a script runs in a terminal inside the box. Use it for programs that need a terminal: editors, `htop`, shells, `ssh`, database consoles.
+
+```yaml
+# A box running htop
+- id: 'system_monitor'
+  title: 'System Monitor'
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+  execution_mode: Pty
+  script:
+    - htop
+
+# A shell
+- id: 'shell'
+  title: 'Shell'
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  tab_order: 1
+  execution_mode: Pty
+  script:
+    - bash
+```
+
+Choices can open terminals too. Each one opens in its own tab:
+
+```yaml
 - id: 'admin_box'
   title: 'Administration'
+  position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+  tab_order: 1
   choices:
     - id: 'edit_config'
       content: 'Edit Config File'
-      pty: true
-      script:
-        - vim /etc/app/config.yaml
-    
+      execution_mode: Pty
+      script: ['vi /etc/hosts']
+      redirect_output: 'workspace'
     - id: 'database_shell'
       content: 'Database Console'
-      pty: true
-      script:
-        - psql -U postgres -d myapp
-        
-    - id: 'ssh_server'
-      content: 'Connect to Server'
-      pty: true
-      script:
-        - ssh admin@production-server
+      execution_mode: Pty
+      script: ['psql -U postgres -d myapp']
+      redirect_output: 'workspace'
+- id: 'workspace'
+  title: 'Workspace'
+  position: {x1: 30%, y1: 0%, x2: 100%, y2: 100%}
+  content: 'Pick a tool on the left'
 ```
 
-### PTY vs Regular Execution
+- The terminal fills the inside of the box border and is resized with the box. Programs see `TERM=xterm-256color`.
+- Focus the box (click it or Tab to it) to type into the program. Tab and Shift+Tab still move the focus.
+- A PTY box runs its script once; `refresh_interval` is not allowed on it.
+- When the program ends, its last screen stays. The border turns yellow if it exited normally or was stopped, and red if it failed. Closing its tab stops it.
 
-| Feature | PTY | Regular |
-|---------|-----|---------|
-| Interactive input | ✅ Yes | ❌ No |
-| ANSI colors/formatting | ✅ Yes | ❌ Limited |
-| Real-time output | ✅ Yes | ❌ Buffered |
-| Process control (Ctrl+C) | ✅ Yes | ❌ No |
-| Terminal programs | ✅ Yes | ❌ No |
-| Simple commands | ✅ Yes | ✅ Yes |
+| | Immediate | Thread | Pty |
+|---|---|---|---|
+| Output shown | When the script ends | Line by line | Live terminal screen |
+| Keyboard input to the program | No | No | Yes |
+| Full-screen programs (vim, htop) | No | No | Yes |
+| Colors (SGR escape sequences) | Yes | Yes | Yes |
+| `refresh_interval` | Yes | Yes | No |
 
-**Learn more**: See the [PTY Features Guide](/docs/pty-features) for detailed configuration and examples.
+**Learn more**: [PTY Features](/docs/pty-features).
 
-## Data Visualization
+## Charts and Tables
 
-BoxMux provides data visualization through charts and tables.
+### Charts
 
-### Chart System
-
-BoxMux includes a Unicode-based charting system:
-
-- **Chart Types**: Bar charts, line charts, histograms
-- **Smart Layout**: Responsive chart sizing and alignment
-- **Real-time Data**: Live data integration with configurable refresh
+`chart_type` is `bar`, `line`, `histogram`, `pie` or `scatter`. The data is one point per line, written `label,value`, `label:value` or `label value`. It comes from `chart_data`, or from the output of the box's script when there is no `chart_data`:
 
 ```yaml
-# Live CPU usage chart with smart layout
-- id: 'cpu_chart'
-  title: 'CPU Usage Over Time'
-  chart_config:
-    chart_type: 'line'
-    width: 50
-    height: 15
-    title: 'CPU Usage Trend'
-  refresh_interval: 2000
-  script:
-    - top -l 1 | grep "CPU usage" | awk '{print $3}' | sed 's/%//'
-```
+- id: 'requests_chart'
+  title: 'Requests per Day'
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  chart_type: bar
+  chart_data: |
+    Mon,120
+    Tue,180
+    Wed,95
+    Thu,210
+    Fri,160
 
-### Table System
-
-Table features for structured data:
-
-- **Data Formats**: CSV and JSON parsing
-- **Sorting**: Text and numeric sorting with direction control
-- **Filtering**: Exact match and case-insensitive search
-- **Pagination**: Configurable page sizes with navigation
-- **Visual Enhancement**: Zebra striping, row numbers, multiple border styles
-
-```yaml
-# Advanced process table with all features
-- id: 'process_table'
-  title: 'Top Processes'
-  table_config:
-    headers: ['Process', 'CPU %', 'Memory', 'PID']
-    sortable: true
-    filterable: true
-    page_size: 10
-    zebra_striping: true
-    show_row_numbers: true
-    border_style: 'double'
+- id: 'load_chart'
+  title: 'Load Average'
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 50%}
+  chart_type: line
   refresh_interval: 5000
   script:
-    - ps aux --no-headers | awk '{printf "%s,%.1f,%.1f,%s\n", $11, $3, $4, $2}' | sort -rn -k2 -t, | head -15
+    - awk '{print "1min," $1; print "5min," $2; print "15min," $3}' /proc/loadavg
 ```
 
-**Learn more**: See the [Data Visualization Guide](/docs/data-visualization) for chart types, table features, and examples.
+A chart needs an area of at least 20 columns by 5 rows inside the border and its one-column margins; a smaller box shows "too small".
 
-## Plugin System
+### Tables
 
-BoxMux includes a plugin system for extending functionality with dynamic component loading and security validation.
-
-### Plugin Overview
-
-The plugin system supports:
-
-- **Dynamic Component Loading**: Load custom components at runtime using `libloading`
-- **Security Validation**: Permission-based access control with manifest validation
-- **Fallback System**: Graceful fallback to mock implementations for development/testing
-
-### Basic Plugin Usage
+`table_data` holds CSV (the first row is the header) or a JSON array of objects; without it, the script's output is the data. `table_config` controls how it is shown:
 
 ```yaml
-# Custom data visualization plugin
-- id: 'custom_viz'
-  title: 'Custom Metrics'
-  plugin_type: 'metrics_visualizer'
-  plugin_config:
-    metric_source: '/var/log/metrics.json'
-    visualization_type: 'heatmap'
-    refresh_rate: 1000
-  security_permissions:
-    - 'filesystem_read'
-    - 'process_spawn'
+- id: 'process_table'
+  title: 'Top Processes'
+  position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
+  refresh_interval: 5000
+  script:
+    # Linux (procps) ps; prints CSV with a header row
+    - ps -eo pid,pcpu,pmem,comm --sort=-pcpu | head -n 16 | awk '{print $1 "," $2 "," $3 "," $4}'
+  table_config:
+    show_headers: true
+    zebra_striping: true
+    show_row_numbers: true
+    border_style: rounded      # none, single, double, rounded or thick
+    page_size: 10
+    show_page_info: true
 ```
 
-**Learn more**: See the [Plugin System Guide](/docs/plugin-system) for development, security model, and examples.
+The other `table_config` keys are `sort_column` (a header), `sort_ascending`, `filters` (column header to text the value must contain), `max_column_width` and `current_page`.
 
-## Real-World Examples
+A box shows one chart, one table or one plugin component, not several.
 
-### System Monitor
+**Learn more**: [Data Visualization](/docs/data-visualization).
+
+## Plugins
+
+A plugin is a shared library that draws the content of boxes. List the libraries under `app.plugins` and name a component in a box:
 
 ```yaml
 app:
-  variables:
-    REFRESH_FAST: "2000"
-    REFRESH_SLOW: "5000"
+  plugins:
+    # Relative to this file. Without an extension, the platform's name is used:
+    # libboxmux_gauge.so, libboxmux_gauge.dylib or boxmux_gauge.dll.
+    - path: plugins/boxmux_gauge
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'gauges'
+          title: 'Gauges'
+          position: {x1: 10%, y1: 10%, x2: 90%, y2: 50%}
+          plugin_component: 'gauge'
+          plugin_config:          # Passed to the plugin as JSON
+            gauges:
+              - {label: CPU, value: 42}
+              - {label: Memory, value: 6.1, max: 16}
+```
+
+BoxMux loads every plugin when it starts and refuses to start if a library cannot be loaded, speaks another plugin interface version, offers a component another plugin already offers, or if a box names a component no plugin offers. A plugin runs inside the BoxMux process with the same rights as BoxMux; only load libraries you trust. With `refresh_interval`, a plugin box is redrawn on that interval.
+
+The repository has a working example in `examples/plugins/gauge` (build it with `cargo build --release --manifest-path examples/plugins/gauge/Cargo.toml`) and a layout that uses it, `layouts/plugin_demo.yaml`.
+
+**Learn more**: [Plugin System](/docs/plugin-system).
+
+## Controlling BoxMux from Scripts
+
+A running BoxMux listens on a control socket. The same `boxmux` binary sends commands to it:
+
+```bash
+boxmux replace_box_content status "Deploy finished"
+boxmux replace_box_script clock 'date +%T'
+boxmux stop_box_refresh clock
+boxmux switch_active_layout logs
+boxmux send_pty_input shell $'ls -la\n'
+```
+
+Scripts started by BoxMux have `BOXMUX_SOCKET` set, so a command in a script or key handler reaches the instance that started it. From another terminal, the per-user default socket is used; pass `--socket NAME` (or set `BOXMUX_SOCKET`) to run several instances side by side.
+
+**Learn more**: [API Reference](/docs/api).
+
+## Complete Examples
+
+### System Monitor (Linux)
+
+```yaml
+app:
   layouts:
     - id: 'sysmon'
       root: true
       title: 'System Monitor - ${USER:admin}'
-      bg_color: 'black'
-      fg_color: 'green'
+      refresh_interval: 2000
       children:
-        - id: 'cpu'
-          title: 'CPU Usage'
-          position: {x1: 5%, y1: 10%, x2: 48%, y2: 40%}
-          refresh_interval: ${REFRESH_FAST}
+        - id: 'load'
+          title: 'Load'
+          position: {x1: 0%, y1: 0%, x2: 50%, y2: 30%}
           script:
-            - top -l 1 | grep "CPU usage"
-            
+            - uptime
+
         - id: 'memory'
-          title: 'Memory Usage'
-          position: {x1: 52%, y1: 10%, x2: 95%, y2: 40%}
-          refresh_interval: ${REFRESH_FAST}
+          title: 'Memory'
+          position: {x1: 50%, y1: 0%, x2: 100%, y2: 30%}
           script:
-            - top -l 1 | grep "PhysMem"
-            
+            - free -h
+
         - id: 'disk'
           title: 'Disk Usage'
-          position: {x1: 5%, y1: 45%, x2: 95%, y2: 75%}
-          refresh_interval: ${REFRESH_SLOW}
+          position: {x1: 0%, y1: 30%, x2: 100%, y2: 60%}
+          refresh_interval: 10000
           script:
-            - df -h | head -5
-            
+            - df -h | head -n 8
+
         - id: 'processes'
           title: 'Top Processes'
-          position: {x1: 5%, y1: 80%, x2: 95%, y2: 95%}
-          refresh_interval: 3000
+          position: {x1: 0%, y1: 60%, x2: 100%, y2: 100%}
           script:
-            - ps aux | head -8
+            - ps -eo pid,pcpu,pmem,comm --sort=-pcpu | head -n 11 | awk '{print $1 "," $2 "," $3 "," $4}'
+          table_config:
+            border_style: single
+            zebra_striping: true
 ```
 
 ### Development Dashboard
 
 ```yaml
 app:
+  hot_keys:
+    F5: 'build'
+    F6: 'test'
   layouts:
     - id: 'dev_dash'
       root: true
@@ -706,150 +725,145 @@ app:
       children:
         - id: 'git_status'
           title: 'Git Status'
-          position: {x1: 5%, y1: 10%, x2: 95%, y2: 30%}
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 30%}
           refresh_interval: 10000
           script:
             - git status --short
             - echo "---"
             - git log --oneline -3
-            
+
         - id: 'actions'
-          title: 'Actions'
-          position: {x1: 5%, y1: 35%, x2: 45%, y2: 85%}
-          tab_order: '1'
+          title: 'Actions (F5 build, F6 test)'
+          position: {x1: 0%, y1: 30%, x2: 30%, y2: 100%}
+          tab_order: 1
           choices:
             - id: 'build'
               content: 'Build Project'
-              script: ['cargo build']
+              script: ['cargo build 2>&1']
+              execution_mode: Thread
               redirect_output: 'output'
             - id: 'test'
               content: 'Run Tests'
-              script: ['cargo test']
+              script: ['cargo test 2>&1']
+              execution_mode: Thread
               redirect_output: 'output'
             - id: 'lint'
               content: 'Run Linter'
-              script: ['cargo clippy']
+              script: ['cargo clippy 2>&1']
               redirect_output: 'output'
-              
+
         - id: 'output'
           title: 'Output'
-          position: {x1: 50%, y1: 35%, x2: 95%, y2: 85%}
+          position: {x1: 30%, y1: 30%, x2: 100%, y2: 100%}
           content: 'Select an action'
-          scroll: true
+          auto_scroll_bottom: true
 ```
 
-### Log Monitor
+### Log Viewer
 
 ```yaml
 app:
   layouts:
     - id: 'logmon'
       root: true
-      title: 'Log Monitor'
+      title: 'Log Viewer'
       children:
         - id: 'log_selector'
-          title: 'Select Log'
-          position: {x1: 5%, y1: 10%, x2: 25%, y2: 90%}
-          tab_order: '1'
+          title: 'Logs'
+          position: {x1: 0%, y1: 0%, x2: 25%, y2: 100%}
+          tab_order: 1
           choices:
-            - id: 'syslog'
-              content: 'System Log'
-              script: ['tail -20 /var/log/system.log']
+            - id: 'recent'
+              content: 'Last 50 lines'
+              script:
+                - tail -n 50 /var/log/syslog 2>/dev/null || journalctl -n 50 --no-pager
               redirect_output: 'log_viewer'
-            - id: 'error_log'
-              content: 'Error Log'
-              script: ['tail -20 /var/log/error.log']
+            - id: 'follow'
+              content: 'Follow'
+              execution_mode: Thread
+              script:
+                - tail -n 20 -f /var/log/syslog 2>/dev/null || journalctl -f -n 20 --no-pager
               redirect_output: 'log_viewer'
-              
+
         - id: 'log_viewer'
           title: 'Log Contents'
-          position: {x1: 30%, y1: 10%, x2: 95%, y2: 90%}
-          content: 'Select a log file'
-          scroll: true
+          position: {x1: 25%, y1: 0%, x2: 100%, y2: 100%}
+          content: 'Select a log'
+          auto_scroll_bottom: true
 ```
+
+"Follow" keeps running and adds lines as they arrive; close its tab to stop it.
+
+More complete configurations are on the [Examples](/docs/examples) page and in the `layouts/` directory of the repository.
 
 ## Best Practices
 
-### 1. Planning and Design
+### Planning
 
-- **Sketch first**: Plan your layout before writing YAML
-- **Start simple**: Begin with basic boxes and add complexity
-- **Consider screen sizes**: Test on different terminal sizes
-- **Group related content**: Keep related functions in nearby boxes
+- Sketch the layout before writing YAML, then add boxes one at a time.
+- Try the interface in a small terminal as well as a large one; percentages scale, cell counts do not.
+- Give boxes descriptive ids (`cpu_monitor`, not `box1`): ids appear in error messages, socket commands and `BOXMUX_BOX`.
 
-### 2. Configuration Organization
-
-```yaml
-# Use meaningful IDs
-- id: 'cpu_monitor'        # Good: descriptive
-- id: 'box1'             # Bad: generic
-
-# Consistent styling
-app:
-  layouts:
-    - id: 'main'
-      # Define colors once at layout level
-      bg_color: 'black'
-      fg_color: 'white'
-      # Boxes inherit these styles
-```
-
-### 3. Performance Optimization
+### Keep Scripts Cheap
 
 ```yaml
-# Optimize refresh intervals
 - id: 'fast_updates'
-  refresh_interval: 1000   # 1 second for critical data
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+  refresh_interval: 1000     # Every second, for data that changes quickly
+  script: ['date +%T']
 
-- id: 'slow_updates'  
-  refresh_interval: 30000  # 30 seconds for less critical data
-
-# Efficient scripts
-script:
-  - ps aux | head -10      # Limit output
-  - df -h | head -5        # Don't show all filesystems
+- id: 'slow_updates'
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  refresh_interval: 30000    # Every 30 seconds is enough for disk usage
+  script: ['df -h | head -n 5']
 ```
 
-### 4. Error Handling
+Limit output (`head`, `tail`) and avoid commands that wait for input: a script that never ends keeps its box from refreshing. A script also counts as running while a background process it started (`command &`) still holds its output open; redirect such a process's output (`command >/dev/null 2>&1 &`) if the script should finish without it.
+
+### Handle Missing Tools
 
 ```yaml
-# Robust scripts with fallbacks
 script:
   - |
     if command -v docker >/dev/null 2>&1; then
       docker ps
     else
-      echo "Docker not available"
+      echo "Docker is not installed"
     fi
 ```
 
-### 5. User Experience
+A script that exits with a non-zero status puts its box in the error colors, which is useful for checks: `systemctl is-active nginx` turns the box red when nginx is down.
+
+### Make Navigation Obvious
 
 ```yaml
-# Clear navigation with tab_order
 - id: 'menu1'
-  tab_order: '1'    # First tab stop
-- id: 'menu2'  
-  tab_order: '2'    # Second tab stop
-
-# Helpful content and titles
-- id: 'output'
-  title: 'Command Output'
-  content: 'Select a command from the menu to see output here'
+  position: {x1: 0%, y1: 0%, x2: 30%, y2: 50%}
+  tab_order: 1               # First Tab stop, focused at start
+  choices:
+    - id: 'one'
+      content: 'One'
+- id: 'menu2'
+  position: {x1: 0%, y1: 50%, x2: 30%, y2: 100%}
+  tab_order: 2               # Second Tab stop
+  choices:
+    - id: 'two'
+      content: 'Two'
 ```
+
+Only boxes with a `tab_order` (an integer) are reached with Tab. If no box has one and none sets `selected: true`, nothing has the focus until you click a box.
 
 ## Techniques
 
-### Dynamic Content with Scripts
+### Conditional Content
 
 ```yaml
-# Conditional content
 script:
   - |
     if systemctl is-active nginx >/dev/null 2>&1; then
-      echo "✓ Nginx: Running"
+      echo "Nginx: running"
     else
-      echo "✗ Nginx: Stopped"
+      echo "Nginx: stopped"
     fi
 ```
 
@@ -858,36 +872,35 @@ script:
 ```yaml
 script:
   - |
-    echo "System Information:"
+    echo "System Information"
     echo "=================="
     echo "Hostname: $(hostname)"
-    echo "Uptime: $(uptime)"
-    echo "Load: $(uptime | awk -F'load average:' '{print $2}')"
+    echo "Uptime:   $(uptime)"
 ```
 
-### Output Redirection Patterns
+### Shared Shell Functions
+
+`libs` lists script files that are sourced before every script, relative to the YAML file:
 
 ```yaml
-# Menu with shared output box
-- id: 'actions'
-  choices:
-    - id: 'action1'
-      script: ['command1']
-      redirect_output: 'shared_output'
-    - id: 'action2'
-      script: ['command2']
-      redirect_output: 'shared_output'
-      
-- id: 'shared_output'
-  title: 'Results'
-  content: 'Select an action'
+app:
+  libs:
+    - lib/helpers.sh
+  layouts:
+    - id: 'main'
+      children:
+        - id: 'status'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          script: ['show_status']   # A function defined in lib/helpers.sh
 ```
 
-### Nested Box Hierarchies
+### Nested Boxes
+
+Positions of nested boxes are relative to their parent:
 
 ```yaml
-# Complex nested structure
 - id: 'main_container'
+  title: 'Container'
   position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
   children:
     - id: 'left_section'
@@ -899,52 +912,51 @@ script:
           position: {x1: 5%, y1: 55%, x2: 95%, y2: 95%}
     - id: 'right_section'
       position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
-      # ... right side content
 ```
 
-### Custom Key Bindings
+### Key Bindings
+
+`on_keypress` runs commands when a key is pressed. It can be set on the app, a layout or a box:
 
 ```yaml
-# Custom keyboard shortcuts
-on_keypress:
-  r:                    # Press 'r' to refresh
-    - echo 'Refreshing...'
-    - date
-  q:                    # Press 'q' to quit
-    - exit
-  'ctrl+c':            # Ctrl+C handling
-    - echo 'Interrupted'
+app:
+  on_keypress:
+    F2: ['boxmux switch_active_layout main']
+    F3: ['boxmux switch_active_layout logs']
+  layouts:
+    - id: 'main'
+      root: true
+      children:
+        - id: 'clock'
+          title: 'Clock (press r)'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 1
+          on_keypress:
+            r: ['date']
+    - id: 'logs'
+      children:
+        - id: 'log'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          content: 'Logs'
 ```
 
-### Integration with External APIs
+- A box's handlers run while it has the focus and its shown tab is not a menu; their output opens in a tab named after the key.
+- App and layout handlers run in the background; their output is not shown, and a failure appears as a notice at the bottom of the screen.
+- Key names: single characters (`r`, `R`), `Enter`, `Esc`, `Tab`, `Shift+Tab`, `Backspace`, `Delete`, `Insert`, `Space`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1` to `F12`, with `Ctrl+`, `Alt+` and `Shift+` prefixes (for example `Ctrl+r`, `Alt+x`, `Shift+Up`). Modifier and key names are not case-sensitive; single characters are.
+- `q` always quits, so a binding for `q` never runs.
+- `hot_keys` maps a key to a choice id and runs that choice, as if it were selected, when the choice is in the shown layout.
+
+### Calling Web APIs
 
 ```yaml
-# API integration example
 script:
   - |
-    # Fetch weather data
-    curl -s "https://api.openweathermap.org/data/2.5/weather?q=London&appid=YOUR_KEY" | 
-    jq '.main.temp, .weather[0].description'
+    curl -s "https://api.github.com/repos/rust-lang/rust" | jq -r '.stargazers_count'
+
 ```
 
 ---
 
-## Advanced Features
-
-BoxMux includes additional features:
-
-- **Clipboard Integration**: Ctrl+C copies box content with visual feedback
-- **Enhanced Scrolling**: Position preservation, page navigation, visual indicators
-- **Performance Monitoring**: Built-in benchmarking and performance tracking
-- **Schema Validation**: JSON Schema validation with detailed error reporting
-
-**Learn more**: See the [Advanced Features Guide](/docs/advanced-features) for clipboard, scrolling, and performance features.
-
----
-
-For configuration reference, see [Configuration Guide](/docs/configuration).  
-For data visualization details, see [Data Visualization Guide](/docs/data-visualization).  
-For plugin development, see [Plugin System Guide](/docs/plugin-system).  
-For advanced features, see [Advanced Features Guide](/docs/advanced-features).  
-For programmatic control, see [API Reference](/docs/api).  
-For troubleshooting, see [Troubleshooting Guide](/docs/troubleshooting).
+For every setting, see the [Configuration Reference](/docs/configuration).
+For the socket commands, see the [API Reference](/docs/api).
+For problems, see [Troubleshooting](/docs/troubleshooting).
