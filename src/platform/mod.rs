@@ -37,20 +37,23 @@ impl Default for Shell {
 }
 
 impl Shell {
-    /// The program and the arguments that precede the script text.
-    pub fn invocation(&self) -> (&'static str, &'static [&'static str]) {
+    /// The program and the arguments that precede the script text. `interactive` is set for
+    /// scripts in a PTY, which read what is typed into their box; other scripts have no input,
+    /// so PowerShell is told to fail on a prompt rather than wait for input that never comes.
+    pub fn invocation(&self, interactive: bool) -> (&'static str, &'static [&'static str]) {
+        const POWERSHELL: &[&str] = &["-NoLogo", "-NoProfile", "-Command"];
+        const POWERSHELL_BATCH: &[&str] = &["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"];
+        let powershell_args = if interactive {
+            POWERSHELL
+        } else {
+            POWERSHELL_BATCH
+        };
         match self {
             Shell::Bash => ("bash", &["-c"]),
             Shell::Sh => ("sh", &["-c"]),
             Shell::Zsh => ("zsh", &["-c"]),
-            Shell::Powershell => (
-                "powershell",
-                &["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"],
-            ),
-            Shell::Pwsh => (
-                "pwsh",
-                &["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"],
-            ),
+            Shell::Powershell => ("powershell", powershell_args),
+            Shell::Pwsh => ("pwsh", powershell_args),
         }
     }
 

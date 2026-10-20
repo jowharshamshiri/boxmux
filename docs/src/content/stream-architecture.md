@@ -166,8 +166,9 @@ are applied one after another, in the order they arrive.
 The executor starts runs and keeps track of the active ones:
 
 - Every run executes in the app's `shell` (`bash -c` by default; `powershell -NoLogo
-  -NoProfile -NonInteractive -Command` on Windows), with the app's `libs` sourced first and the
-  script lines joined by newlines.
+  -NoProfile -NonInteractive -Command` on Windows, without `-NonInteractive` for PTY runs so
+  they can read what is typed), with the app's `libs` sourced first and the script lines joined
+  by newlines.
 - Non-PTY runs get no input (stdin is empty) and are detached from boxmux's terminal: on Unix
   each runs in a new session, as the leader of its own process group; on Windows in a new
   process group without a console window. stdout and stderr are read on background threads.

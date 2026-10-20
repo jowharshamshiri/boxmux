@@ -127,6 +127,7 @@ struct LiveBoxMux {
     /// Every byte boxmux wrote to the terminal.
     raw: Vec<u8>,
     screen: Screen,
+    log: PathBuf,
     _reader: thread::JoinHandle<()>,
 }
 
@@ -183,6 +184,7 @@ impl LiveBoxMux {
             output: rx,
             raw: Vec::new(),
             screen: Screen::new(WIDTH as usize, HEIGHT as usize),
+            log: fixture.path("boxmux.log"),
             _reader: reader_thread,
         }
     }
@@ -203,7 +205,35 @@ impl LiveBoxMux {
 
     fn accept(&mut self, bytes: Vec<u8>) {
         self.screen.apply(&bytes);
+        let before = self.raw.len();
         self.raw.extend(bytes);
+        // Answer cursor position requests like a terminal. ConPTY sends one when it starts and
+        // runs nothing until it gets the answer. A request may be split between two reads.
+        const REQUEST: &[u8] = b"\x1b[6n";
+        let from = before.saturating_sub(REQUEST.len() - 1);
+        let requests = self.raw[from..]
+            .windows(REQUEST.len())
+            .filter(|window| *window == REQUEST)
+            .count();
+        for _ in 0..requests {
+            let reply = format!("\x1b[{};{}R", self.screen.y + 1, self.screen.x + 1);
+            self.writer.write_all(reply.as_bytes()).unwrap();
+            self.writer.flush().unwrap();
+        }
+    }
+
+    /// The screen, the end of what boxmux wrote, whether it is still running, and its log: what
+    /// a failed wait needs to show to be diagnosed.
+    fn report(&mut self) -> String {
+        let tail = &self.raw[self.raw.len().saturating_sub(1500)..];
+        format!(
+            "screen:\n{}\nlast output ({} bytes in all): {}\nexited: {:?}\nlog:\n{}",
+            self.screen.text(),
+            self.raw.len(),
+            String::from_utf8_lossy(tail).escape_debug(),
+            self.child.try_wait().ok().flatten(),
+            fs::read_to_string(&self.log).unwrap_or_default()
+        )
     }
 
     fn wait_for_text(&mut self, needle: &str) -> (usize, usize) {
@@ -213,12 +243,9 @@ impl LiveBoxMux {
             if let Some(at) = self.screen.find(needle) {
                 return at;
             }
-            assert!(
-                start.elapsed() < TIMEOUT,
-                "{:?} did not appear:\n{}",
-                needle,
-                self.screen.text()
-            );
+            if start.elapsed() >= TIMEOUT {
+                panic!("{:?} did not appear\n{}", needle, self.report());
+            }
         }
     }
 
@@ -229,12 +256,9 @@ impl LiveBoxMux {
             if self.screen.find(needle).is_none() {
                 return;
             }
-            assert!(
-                start.elapsed() < TIMEOUT,
-                "{:?} is still shown:\n{}",
-                needle,
-                self.screen.text()
-            );
+            if start.elapsed() >= TIMEOUT {
+                panic!("{:?} is still shown\n{}", needle, self.report());
+            }
         }
     }
 
