@@ -268,7 +268,7 @@ impl<D: Display> Runtime<D> {
         }
     }
 
-    fn suspend(&mut self) {
+    pub(super) fn suspend(&mut self) {
         if let Err(e) = self.display.suspend() {
             log::error!("cannot restore the terminal before suspending: {}", e);
         }

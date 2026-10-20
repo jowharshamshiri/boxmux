@@ -875,3 +875,53 @@ app:
         "no lock file is taken"
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(&menu());
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("READY");
+    let before = app.raw.len();
+    app.send("\x1a");
+    // The process stops after giving the terminal back.
+    let start = Instant::now();
+    loop {
+        app.pump(Duration::from_millis(20));
+        let status = fs::read_to_string(format!("/proc/{}/stat", app.pid()))
+            .ok()
+            .and_then(|stat| stat.rsplit(')').next().map(|rest| rest.trim().to_string()));
+        let stopped = match status {
+            Some(rest) => rest.starts_with('T'),
+            // Without /proc (FreeBSD, macOS), ask ps.
+            None => {
+                let output = Command::new("ps")
+                    .args(["-o", "stat=", "-p", &app.pid().to_string()])
+                    .output()
+                    .unwrap();
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .starts_with('T')
+            }
+        };
+        if stopped {
+            break;
+        }
+        assert!(start.elapsed() < TIMEOUT, "boxmux did not stop");
+    }
+    let suspended = String::from_utf8_lossy(&app.raw[before..]).to_string();
+    assert!(
+        suspended.contains("\x1b[?1049l"),
+        "the alternate screen is left: {:?}",
+        suspended
+    );
+    let before = app.raw.len();
+    assert_eq!(unsafe { libc::kill(app.pid(), libc::SIGCONT) }, 0);
+    let start = Instant::now();
+    while !String::from_utf8_lossy(&app.raw[before..]).contains("\x1b[?1049h") {
+        assert!(start.elapsed() < TIMEOUT, "boxmux did not come back");
+        app.pump(Duration::from_millis(20));
+    }
+    app.wait_for_text("READY");
+}
