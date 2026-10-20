@@ -109,6 +109,9 @@ when the program asked for bracketed paste (mode 2004, as shells and editors do)
 program can tell it from typing, and as plain text otherwise. A pasted Tab goes to the program;
 it does not move the focus. When no terminal has the focus, a paste does nothing.
 
+On Windows the console has no bracketed paste: pasted text arrives as key presses and is
+sent to the focused terminal key by key, like typing, so a pasted Tab moves the focus.
+
 ### Mouse
 
 Mouse events are sent to the program only when all of these hold:
@@ -261,3 +264,4 @@ See the [API Reference](/docs/api) for fields, results and errors.
   `signal <n> cannot be sent on Windows; use kill_pty_process`.
 - Stopping a program ends its whole process tree with `taskkill`.
 - Ctrl+Z does not suspend boxmux.
+- Pasted text arrives as key presses (see [Paste](#paste)).

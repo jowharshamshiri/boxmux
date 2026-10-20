@@ -51,10 +51,10 @@ impl TerminalDisplay {
             self.out,
             terminal::EnterAlternateScreen,
             event::EnableMouseCapture,
-            event::EnableBracketedPaste,
             cursor::Hide,
             terminal::Clear(terminal::ClearType::All)
         )?;
+        enable_bracketed_paste(&mut self.out)?;
         self.out.flush()
     }
 }
@@ -70,14 +70,25 @@ impl Drop for TerminalDisplay {
 /// and raw mode. Safe to call more than once.
 pub fn restore_terminal() {
     let mut out = io::stdout();
+    #[cfg(unix)]
+    let _ = crossterm::execute!(out, event::DisableBracketedPaste);
     let _ = crossterm::execute!(
         out,
         event::DisableMouseCapture,
-        event::DisableBracketedPaste,
         cursor::Show,
         terminal::LeaveAlternateScreen
     );
     let _ = terminal::disable_raw_mode();
+}
+
+/// Asks the terminal to deliver pastes as one piece (Unix). The Windows console has no such
+/// mode: pasted text arrives as key presses there.
+fn enable_bracketed_paste(out: &mut impl Write) -> io::Result<()> {
+    #[cfg(unix)]
+    queue!(out, event::EnableBracketedPaste)?;
+    #[cfg(not(unix))]
+    let _ = out;
+    Ok(())
 }
 
 fn install_panic_hook() {
@@ -184,11 +195,8 @@ impl Display for TerminalDisplay {
 
     fn reassert_modes(&mut self) -> io::Result<()> {
         crate::platform::ensure_raw_mode();
-        queue!(
-            self.out,
-            event::EnableMouseCapture,
-            event::EnableBracketedPaste
-        )?;
+        queue!(self.out, event::EnableMouseCapture)?;
+        enable_bracketed_paste(&mut self.out)?;
         self.out.flush()
     }
 
