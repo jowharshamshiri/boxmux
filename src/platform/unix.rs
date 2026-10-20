@@ -132,3 +132,48 @@ pub fn suspend_self() {
         libc::raise(libc::SIGSTOP);
     }
 }
+
+/// Asks the terminal for its background color (OSC 11) and returns it as 8-bit RGB. The
+/// terminal must be in raw mode and nothing else may be reading the input. A device
+/// attributes query (DA1), which every terminal answers, follows the question, so a terminal
+/// that does not support OSC 11 is detected without waiting; `timeout` bounds the wait for a
+/// terminal that answers nothing at all.
+pub fn query_background_color(timeout: std::time::Duration) -> Option<(u8, u8, u8)> {
+    use std::io::{Read, Write};
+    use std::os::fd::AsRawFd;
+    use std::time::Instant;
+
+    let mut out = io::stdout();
+    out.write_all(b"\x1b]11;?\x1b\\\x1b[c").ok()?;
+    out.flush().ok()?;
+    let stdin = io::stdin();
+    let fd = stdin.as_raw_fd();
+    let deadline = Instant::now() + timeout;
+    let mut reply = Vec::new();
+    loop {
+        if super::parse_device_attributes_end(&reply) {
+            break;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let mut poll = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let millis = remaining.as_millis().min(i32::MAX as u128) as i32;
+        // SAFETY: one valid pollfd for the duration of the call.
+        let ready = unsafe { libc::poll(&mut poll, 1, millis) };
+        if ready <= 0 {
+            break;
+        }
+        let mut buffer = [0u8; 256];
+        match stdin.lock().read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => reply.extend_from_slice(&buffer[..n]),
+        }
+    }
+    super::parse_background_reply(&reply)
+}

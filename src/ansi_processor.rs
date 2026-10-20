@@ -510,6 +510,8 @@ pub struct TerminalState {
     pub pending_responses: Vec<String>,
     /// A character was written to the last column; the next one goes to the next line.
     pub wrap_pending: bool,
+    /// Text the program put on the clipboard (OSC 52), waiting to be copied.
+    pub clipboard_writes: Vec<String>,
 
     // OSC (Operating System Command) processing
     pub osc_buffer: Option<Vec<u8>>,
@@ -544,6 +546,7 @@ impl TerminalState {
             dcs_buffer: None,
             pending_responses: Vec::new(),
             wrap_pending: false,
+            clipboard_writes: Vec::new(),
             osc_buffer: None,
         };
 
@@ -1402,6 +1405,11 @@ impl AnsiProcessor {
         self.parser = parser;
     }
 
+    /// Takes the text the program put on the clipboard since the last call.
+    pub fn take_clipboard_writes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.terminal_state.clipboard_writes)
+    }
+
     /// Takes the replies to terminal queries that must be written back to the program.
     pub fn take_responses(&mut self) -> Vec<String> {
         std::mem::take(&mut self.terminal_state.pending_responses)
@@ -1931,78 +1939,48 @@ impl Perform for AnsiProcessor {
     }
 
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        // Operating System Command - Enhanced implementation
-        if params.is_empty() {
+        let text = |i: usize| {
+            params
+                .get(i)
+                .map(|p| String::from_utf8_lossy(p).into_owned())
+        };
+        let Some(command) = text(0) else {
             return;
-        }
-
-        // VTE parser already splits parameters for us
-        if params.len() >= 2 {
-            let command = String::from_utf8_lossy(params[0]);
-            // Concatenate all data parameters (in case of multiple semicolons in data)
-            let data_parts: Vec<String> = params[1..]
+        };
+        // The data may itself contain semicolons, which the parser split on.
+        let data = || {
+            params
+                .get(1..)
+                .unwrap_or_default()
                 .iter()
-                .map(|p| String::from_utf8_lossy(p).to_string())
-                .collect();
-            let data = data_parts.join(";");
-
-            match command.as_ref() {
-                "0" | "2" => {
-                    // Set terminal title (0 = both icon and title, 2 = title)
-                    self.terminal_state.terminal_title = Some(data.to_string());
-                    self.terminal_state.title_changed = true; // F0315: Mark title as changed
-                    log::debug!("Terminal title set to: {}", data);
+                .map(|p| String::from_utf8_lossy(p).into_owned())
+                .collect::<Vec<_>>()
+                .join(";")
+        };
+        match command.as_str() {
+            "0" | "2" => {
+                self.terminal_state.terminal_title = Some(data());
+                self.terminal_state.title_changed = true;
+            }
+            "1" => self.terminal_state.icon_name = Some(data()),
+            "52" => {
+                // `52 ; targets ; base64` sets the clipboard. A `?` asks for its contents,
+                // which programs are not given.
+                let Some(payload) = text(2) else {
+                    return;
+                };
+                if payload == "?" {
+                    log::debug!("refused a clipboard read request");
+                    return;
                 }
-                "1" => {
-                    // Set icon name
-                    self.terminal_state.icon_name = Some(data.to_string());
-                    log::debug!("Icon name set to: {}", data);
-                }
-                "4" => {
-                    // Set color palette (simplified - just log for now)
-                    log::debug!("Color palette change: {}", data);
-                }
-                "10" => {
-                    // Set foreground color
-                    log::debug!("Foreground color change: {}", data);
-                }
-                "11" => {
-                    // Set background color
-                    log::debug!("Background color change: {}", data);
-                }
-                "52" => {
-                    // Clipboard operations (simplified - just log for security)
-                    log::debug!("Clipboard operation: {}", data);
-                }
-                _ => {
-                    log::debug!("Unknown OSC command: {} with data: {}", command, data);
+                match crate::base64::decode(&payload)
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                {
+                    Some(copied) => self.terminal_state.clipboard_writes.push(copied),
+                    None => log::debug!("ignored a clipboard write that is not base64 UTF-8 text"),
                 }
             }
-        } else if params.len() == 1 {
-            // Handle single parameter case (might contain semicolon-separated data)
-            let first_param = String::from_utf8_lossy(params[0]);
-            let parts: Vec<&str> = first_param.splitn(2, ';').collect();
-
-            if parts.len() >= 2 {
-                match parts[0] {
-                    "0" | "2" => {
-                        self.terminal_state.terminal_title = Some(parts[1].to_string());
-                        self.terminal_state.title_changed = true; // F0315: Mark title as changed
-                        log::debug!("Terminal title set to: {}", parts[1]);
-                    }
-                    "1" => {
-                        self.terminal_state.icon_name = Some(parts[1].to_string());
-                        log::debug!("Icon name set to: {}", parts[1]);
-                    }
-                    _ => {
-                        log::debug!("Unknown OSC command: {} with data: {}", parts[0], parts[1]);
-                    }
-                }
-            } else {
-                log::debug!("Invalid OSC format: {}", first_param);
-            }
-        } else {
-            log::debug!("No OSC data provided");
+            other => log::debug!("unhandled OSC {}", other),
         }
     }
 
@@ -2819,6 +2797,15 @@ mod tests {
         let mut processor = AnsiProcessor::with_screen_size(4, 3);
         processor.process_string("abcd\r\nefgh\r\nijkl\x1b[2;2H\x1b[1J");
         assert_eq!(processor.get_processed_text(), "\n  gh\nijkl");
+    }
+
+    #[test]
+    fn programs_can_write_the_clipboard_but_not_read_it() {
+        let mut processor = AnsiProcessor::with_screen_size(10, 2);
+        processor.process_string("\x1b]52;c;aGVsbG8gd29ybGQ=\x07\x1b]52;c;?\x07");
+        assert_eq!(processor.take_clipboard_writes(), vec!["hello world"]);
+        assert!(processor.take_responses().is_empty(), "nothing is revealed");
+        assert!(processor.take_clipboard_writes().is_empty());
     }
 
     #[test]

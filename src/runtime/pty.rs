@@ -198,8 +198,9 @@ impl PtySession {
     /// while the snapshot is taken triggers another update.
     pub fn snapshot(&self) -> TerminalSnapshot {
         self.dirty.store(false, Ordering::Release);
-        let emulator = lock(&self.emulator);
+        let mut emulator = lock(&self.emulator);
         TerminalSnapshot {
+            clipboard: emulator.take_clipboard_writes(),
             lines: emulator.display_lines(),
             title: emulator.get_current_terminal_title(),
             mouse_reporting: emulator.get_terminal_state().is_mouse_reporting_enabled(),
@@ -242,6 +243,8 @@ impl PtySession {
 /// What the runtime needs from a PTY session's terminal state at one point in time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSnapshot {
+    /// Text the program put on the clipboard (OSC 52) since the last snapshot.
+    pub clipboard: Vec<String>,
     pub lines: Vec<String>,
     pub title: Option<String>,
     pub mouse_reporting: bool,

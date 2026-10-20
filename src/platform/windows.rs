@@ -74,3 +74,9 @@ pub fn listen_for_signals(
 
 /// Windows consoles cannot suspend a process.
 pub fn suspend_self() {}
+
+/// The console's background color is not queried on Windows; the theme comes from the
+/// command line or `COLORFGBG`.
+pub fn query_background_color(_timeout: std::time::Duration) -> Option<(u8, u8, u8)> {
+    None
+}

@@ -130,7 +130,16 @@ impl LiveBoxMux {
             .expect("a PTY");
         let mut command = CommandBuilder::new(binary());
         command.arg(config);
-        command.args(["--frame-delay", "10", "--log-level", "debug", "--log-file"]);
+        // A fixed theme: boxmux does not ask the terminal for its colors, which this test
+        // terminal would not answer.
+        command.args([
+            "--dark",
+            "--frame-delay",
+            "10",
+            "--log-level",
+            "debug",
+            "--log-file",
+        ]);
         command.arg(fixture.path("boxmux.log"));
         command.arg("--socket");
         command.arg(fixture.socket());
@@ -672,4 +681,78 @@ fn the_socket_option_goes_before_or_after_a_control_command_but_interface_option
         .unwrap();
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("frame-delay cannot be used"));
+}
+
+#[test]
+fn the_terminal_is_asked_for_its_background_and_the_answer_is_not_taken_for_keys() {
+    let fixture = Fixture::new();
+    // A key handler that would fire if the reply's characters were read as typed keys.
+    let config = fixture.write_config(
+        r#"
+app:
+  on_keypress:
+    r: ["printf leaked > markers/leaked"]
+    b: ["printf leaked > markers/leaked"]
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: a
+          position: {x1: "0", y1: "0", x2: "30", y2: "5"}
+          content: themed
+"#,
+    );
+    let pair = native_pty_system()
+        .openpty(PtySize {
+            rows: HEIGHT,
+            cols: WIDTH,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    let mut command = CommandBuilder::new(binary());
+    command.arg(&config);
+    command.arg("--socket");
+    command.arg(fixture.socket());
+    command.cwd(fixture.tmp.path());
+    let mut child = pair.slave.spawn_command(command).unwrap();
+    drop(pair.slave);
+    let mut writer = pair.master.take_writer().unwrap();
+    let mut reader = pair.master.try_clone_reader().unwrap();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 || tx.send(buf[..n].to_vec()).is_err() {
+                break;
+            }
+        }
+    });
+    let mut seen = Vec::new();
+    let mut answered = false;
+    let mut screen = Screen::new(WIDTH as usize, HEIGHT as usize);
+    let start = Instant::now();
+    while screen.find("themed").is_none() {
+        assert!(start.elapsed() < TIMEOUT, "never drawn:\n{}", screen.text());
+        if let Ok(bytes) = rx.recv_timeout(Duration::from_millis(20)) {
+            screen.apply(&bytes);
+            seen.extend(bytes);
+        }
+        let text = String::from_utf8_lossy(&seen);
+        if !answered && text.contains("\x1b]11;?") && text.contains("\x1b[c") {
+            // A light background, then the device attributes.
+            writer
+                .write_all(b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62;22c")
+                .unwrap();
+            writer.flush().unwrap();
+            answered = true;
+        }
+    }
+    assert!(
+        answered,
+        "boxmux asks the terminal for its background color"
+    );
+    fixture.assert_no_marker_after("leaked", Duration::from_millis(300));
+    let _ = child.kill();
+    let _ = child.wait();
 }

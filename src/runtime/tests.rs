@@ -27,7 +27,8 @@ fn pump_until(
     what: &str,
     done: impl Fn(&Runtime<MemoryDisplay>) -> bool,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // PowerShell takes seconds to start on a cold Windows machine.
+    let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         while let Ok(event) = runtime.events.recv_timeout(Duration::from_millis(5)) {
             runtime.handle(event);
@@ -435,5 +436,81 @@ fn every_shipped_layout_renders_at_any_screen_size() {
                 println!("=== {}\n{}", path.display(), screen.join("\n"));
             }
         }
+    }
+}
+
+/// Prints an OSC 52 clipboard write of "hi" (base64 `aGk=`), then waits.
+#[cfg(unix)]
+const COPY_HI: &str = r#"["printf '\\033]52;c;aGk=\\007copied'", "sleep 5"]"#;
+#[cfg(windows)]
+const COPY_HI: &str =
+    r#"["Write-Host -NoNewline \"$([char]27)]52;c;aGk=$([char]7)copied\"", "Start-Sleep 5"]"#;
+
+#[test]
+fn a_terminal_program_can_copy_to_the_clipboard() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: term
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          execution_mode: Pty
+          script: COPY_HI
+"#
+    .replace("COPY_HI", COPY_HI);
+    let mut runtime = runtime(&yaml, 40, 10);
+    pump_until(&mut runtime, "the copy", |r| r.display.clipboard.is_some());
+    assert_eq!(runtime.display.clipboard.as_deref(), Some("hi"));
+    runtime.executor.kill_all();
+}
+
+#[test]
+fn a_script_that_cannot_start_is_reported() {
+    for mode in ["Immediate", "Thread", "Pty"] {
+        // A NUL byte cannot be passed to a process.
+        let yaml = format!(
+            r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: broken
+          position: {{x1: "0", y1: "0", x2: "39", y2: "9"}}
+          execution_mode: {}
+          script: ["echo \0 x"]
+"#,
+            mode
+        );
+        let mut runtime = runtime(&yaml, 40, 10);
+        pump_until(&mut runtime, "the failure", |r| {
+            r.notice.as_ref().is_some_and(|n| n.is_error)
+                || r.ctx
+                    .app
+                    .get_muxbox_by_id("broken")
+                    .unwrap()
+                    .in_error_state()
+        });
+        let shown = runtime.display.rows().join("\n");
+        let notice = runtime
+            .notice
+            .as_ref()
+            .map(|n| n.text.clone())
+            .unwrap_or_default();
+        assert!(
+            runtime
+                .ctx
+                .app
+                .get_muxbox_by_id("broken")
+                .unwrap()
+                .in_error_state()
+                || notice.contains("broken"),
+            "{}: {}\n{}",
+            mode,
+            notice,
+            shown
+        );
     }
 }
