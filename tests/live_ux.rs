@@ -132,6 +132,10 @@ struct LiveBoxMux {
 
 impl LiveBoxMux {
     fn spawn(fixture: &Fixture, config: &Path) -> LiveBoxMux {
+        Self::spawn_with(fixture, config, &[])
+    }
+
+    fn spawn_with(fixture: &Fixture, config: &Path, extra: &[&str]) -> LiveBoxMux {
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: HEIGHT,
@@ -142,6 +146,7 @@ impl LiveBoxMux {
             .expect("a PTY");
         let mut command = CommandBuilder::new(binary());
         command.arg(config);
+        command.args(extra);
         // A fixed theme: boxmux does not ask the terminal for its colors, which this test
         // terminal would not answer.
         command.args([
@@ -829,4 +834,44 @@ fn q_quits_with_success() {
     app.wait_for_text("READY");
     app.send("q");
     assert!(app.wait_for_exit(), "q exits successfully");
+}
+
+#[test]
+fn a_locked_interface_cannot_be_rearranged_and_never_writes_the_file() {
+    let fixture = Fixture::new();
+    let original = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: mover
+          title: Mover
+          position: {x1: "10", y1: "5", x2: "30", y2: "10"}
+          content: locked
+"#;
+    let config = fixture.write_config(original);
+    let mut app = LiveBoxMux::spawn_with(&fixture, &config, &["--lock"]);
+    app.wait_for_text("locked");
+    // The resize handle is not offered.
+    assert_eq!(
+        app.screen.row(10).chars().nth(30),
+        Some('┘'),
+        "{}",
+        app.screen.text()
+    );
+    app.press(12, 5);
+    app.drag_to(16, 7);
+    app.release(16, 7);
+    app.pump(Duration::from_millis(300));
+    assert!(
+        app.screen.find("locked").is_some_and(|(_, y)| y == 7),
+        "{}",
+        app.screen.text()
+    );
+    assert_eq!(fs::read_to_string(&config).unwrap(), original);
+    assert!(
+        !fixture.path("app.yaml.lock").exists(),
+        "no lock file is taken"
+    );
 }
