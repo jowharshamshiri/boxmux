@@ -65,17 +65,8 @@ impl PtySession {
         let pair = native_pty_system()
             .openpty(size.to_pty_size())
             .map_err(|e| format!("cannot open a pseudo-terminal: {}", e))?;
-        let mut child = pair
-            .slave
-            .spawn_command(command)
-            .map_err(|e| format!("cannot start the process in a pseudo-terminal: {}", e))?;
-        // The child holds its own copy of the slave; ours must close so the reader sees EOF
-        // when the child exits.
-        drop(pair.slave);
-        let pid = child
-            .process_id()
-            .ok_or_else(|| "the PTY process has no process id".to_string())?;
-        let tree = ProcessTree::new(pid);
+        // Everything that can fail is set up before the process starts, so a failure never
+        // leaves a process behind.
         let mut reader = pair
             .master
             .try_clone_reader()
@@ -84,6 +75,19 @@ impl PtySession {
             Arc::new(Mutex::new(pair.master.take_writer().map_err(|e| {
                 format!("cannot write to the pseudo-terminal: {}", e)
             })?));
+        let mut child = pair
+            .slave
+            .spawn_command(command)
+            .map_err(|e| format!("cannot start the process in a pseudo-terminal: {}", e))?;
+        // The child holds its own copy of the slave; ours must close so the reader sees EOF
+        // when the child exits.
+        drop(pair.slave);
+        let Some(pid) = child.process_id() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("the PTY process has no process id".to_string());
+        };
+        let tree = ProcessTree::new(pid);
         let emulator = Arc::new(Mutex::new(Emulator::with_screen_size(
             usize::from(size.cols.max(1)),
             usize::from(size.rows.max(1)),
@@ -150,7 +154,11 @@ impl PtySession {
                     outcome,
                 }));
             })
-            .map_err(|e| format!("cannot start the PTY reader thread: {}", e))?;
+            .map_err(|e| {
+                // Nothing would read or wait for the process.
+                tree.kill();
+                format!("cannot start the PTY reader thread: {}", e)
+            })?;
 
         Ok(PtySession {
             master: pair.master,

@@ -397,6 +397,8 @@ fn run(matches: &ArgMatches, socket: &str) -> Result<(), String> {
     let mut ctx = AppContext::new(app, config).with_yaml_path(path);
     ctx.load_plugins()?;
 
+    // Release builds abort on a panic, so the runtime cannot stop its scripts on the way out.
+    platform::kill_process_trees_on_panic();
     let (sender, events) = crossbeam_channel::unbounded();
     let _socket_server = SocketServer::start(socket, sender.clone())?;
     let signal_sender = sender.clone();

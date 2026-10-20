@@ -13,7 +13,9 @@ pub use unix::*;
 pub use windows::*;
 
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
+use std::time::{Duration, Instant};
 
 /// The shell scripts run in, chosen with the app-level `shell` setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -84,16 +86,26 @@ impl Shell {
 /// the lock, so termination can never signal an unrelated process that reused its id.
 #[derive(Clone)]
 pub struct ProcessTree {
+    /// Identifies the tree in [`LIVE_TREES`]; unlike the pid, it is never reused.
+    id: u64,
     pid: u32,
     reaped: Arc<Mutex<bool>>,
 }
 
+/// Every process tree that has not been reaped yet. Release builds abort on a panic without
+/// running destructors, so the panic hook kills these through this list.
+static LIVE_TREES: Mutex<Vec<ProcessTree>> = Mutex::new(Vec::new());
+static NEXT_TREE_ID: AtomicU64 = AtomicU64::new(0);
+
 impl ProcessTree {
     pub fn new(pid: u32) -> Self {
-        ProcessTree {
+        let tree = ProcessTree {
+            id: NEXT_TREE_ID.fetch_add(1, Ordering::Relaxed),
             pid,
             reaped: Arc::new(Mutex::new(false)),
-        }
+        };
+        lock(&LIVE_TREES).push(tree.clone());
+        tree
     }
 
     pub fn pid(&self) -> u32 {
@@ -107,21 +119,24 @@ impl ProcessTree {
     /// so a concurrent [`terminate`](Self::terminate) never targets a reused pid. On Windows the
     /// open process handle keeps the id reserved, so the blocking wait happens outside the lock.
     pub fn wait_with<T>(&self, wait: impl FnOnce() -> std::io::Result<T>) -> std::io::Result<T> {
-        if cfg!(unix) {
-            wait_until_exited(self.pid)?;
-            let mut reaped = lock(&self.reaped);
-            let result = wait();
-            *reaped = true;
-            result
+        let result = if cfg!(unix) {
+            wait_until_exited(self.pid).and_then(|()| {
+                let mut reaped = lock(&self.reaped);
+                let result = wait();
+                *reaped = true;
+                result
+            })
         } else {
             let result = wait();
             *lock(&self.reaped) = true;
             result
-        }
+        };
+        lock(&LIVE_TREES).retain(|tree| tree.id != self.id);
+        result
     }
 
     /// Asks the process tree to stop, and forces it after `grace` if it is still running.
-    pub fn terminate(&self, grace: std::time::Duration) {
+    pub fn terminate(&self, grace: Duration) {
         {
             let reaped = lock(&self.reaped);
             if *reaped {
@@ -151,12 +166,53 @@ impl ProcessTree {
     }
 }
 
-/// Locks a mutex whose data stays consistent even if a holder panicked (it is a plain flag),
-/// so a poisoned lock is recovered rather than propagated.
-fn lock(mutex: &Mutex<bool>) -> std::sync::MutexGuard<'_, bool> {
+/// Makes a panic kill every process tree that is still running before the process ends.
+/// Hooks installed later (the terminal restore) run first.
+pub fn kill_process_trees_on_panic() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        kill_live_trees();
+        previous(info);
+    }));
+}
+
+/// Kills every tree in [`LIVE_TREES`]. The panicking thread may hold one of the locks involved,
+/// so each is tried only briefly instead of waited for.
+fn kill_live_trees() {
+    let Some(trees) = lock_briefly(&LIVE_TREES).map(|trees| trees.clone()) else {
+        eprintln!("boxmux: cannot stop the running scripts: their list is locked");
+        return;
+    };
+    for tree in trees {
+        match lock_briefly(&tree.reaped) {
+            Some(reaped) if !*reaped => signal_tree(tree.pid, TreeSignal::Kill),
+            Some(_) => {}
+            None => eprintln!("boxmux: cannot stop process {}: it is locked", tree.pid),
+        }
+    }
+}
+
+/// Locks a mutex whose data stays consistent even if a holder panicked (a flag, or the list
+/// of trees), so a poisoned lock is recovered rather than propagated.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Like [`lock`], but gives up after 100 ms.
+fn lock_briefly<T>(mutex: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    let deadline = Instant::now() + Duration::from_millis(100);
+    loop {
+        match mutex.try_lock() {
+            Ok(guard) => return Some(guard),
+            Err(TryLockError::Poisoned(poisoned)) => return Some(poisoned.into_inner()),
+            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(1))
+            }
+            Err(TryLockError::WouldBlock) => return None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

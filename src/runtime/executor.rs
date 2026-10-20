@@ -163,7 +163,13 @@ impl Executor {
                     .spawn()
                     .map_err(|e| format!("cannot start {}: {}", program, e))?;
                 let tree = ProcessTree::new(child.id());
-                spawn_waiter(run, child, tree.clone(), spec.mode, self.events.clone())?;
+                if let Err(e) =
+                    spawn_waiter(run, child, tree.clone(), spec.mode, self.events.clone())
+                {
+                    // Nothing would read or wait for the process.
+                    tree.kill();
+                    return Err(e);
+                }
                 Process::Child(tree)
             }
         };

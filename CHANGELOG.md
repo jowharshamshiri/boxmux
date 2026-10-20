@@ -72,7 +72,8 @@ for earlier versions need the changes listed under "Migrating".
 - A box without `refresh_interval` runs its script once instead of restarting it in a loop, and a
   refresh never starts while the previous run is still going.
 - Quitting, closing a tab or removing a box stops the processes it started, including their
-  children; termination signals and panics restore the terminal.
+  children; termination signals and panics restore the terminal, and a panic also stops every
+  running script.
 - Moving or resizing a box no longer writes keys the configuration rejects, keeps comments and
   units, and is not done for a click without movement or with `--lock`.
 - Text with wide characters, tabs or color sequences is measured and clipped correctly; long lines
