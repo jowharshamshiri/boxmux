@@ -1,0 +1,19 @@
+# The suite on FreeBSD x86-64, which runs tasks in sh, as root.
+apiVersion: test.machinegenesis.dev/v1
+kind: TestPlan
+metadata:
+  name: freebsd
+targets:
+  freebsd-x86-64:
+    uses: freebsd-151-x86-64-pve
+    resources: {cpu: 4, memory: 8GiB, disk: 64GiB}
+    caches:
+      tools: {}
+      target: {}
+tasks:
+  test-freebsd-x86-64:
+    target: freebsd-x86-64
+    shell: sh
+    command: sh mg-test/test.sh
+    results: out/results.jsonl
+    evidence: [out/test.log]

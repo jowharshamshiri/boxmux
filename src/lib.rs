@@ -2,7 +2,6 @@ pub mod model;
 
 #[macro_use]
 pub mod thread_manager;
-// pub mod choice_threads; // T311: Removed with ChoiceThreadManager unification
 pub mod ansi_color_processor;
 pub mod ansi_processor;
 pub mod circular_buffer;
@@ -23,9 +22,6 @@ pub mod validation;
 
 #[cfg(test)]
 pub mod tests;
-
-#[cfg(test)]
-mod test_dimensions;
 
 pub use ansi_color_processor::*;
 pub use ansi_processor::*;

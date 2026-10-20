@@ -2,8 +2,6 @@
 //!
 //! This module contains all the test suites organized by functionality.
 
-#[cfg(test)]
-pub mod debug_coord_test;
 
 #[cfg(test)]
 pub mod defaults;
@@ -94,13 +92,8 @@ pub mod choice_click_bounds_tests;
 #[cfg(test)]
 pub mod coordinate_system_validation;
 
-#[cfg(test)]
-pub mod choice_execution_debug_test;
 
-#[cfg(test)]
-pub mod choice_redirect_debug;
 
-// Removed: choice_click_comprehensive_test - broken API usage, functionality covered by choice_click_bounds_tests
 
 #[cfg(test)]
 pub mod choice_click_regression_test;
@@ -171,8 +164,6 @@ pub mod character_set_tests; // F0318: Character Set Support tests
 #[cfg(test)]
 pub mod terminal_compatibility_tests; // F0319: Terminal Compatibility Testing
 
-#[cfg(test)]
-pub mod terminal_100_width_reality_test;
 
 #[cfg(test)]
 pub mod yaml_persistence_integration_test;
@@ -198,9 +189,6 @@ pub mod unified_execution_architecture_tests;
 #[cfg(test)]
 pub mod periodic_source_stability_tests;
 
-// Commented out due to test framework complexity - functionality tested via demo YAML
-//#[cfg(test)]
-//pub mod choice_overflow_tests;
 pub mod full_screen_detection_tests;
 
 #[cfg(test)]
@@ -215,9 +203,11 @@ pub mod performance_optimization_tests; // F0316: Performance Optimization - Dir
 #[cfg(test)]
 pub mod interactive_visual_tests; // Enhanced visual testing with interaction support
 
-// Temporarily commented out due to compilation issues with visual testing framework
-// #[cfg(test)]
-// pub mod user_perspective_component_tests; // User-expectation focused component testing
 
 #[cfg(test)]
 pub mod user_behavioral_component_tests; // User behavioral expectation testing (unit-test style)
+
+
+
+#[cfg(test)]
+pub mod dimensions_tests;

@@ -1,3 +1,31 @@
+[package]
+name = "boxmux"
+version = "0.240.3373"
+edition = "2021"
+authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
+description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
+documentation = "https://docs.rs/boxmux"
+homepage = "https://boxmux.com"
+repository = "https://github.com/jowharshamshiri/boxmux"
+readme = "README.md"
+license = "MIT"
+keywords = ["terminal", "tui", "yaml", "dashboard", "pty"]
+categories = ["command-line-utilities", "development-tools"]
+include = [
+    "/src/**/*.rs",
+    "/schemas/app_schema.json",
+    "/tests/**/*.rs",
+    "/layouts/*.yaml",
+    "/examples/*",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
+
+[lib]
+name = "boxmux_lib"
+path = "src/lib.rs"
+
 [[bin]]
 name = "boxmux"
 path = "src/main.rs"
@@ -5,6 +33,8 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0"
 bincode = "1.3"
+chrono = { version = "0.4", features = ["serde"] }
+clap = "4.0"
 crossbeam-channel = "0.5"
 crossterm = "0.27"
 env_logger = "0.10"
@@ -17,63 +47,48 @@ once_cell = "1.8.0"
 petgraph = "0.6"
 portable-pty = "0.8"
 regex = "1.5"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 signal-hook = "0.3"
-tempfile = "3.2"
 toml = "0.8"
+uuid = { version = "1.0", features = ["serde", "v4"] }
 vte = "0.11"
 
-[dependencies.chrono]
-features = ["serde"]
-version = "0.4"
+[target."cfg(unix)".dependencies]
+libc = "0.2"
 
-[dependencies.clap]
-features = ["derive"]
-version = "4.0"
+[dev-dependencies]
+tempfile = "3.2"
 
-[dependencies.serde]
-features = ["derive"]
-version = "1.0"
-
-[dependencies.uuid]
-features = ["serde", "v4"]
-version = "1.0"
-
-[lib]
-name = "boxmux_lib"
-path = "src/lib.rs"
-
-[package]
-authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
-categories = ["command-line-utilities", "development-tools"]
-description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
-documentation = "https://docs.rs/boxmux"
-edition = "2021"
-homepage = "https://boxmux.com"
-keywords = ["terminal", "tui", "yaml", "dashboard", "pty"]
-license = "MIT"
-name = "boxmux"
-readme = "README.md"
-repository = "https://github.com/jowharshamshiri/boxmux"
-version = "0.240.3373"
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+# A panic anywhere is fatal: the panic hook restores the terminal, then the process aborts
+# instead of continuing with a dead worker thread.
+panic = "abort"
 
 [package.metadata.deb]
-assets = [["target/release/boxmux", "usr/bin/", "755"], ["README.md", "usr/share/doc/boxmux/README", "644"], ["examples/*", "usr/share/doc/boxmux/examples/", "644"]]
-copyright = "2024, Bahram Shamshiri <jowharshamshiri@gmail.com>"
-depends = "$auto"
-extended-description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
-license-file = ["LICENSE", "4"]
 maintainer = "Bahram Shamshiri <jowharshamshiri@gmail.com>"
-priority = "optional"
+copyright = "2024, Bahram Shamshiri <jowharshamshiri@gmail.com>"
+license-file = ["LICENSE", "4"]
+extended-description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
+depends = "$auto"
 section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/boxmux", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/boxmux/README", "644"],
+    ["layouts/*.yaml", "usr/share/doc/boxmux/layouts/", "644"],
+    ["examples/*.yaml", "usr/share/doc/boxmux/examples/", "644"],
+    ["examples/*.sh", "usr/share/doc/boxmux/examples/", "755"],
+]
 
 [package.metadata.generate-rpm]
+summary = "YAML-driven terminal UI framework"
 assets = [
     { source = "target/release/boxmux", dest = "/usr/bin/boxmux", mode = "755" },
     { source = "README.md", dest = "/usr/share/doc/boxmux/README", mode = "644", doc = true },
 ]
-summary = "YAML-driven terminal UI framework"
-
-[target."cfg(unix)".dependencies]
-libc = "0.2"

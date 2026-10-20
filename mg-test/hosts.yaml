@@ -1,0 +1,32 @@
+# BoxMux's whole suite (format, lints, unit, integration and live terminal tests) on the
+# Linux x86-64 and Windows 11 x86-64 guests the engine's hypervisor makes.
+apiVersion: test.machinegenesis.dev/v1
+kind: TestPlan
+metadata:
+  name: hosts
+targets:
+  linux-x86-64:
+    uses: ubuntu-2604-x86-64-pve
+    resources: {cpu: 4, memory: 8GiB, disk: 64GiB}
+    caches:
+      tools: {}
+      target: {}
+  windows-x86-64:
+    uses: windows-11-x86-64-pve
+    allocationTimeout: 60m
+    caches:
+      tools: {}
+      target: {}
+tasks:
+  test-linux-x86-64:
+    target: linux-x86-64
+    shell: bash
+    command: sh mg-test/test.sh
+    results: out/results.jsonl
+    evidence: [out/test.log]
+  test-windows-x86-64:
+    target: windows-x86-64
+    shell: powershell
+    command: '& .\mg-test\test.ps1'
+    results: out/results.jsonl
+    evidence: [out/test.log]
