@@ -405,6 +405,12 @@ fn run(matches: &ArgMatches, socket: &str) -> Result<(), String> {
 
     let display =
         TerminalDisplay::enter().map_err(|e| format!("cannot use the terminal: {}", e))?;
+    // Asked before the input thread starts, so the answer is not taken for typed keys.
+    if !theme::theme_is_forced() {
+        if let Some(color) = platform::query_background_color(std::time::Duration::from_secs(1)) {
+            theme::set_background_color(color);
+        }
+    }
     let input_sender = sender.clone();
     std::thread::Builder::new()
         .name("input".into())

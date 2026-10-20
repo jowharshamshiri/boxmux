@@ -289,6 +289,15 @@ impl<D: Display> Runtime<D> {
             }
             follow_output(muxbox, &stream_id);
         }
+        for text in snapshot.clipboard {
+            match self.display.copy_to_clipboard(&text) {
+                Ok(()) => self.notify(
+                    format!("{} copied {} lines", box_id, text.lines().count()),
+                    false,
+                ),
+                Err(e) => self.notify(format!("cannot copy to the clipboard: {}", e), true),
+            }
+        }
         self.dirty = true;
     }
 

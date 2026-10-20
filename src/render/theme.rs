@@ -33,13 +33,30 @@ pub fn set_theme_override(theme: Option<TerminalTheme>) {
     THEME_OVERRIDE.store(value, Ordering::Relaxed);
 }
 
-/// The forced theme, or the one `COLORFGBG` reports (a light background is color 7 or 15).
-/// Dark when nothing tells.
+// The theme the terminal's background color suggests: 0 unknown, 1 light, 2 dark.
+static DETECTED: AtomicU8 = AtomicU8::new(0);
+
+/// Whether a theme was forced on the command line.
+pub fn theme_is_forced() -> bool {
+    THEME_OVERRIDE.load(Ordering::Relaxed) != 0
+}
+
+/// Records the terminal's background color, as the terminal reported it.
+pub fn set_background_color((r, g, b): (u8, u8, u8)) {
+    let luminance = 0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b);
+    let theme = if luminance > 128.0 { 1 } else { 2 };
+    DETECTED.store(theme, Ordering::Relaxed);
+}
+
+/// The forced theme; else the one the terminal's background color suggests; else the one
+/// `COLORFGBG` reports (a light background is color 7 or 15). Dark when nothing tells.
 pub fn terminal_theme() -> TerminalTheme {
-    match THEME_OVERRIDE.load(Ordering::Relaxed) {
-        1 => return TerminalTheme::Light,
-        2 => return TerminalTheme::Dark,
-        _ => {}
+    for setting in [&THEME_OVERRIDE, &DETECTED] {
+        match setting.load(Ordering::Relaxed) {
+            1 => return TerminalTheme::Light,
+            2 => return TerminalTheme::Dark,
+            _ => {}
+        }
     }
     std::env::var("COLORFGBG")
         .ok()

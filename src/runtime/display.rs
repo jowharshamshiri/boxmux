@@ -172,8 +172,11 @@ impl Display for TerminalDisplay {
     }
 
     fn copy_to_clipboard(&mut self, text: &str) -> io::Result<()> {
-        use base64_encoding::encode;
-        write!(self.out, "\x1b]52;c;{}\x07", encode(text.as_bytes()))?;
+        write!(
+            self.out,
+            "\x1b]52;c;{}\x07",
+            crate::base64::encode(text.as_bytes())
+        )?;
         self.out.flush()
     }
 
@@ -265,53 +268,5 @@ impl Display for MemoryDisplay {
 
     fn resume(&mut self) -> io::Result<()> {
         Ok(())
-    }
-}
-
-/// Standard base64 (RFC 4648) for OSC 52.
-mod base64_encoding {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-    pub fn encode(bytes: &[u8]) -> String {
-        let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-        for chunk in bytes.chunks(3) {
-            let b = [
-                chunk[0],
-                chunk.get(1).copied().unwrap_or(0),
-                chunk.get(2).copied().unwrap_or(0),
-            ];
-            let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-            out.push(ALPHABET[(n >> 18) as usize & 63] as char);
-            out.push(ALPHABET[(n >> 12) as usize & 63] as char);
-            out.push(if chunk.len() > 1 {
-                ALPHABET[(n >> 6) as usize & 63] as char
-            } else {
-                '='
-            });
-            out.push(if chunk.len() > 2 {
-                ALPHABET[n as usize & 63] as char
-            } else {
-                '='
-            });
-        }
-        out
-    }
-
-    #[cfg(test)]
-    mod tests {
-        #[test]
-        fn matches_rfc_4648_test_vectors() {
-            for (input, expected) in [
-                ("", ""),
-                ("f", "Zg=="),
-                ("fo", "Zm8="),
-                ("foo", "Zm9v"),
-                ("foob", "Zm9vYg=="),
-                ("fooba", "Zm9vYmE="),
-                ("foobar", "Zm9vYmFy"),
-            ] {
-                assert_eq!(super::encode(input.as_bytes()), expected);
-            }
-        }
     }
 }

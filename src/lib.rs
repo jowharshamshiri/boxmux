@@ -1,4 +1,5 @@
 pub mod ansi_processor;
+pub mod base64;
 pub mod chart;
 pub mod model;
 pub mod platform;

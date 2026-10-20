@@ -176,3 +176,64 @@ pub fn socket_name(explicit: Option<&str>) -> String {
     }
     default_socket_name()
 }
+
+/// Whether `reply` contains the end of a device attributes answer (`ESC [ ? ... c`).
+fn parse_device_attributes_end(reply: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(reply);
+    text.find("\x1b[?")
+        .is_some_and(|start| text[start + 3..].contains('c'))
+}
+
+/// The color in an OSC 11 answer, `ESC ] 11 ; rgb:RRRR/GGGG/BBBB` ended by BEL or ST, with one
+/// to four hex digits per component, scaled to 8 bits.
+fn parse_background_reply(reply: &[u8]) -> Option<(u8, u8, u8)> {
+    let text = String::from_utf8_lossy(reply);
+    let start = text.find("\x1b]11;rgb:")? + "\x1b]11;rgb:".len();
+    let rest = &text[start..];
+    let end = rest.find(['\x07', '\x1b'])?;
+    let mut components = rest[..end].split('/').map(|hex| {
+        if hex.is_empty() || hex.len() > 4 {
+            return None;
+        }
+        let value = u32::from_str_radix(hex, 16).ok()?;
+        let max = (1u32 << (4 * hex.len())) - 1;
+        Some((value * 255 / max) as u8)
+    });
+    let rgb = (
+        components.next()??,
+        components.next()??,
+        components.next()??,
+    );
+    components.next().is_none().then_some(rgb)
+}
+
+#[cfg(test)]
+mod background_tests {
+    use super::*;
+
+    #[test]
+    fn background_replies_are_read_in_any_precision() {
+        assert_eq!(
+            parse_background_reply(b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62c"),
+            Some((255, 255, 255))
+        );
+        assert_eq!(
+            parse_background_reply(b"\x1b]11;rgb:1e/1e/2e\x07"),
+            Some((30, 30, 46))
+        );
+        assert_eq!(
+            parse_background_reply(b"\x1b]11;rgb:0/8/f\x07"),
+            Some((0, 136, 255))
+        );
+        assert_eq!(
+            parse_background_reply(b"\x1b[?62;22c"),
+            None,
+            "unsupported: only DA1"
+        );
+        assert_eq!(parse_background_reply(b"\x1b]11;rgb:ff/ff\x07"), None);
+        assert!(parse_device_attributes_end(
+            b"\x1b]11;rgb:0/0/0\x07\x1b[?1;2c"
+        ));
+        assert!(!parse_device_attributes_end(b"\x1b]11;rgb:0/0/0\x07"));
+    }
+}
