@@ -207,9 +207,12 @@ impl Executor {
     pub fn finish(&mut self, run: RunId) -> Option<ActiveRun> {
         self.runs.remove(&run)
     }
+}
 
-    /// Kills every run's process tree immediately. Used when boxmux exits.
-    pub fn kill_all(&mut self) {
+/// Dropping the executor (when the runtime quits or fails, or a test ends) kills every run's
+/// process tree, so no script outlives boxmux.
+impl Drop for Executor {
+    fn drop(&mut self) {
         for active in self.runs.values() {
             active.tree().kill();
         }
