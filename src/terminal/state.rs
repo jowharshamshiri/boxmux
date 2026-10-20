@@ -3,101 +3,92 @@
 
 use super::*;
 
+/// How many lines that scrolled off the primary screen are kept.
+pub const MAX_SCROLLBACK: usize = 10_000;
+
+/// What DECSC saves and DECRC restores.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SavedCursor {
+    pub x: usize,
+    pub y: usize,
+    pub attributes: TerminalCell,
+    pub origin_mode: bool,
+    pub auto_wrap_mode: bool,
+    pub charsets: [Charset; 2],
+    pub active_charset: usize,
+}
+
+/// A device control string being received, by what it asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DcsRequest {
+    /// `DCS $ q ... ST` (DECRQSS): the setting named by the data.
+    StatusString,
+    /// `DCS + q ... ST` (XTGETTCAP): the termcap entries named by the data.
+    Termcap,
+    /// Anything else, which is read and dropped.
+    Other,
+}
+
 #[derive(Debug, Clone)]
 pub struct TerminalState {
-    // Screen dimensions
     pub screen_width: usize,
     pub screen_height: usize,
-
-    // Primary and alternate screen buffers
     pub primary_buffer: TerminalScreenBuffer,
+    /// The screen full-screen programs draw on; it has no scrollback.
     pub alternate_buffer: TerminalScreenBuffer,
     pub use_alternate_screen: bool,
-
-    // Cursor save stack for DECSC/DECRC
-    pub cursor_save_stack: Vec<CursorState>,
-
-    // Character attributes for new text
+    /// DECSC's saved state, one per screen.
+    pub saved_cursor: [Option<SavedCursor>; 2],
+    /// The attributes printed characters get.
     pub current_attributes: TerminalCell,
-
-    // Terminal modes and settings
     pub mode: TerminalMode,
     pub scroll_region: ScrollRegion,
-
-    // Tab stops
     pub tab_stops: Vec<bool>,
-
-    // Character sets (G0/G1)
-    pub charset_g0: Option<String>,
-    pub charset_g1: Option<String>,
-    pub active_charset: u8, // 0 for G0, 1 for G1
-
-    // Terminal identification
+    /// The G0 and G1 character sets, and which of them is in use (shift in / shift out).
+    pub charsets: [Charset; 2],
+    pub active_charset: usize,
+    /// The last character printed, for REP.
+    pub last_printed: Option<char>,
     pub terminal_title: Option<String>,
     pub icon_name: Option<String>,
-    pub title_changed: bool, // F0315: Track when title changes for propagation
-
-    // State tracking
-    pub full_screen_program_detected: bool,
-
-    // F0306: SGR state tracking for extended colors
-    pub sgr_state: SGRState,
-
-    // DCS (Device Control String) processing
-    pub dcs_sequence_type: Option<char>,
-    pub dcs_buffer: Option<Vec<u8>>,
+    pub dcs_request: Option<DcsRequest>,
+    pub dcs_data: Vec<u8>,
     /// Replies to queries (DSR, DA, DECRQM...) waiting to be written back to the program.
     pub pending_responses: Vec<String>,
     /// A character was written to the last column; the next one goes to the next line.
     pub wrap_pending: bool,
     /// Text the program put on the clipboard (OSC 52), waiting to be copied.
     pub clipboard_writes: Vec<String>,
-
-    // OSC (Operating System Command) processing
-    pub osc_buffer: Option<Vec<u8>>,
 }
 
 impl TerminalState {
     pub fn new(width: usize, height: usize) -> Self {
-        let max_scrollback = 10000; // Same as PTY manager default
-        let mut state = TerminalState {
+        let (width, height) = (width.max(1), height.max(1));
+        TerminalState {
             screen_width: width,
             screen_height: height,
-            primary_buffer: TerminalScreenBuffer::new(width, height, max_scrollback),
-            alternate_buffer: TerminalScreenBuffer::new(width, height, max_scrollback),
+            primary_buffer: TerminalScreenBuffer::new(width, height, MAX_SCROLLBACK),
+            alternate_buffer: TerminalScreenBuffer::new(width, height, 0),
             use_alternate_screen: false,
-            cursor_save_stack: Vec::new(),
+            saved_cursor: [None, None],
             current_attributes: TerminalCell::default(),
             mode: TerminalMode::default(),
             scroll_region: ScrollRegion {
                 top: 0,
-                bottom: height.saturating_sub(1),
+                bottom: height - 1,
             },
-            tab_stops: vec![false; width],
-            charset_g0: None,
-            charset_g1: None,
+            tab_stops: default_tab_stops(width),
+            charsets: [Charset::Ascii; 2],
             active_charset: 0,
+            last_printed: None,
             terminal_title: None,
             icon_name: None,
-            title_changed: false, // F0315: Initialize title change tracking
-            full_screen_program_detected: false,
-            sgr_state: SGRState::default(),
-            dcs_sequence_type: None,
-            dcs_buffer: None,
+            dcs_request: None,
+            dcs_data: Vec::new(),
             pending_responses: Vec::new(),
             wrap_pending: false,
             clipboard_writes: Vec::new(),
-            osc_buffer: None,
-        };
-
-        // Set default tab stops every 8 columns
-        for i in (8..width).step_by(8) {
-            if i < state.tab_stops.len() {
-                state.tab_stops[i] = true;
-            }
         }
-
-        state
     }
 
     pub fn get_active_buffer(&mut self) -> &mut TerminalScreenBuffer {
@@ -132,588 +123,309 @@ impl TerminalState {
         &mut self.get_active_buffer().cursor
     }
 
-    /// F0305: Cursor Management System - Save cursor position and attributes
+    /// A blank cell as erasing leaves it: with the current background color.
+    fn blank(&self) -> TerminalCell {
+        TerminalCell::blank(&self.current_attributes)
+    }
+
+    /// DECSC: saves the cursor position, attributes, origin and wrap modes and character sets.
     pub fn save_cursor(&mut self) {
-        let current_cursor = self.get_cursor().clone();
-        self.cursor_save_stack.push(current_cursor);
+        let cursor = *self.get_cursor();
+        let saved = SavedCursor {
+            x: cursor.x,
+            y: cursor.y,
+            attributes: self.current_attributes.clone(),
+            origin_mode: self.mode.origin_mode,
+            auto_wrap_mode: self.mode.auto_wrap_mode,
+            charsets: self.charsets,
+            active_charset: self.active_charset,
+        };
+        self.saved_cursor[usize::from(self.use_alternate_screen)] = Some(saved);
     }
 
-    /// F0305: Cursor Management System - Restore cursor position and attributes
+    /// DECRC: restores what DECSC saved, or, when nothing was saved, homes the cursor and resets
+    /// the attributes and modes, like xterm.
     pub fn restore_cursor(&mut self) {
-        if let Some(saved_cursor) = self.cursor_save_stack.pop() {
-            let screen_width = self.screen_width;
-            let screen_height = self.screen_height;
-            let cursor = self.get_cursor_mut();
-            cursor.x = saved_cursor.x.min(screen_width.saturating_sub(1));
-            cursor.y = saved_cursor.y.min(screen_height.saturating_sub(1));
-            cursor.visible = saved_cursor.visible;
-            cursor.style = saved_cursor.style;
-        }
+        let saved = self.saved_cursor[usize::from(self.use_alternate_screen)]
+            .clone()
+            .unwrap_or(SavedCursor {
+                x: 0,
+                y: 0,
+                attributes: TerminalCell::default(),
+                origin_mode: false,
+                auto_wrap_mode: true,
+                charsets: [Charset::Ascii; 2],
+                active_charset: 0,
+            });
+        self.current_attributes = saved.attributes;
+        self.mode.origin_mode = saved.origin_mode;
+        self.mode.auto_wrap_mode = saved.auto_wrap_mode;
+        self.charsets = saved.charsets;
+        self.active_charset = saved.active_charset;
+        let (width, height) = (self.screen_width, self.screen_height);
+        let cursor = self.get_cursor_mut();
+        cursor.x = saved.x.min(width - 1);
+        cursor.y = saved.y.min(height - 1);
+        self.wrap_pending = false;
     }
 
-    /// F0305: Set cursor position with bounds checking
+    /// Moves the cursor to column `x`, line `y` (0-based). In origin mode the line counts from
+    /// the top of the scrolling region and the cursor stays inside it.
     pub fn set_cursor_position(&mut self, x: usize, y: usize) {
-        let screen_width = self.screen_width;
-        let screen_height = self.screen_height;
-        let origin_mode = self.mode.origin_mode;
-        let region_top = self.scroll_region.top;
-        let region_bottom = self.scroll_region.bottom;
-
-        let cursor = self.get_cursor_mut();
-
-        // F0308: Handle origin mode (DECOM) - coordinates relative to scrolling region
-        if origin_mode {
-            // In origin mode, coordinates are relative to the scrolling region
-            // Clamp Y to scrolling region bounds
-            cursor.y = (region_top + y).min(region_bottom);
-            cursor.x = x.min(screen_width.saturating_sub(1));
+        let (top, bottom) = (self.scroll_region.top, self.scroll_region.bottom);
+        let y = if self.mode.origin_mode {
+            (top + y).min(bottom)
         } else {
-            // Normal mode: coordinates are absolute to screen
-            cursor.x = x.min(screen_width.saturating_sub(1));
-            cursor.y = y.min(screen_height.saturating_sub(1));
+            y.min(self.screen_height - 1)
+        };
+        let x = x.min(self.screen_width - 1);
+        let cursor = self.get_cursor_mut();
+        cursor.x = x;
+        cursor.y = y;
+    }
+
+    /// The cursor line relative to the origin: the scrolling region's top in origin mode.
+    pub fn cursor_line_from_origin(&self) -> usize {
+        let y = self.get_cursor().y;
+        if self.mode.origin_mode {
+            y.saturating_sub(self.scroll_region.top)
+        } else {
+            y
         }
     }
 
-    /// F0305: Move cursor relatively with bounds checking
-    pub fn move_cursor_relative(&mut self, dx: i32, dy: i32) {
-        let screen_width = self.screen_width;
-        let screen_height = self.screen_height;
-        let cursor = self.get_cursor_mut();
-        let new_x = if dx >= 0 {
-            cursor.x.saturating_add(dx as usize)
-        } else {
-            cursor.x.saturating_sub((-dx) as usize)
-        };
-        let new_y = if dy >= 0 {
-            cursor.y.saturating_add(dy as usize)
-        } else {
-            cursor.y.saturating_sub((-dy) as usize)
-        };
-
-        cursor.x = new_x.min(screen_width.saturating_sub(1));
-        cursor.y = new_y.min(screen_height.saturating_sub(1));
-    }
-
-    /// F0305: Set cursor visibility
-    pub fn set_cursor_visibility(&mut self, visible: bool) {
-        self.get_cursor_mut().visible = visible;
-    }
-
-    /// F0305: Set cursor style
-    pub fn set_cursor_style(&mut self, style: CursorStyle) {
-        self.get_cursor_mut().style = style;
-    }
-
-    /// F0305: Move cursor to column (absolute positioning)
-    pub fn set_cursor_column(&mut self, col: usize) {
-        let screen_width = self.screen_width;
-        let cursor = self.get_cursor_mut();
-        cursor.x = col.min(screen_width.saturating_sub(1));
-    }
-
-    /// F0305: Move cursor to line (absolute positioning)
-    pub fn set_cursor_line(&mut self, line: usize) {
-        let screen_height = self.screen_height;
-        let cursor = self.get_cursor_mut();
-        cursor.y = line.min(screen_height.saturating_sub(1));
-    }
-
-    /// F0305: Move cursor up with bounds checking
+    /// Moves the cursor up; it stops at the top of the scrolling region when it starts inside.
     pub fn cursor_up(&mut self, lines: usize) {
+        let top = self.scroll_region.top;
         let cursor = self.get_cursor_mut();
-        cursor.y = cursor.y.saturating_sub(lines);
+        let limit = if cursor.y >= top { top } else { 0 };
+        cursor.y = cursor.y.saturating_sub(lines).max(limit);
     }
 
-    /// F0305: Move cursor down with bounds checking
+    /// Moves the cursor down; it stops at the bottom of the scrolling region when it starts
+    /// inside.
     pub fn cursor_down(&mut self, lines: usize) {
-        let screen_height = self.screen_height;
+        let bottom = self.scroll_region.bottom;
+        let last = self.screen_height - 1;
         let cursor = self.get_cursor_mut();
-        cursor.y = (cursor.y + lines).min(screen_height.saturating_sub(1));
+        let limit = if cursor.y <= bottom { bottom } else { last };
+        cursor.y = (cursor.y + lines).min(limit);
     }
 
-    /// F0305: Move cursor left with bounds checking
-    pub fn cursor_left(&mut self, cols: usize) {
+    pub fn cursor_left(&mut self, columns: usize) {
         let cursor = self.get_cursor_mut();
-        cursor.x = cursor.x.saturating_sub(cols);
+        cursor.x = cursor.x.saturating_sub(columns);
     }
 
-    /// F0305: Move cursor right with bounds checking
-    pub fn cursor_right(&mut self, cols: usize) {
-        let screen_width = self.screen_width;
+    pub fn cursor_right(&mut self, columns: usize) {
+        let last = self.screen_width - 1;
         let cursor = self.get_cursor_mut();
-        cursor.x = (cursor.x + cols).min(screen_width.saturating_sub(1));
+        cursor.x = (cursor.x + columns).min(last);
     }
 
-    /// F0305: Move cursor to beginning of line
-    pub fn cursor_to_line_start(&mut self) {
-        self.get_cursor_mut().x = 0;
-    }
-
-    /// F0305: Move cursor to next line (carriage return + line feed)
-    pub fn cursor_next_line(&mut self, lines: usize) {
-        self.cursor_down(lines);
-        self.cursor_to_line_start();
-    }
-
-    /// F0305: Move cursor to previous line
-    pub fn cursor_previous_line(&mut self, lines: usize) {
-        self.cursor_up(lines);
-        self.cursor_to_line_start();
-    }
-
-    /// F0313: Tab forward to next tab stop
+    /// Moves to the next tab stop, or the last column when there is none.
     pub fn tab_forward(&mut self) {
-        let cursor_x = self.get_cursor().x;
-        let screen_width = self.screen_width;
-
-        // Find next tab stop
-        for x in (cursor_x + 1)..screen_width {
-            if x < self.tab_stops.len() && self.tab_stops[x] {
-                self.get_cursor_mut().x = x;
-                return;
-            }
-        }
-
-        // No tab stop found, move to end of line
-        self.get_cursor_mut().x = screen_width.saturating_sub(1);
+        let x = self.get_cursor().x;
+        let next = (x + 1..self.screen_width)
+            .find(|&column| self.tab_stops[column])
+            .unwrap_or(self.screen_width - 1);
+        self.get_cursor_mut().x = next;
     }
 
-    /// F0313: Tab backward to previous tab stop
+    /// Moves to the previous tab stop, or the first column when there is none.
     pub fn tab_backward(&mut self) {
-        let cursor_x = self.get_cursor().x;
-
-        // Find previous tab stop
-        if cursor_x > 0 {
-            for x in (0..cursor_x).rev() {
-                if x < self.tab_stops.len() && self.tab_stops[x] {
-                    self.get_cursor_mut().x = x;
-                    return;
-                }
-            }
-        }
-
-        // No tab stop found, move to beginning of line
-        self.get_cursor_mut().x = 0;
+        let x = self.get_cursor().x;
+        let previous = (0..x)
+            .rev()
+            .find(|&column| self.tab_stops[column])
+            .unwrap_or(0);
+        self.get_cursor_mut().x = previous;
     }
 
-    /// F0314: Set line attribute for current line
-    pub fn set_line_attribute(&mut self, attribute: LineAttribute) {
-        let cursor_y = self.get_cursor().y;
-        let buffer = if self.use_alternate_screen {
-            &mut self.alternate_buffer
-        } else {
-            &mut self.primary_buffer
-        };
-
-        if cursor_y < buffer.line_attributes.len() {
-            buffer.line_attributes[cursor_y] = attribute;
-        }
-    }
-
-    /// F0314: Get line attribute for specific line
-    pub fn get_line_attribute(&self, line: usize) -> LineAttribute {
-        let buffer = if self.use_alternate_screen {
-            &self.alternate_buffer
-        } else {
-            &self.primary_buffer
-        };
-
-        buffer
-            .line_attributes
-            .get(line)
-            .copied()
-            .unwrap_or(LineAttribute::Normal)
-    }
-
-    /// F0314: Set double-width line (DECDWL)
-    pub fn set_double_width_line(&mut self) {
-        self.set_line_attribute(LineAttribute::DoubleWidth);
-    }
-
-    /// F0314: Set double-height line top half (DECDHL top)
-    pub fn set_double_height_line_top(&mut self) {
-        self.set_line_attribute(LineAttribute::DoubleHeightTop);
-    }
-
-    /// F0314: Set double-height line bottom half (DECDHL bottom)
-    pub fn set_double_height_line_bottom(&mut self) {
-        self.set_line_attribute(LineAttribute::DoubleHeightBottom);
-    }
-
-    /// F0314: Reset line to normal (single-width, single-height)
-    pub fn set_normal_line(&mut self) {
-        self.set_line_attribute(LineAttribute::Normal);
-    }
-
-    /// F0307: Set scrolling region (DECSTBM - Set Top and Bottom Margins)
+    /// DECSTBM with 1-based lines; a missing or invalid region means the whole screen.
     pub fn set_scrolling_region(&mut self, top: Option<usize>, bottom: Option<usize>) {
-        let screen_height = self.screen_height;
-
-        // Convert 1-based VT coordinates to 0-based internal coordinates
-        let new_top = top.map(|t| t.saturating_sub(1)).unwrap_or(0);
-        let new_bottom = bottom
-            .map(|b| b.saturating_sub(1))
-            .unwrap_or(screen_height.saturating_sub(1));
-
-        // Validate region bounds
-        if new_top < screen_height && new_bottom < screen_height && new_top <= new_bottom {
-            self.scroll_region.top = new_top;
-            self.scroll_region.bottom = new_bottom;
-        }
-        // If invalid bounds, reset to full screen
-        else {
-            self.scroll_region.top = 0;
-            self.scroll_region.bottom = screen_height.saturating_sub(1);
-        }
+        let last = self.screen_height - 1;
+        let top = top.filter(|&t| t > 0).map_or(0, |t| t - 1);
+        let bottom = bottom
+            .filter(|&b| b > 0)
+            .map_or(last, |b| (b - 1).min(last));
+        self.scroll_region = if top < bottom {
+            ScrollRegion { top, bottom }
+        } else {
+            ScrollRegion {
+                top: 0,
+                bottom: last,
+            }
+        };
     }
 
-    /// F0307: Reset scrolling region to full screen
-    pub fn reset_scrolling_region(&mut self) {
-        self.scroll_region.top = 0;
-        self.scroll_region.bottom = self.screen_height.saturating_sub(1);
-    }
-
-    /// F0307: Scroll up within the scrolling region
+    /// Scrolls the scrolling region up by `lines`: its top lines go away (into the scrollback
+    /// when the region starts at the top of the primary screen) and blank lines appear at its
+    /// bottom.
     pub fn scroll_up_in_region(&mut self, lines: usize) {
-        if lines == 0 {
-            return;
-        }
-
-        let top = self.scroll_region.top;
-        let bottom = self.scroll_region.bottom;
-        let screen_width = self.screen_width;
-
-        // Move lines up within the region
-        for _ in 0..lines {
-            // Get buffer once for each iteration to avoid borrow checker issues
-            {
-                let buffer = self.get_active_buffer();
-                if top <= bottom && top < buffer.content.len() && bottom < buffer.content.len() {
-                    // Remove the top line of the scrolling region
-                    let _removed_line = buffer.content.remove(top);
-
-                    // Add a blank line at the bottom of the scrolling region
-                    if bottom < buffer.content.len() {
-                        let width = if !buffer.content.is_empty() {
-                            buffer.content[0].len()
-                        } else {
-                            screen_width
-                        };
-                        let blank_line = vec![TerminalCell::default(); width];
-                        buffer.content.insert(bottom, blank_line);
-                    } else {
-                        // If we're at the end, just push a new line
-                        let blank_line = vec![TerminalCell::default(); screen_width];
-                        buffer.content.push(blank_line);
-                    }
-                }
+        let ScrollRegion { top, bottom } = self.scroll_region;
+        let keep = top == 0 && !self.use_alternate_screen;
+        let blank = vec![self.blank(); self.screen_width];
+        let buffer = self.get_active_buffer();
+        for _ in 0..lines.min(bottom - top + 1) {
+            let line = buffer.content.remove(top);
+            if keep {
+                buffer.push_scrollback(line);
             }
+            buffer.content.insert(bottom, blank.clone());
         }
     }
 
-    /// F0307: Scroll down within the scrolling region
+    /// Scrolls the scrolling region down by `lines`: its bottom lines go away and blank lines
+    /// appear at its top.
     pub fn scroll_down_in_region(&mut self, lines: usize) {
-        if lines == 0 {
+        let ScrollRegion { top, bottom } = self.scroll_region;
+        let blank = vec![self.blank(); self.screen_width];
+        let buffer = self.get_active_buffer();
+        for _ in 0..lines.min(bottom - top + 1) {
+            buffer.content.remove(bottom);
+            buffer.content.insert(top, blank.clone());
+        }
+    }
+
+    /// Line feed: down one line, scrolling the region when the cursor is on its bottom line.
+    pub fn line_feed_with_scrolling(&mut self) {
+        let y = self.get_cursor().y;
+        if y == self.scroll_region.bottom {
+            self.scroll_up_in_region(1);
+        } else if y + 1 < self.screen_height {
+            self.get_cursor_mut().y = y + 1;
+        }
+    }
+
+    /// Reverse index: up one line, scrolling the region down when the cursor is on its top
+    /// line.
+    pub fn reverse_line_feed_with_scrolling(&mut self) {
+        let y = self.get_cursor().y;
+        if y == self.scroll_region.top {
+            self.scroll_down_in_region(1);
+        } else if y > 0 {
+            self.get_cursor_mut().y = y - 1;
+        }
+    }
+
+    /// IL: inserts `count` blank lines at the cursor line, pushing the lines below it down
+    /// within the scrolling region. Nothing happens outside the region.
+    pub fn insert_lines(&mut self, count: usize) {
+        let y = self.get_cursor().y;
+        let ScrollRegion { top, bottom } = self.scroll_region;
+        if y < top || y > bottom {
             return;
         }
-
-        let top = self.scroll_region.top;
-        let bottom = self.scroll_region.bottom;
-        let screen_width = self.screen_width;
-
-        // Move lines down within the region
-        for _ in 0..lines {
-            // Get buffer once for each iteration to avoid borrow checker issues
-            {
-                let buffer = self.get_active_buffer();
-                if top <= bottom && top < buffer.content.len() && bottom < buffer.content.len() {
-                    // Remove the bottom line of the scrolling region
-                    if bottom < buffer.content.len() {
-                        let _removed_line = buffer.content.remove(bottom);
-                    }
-
-                    // Add a blank line at the top of the scrolling region
-                    let blank_line = vec![TerminalCell::default(); screen_width];
-                    buffer.content.insert(top, blank_line);
-                }
-            }
-        }
-    }
-
-    /// F0307: Check if cursor is within scrolling region
-    pub fn is_cursor_in_scrolling_region(&self) -> bool {
-        let cursor_y = self.get_cursor().y;
-        cursor_y >= self.scroll_region.top && cursor_y <= self.scroll_region.bottom
-    }
-
-    /// F0307: Handle line feed with scrolling region awareness
-    pub fn line_feed_with_scrolling(&mut self) {
-        let current_y = self.get_cursor().y;
-        let bottom = self.scroll_region.bottom;
-
-        // If cursor is at the bottom of the scrolling region, scroll up
-        if current_y >= bottom {
-            self.scroll_up_in_region(1);
-            // Keep cursor at bottom of scrolling region
-            self.get_cursor_mut().y = bottom;
-        } else {
-            // Normal line feed within the scrolling region
-            self.get_cursor_mut().y = (current_y + 1).min(bottom);
-        }
-    }
-
-    /// F0307: Handle reverse line feed with scrolling region awareness
-    pub fn reverse_line_feed_with_scrolling(&mut self) {
-        let current_y = self.get_cursor().y;
-        let top = self.scroll_region.top;
-
-        // If cursor is at the top of the scrolling region, scroll down
-        if current_y <= top {
-            self.scroll_down_in_region(1);
-            // Keep cursor at top of scrolling region
-            self.get_cursor_mut().y = top;
-        } else {
-            // Normal reverse line feed within the scrolling region
-            self.get_cursor_mut().y = current_y.saturating_sub(1).max(top);
-        }
-    }
-
-    /// F0308: Insert character at cursor position (IRM - Insert/Replace Mode)
-    pub fn insert_character_at_cursor(&mut self) {
-        let cursor_x = self.get_cursor().x;
-        let cursor_y = self.get_cursor().y;
-        let screen_width = self.screen_width;
-
+        let blank = vec![self.blank(); self.screen_width];
         let buffer = self.get_active_buffer();
-        if cursor_y < buffer.content.len() && cursor_x <= buffer.content[cursor_y].len() {
-            // Shift all characters to the right from cursor position
-            let line = &mut buffer.content[cursor_y];
-            if cursor_x < line.len() {
-                // Insert a blank character at cursor position, shifting others right
-                let blank_cell = TerminalCell::default();
-                line.insert(cursor_x, blank_cell);
-
-                // Keep line length within screen width by removing rightmost character if needed
-                if line.len() > screen_width {
-                    line.truncate(screen_width);
-                }
-            }
+        for _ in 0..count.min(bottom - y + 1) {
+            buffer.content.remove(bottom);
+            buffer.content.insert(y, blank.clone());
         }
+        buffer.cursor.x = 0;
     }
 
-    /// F0308: Delete character at cursor position (DCH command support)
-    pub fn delete_character_at_cursor(&mut self, count: usize) {
-        let cursor_x = self.get_cursor().x;
-        let cursor_y = self.get_cursor().y;
-        let screen_width = self.screen_width;
-
+    /// DL: deletes `count` lines from the cursor line, pulling the lines below it up within
+    /// the scrolling region. Nothing happens outside the region.
+    pub fn delete_lines(&mut self, count: usize) {
+        let y = self.get_cursor().y;
+        let ScrollRegion { top, bottom } = self.scroll_region;
+        if y < top || y > bottom {
+            return;
+        }
+        let blank = vec![self.blank(); self.screen_width];
         let buffer = self.get_active_buffer();
-        if cursor_y < buffer.content.len() {
-            let line = &mut buffer.content[cursor_y];
-            for _ in 0..count {
-                if cursor_x < line.len() {
-                    line.remove(cursor_x);
-                }
-            }
+        for _ in 0..count.min(bottom - y + 1) {
+            buffer.content.remove(y);
+            buffer.content.insert(bottom, blank.clone());
+        }
+        buffer.cursor.x = 0;
+    }
 
-            // Fill line with blank characters to maintain screen width
-            while line.len() < screen_width {
-                line.push(TerminalCell::default());
-            }
+    /// ICH: inserts `count` blanks at the cursor, pushing the rest of the line right; what
+    /// passes the right edge is lost.
+    pub fn insert_blank_characters(&mut self, count: usize) {
+        let blank = self.blank();
+        let width = self.screen_width;
+        let CursorState { x, y, .. } = *self.get_cursor();
+        let row = &mut self.get_active_screen()[y];
+        let count = count.min(width - x);
+        row.truncate(width - count);
+        for _ in 0..count {
+            row.insert(x, blank.clone());
+        }
+        repair_wide_characters(row);
+    }
+
+    /// DCH: deletes `count` characters at the cursor, pulling the rest of the line left and
+    /// filling the right end with blanks.
+    pub fn delete_characters(&mut self, count: usize) {
+        let blank = self.blank();
+        let width = self.screen_width;
+        let CursorState { x, y, .. } = *self.get_cursor();
+        let row = &mut self.get_active_screen()[y];
+        let count = count.min(width - x);
+        row.drain(x..x + count);
+        row.resize(width, blank);
+        repair_wide_characters(row);
+    }
+
+    /// Blanks the cells `from..to` of line `y`.
+    pub fn erase_cells(&mut self, y: usize, from: usize, to: usize) {
+        let blank = self.blank();
+        let row = &mut self.get_active_screen()[y];
+        let to = to.min(row.len());
+        if from < to {
+            row[from..to].fill(blank);
+            repair_wide_characters(row);
         }
     }
 
-    /// F0308: Get appropriate escape sequence for cursor key based on cursor key mode
-    pub fn get_cursor_key_sequence(&self, key: &str) -> String {
-        if self.mode.cursor_key_mode {
-            // Application cursor keys (DECCKM enabled)
-            match key {
-                "up" => "\x1bOA".to_string(),
-                "down" => "\x1bOB".to_string(),
-                "right" => "\x1bOC".to_string(),
-                "left" => "\x1bOD".to_string(),
-                "home" => "\x1bOH".to_string(),
-                "end" => "\x1bOF".to_string(),
-                _ => format!("\x1b[{}", key), // Fallback to normal mode
-            }
-        } else {
-            // Normal cursor keys (DECCKM disabled)
-            match key {
-                "up" => "\x1b[A".to_string(),
-                "down" => "\x1b[B".to_string(),
-                "right" => "\x1b[C".to_string(),
-                "left" => "\x1b[D".to_string(),
-                "home" => "\x1b[H".to_string(),
-                "end" => "\x1b[F".to_string(),
-                _ => format!("\x1b[{}", key),
-            }
-        }
-    }
-
-    /// F0308: Get appropriate escape sequence for keypad key based on keypad mode
-    pub fn get_keypad_sequence(&self, key: &str) -> String {
-        if self.mode.keypad_mode {
-            // Application keypad (DECPAM enabled)
-            match key {
-                "0" => "\x1bOp".to_string(),
-                "1" => "\x1bOq".to_string(),
-                "2" => "\x1bOr".to_string(),
-                "3" => "\x1bOs".to_string(),
-                "4" => "\x1bOt".to_string(),
-                "5" => "\x1bOu".to_string(),
-                "6" => "\x1bOv".to_string(),
-                "7" => "\x1bOw".to_string(),
-                "8" => "\x1bOx".to_string(),
-                "9" => "\x1bOy".to_string(),
-                "." => "\x1bOn".to_string(),
-                "+" => "\x1bOk".to_string(),
-                "-" => "\x1bOm".to_string(),
-                "*" => "\x1bOj".to_string(),
-                "/" => "\x1bOo".to_string(),
-                "=" => "\x1bOX".to_string(),
-                "enter" => "\x1bOM".to_string(),
-                _ => key.to_string(), // Fallback to literal key
-            }
-        } else {
-            // Normal keypad (DECPAM disabled) - just return the key
-            key.to_string()
-        }
-    }
-
-    /// F0308: Handle linefeed/newline mode (LNM) - affects how newlines are processed
-    pub fn process_newline(&mut self) {
-        if self.mode.local_echo_mode {
-            // LNM enabled: Newline acts as CR+LF
-            self.get_cursor_mut().x = 0; // Carriage return
-            self.line_feed_with_scrolling(); // Line feed
-        } else {
-            // LNM disabled: Newline is just LF
-            self.line_feed_with_scrolling();
-        }
-    }
-
-    /// F0312: Switch to alternate screen buffer with proper isolation
+    /// Switches to the alternate screen, which full-screen programs draw on.
     pub fn switch_to_alternate_screen(&mut self) {
-        if !self.use_alternate_screen {
-            self.use_alternate_screen = true;
-            self.full_screen_program_detected = true;
-            // Alternate screen starts clean but preserves previous content
-            // Only clear if explicitly requested (like mode 1047/1049)
-        }
+        self.use_alternate_screen = true;
     }
 
-    /// F0312: Switch to primary screen buffer maintaining buffer isolation
+    /// Switches back to the primary screen, whose content was kept.
     pub fn switch_to_primary_screen(&mut self) {
-        if self.use_alternate_screen {
-            self.use_alternate_screen = false;
-            // Primary screen content is preserved during alternate screen usage
-        }
+        self.use_alternate_screen = false;
     }
 
-    /// F0312: Clear alternate screen buffer explicitly
     pub fn clear_alternate_screen(&mut self) {
         self.alternate_buffer.clear_screen();
     }
 
-    /// F0312: Verify buffer isolation - ensure buffers don't share content
-    pub fn verify_buffer_isolation(&self) -> bool {
-        // Buffers should have independent content structures
-        !self.primary_buffer.content.is_empty() || !self.alternate_buffer.content.is_empty()
-    }
-
-    pub fn scroll_up(&mut self, lines: usize) {
-        for _ in 0..lines {
-            self.get_active_buffer().scroll_up_one_line();
-        }
-    }
-
-    pub fn scroll_down(&mut self, lines: usize) {
-        for _ in 0..lines {
-            self.get_active_buffer().scroll_down_one_line();
-        }
-    }
-
     pub fn resize(&mut self, new_width: usize, new_height: usize) {
+        let (new_width, new_height) = (new_width.max(1), new_height.max(1));
         self.screen_width = new_width;
         self.screen_height = new_height;
-
-        // Resize both screen buffers
         self.primary_buffer.resize(new_width, new_height);
         self.alternate_buffer.resize(new_width, new_height);
-
-        // Update scroll region
-        self.scroll_region.bottom = new_height.saturating_sub(1);
-
-        // Resize and reset tab stops
-        self.tab_stops = vec![false; new_width];
-        for i in (8..new_width).step_by(8) {
-            if i < self.tab_stops.len() {
-                self.tab_stops[i] = true;
-            }
-        }
+        self.scroll_region = ScrollRegion {
+            top: 0,
+            bottom: new_height - 1,
+        };
+        self.tab_stops = default_tab_stops(new_width);
+        self.wrap_pending = false;
     }
 
     pub fn clear_screen(&mut self) {
-        self.get_active_buffer().clear_screen();
-    }
-
-    pub fn clear_line(&mut self, line: usize) {
-        if line < self.screen_height {
-            let screen = self.get_active_screen();
-            for cell in &mut screen[line] {
-                *cell = TerminalCell::default();
-            }
+        let blank = self.blank();
+        for row in self.get_active_screen() {
+            row.fill(blank.clone());
         }
     }
 
-    /// Process DCS query sequences
-    pub fn process_dcs_query(&mut self, data: &str) {
-        match data {
-            "1c" => {
-                // Terminal ID query response
-                self.pending_responses.push("\x1b[?6c".to_string());
-            }
-            "2c" => {
-                // Secondary device attributes
-                self.pending_responses.push("\x1b[>0;276;0c".to_string());
-            }
-            _ => {
-                log::debug!("Unknown DCS query: {}", data);
-            }
-        }
-    }
-
-    /// Process DCS extended capability sequences
-    pub fn process_dcs_extended(&mut self, data: &str) {
-        // Extended capabilities like sixel graphics, ReGIS, etc.
-        // For now, just log for debugging
-        log::debug!("DCS extended capability: {}", data);
-    }
-
-    /// F0310: Check if any mouse reporting mode is active
+    /// Whether the program asked for mouse events.
     pub fn is_mouse_reporting_enabled(&self) -> bool {
-        self.mode.mouse_x10_mode
-            || self.mode.mouse_normal_mode
-            || self.mode.mouse_button_event_mode
-            || self.mode.mouse_any_event_mode
+        self.mode.mouse_tracking != MouseTracking::Off
     }
 
-    /// F0310: Get the current active mouse reporting mode
-    pub fn get_mouse_reporting_mode(&self) -> Option<&str> {
-        if self.mode.mouse_x10_mode {
-            Some("X10")
-        } else if self.mode.mouse_button_event_mode {
-            Some("ButtonEvent")
-        } else if self.mode.mouse_any_event_mode {
-            Some("AnyEvent")
-        } else if self.mode.mouse_normal_mode {
-            Some("Normal")
-        } else {
-            None
-        }
-    }
-
-    /// F0310: Generate mouse report sequence for xterm compatibility
+    /// The bytes reporting a mouse event to the program, in the tracking mode and encoding it
+    /// chose; `None` when it did not ask for this kind of event. `x` and `y` are 0-based cells
+    /// of the screen. Without SGR encoding positions past column or line 223 cannot be
+    /// reported.
     pub fn generate_mouse_report(
         &self,
         event_type: MouseEventType,
@@ -722,134 +434,84 @@ impl TerminalState {
         button: Option<MouseButton>,
         modifiers: MouseModifiers,
     ) -> Option<String> {
-        if !self.is_mouse_reporting_enabled() {
+        let tracking = self.mode.mouse_tracking;
+        let wanted = match event_type {
+            MouseEventType::Press | MouseEventType::Wheel => tracking != MouseTracking::Off,
+            MouseEventType::Release => !matches!(tracking, MouseTracking::Off | MouseTracking::X10),
+            MouseEventType::Motion if button.is_some() => matches!(
+                tracking,
+                MouseTracking::ButtonEvent | MouseTracking::AnyEvent
+            ),
+            MouseEventType::Motion => tracking == MouseTracking::AnyEvent,
+        };
+        if !wanted {
             return None;
         }
-
-        // Convert coordinates to 1-based (xterm convention)
-        let x = (x + 1).min(255); // Clamp to valid range
-        let y = (y + 1).min(255); // Clamp to valid range
-
+        let mut code: u32 = match button {
+            Some(MouseButton::Left) => 0,
+            Some(MouseButton::Middle) => 1,
+            Some(MouseButton::Right) => 2,
+            Some(MouseButton::WheelUp) => 64,
+            Some(MouseButton::WheelDown) => 65,
+            Some(MouseButton::WheelLeft) => 66,
+            Some(MouseButton::WheelRight) => 67,
+            // Motion with no button held.
+            None => 3,
+        };
+        if tracking != MouseTracking::X10 {
+            if modifiers.shift {
+                code += 4;
+            }
+            if modifiers.alt || modifiers.meta {
+                code += 8;
+            }
+            if modifiers.ctrl {
+                code += 16;
+            }
+        }
+        if event_type == MouseEventType::Motion {
+            code += 32;
+        }
+        let (column, line) = (x + 1, y + 1);
         if self.mode.mouse_sgr_mode {
-            // SGR (1006) extended reporting - supports coordinates > 223
-            self.generate_sgr_mouse_report(event_type, x, y, button, modifiers)
-        } else {
-            // Standard reporting (X10, Normal, ButtonEvent, AnyEvent)
-            self.generate_standard_mouse_report(event_type, x, y, button, modifiers)
+            let end = if event_type == MouseEventType::Release {
+                'm'
+            } else {
+                'M'
+            };
+            return Some(format!("\x1b[<{};{};{}{}", code, column, line, end));
         }
-    }
-
-    /// F0310: Generate standard mouse report (modes 1000, 1002, 1003)
-    fn generate_standard_mouse_report(
-        &self,
-        event_type: MouseEventType,
-        x: usize,
-        y: usize,
-        button: Option<MouseButton>,
-        modifiers: MouseModifiers,
-    ) -> Option<String> {
-        let mut cb = 0u8; // Control byte
-
-        // Set button bits
-        match button {
-            Some(MouseButton::Left) => cb |= 0,
-            Some(MouseButton::Middle) => cb |= 1,
-            Some(MouseButton::Right) => cb |= 2,
-            Some(MouseButton::WheelUp) => cb |= 64,
-            Some(MouseButton::WheelDown) => cb |= 65,
-            Some(MouseButton::WheelLeft) => cb |= 66,
-            Some(MouseButton::WheelRight) => cb |= 67,
-            None => {}
+        // The legacy encoding has no release per button: a release is button 3.
+        if event_type == MouseEventType::Release {
+            code = (code & !3) | 3;
         }
-
-        // Set modifier bits
-        if modifiers.shift {
-            cb |= 4;
-        }
-        if modifiers.meta {
-            cb |= 8;
-        }
-        if modifiers.ctrl {
-            cb |= 16;
-        }
-
-        // Set event type bits
-        match event_type {
-            MouseEventType::Press => {} // Default - no additional bits
-            MouseEventType::Release => {
-                if self.mode.mouse_x10_mode {
-                    return None; // X10 mode doesn't report releases
-                }
-                cb |= 3; // Release marker
-            }
-            MouseEventType::Motion => {
-                if !self.mode.mouse_any_event_mode {
-                    return None; // Only AnyEvent mode reports motion
-                }
-                cb |= 32; // Motion marker
-            }
-            MouseEventType::Wheel => {
-                // Wheel events already handled in button assignment
-            }
-        }
-
-        // Add base offset
-        cb += 32;
-
-        // Generate escape sequence
+        let byte =
+            |value: usize| char::from_u32(u32::try_from(value + 32).ok()?).filter(|_| value <= 223);
         Some(format!(
             "\x1b[M{}{}{}",
-            cb as char,
-            (x + 32) as u8 as char,
-            (y + 32) as u8 as char
+            char::from_u32(code + 32)?,
+            byte(column)?,
+            byte(line)?
         ))
     }
+}
 
-    /// F0310: Generate SGR mouse report (mode 1006)
-    fn generate_sgr_mouse_report(
-        &self,
-        event_type: MouseEventType,
-        x: usize,
-        y: usize,
-        button: Option<MouseButton>,
-        modifiers: MouseModifiers,
-    ) -> Option<String> {
-        let mut cb = 0u8;
+fn default_tab_stops(width: usize) -> Vec<bool> {
+    (0..width).map(|x| x > 0 && x % 8 == 0).collect()
+}
 
-        // Set button bits
-        match button {
-            Some(MouseButton::Left) => cb |= 0,
-            Some(MouseButton::Middle) => cb |= 1,
-            Some(MouseButton::Right) => cb |= 2,
-            Some(MouseButton::WheelUp) => cb |= 64,
-            Some(MouseButton::WheelDown) => cb |= 65,
-            Some(MouseButton::WheelLeft) => cb |= 66,
-            Some(MouseButton::WheelRight) => cb |= 67,
-            None => {}
+/// After cells moved or were overwritten: a wide character whose right half is gone, or a
+/// right half whose character is gone, becomes a blank.
+fn repair_wide_characters(row: &mut [TerminalCell]) {
+    for x in 0..row.len() {
+        let wide = unicode_width::UnicodeWidthChar::width(row[x].character) == Some(2);
+        if wide && row.get(x + 1).map(|c| c.character) != Some(WIDE_CONTINUATION) {
+            row[x].character = ' ';
         }
-
-        // Set modifier bits
-        if modifiers.shift {
-            cb |= 4;
+        let orphan = row[x].character == WIDE_CONTINUATION
+            && (x == 0 || unicode_width::UnicodeWidthChar::width(row[x - 1].character) != Some(2));
+        if orphan {
+            row[x].character = ' ';
         }
-        if modifiers.meta {
-            cb |= 8;
-        }
-        if modifiers.ctrl {
-            cb |= 16;
-        }
-
-        // Set motion bit for motion events
-        if event_type == MouseEventType::Motion && self.mode.mouse_any_event_mode {
-            cb |= 32;
-        }
-
-        // SGR format: ESC[<Cb;Cx;CyM/m (M=press, m=release)
-        let end_char = match event_type {
-            MouseEventType::Press | MouseEventType::Motion | MouseEventType::Wheel => 'M',
-            MouseEventType::Release => 'm',
-        };
-
-        Some(format!("\x1b[<{};{};{}{}", cb, x, y, end_char))
     }
 }

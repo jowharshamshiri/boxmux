@@ -344,9 +344,9 @@ A script that exits with a non-zero status puts its tab in the error state, whic
 |----------|-------------|
 | `refresh_interval` | Milliseconds between runs. Inherited from the nearest enclosing box, else from the layout. |
 
-A box script runs once when its layout is first shown. With a `refresh_interval`, it runs again at that interval. A run that is still in progress is not started a second time; the missed intervals are skipped.
+A box script runs once when its layout is first shown. With a `refresh_interval`, it runs again at that interval while its layout is shown; while another layout is shown it waits, and when its layout is shown again it runs right away if an interval passed. A run that is still in progress is not started a second time; the missed intervals are skipped.
 
-`refresh_interval` needs a `script` (or a `plugin_component`, which is then redrawn at that interval). A box with `execution_mode: Pty` cannot set `refresh_interval`; an inherited interval does not apply to it.
+`refresh_interval` needs a `script`, a `plugin_component` (which is then redrawn at that interval), or child boxes that inherit it. A box with `execution_mode: Pty` cannot set `refresh_interval`; an inherited interval does not apply to it.
 
 ### Output Settings
 
@@ -710,7 +710,8 @@ Besides the types and allowed values of every key, the loader checks:
 - `redirect_output` names an existing box, and `next_focus_id` names a box in the same layout.
 - Every `hot_keys` entry names an existing choice.
 - A choice with `redirect_output` has a `script`.
-- `refresh_interval` is at least 1, needs a `script` or `plugin_component`, and is not set on a `Pty` box.
+- `refresh_interval` is at least 1, needs a `script`, a `plugin_component` or children, and is not set on a `Pty` box.
+- Key names in `hot_keys` and `on_keypress` are valid key names (see [Key names](/docs/advanced-features#key-names)), and neither `q` nor, on Unix, `Ctrl+z` is bound.
 - `min_width`/`min_height` are not larger than `max_width`/`max_height`.
 - A chart has `chart_data` or a `script`, `chart_data` has a `chart_type`, and a table has `table_data` or a `script`.
 - A box has at most one of `plugin_component`, `chart_type` and `table_data`/`table_config`.

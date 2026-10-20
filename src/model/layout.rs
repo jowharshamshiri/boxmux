@@ -223,9 +223,6 @@ impl Layout {
             .iter()
             .map(|muxbox| muxbox.id.clone())
             .collect();
-        if order.is_empty() {
-            return;
-        }
         let focused = self
             .get_selected_muxboxes()
             .first()
@@ -238,6 +235,9 @@ impl Layout {
                     return;
                 }
             }
+        }
+        if order.is_empty() {
+            return;
         }
         let current = focused
             .as_ref()
@@ -422,6 +422,19 @@ mod tests {
         assert_eq!(selected_ids(&layout), vec!["first"]);
         // Shift+Tab ignores next_focus_id and follows the tab order backwards.
         layout.select_previous_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["second"]);
+    }
+
+    #[test]
+    fn next_focus_id_works_without_any_tab_order() {
+        let mut first = muxbox("first", None, None);
+        first.next_focus_id = Some("second".into());
+        let mut layout = layout(vec![first, muxbox("second", None, None)]);
+        layout.select_only_muxbox("first");
+        layout.select_next_muxbox();
+        assert_eq!(selected_ids(&layout), vec!["second"]);
+        // With no tab order and no next_focus_id, Tab leaves the focus alone.
+        layout.select_next_muxbox();
         assert_eq!(selected_ids(&layout), vec!["second"]);
     }
 

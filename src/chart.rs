@@ -1,1139 +1,465 @@
-//! Text charts (bar, line, histogram, pie, scatter) drawn from `label,value` data.
+//! Text charts drawn from `label,value` data: bar, line, histogram, pie and scatter.
 
 use serde::{Deserialize, Serialize};
-
-/// Chart data point
-#[derive(Debug, Clone)]
-pub struct DataPoint {
-    pub label: String,
-    pub value: f64,
-}
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// The smallest area, in columns and rows, a chart is drawn in.
 pub const MIN_WIDTH: usize = 20;
 pub const MIN_HEIGHT: usize = 5;
 
-/// Supported chart types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChartType {
+    /// One horizontal bar per data point.
     Bar,
+    /// The values in order, as points on a grid.
     Line,
+    /// How many values fall into each range of values.
     Histogram,
+    /// Each value's share of the total.
     Pie,
+    /// Points at (label, value); labels that are not all numbers are placed in order.
     Scatter,
 }
 
-/// Chart configuration
-#[derive(Debug, Clone)]
-pub struct ChartConfig {
-    pub chart_type: ChartType,
-    pub title: Option<String>,
-    pub width: usize,
-    pub height: usize,
-    pub show_title: bool,
-    pub show_values: bool,
-    pub show_grid: bool,
+#[derive(Debug, Clone, PartialEq)]
+pub struct DataPoint {
+    pub label: String,
+    pub value: f64,
 }
 
-impl Default for ChartConfig {
-    fn default() -> Self {
-        Self {
-            chart_type: ChartType::Bar,
-            title: None,
-            width: 40,
-            height: 10,
-            show_title: true,
-            show_values: true,
-            show_grid: false,
+/// Parses chart data: one `label,value`, `label:value` or `label value` per line. Blank lines
+/// and lines starting with `#` are skipped; any other line that is not a label and a finite
+/// number is an error naming the line.
+pub fn parse_chart_data(content: &str) -> Result<Vec<DataPoint>, String> {
+    let mut data = Vec::new();
+    for (number, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
         }
-    }
-}
-
-/// Chart layout dimensions and positioning
-#[derive(Debug, Clone)]
-struct ChartLayout {
-    /// Total available width
-    pub total_width: usize,
-    /// Total available height
-    pub _total_height: usize,
-    /// Width for chart content (excluding labels)
-    pub chart_width: usize,
-    /// Height for chart content (excluding title/axes)
-    pub chart_height: usize,
-    /// Width reserved for Y-axis labels
-    pub y_label_width: usize,
-    /// Height reserved for title
-    pub title_height: usize,
-    /// Height reserved for X-axis labels
-    pub x_label_height: usize,
-}
-
-/// Chart rendering component with comprehensive chart type support
-#[derive(Debug, Clone)]
-pub struct ChartComponent {
-    /// Unique identifier for this chart component instance
-    _id: String,
-    /// Chart configuration
-    config: ChartConfig,
-    /// Chart data points
-    data: Vec<DataPoint>,
-}
-
-impl ChartComponent {
-    /// Create a new ChartComponent with default configuration
-    pub fn new(id: String) -> Self {
-        Self {
-            _id: id,
-            config: ChartConfig::default(),
-            data: Vec::new(),
-        }
-    }
-
-    /// Create a ChartComponent with custom configuration
-    pub fn with_config(id: String, config: ChartConfig) -> Self {
-        Self {
-            _id: id,
-            config,
-            data: Vec::new(),
-        }
-    }
-
-    /// Create a ChartComponent with data and configuration
-    pub fn with_data_and_config(id: String, data: Vec<DataPoint>, config: ChartConfig) -> Self {
-        Self {
-            _id: id,
-            config,
-            data,
-        }
-    }
-
-    /// Set chart data
-    pub fn set_data(&mut self, data: Vec<DataPoint>) {
-        self.data = data;
-    }
-
-    /// Get chart data reference
-    pub fn get_data(&self) -> &[DataPoint] {
-        &self.data
-    }
-
-    /// Set chart configuration
-    pub fn set_config(&mut self, config: ChartConfig) {
-        self.config = config;
-    }
-
-    /// Get chart configuration reference
-    pub fn get_config(&self) -> &ChartConfig {
-        &self.config
-    }
-
-    /// Parse chart data from text content
-    pub fn parse_data_from_content(&mut self, content: &str) {
-        self.data = Self::parse_chart_data(content);
-    }
-
-    /// Generate chart content as string (for legacy compatibility)
-    pub fn generate(&self) -> String {
-        self.generate_with_muxbox_title(None)
-    }
-
-    /// Generate chart content with muxbox title context to avoid duplication
-    pub fn generate_with_muxbox_title(&self, muxbox_title: Option<&str>) -> String {
-        if self.data.is_empty() {
-            return "No chart data".to_string();
-        }
-
-        // Below this size no chart type has room for its axes and labels.
-        if self.config.width < MIN_WIDTH || self.config.height < MIN_HEIGHT {
-            return "too small".chars().take(self.config.width).collect();
-        }
-        let effective_config = self.config.clone();
-
-        // Calculate smart layout based on chart type and data
-        let layout = self.calculate_chart_layout(&effective_config, muxbox_title);
-
-        match effective_config.chart_type {
-            ChartType::Bar => self.generate_bar_chart(&effective_config, &layout, muxbox_title),
-            ChartType::Line => self.generate_line_chart(&effective_config, &layout, muxbox_title),
-            ChartType::Histogram => {
-                self.generate_histogram(&effective_config, &layout, muxbox_title)
-            }
-            ChartType::Pie => self.generate_pie_chart(&effective_config, &layout, muxbox_title),
-            ChartType::Scatter => {
-                self.generate_scatter_chart(&effective_config, &layout, muxbox_title)
-            }
-        }
-    }
-
-    /// Parse chart data from text content (static version for external use)
-    pub fn parse_chart_data(content: &str) -> Vec<DataPoint> {
-        let mut data = Vec::new();
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            // Support formats: "label,value" or "label:value" or "label value"
-            let parts: Vec<&str> = if line.contains(',') {
-                line.split(',').collect()
-            } else if line.contains(':') {
-                line.split(':').collect()
-            } else {
-                line.split_whitespace().collect()
-            };
-
-            if parts.len() >= 2 {
-                let label = parts[0].trim().to_string();
-                if let Ok(value) = parts[1].trim().parse::<f64>() {
-                    data.push(DataPoint { label, value });
-                }
-            }
-        }
-
-        data
-    }
-
-    /// Calculate optimal layout dimensions for chart
-    fn calculate_chart_layout(
-        &self,
-        config: &ChartConfig,
-        muxbox_title: Option<&str>,
-    ) -> ChartLayout {
-        let total_width = config.width.max(20); // Minimum width
-        let total_height = config.height.max(5); // Minimum height
-
-        // Reserve space for title if present and different from muxbox title
-        let title_height = if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    2
-                } else {
-                    0
-                }
-            } else {
-                0
-            }
+        let split = if line.contains(',') {
+            line.split_once(',')
+        } else if line.contains(':') {
+            line.split_once(':')
         } else {
-            0
+            line.split_once(char::is_whitespace)
         };
-
-        match config.chart_type {
-            ChartType::Bar => {
-                // Calculate Y-axis label width based on data labels
-                let y_label_width = self
-                    .data
-                    .iter()
-                    .map(|p| p.label.len())
-                    .max()
-                    .unwrap_or(0)
-                    .max(3); // Minimum for values
-
-                ChartLayout {
-                    total_width,
-                    _total_height: total_height,
-                    chart_width: total_width.saturating_sub(y_label_width + 4), // +4 for separator and padding
-                    chart_height: total_height.saturating_sub(title_height),
-                    y_label_width,
-                    title_height,
-                    x_label_height: 0,
-                }
-            }
-            ChartType::Line => {
-                // Line charts need space for Y-axis values and X-axis labels
-                let y_label_width = 6; // Space for numeric values like "100.0"
-                let x_label_height = 1; // Space for X-axis values
-
-                ChartLayout {
-                    total_width,
-                    _total_height: total_height,
-                    chart_width: total_width.saturating_sub(y_label_width + 2),
-                    chart_height: total_height.saturating_sub(title_height + x_label_height + 1),
-                    y_label_width,
-                    title_height,
-                    x_label_height,
-                }
-            }
-            ChartType::Histogram => {
-                // Histograms need space for X-axis labels at bottom
-                let x_label_height = 2; // Space for bin labels
-
-                ChartLayout {
-                    total_width,
-                    _total_height: total_height,
-                    chart_width: total_width,
-                    chart_height: total_height.saturating_sub(title_height + x_label_height),
-                    y_label_width: 0,
-                    title_height,
-                    x_label_height,
-                }
-            }
-            ChartType::Pie => {
-                // Pie charts need square space and legend area
-                let legend_width = 15; // Space for legend on the right
-                let chart_size = (total_width.saturating_sub(legend_width))
-                    .min(total_height.saturating_sub(title_height));
-
-                ChartLayout {
-                    total_width,
-                    _total_height: total_height,
-                    chart_width: chart_size,
-                    chart_height: chart_size,
-                    y_label_width: legend_width,
-                    title_height,
-                    x_label_height: 0,
-                }
-            }
-            ChartType::Scatter => {
-                // Scatter plots need space for X and Y axis labels
-                let y_label_width = 8; // Space for Y-axis numeric values
-                let x_label_height = 2; // Space for X-axis labels
-
-                ChartLayout {
-                    total_width,
-                    _total_height: total_height,
-                    chart_width: total_width.saturating_sub(y_label_width + 2),
-                    chart_height: total_height.saturating_sub(title_height + x_label_height + 1),
-                    y_label_width,
-                    title_height,
-                    x_label_height,
-                }
+        let point = split.and_then(|(label, value)| {
+            let value: f64 = value.trim().parse().ok()?;
+            value.is_finite().then(|| DataPoint {
+                label: label.trim().to_string(),
+                value,
+            })
+        });
+        match point {
+            Some(point) => data.push(point),
+            None => {
+                return Err(format!(
+                    "chart data line {} is not 'label,value': {}",
+                    number + 1,
+                    line
+                ))
             }
         }
     }
+    Ok(data)
+}
 
-    /// Generate bar chart
-    fn generate_bar_chart(
-        &self,
-        config: &ChartConfig,
-        layout: &ChartLayout,
-        muxbox_title: Option<&str>,
-    ) -> String {
-        let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let mut result = String::new();
+/// The chart of `kind` for `data`, at most `width` columns by `height` rows.
+pub fn chart_text(kind: ChartType, data: &[DataPoint], width: usize, height: usize) -> String {
+    if width < MIN_WIDTH || height < MIN_HEIGHT {
+        return "too small".chars().take(width).collect();
+    }
+    if data.is_empty() {
+        return "no chart data".to_string();
+    }
+    let lines = match kind {
+        ChartType::Bar => bar_chart(data, width, height),
+        ChartType::Line => point_chart(&line_points(data), data, width, height, '●', true),
+        ChartType::Scatter => point_chart(&scatter_points(data), data, width, height, '◆', false),
+        ChartType::Histogram => histogram(data, width, height),
+        ChartType::Pie => pie_chart(data, width, height),
+    };
+    lines.join("\n")
+}
 
-        // Only add title if it's different from the muxbox title
-        if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    let title_centered = Self::center_text(title, layout.total_width);
-                    result.push_str(&format!("{}\n", title_centered));
-                    if layout.title_height > 1 {
-                        result.push('\n');
-                    }
-                }
-            }
+/// A number as short as it can be written: `12`, `3.5`, `0.25`.
+fn number(value: f64) -> String {
+    let text = format!("{:.2}", value);
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    if text == "-0" {
+        "0".to_string()
+    } else {
+        text.to_string()
+    }
+}
+
+/// `text` cut or padded to exactly `width` columns.
+fn pad(text: &str, width: usize) -> String {
+    let mut out = String::new();
+    let mut used = 0;
+    for ch in text.chars() {
+        let w = ch.width().unwrap_or(0);
+        if used + w > width {
+            break;
         }
+        out.push(ch);
+        used += w;
+    }
+    out.push_str(&" ".repeat(width - used));
+    out
+}
 
-        // Calculate optimal bar width
-        let bar_width = layout.chart_width.saturating_sub(2); // Reserve space for separator and value
-
-        // Fill available height by distributing bars vertically
-        let lines_per_bar = if self.data.is_empty() {
-            1
-        } else {
-            (layout.chart_height / self.data.len()).max(1)
-        };
-        let total_lines_needed = self.data.len() * lines_per_bar;
-
-        for point in self.data.iter() {
-            let bar_length = if max_value > 0.0 {
-                ((point.value / max_value) * bar_width as f64).round() as usize
+fn bar_chart(data: &[DataPoint], width: usize, height: usize) -> Vec<String> {
+    let shown = &data[..data.len().min(height)];
+    let label_width = shown
+        .iter()
+        .map(|p| p.label.width())
+        .max()
+        .unwrap_or(0)
+        .min(width / 3);
+    let value_width = shown
+        .iter()
+        .map(|p| number(p.value).width())
+        .max()
+        .unwrap_or(0)
+        .min(width / 3);
+    // label, " │", bar, " ", value
+    let bar_space = width.saturating_sub(label_width + value_width + 3);
+    let max = shown.iter().map(|p| p.value.max(0.0)).fold(0.0, f64::max);
+    shown
+        .iter()
+        .map(|point| {
+            let length = if max > 0.0 {
+                ((point.value.max(0.0) / max) * bar_space as f64).round() as usize
             } else {
                 0
             };
+            format!(
+                "{} │{}{} {}",
+                pad(&point.label, label_width),
+                "█".repeat(length),
+                " ".repeat(bar_space - length),
+                pad(&number(point.value), value_width)
+            )
+            .trim_end()
+            .to_string()
+        })
+        .collect()
+}
 
-            // Right-align labels for better alignment
-            let label = format!("{:>width$}", point.label, width = layout.y_label_width);
+/// Points of a line chart: the values in order, evenly spread.
+fn line_points(data: &[DataPoint]) -> Vec<(f64, f64)> {
+    data.iter()
+        .enumerate()
+        .map(|(i, point)| (i as f64, point.value))
+        .collect()
+}
 
-            // Create bar with proper alignment
-            let bar = "█".repeat(bar_length);
-            let padding = " ".repeat(bar_width.saturating_sub(bar_length));
+/// Points of a scatter chart: at the label's number when every label is a number, otherwise in
+/// order.
+fn scatter_points(data: &[DataPoint]) -> Vec<(f64, f64)> {
+    let numeric: Option<Vec<f64>> = data.iter().map(|p| p.label.parse::<f64>().ok()).collect();
+    match numeric {
+        Some(xs) => xs.into_iter().zip(data.iter().map(|p| p.value)).collect(),
+        None => line_points(data),
+    }
+}
 
-            // Format value with consistent decimal places
-            let value_str = if config.show_values {
-                if point.value.fract() == 0.0 {
-                    format!(" {:.0}", point.value)
-                } else {
-                    format!(" {:.1}", point.value)
+fn range(values: impl Iterator<Item = f64>) -> (f64, f64) {
+    values.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+        (lo.min(v), hi.max(v))
+    })
+}
+
+/// Where `value` falls among `cells` cells spanning `min..=max`; the middle cell when the span
+/// is empty.
+fn cell_of(value: f64, min: f64, max: f64, cells: usize) -> usize {
+    if max > min {
+        (((value - min) / (max - min)) * (cells - 1) as f64).round() as usize
+    } else {
+        (cells - 1) / 2
+    }
+}
+
+/// A grid with a value axis on the left and the points marked with `mark`, joined in order by a
+/// dotted line when `connect` is set, and the data labels under their points where they fit
+/// without overlapping.
+fn point_chart(
+    points: &[(f64, f64)],
+    data: &[DataPoint],
+    width: usize,
+    height: usize,
+    mark: char,
+    connect: bool,
+) -> Vec<String> {
+    let (min_y, max_y) = range(points.iter().map(|p| p.1));
+    let (min_x, max_x) = range(points.iter().map(|p| p.0));
+    let axis_width = number(min_y)
+        .width()
+        .max(number(max_y).width())
+        .min(width / 3);
+    // axis labels, " ┤", plot
+    let plot_width = width - axis_width - 2;
+    let plot_height = height - 1;
+    let mut grid = vec![vec![' '; plot_width]; plot_height];
+    let place = |x: f64, y: f64| {
+        (
+            plot_height - 1 - cell_of(y, min_y, max_y, plot_height),
+            cell_of(x, min_x, max_x, plot_width),
+        )
+    };
+    if connect {
+        for pair in points.windows(2) {
+            let ((x0, y0), (x1, y1)) = (pair[0], pair[1]);
+            let (_, from) = place(x0, y0);
+            let (_, to) = place(x1, y1);
+            // Each column between the points covers the rows the line passes through within
+            // it, so steep lines stay unbroken.
+            let row_at = |column: f64| {
+                let t = ((column - from as f64) / (to - from) as f64).clamp(0.0, 1.0);
+                place(x0, y0 + (y1 - y0) * t).0
+            };
+            for column in from + 1..to {
+                let (a, b) = (row_at(column as f64 - 0.5), row_at(column as f64 + 0.5));
+                for line in &mut grid[a.min(b)..=a.max(b)] {
+                    line[column] = '·';
                 }
+            }
+        }
+    }
+    for &(x, y) in points {
+        let (row, column) = place(x, y);
+        grid[row][column] = mark;
+    }
+    let mut lines: Vec<String> = grid
+        .into_iter()
+        .enumerate()
+        .map(|(row, cells)| {
+            let label = if row == 0 {
+                number(max_y)
+            } else if row == plot_height - 1 {
+                number(min_y)
             } else {
                 String::new()
             };
-
-            // Add the main bar line
-            result.push_str(&format!("{} │{}{}{}\n", label, bar, padding, value_str));
-
-            // Add additional lines for this bar to fill vertical space
-            for _ in 1..lines_per_bar {
-                let empty_label = " ".repeat(layout.y_label_width);
-                result.push_str(&format!(
-                    "{} │{}\n",
-                    empty_label,
-                    " ".repeat(bar_width + value_str.len())
-                ));
-            }
+            let label = pad(&label, axis_width);
+            let label = format!("{:>w$}", label.trim_end(), w = axis_width);
+            format!("{} ┤{}", label, cells.into_iter().collect::<String>())
+                .trim_end()
+                .to_string()
+        })
+        .collect();
+    let mut axis = String::new();
+    let mut used = 0;
+    for (&(x, _), point) in points.iter().zip(data) {
+        let label = pad(&point.label, point.label.width().min(6));
+        let label_width = label.width();
+        if label_width == 0 || label_width > plot_width {
+            continue;
         }
-
-        // Fill remaining vertical space if needed
-        let lines_used = total_lines_needed;
-        for _ in lines_used..layout.chart_height {
-            result.push_str(&" ".repeat(layout.y_label_width + bar_width + 10));
-            result.push('\n');
+        let start = cell_of(x, min_x, max_x, plot_width).min(plot_width - label_width);
+        // One blank column between labels.
+        if used > 0 && start <= used {
+            continue;
         }
-
-        result.trim_end().to_string() // Remove trailing newline
+        axis.push_str(&" ".repeat(start - used));
+        axis.push_str(&label);
+        used = start + label_width;
     }
+    lines.push(
+        format!("{}  {}", " ".repeat(axis_width), axis)
+            .trim_end()
+            .to_string(),
+    );
+    lines
+}
 
-    /// Generate line chart
-    fn generate_line_chart(
-        &self,
-        config: &ChartConfig,
-        layout: &ChartLayout,
-        muxbox_title: Option<&str>,
-    ) -> String {
-        if self.data.len() < 2 {
-            return "Need at least 2 data points for line chart".to_string();
-        }
-
-        let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_value = self
-            .data
+/// Counts of the values in equal ranges between the smallest and the largest, as vertical bars
+/// with each count and each range's start under its bar.
+fn histogram(data: &[DataPoint], width: usize, height: usize) -> Vec<String> {
+    let (min, max) = range(data.iter().map(|p| p.value));
+    let bins = (width / 6).clamp(1, 12).min(data.len());
+    let span = if max > min { max - min } else { 1.0 };
+    let mut counts = vec![0usize; bins];
+    for point in data {
+        let bin = (((point.value - min) / span) * bins as f64) as usize;
+        counts[bin.min(bins - 1)] += 1;
+    }
+    // Each bin is a column of `column` cells: the bar and one blank.
+    let column = width / bins;
+    let bar_width = column - 1;
+    let plot_height = height - 2;
+    let most = counts.iter().copied().max().unwrap_or(1).max(1);
+    let mut lines = Vec::new();
+    for row in (0..plot_height).rev() {
+        let line: String = counts
             .iter()
-            .map(|p| p.value)
-            .fold(f64::INFINITY, f64::min);
-        let range = max_value - min_value;
-
-        let mut result = String::new();
-
-        // Only add title if it's different from the muxbox title
-        if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    let title_centered = Self::center_text(title, layout.total_width);
-                    result.push_str(&format!("{}\n", title_centered));
-                    if layout.title_height > 1 {
-                        result.push('\n');
-                    }
-                }
-            }
-        }
-
-        // Create grid with proper dimensions
-        let mut grid = vec![vec![' '; layout.chart_width]; layout.chart_height];
-
-        // Plot data points
-        for (i, point) in self.data.iter().enumerate() {
-            let x = if self.data.len() > 1 {
-                (i as f64 / (self.data.len() - 1) as f64 * (layout.chart_width - 1) as f64) as usize
-            } else {
-                layout.chart_width / 2
-            };
-
-            let y = if range > 0.0 {
-                layout.chart_height
-                    - 1
-                    - ((point.value - min_value) / range * (layout.chart_height - 1) as f64)
-                        as usize
-            } else {
-                layout.chart_height / 2
-            };
-
-            if x < layout.chart_width && y < layout.chart_height {
-                grid[y][x] = '●';
-            }
-        }
-
-        // Convert grid to string with proper Y-axis labels
-        for (row_idx, row) in grid.iter().enumerate() {
-            // Add Y-axis value labels that correspond to actual data
-            let y_label = if layout.y_label_width > 0 {
-                // Calculate the actual Y value for this row
-                let row_from_bottom = (layout.chart_height - 1).saturating_sub(row_idx);
-                let y_value = if range > 0.0 {
-                    min_value + (row_from_bottom as f64 / (layout.chart_height - 1) as f64) * range
-                } else {
-                    min_value
-                };
-
-                // Only show labels at specific intervals for readability
-                let label_interval = layout.chart_height / 4; // Show ~4 labels
-                if row_idx % label_interval.max(1) == 0 || row_idx == layout.chart_height - 1 {
-                    format!("{:>width$.1}", y_value, width = layout.y_label_width)
-                } else {
-                    " ".repeat(layout.y_label_width)
-                }
-            } else {
-                String::new()
-            };
-
-            result.push_str(&format!("{} {}\n", y_label, row.iter().collect::<String>()));
-        }
-
-        // X-axis labels under their points.
-        if layout.x_label_height > 0 && !self.data.is_empty() {
-            let last = self.data.len() - 1;
-            let points = self.data.iter().enumerate().map(|(i, point)| {
-                let x = (i as f64 / last as f64 * (layout.chart_width - 1) as f64) as usize;
-                (x, point.label.clone())
-            });
-            result.push_str(&" ".repeat(layout.y_label_width + 1));
-            result.push_str(&Self::x_label_row(points, layout.chart_width));
-            result.push('\n');
-        }
-
-        result.trim_end().to_string()
+            .map(|&count| {
+                let bar = (count as f64 / most as f64 * plot_height as f64).ceil() as usize;
+                let cell = if row < bar { "█" } else { " " };
+                format!("{} ", cell.repeat(bar_width))
+            })
+            .collect();
+        lines.push(line.trim_end().to_string());
     }
-
-    /// Generate histogram
-    fn generate_histogram(
-        &self,
-        config: &ChartConfig,
-        layout: &ChartLayout,
-        muxbox_title: Option<&str>,
-    ) -> String {
-        // Create bins based on value ranges
-        let max_value = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_value = self
-            .data
+    let row_of = |texts: Vec<String>| -> String {
+        texts
             .iter()
-            .map(|p| p.value)
-            .fold(f64::INFINITY, f64::min);
+            .map(|t| pad(t, column))
+            .collect::<String>()
+            .trim_end()
+            .to_string()
+    };
+    lines.push(row_of(counts.iter().map(|c| c.to_string()).collect()));
+    lines.push(row_of(
+        (0..bins)
+            .map(|i| number(min + span * i as f64 / bins as f64))
+            .collect(),
+    ));
+    lines
+}
 
-        // Calculate optimal number of bins based on available width
-        let max_bins = layout.chart_width / 2; // Each bin needs at least 2 chars width
-        let bins = if self.data.len() <= max_bins {
-            self.data.len() // Use one bin per data point if we have space
-        } else {
-            max_bins.clamp(6, 12) // Otherwise use traditional histogram bins
-        };
+/// Glyphs telling the slices of a pie apart; data beyond them is left out.
+const SLICE_GLYPHS: [char; 6] = ['█', '▓', '▒', '░', '●', '○'];
 
-        let bin_size = if max_value > min_value {
-            (max_value - min_value) / bins as f64
-        } else {
-            1.0
-        };
-
-        // For discrete data points, show each value as its own bar
-        let histogram: Vec<usize> = if self.data.len() <= bins {
-            // Use actual data values directly
-            self.data.iter().map(|p| p.value as usize).collect()
-        } else {
-            // Traditional histogram with value range bins
-            let mut hist = vec![0; bins];
-            for point in &self.data {
-                let bin_index = if bin_size > 0.0 && max_value > min_value {
-                    let normalized = (point.value - min_value) / (max_value - min_value);
-                    (normalized * (bins - 1) as f64).round() as usize
-                } else {
-                    0
-                };
-                let bin_index = bin_index.min(bins - 1);
-                hist[bin_index] += 1;
-            }
-            hist
-        };
-
-        let max_count = *histogram.iter().max().unwrap_or(&1);
-
-        let mut result = String::new();
-
-        // Only add title if it's different from the muxbox title
-        if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    let title_centered = Self::center_text(title, layout.total_width);
-                    result.push_str(&format!("{}\n", title_centered));
-                    if layout.title_height > 1 {
-                        result.push('\n');
-                    }
-                }
-            }
-        }
-
-        // Draw histogram bars from top to bottom, using full width
-        for row in (0..layout.chart_height).rev() {
-            let mut row_chars = 0;
-
-            for (bin_idx, &count) in histogram.iter().enumerate() {
-                let bar_height_needed = if max_count > 0 {
-                    (count as f64 / max_count as f64 * layout.chart_height as f64) as usize
-                } else {
-                    0
-                };
-
-                if row < bar_height_needed {
-                    result.push('█');
-                } else {
-                    result.push(' ');
-                }
-                row_chars += 1;
-
-                // Calculate spacing to distribute bars across full width
-                if bin_idx < bins - 1 {
-                    let remaining_bins = bins - bin_idx - 1;
-                    let remaining_width = layout.chart_width.saturating_sub(row_chars);
-                    let spaces_needed = remaining_width
-                        .checked_div(remaining_bins)
-                        .map_or(0, |spaces| spaces.max(1));
-
-                    for _ in 0..spaces_needed {
-                        result.push(' ');
-                        row_chars += 1;
-                        if row_chars >= layout.chart_width {
-                            break;
-                        }
-                    }
-                }
-
-                if row_chars >= layout.chart_width {
-                    break;
-                }
-            }
-
-            // Fill remaining width with spaces
-            while row_chars < layout.chart_width {
-                result.push(' ');
-                row_chars += 1;
-            }
-
-            result.push('\n');
-        }
-
-        // Add X-axis labels if enabled
-        if layout.x_label_height > 0 {
-            result.push('\n'); // Extra line before labels
-
-            // Show more labels when using individual data points as bins
-            let mut label_line = " ".repeat(layout.chart_width);
-
-            if self.data.len() <= bins {
-                // Show labels for actual data points with overlap prevention
-                let min_label_spacing = 4; // Minimum characters between label starts
-                let max_labels_for_width = layout.chart_width / min_label_spacing;
-                let labels_to_show = self.data.len().min(max_labels_for_width).min(bins);
-
-                for i in 0..labels_to_show {
-                    let data_idx = if labels_to_show == self.data.len() {
-                        i // Show all labels
-                    } else {
-                        (i * (self.data.len() - 1)) / (labels_to_show - 1).max(1)
-                        // Sample evenly
-                    };
-
-                    let point = &self.data[data_idx.min(self.data.len() - 1)];
-                    let label = if point.value.fract() == 0.0 {
-                        format!("{:.0}", point.value)
-                    } else {
-                        format!("{:.1}", point.value)
-                    };
-
-                    // Calculate position with better spacing
-                    let label_position = if labels_to_show > 1 {
-                        (i * (layout.chart_width - label.len())) / (labels_to_show - 1)
-                    } else {
-                        layout.chart_width / 2
-                    };
-
-                    // Check for overlap with previous labels
-                    let start_pos = label_position;
-                    let end_pos = start_pos + label.len();
-
-                    if end_pos <= layout.chart_width {
-                        // Check for overlap by ensuring this position doesn't overwrite existing labels
-                        let line_chars: Vec<char> = label_line.chars().collect();
-                        let can_place = (start_pos..end_pos)
-                            .all(|pos| pos >= line_chars.len() || line_chars[pos] == ' ');
-
-                        if can_place {
-                            // Place the label
-                            let label_chars: Vec<char> = label.chars().collect();
-                            let mut line_chars = line_chars;
-                            line_chars.resize(layout.chart_width, ' ');
-                            for (j, &ch) in label_chars.iter().enumerate() {
-                                if start_pos + j < line_chars.len() {
-                                    line_chars[start_pos + j] = ch;
-                                }
-                            }
-                            label_line = line_chars.into_iter().collect();
-                        }
-                    }
-                }
-            } else {
-                // Traditional histogram range labels
-                let num_labels = if layout.chart_width > 80 {
-                    8
-                } else if layout.chart_width > 60 {
-                    6
-                } else if layout.chart_width > 40 {
-                    4
-                } else {
-                    3
-                };
-
-                for i in 0..num_labels {
-                    let bin_idx = if num_labels == 1 {
-                        0
-                    } else {
-                        (i * (bins - 1)) / (num_labels - 1)
-                    };
-                    let bin_start = min_value + bin_idx as f64 * bin_size;
-                    let label = if bin_start.fract() == 0.0 {
-                        format!("{:.0}", bin_start)
-                    } else {
-                        format!("{:.1}", bin_start)
-                    };
-
-                    // Calculate position across the full width
-                    let label_position = if bins > 1 {
-                        (bin_idx * layout.chart_width) / bins
-                    } else {
-                        layout.chart_width / 2
-                    };
-
-                    // Place label if it fits
-                    let start_pos = label_position.saturating_sub(label.len() / 2);
-                    let end_pos = start_pos + label.len();
-
-                    if end_pos <= layout.chart_width {
-                        // Replace spaces with the label characters
-                        let label_chars: Vec<char> = label.chars().collect();
-                        let mut line_chars: Vec<char> = label_line.chars().collect();
-                        for (j, &ch) in label_chars.iter().enumerate() {
-                            if start_pos + j < line_chars.len() {
-                                line_chars[start_pos + j] = ch;
-                            }
-                        }
-                        label_line = line_chars.into_iter().collect();
-                    }
-                }
-            }
-
-            result.push_str(&label_line);
-        }
-
-        result.trim_end().to_string()
+/// A filled circle whose slices show each value's share, with a legend beside it. Negative
+/// values have no share.
+fn pie_chart(data: &[DataPoint], width: usize, height: usize) -> Vec<String> {
+    let shown = &data[..data.len().min(SLICE_GLYPHS.len())];
+    let total: f64 = shown.iter().map(|p| p.value.max(0.0)).sum();
+    if total <= 0.0 {
+        return vec!["no positive values".to_string()];
     }
-
-    /// Generate pie chart
-    fn generate_pie_chart(
-        &self,
-        config: &ChartConfig,
-        layout: &ChartLayout,
-        muxbox_title: Option<&str>,
-    ) -> String {
-        let total_value: f64 = self.data.iter().map(|p| p.value).sum();
-        if total_value == 0.0 {
-            return "No data for pie chart".to_string();
+    // Cells are about twice as tall as wide, so the circle is twice as many columns as rows.
+    // It takes at most half the width; the legend gets the rest.
+    let rows = height.min(width / 4).max(2);
+    let columns = rows * 2;
+    let radius = rows as f64 / 2.0;
+    let shares: Vec<f64> = shown.iter().map(|p| p.value.max(0.0) / total).collect();
+    let slice_at = |turn: f64| -> usize {
+        let mut end = 0.0;
+        for (i, share) in shares.iter().enumerate() {
+            end += share;
+            if turn < end {
+                return i;
+            }
         }
-
-        let mut result = String::new();
-
-        // Only add title if it's different from the muxbox title
-        if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    let title_centered = Self::center_text(title, layout.total_width);
-                    result.push_str(&format!("{}\n", title_centered));
-                    if layout.title_height > 1 {
-                        result.push('\n');
+        shares.len() - 1
+    };
+    let circle: Vec<String> = (0..rows)
+        .map(|row| {
+            let y = (row as f64 + 0.5 - radius) / radius;
+            (0..columns)
+                .map(|col| {
+                    let x = (col as f64 + 0.5 - radius * 2.0) / (radius * 2.0);
+                    if x * x + y * y > 1.0 {
+                        ' '
+                    } else {
+                        // Clockwise from twelve o'clock, as a fraction of a full turn.
+                        let turn = (x.atan2(-y) / std::f64::consts::TAU).rem_euclid(1.0);
+                        SLICE_GLYPHS[slice_at(turn)]
                     }
-                }
-            }
-        }
-
-        // Calculate pie chart dimensions - make it as circular as possible
-        let radius = (layout.chart_width.min(layout.chart_height) / 2).max(3);
-        let center_x = layout.chart_width / 2;
-        let center_y = layout.chart_height / 2;
-
-        // Create grid for pie chart
-        let mut grid = vec![vec![' '; layout.chart_width]; layout.chart_height];
-
-        // Calculate angles for each slice
-        let mut current_angle = 0.0;
-        let pie_chars = ['█', '▓', '▒', '░', '●', '◐', '◑', '◒'];
-
-        for (slice_idx, point) in self.data.iter().enumerate() {
-            let slice_angle = (point.value / total_value) * 2.0 * std::f64::consts::PI;
-            let slice_char = pie_chars[slice_idx % pie_chars.len()];
-
-            // Fill the slice using simple sector approximation
-            let angle_steps = (slice_angle * radius as f64 / 2.0).ceil() as usize;
-            for step in 0..angle_steps.max(1) {
-                let angle = current_angle + (step as f64 / angle_steps.max(1) as f64) * slice_angle;
-                let _end_angle = current_angle + slice_angle;
-
-                // Draw lines from center to edge for this slice
-                for r in 1..=radius {
-                    let x = center_x as f64 + (r as f64 * angle.cos());
-                    let y = center_y as f64 + (r as f64 * angle.sin() / 2.0); // Adjust for character aspect ratio
-
-                    let grid_x = x.round() as usize;
-                    let grid_y = y.round() as usize;
-
-                    if grid_x < layout.chart_width && grid_y < layout.chart_height {
-                        grid[grid_y][grid_x] = slice_char;
-                    }
-                }
-            }
-            current_angle += slice_angle;
-        }
-
-        // Convert grid to string
-        for row in &grid {
-            result.push_str(&row.iter().collect::<String>());
-            result.push('\n');
-        }
-
-        // Add legend on the right side
-        if layout.y_label_width > 0 {
-            let legend_lines: Vec<String> = result
-                .lines()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect();
-            result.clear();
-
-            for (line_idx, line) in legend_lines.iter().enumerate() {
-                result.push_str(line);
-
-                // Add legend entries
-                if line_idx < self.data.len() {
-                    let point = &self.data[line_idx];
-                    let percentage = (point.value / total_value) * 100.0;
-                    let slice_char = pie_chars[line_idx % pie_chars.len()];
-                    let legend_text =
-                        format!(" {} {}: {:.1}%", slice_char, point.label, percentage);
-
-                    // Pad line to fit legend
-                    let padding = layout
-                        .total_width
-                        .saturating_sub(line.len() + legend_text.len());
-                    result.push_str(&" ".repeat(padding));
-                    result.push_str(&legend_text);
-                }
-                result.push('\n');
-            }
-        }
-
-        result.trim_end().to_string()
-    }
-
-    /// Generate scatter chart
-    fn generate_scatter_chart(
-        &self,
-        config: &ChartConfig,
-        layout: &ChartLayout,
-        muxbox_title: Option<&str>,
-    ) -> String {
-        if self.data.len() < 2 {
-            return "Need at least 2 data points for scatter chart".to_string();
-        }
-
-        // For scatter plots, we need X and Y values. We'll use the index as X and value as Y
-        // In a real implementation, DataPoint might have both x and y values
-        let max_y = self.data.iter().map(|p| p.value).fold(0.0, f64::max);
-        let min_y = self
-            .data
-            .iter()
-            .map(|p| p.value)
-            .fold(f64::INFINITY, f64::min);
-        let max_x = self.data.len() as f64;
-        let min_x = 0.0;
-
-        let x_range = max_x - min_x;
-        let y_range = max_y - min_y;
-
-        let mut result = String::new();
-
-        // Only add title if it's different from the muxbox title
-        if config.show_title {
-            if let Some(title) = &config.title {
-                let should_show_title =
-                    muxbox_title.is_none_or(|muxbox_title| muxbox_title != title);
-                if should_show_title {
-                    let title_centered = Self::center_text(title, layout.total_width);
-                    result.push_str(&format!("{}\n", title_centered));
-                    if layout.title_height > 1 {
-                        result.push('\n');
-                    }
-                }
-            }
-        }
-
-        // Create grid for scatter plot
-        let mut grid = vec![vec![' '; layout.chart_width]; layout.chart_height];
-
-        // Draw grid lines if enabled
-        if config.show_grid {
-            // Vertical grid lines
-            for x in (0..layout.chart_width).step_by(layout.chart_width / 5) {
-                for row in grid.iter_mut().take(layout.chart_height) {
-                    row[x] = '│';
-                }
-            }
-            // Horizontal grid lines
-            // A chart shorter than four rows still gets a line on every row.
-            for y in (0..layout.chart_height).step_by((layout.chart_height / 4).max(1)) {
-                for cell in grid[y].iter_mut().take(layout.chart_width) {
-                    *cell = '─';
-                }
-            }
-        }
-
-        // Plot scatter points with different symbols for variety
-        let scatter_symbols = ['●', '◆', '▲', '■', '♦', '✦', '⬢', '⬣'];
-
-        for (point_idx, point) in self.data.iter().enumerate() {
-            let x_pos = if x_range > 0.0 {
-                ((point_idx as f64 - min_x) / x_range * (layout.chart_width - 1) as f64) as usize
-            } else {
-                layout.chart_width / 2
-            };
-
-            let y_pos = if y_range > 0.0 {
-                layout.chart_height
-                    - 1
-                    - ((point.value - min_y) / y_range * (layout.chart_height - 1) as f64) as usize
-            } else {
-                layout.chart_height / 2
-            };
-
-            if x_pos < layout.chart_width && y_pos < layout.chart_height {
-                let symbol = scatter_symbols[point_idx % scatter_symbols.len()];
-                grid[y_pos][x_pos] = symbol;
-            }
-        }
-
-        // Convert grid to string with Y-axis labels
-        for (row_idx, row) in grid.iter().enumerate() {
-            // Add Y-axis value labels
-            let y_label = if layout.y_label_width > 0 {
-                let row_from_bottom = (layout.chart_height - 1).saturating_sub(row_idx);
-                let y_value = if y_range > 0.0 {
-                    min_y + (row_from_bottom as f64 / (layout.chart_height - 1) as f64) * y_range
-                } else {
-                    min_y
-                };
-
-                // Show labels at intervals
-                let label_interval = (layout.chart_height / 4).max(1);
-                if row_idx % label_interval == 0 || row_idx == layout.chart_height - 1 {
-                    format!("{:>width$.1}", y_value, width = layout.y_label_width)
-                } else {
-                    " ".repeat(layout.y_label_width)
-                }
-            } else {
-                String::new()
-            };
-
-            result.push_str(&format!("{} {}\n", y_label, row.iter().collect::<String>()));
-        }
-
-        // X-axis labels under their points.
-        if layout.x_label_height > 0 && !self.data.is_empty() {
-            let points = self.data.iter().enumerate().map(|(i, point)| {
-                let x = if x_range > 0.0 {
-                    ((i as f64 - min_x) / x_range * (layout.chart_width - 1) as f64) as usize
-                } else {
-                    layout.chart_width / 2
-                };
-                (x, point.label.clone())
-            });
-            result.push_str(&" ".repeat(layout.y_label_width + 1));
-            result.push_str(&Self::x_label_row(points, layout.chart_width));
-            result.push('\n');
-        }
-
-        result.trim_end().to_string()
-    }
-
-    /// A row of x-axis labels, each starting under its point, kept inside `width` columns and
-    /// never overlapping the previous one.
-    fn x_label_row(points: impl Iterator<Item = (usize, String)>, width: usize) -> String {
-        let mut row = vec![' '; width];
-        let mut free_from = 0;
-        for (x, label) in points {
-            let label: Vec<char> = label.chars().take(4).collect();
-            if label.is_empty() || label.len() > width {
-                continue;
-            }
-            let start = x.min(width - label.len());
-            if start < free_from {
-                continue;
-            }
-            row[start..start + label.len()].copy_from_slice(&label);
-            free_from = start + label.len() + 1;
-        }
-        row.into_iter().collect()
-    }
-
-    /// Center text within given width
-    fn center_text(text: &str, width: usize) -> String {
-        if text.len() >= width {
-            return text.to_string();
-        }
-
-        let padding = width - text.len();
-        let left_pad = padding / 2;
-        let right_pad = padding - left_pad;
-
-        format!("{}{}{}", " ".repeat(left_pad), text, " ".repeat(right_pad))
-    }
+                })
+                .collect()
+        })
+        .collect();
+    let legend_width = width - columns - 2;
+    let legend: Vec<String> = shown
+        .iter()
+        .zip(&shares)
+        .enumerate()
+        .map(|(i, (point, share))| {
+            let percent = format!(" {:.0}%", share * 100.0);
+            let label_width = legend_width.saturating_sub(2 + percent.len());
+            format!(
+                "{} {}{}",
+                SLICE_GLYPHS[i],
+                pad(&point.label, point.label.width().min(label_width)),
+                percent
+            )
+        })
+        .collect();
+    (0..rows.max(legend.len()).min(height))
+        .map(|row| {
+            let left = circle
+                .get(row)
+                .cloned()
+                .unwrap_or_else(|| " ".repeat(columns));
+            let right = legend.get(row).cloned().unwrap_or_default();
+            format!("{}  {}", left, right).trim_end().to_string()
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn create_test_data() -> Vec<DataPoint> {
-        vec![
-            DataPoint {
-                label: "Jan".to_string(),
-                value: 10.0,
-            },
-            DataPoint {
-                label: "Feb".to_string(),
-                value: 20.0,
-            },
-            DataPoint {
-                label: "Mar".to_string(),
-                value: 15.0,
-            },
-        ]
-    }
 
-    #[test]
-    fn test_chart_component_creation() {
-        let chart = ChartComponent::new("test_chart".to_string());
-        assert_eq!(chart._id, "test_chart");
-        assert!(chart.data.is_empty());
-        assert_eq!(chart.config.chart_type, ChartType::Bar);
-    }
-
-    #[test]
-    fn test_chart_component_with_config() {
-        let config = ChartConfig {
-            chart_type: ChartType::Line,
-            title: Some("Test Chart".to_string()),
-            width: 60,
-            height: 20,
-            show_title: true,
-            show_values: false,
-            show_grid: true,
-        };
-
-        let chart = ChartComponent::with_config("test".to_string(), config.clone());
-        assert_eq!(chart.config.chart_type, ChartType::Line);
-        assert_eq!(chart.config.width, 60);
-        assert_eq!(chart.config.height, 20);
-        assert!(!chart.config.show_values);
-    }
-
-    #[test]
-    fn test_data_parsing_from_content() {
-        let mut chart = ChartComponent::new("test".to_string());
-        let content = "Jan,10\nFeb,20\nMar,15";
-        chart.parse_data_from_content(content);
-
-        assert_eq!(chart.data.len(), 3);
-        assert_eq!(chart.data[0].label, "Jan");
-        assert_eq!(chart.data[0].value, 10.0);
-        assert_eq!(chart.data[2].value, 15.0);
-    }
-
-    #[test]
-    fn test_bar_chart_generation() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Bar,
-            title: Some("Test Bar Chart".to_string()),
-            width: 30,
-            height: 10,
-            show_title: true,
-            show_values: true,
-            show_grid: false,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
-
-        assert!(result.contains("Test Bar Chart"));
-        assert!(result.contains("Jan"));
-        assert!(result.contains("█")); // Bar characters
-        assert!(result.contains("10")); // Values should be shown
-    }
-
-    #[test]
-    fn test_line_chart_generation() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Line,
-            title: Some("Test Line Chart".to_string()),
-            width: 40,
-            height: 15,
-            show_title: true,
-            show_values: true,
-            show_grid: false,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
-
-        assert!(result.contains("Test Line Chart"));
-        assert!(result.contains("●")); // Data points
-    }
-
-    #[test]
-    fn every_chart_line_fits_the_configured_width() {
-        let data: Vec<DataPoint> = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    fn data(pairs: &[(&str, f64)]) -> Vec<DataPoint> {
+        pairs
             .iter()
-            .zip([10.0, 8.0, 15.0, 20.0, 28.0, 30.0])
             .map(|(label, value)| DataPoint {
                 label: label.to_string(),
-                value,
+                value: *value,
             })
-            .collect();
-        for chart_type in [
-            ChartType::Bar,
-            ChartType::Line,
-            ChartType::Histogram,
-            ChartType::Pie,
-            ChartType::Scatter,
-        ] {
-            for width in [3, 20, 33, 48, 80] {
-                let chart = ChartComponent::with_data_and_config(
-                    "c".into(),
-                    data.clone(),
-                    ChartConfig {
-                        chart_type,
-                        width,
-                        height: 12,
-                        show_title: false,
-                        ..ChartConfig::default()
-                    },
+            .collect()
+    }
+
+    const ALL: [ChartType; 5] = [
+        ChartType::Bar,
+        ChartType::Line,
+        ChartType::Histogram,
+        ChartType::Pie,
+        ChartType::Scatter,
+    ];
+
+    #[test]
+    fn data_lines_accept_three_separators_and_reject_anything_else() {
+        let parsed = parse_chart_data("# sales\nJan,10\nFeb: 12.5\nMar 7\n\n").unwrap();
+        assert_eq!(parsed, data(&[("Jan", 10.0), ("Feb", 12.5), ("Mar", 7.0)]));
+        let error = parse_chart_data("Jan,10\nFeb,lots\n").unwrap_err();
+        assert!(
+            error.contains("line 2") && error.contains("Feb,lots"),
+            "{}",
+            error
+        );
+        assert!(parse_chart_data("x,inf").is_err());
+    }
+
+    #[test]
+    fn every_chart_fits_its_area() {
+        let points = data(&[
+            ("January and February", 10.0),
+            ("Feb", 8.0),
+            ("Mar", 15.0),
+            ("Apr", 20.5),
+            ("May", -3.0),
+            ("Jun", 123456.25),
+            ("日本", 4.0),
+        ]);
+        for kind in ALL {
+            for (width, height) in [(20, 5), (21, 6), (33, 8), (48, 12), (80, 24), (200, 5)] {
+                let text = chart_text(kind, &points, width, height);
+                let lines: Vec<&str> = text.lines().collect();
+                assert!(
+                    lines.len() <= height,
+                    "{:?} {}x{}:\n{}",
+                    kind,
+                    width,
+                    height,
+                    text
                 );
-                for line in chart.generate().lines() {
+                for line in lines {
                     assert!(
-                        line.chars().count() <= width,
-                        "{:?} at width {}: {:?} is {} wide",
-                        chart_type,
+                        line.width() <= width,
+                        "{:?} {}x{}: {:?} is {} wide",
+                        kind,
                         width,
+                        height,
                         line,
-                        line.chars().count()
+                        line.width()
                     );
                 }
             }
@@ -1141,336 +467,122 @@ mod tests {
     }
 
     #[test]
-    fn test_histogram_generation() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Histogram,
-            title: Some("Test Histogram".to_string()),
-            width: 50,
-            height: 12,
-            show_title: true,
-            show_values: false,
-            show_grid: false,
-        };
+    fn single_points_and_equal_values_draw() {
+        for kind in ALL {
+            for points in [data(&[("only", 5.0)]), data(&[("a", 2.0), ("b", 2.0)])] {
+                let text = chart_text(kind, &points, 30, 8);
+                assert!(
+                    text.contains(|c: char| "█●◆▓".contains(c)),
+                    "{:?}:\n{}",
+                    kind,
+                    text
+                );
+            }
+        }
+    }
 
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
+    #[test]
+    fn too_small_and_empty_charts_say_so() {
+        let points = data(&[("a", 1.0)]);
+        assert_eq!(chart_text(ChartType::Bar, &points, 19, 10), "too small");
+        assert_eq!(chart_text(ChartType::Bar, &points, 30, 4), "too small");
+        assert_eq!(chart_text(ChartType::Line, &[], 30, 10), "no chart data");
+        assert_eq!(
+            chart_text(ChartType::Pie, &data(&[("a", -1.0)]), 30, 10),
+            "no positive values"
+        );
+    }
 
-        assert!(result.contains("Test Histogram"));
-        assert!(result.contains("█")); // Histogram bars
+    #[test]
+    fn bars_are_proportional_to_their_values() {
+        let text = chart_text(ChartType::Bar, &data(&[("a", 10.0), ("b", 5.0)]), 30, 5);
+        let bars: Vec<usize> = text.lines().map(|l| l.matches('█').count()).collect();
+        assert_eq!(bars[0], bars[1] * 2, "{}", text);
+        assert!(text.lines().next().unwrap().ends_with(" 10"), "{}", text);
+    }
+
+    #[test]
+    fn line_points_rise_with_their_values() {
+        let text = chart_text(ChartType::Line, &data(&[("a", 1.0), ("b", 5.0)]), 30, 6);
+        let lines: Vec<&str> = text.lines().collect();
+        // The larger value is on the top row, at the right; the smaller at the bottom, left.
+        assert!(
+            lines[0].starts_with("5 ┤") && lines[0].ends_with('●'),
+            "{}",
+            text
+        );
+        assert!(lines[4].starts_with("1 ┤●·"), "{}", text);
+        assert!(
+            lines[5].trim_start().starts_with('a') && lines[5].ends_with('b'),
+            "{}",
+            text
+        );
+    }
+
+    #[test]
+    fn a_histogram_counts_values_per_range() {
+        // Five values near 1 and one at 10: the first range holds five, the last one.
+        let values = data(&[
+            ("", 1.0),
+            ("", 1.2),
+            ("", 1.1),
+            ("", 1.3),
+            ("", 1.4),
+            ("", 10.0),
+        ]);
+        let text = chart_text(ChartType::Histogram, &values, 24, 8);
+        let lines: Vec<&str> = text.lines().collect();
+        let counts = lines[lines.len() - 2];
+        assert!(counts.starts_with('5') && counts.ends_with('1'), "{}", text);
+        assert!(lines[lines.len() - 1].starts_with('1'), "{}", text);
+        // The tallest bar reaches the top row.
+        assert!(lines[0].starts_with('█'), "{}", text);
+    }
+
+    #[test]
+    fn pie_slices_follow_the_shares_and_the_legend_lists_them() {
+        let text = chart_text(
+            ChartType::Pie,
+            &data(&[("big", 3.0), ("small", 1.0)]),
+            40,
+            10,
+        );
+        let big = text.matches('█').count() as f64 - 1.0;
+        let small = text.matches('▓').count() as f64 - 1.0;
+        assert!((big / (big + small) - 0.75).abs() < 0.1, "{}", text);
+        assert!(
+            text.contains("█ big 75%") && text.contains("▓ small 25%"),
+            "{}",
+            text
+        );
+    }
+
+    #[test]
+    fn scatter_places_points_at_numeric_labels() {
+        // x = 0 and x = 10 are at the edges; x = 1 is near the left, not in the middle.
+        let text = chart_text(
+            ChartType::Scatter,
+            &data(&[("0", 1.0), ("1", 2.0), ("10", 3.0)]),
+            40,
+            6,
+        );
+        let middle = text
+            .lines()
+            .find(|l| l.contains('◆') && !l.contains("3 ┤") && !l.contains("1 ┤"))
+            .expect("the middle point has a row of its own");
+        let axis = middle.find('┤').unwrap();
+        let point = middle.find('◆').unwrap();
+        assert!(point - axis < 10, "{}", text);
     }
 
     #[test]
     fn chart_types_are_written_in_lowercase() {
-        for (name, kind) in [
-            ("bar", ChartType::Bar),
-            ("line", ChartType::Line),
-            ("histogram", ChartType::Histogram),
-            ("pie", ChartType::Pie),
-            ("scatter", ChartType::Scatter),
-        ] {
+        for (name, kind) in ["bar", "line", "histogram", "pie", "scatter"]
+            .into_iter()
+            .zip(ALL)
+        {
             assert_eq!(serde_yaml::from_str::<ChartType>(name).unwrap(), kind);
         }
         assert!(serde_yaml::from_str::<ChartType>("Bar").is_err());
-    }
-
-    #[test]
-    fn test_title_suppression_with_muxbox_title() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Bar,
-            title: Some("Same Title".to_string()),
-            width: 30,
-            height: 10,
-            show_title: true,
-            show_values: true,
-            show_grid: false,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate_with_muxbox_title(Some("Same Title"));
-
-        // Title should be suppressed when it matches muxbox title
-        let title_count = result.matches("Same Title").count();
-        assert_eq!(title_count, 0);
-    }
-
-    #[test]
-    fn test_empty_data_handling() {
-        let chart = ChartComponent::new("test".to_string());
-        let result = chart.generate();
-        assert_eq!(result, "No chart data");
-    }
-
-    #[test]
-    fn test_parse_chart_data_formats() {
-        // Test comma format
-        let data1 = ChartComponent::parse_chart_data("A,10\nB,20");
-        assert_eq!(data1.len(), 2);
-        assert_eq!(data1[0].label, "A");
-        assert_eq!(data1[0].value, 10.0);
-
-        // Test colon format
-        let data2 = ChartComponent::parse_chart_data("C:30\nD:40");
-        assert_eq!(data2.len(), 2);
-        assert_eq!(data2[0].label, "C");
-        assert_eq!(data2[0].value, 30.0);
-
-        // Test space format
-        let data3 = ChartComponent::parse_chart_data("E 50\nF 60");
-        assert_eq!(data3.len(), 2);
-        assert_eq!(data3[0].label, "E");
-        assert_eq!(data3[0].value, 50.0);
-
-        // Test comments and empty lines
-        let data4 = ChartComponent::parse_chart_data("# Comment\n\nG,70\n");
-        assert_eq!(data4.len(), 1);
-        assert_eq!(data4[0].label, "G");
-        assert_eq!(data4[0].value, 70.0);
-    }
-
-    #[test]
-    fn test_chart_layout_calculation() {
-        let data = create_test_data();
-        let chart =
-            ChartComponent::with_data_and_config("test".to_string(), data, ChartConfig::default());
-
-        let config = ChartConfig {
-            chart_type: ChartType::Bar,
-            width: 50,
-            height: 20,
-            ..ChartConfig::default()
-        };
-
-        let layout = chart.calculate_chart_layout(&config, None);
-        assert_eq!(layout.total_width, 50);
-        assert!(layout.chart_width < layout.total_width); // Should reserve space for labels
-        assert!(layout.y_label_width > 0); // Should calculate label width from data
-    }
-
-    #[test]
-    fn test_pie_chart_generation() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Pie,
-            title: Some("Test Pie Chart".to_string()),
-            width: 50,
-            height: 20,
-            show_title: true,
-            show_values: true,
-            show_grid: false,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
-
-        assert!(result.contains("Test Pie Chart"));
-        // Should contain pie chart characters
-        assert!(result
-            .chars()
-            .any(|c| matches!(c, '█' | '▓' | '▒' | '░' | '●')));
-        // Should contain percentage in legend
-        assert!(result.contains("%"));
-    }
-
-    #[test]
-    fn test_scatter_chart_generation() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Scatter,
-            title: Some("Test Scatter Plot".to_string()),
-            width: 60,
-            height: 25,
-            show_title: true,
-            show_values: false,
-            show_grid: true,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
-
-        assert!(result.contains("Test Scatter Plot"));
-        // Should contain scatter plot symbols
-        assert!(result.chars().any(|c| matches!(c, '●' | '◆' | '▲' | '■')));
-        // Should contain grid lines when enabled
-        assert!(result.contains('│') || result.contains('─'));
-    }
-
-    #[test]
-    fn test_pie_chart_empty_data() {
-        let chart = ChartComponent::with_config(
-            "test".to_string(),
-            ChartConfig {
-                chart_type: ChartType::Pie,
-                ..ChartConfig::default()
-            },
-        );
-        let result = chart.generate();
-        assert_eq!(result, "No chart data");
-    }
-
-    #[test]
-    fn test_pie_chart_zero_values() {
-        let data = vec![
-            DataPoint {
-                label: "A".to_string(),
-                value: 0.0,
-            },
-            DataPoint {
-                label: "B".to_string(),
-                value: 0.0,
-            },
-        ];
-
-        let chart = ChartComponent::with_data_and_config(
-            "test".to_string(),
-            data,
-            ChartConfig {
-                chart_type: ChartType::Pie,
-                ..ChartConfig::default()
-            },
-        );
-
-        let result = chart.generate();
-        assert_eq!(result, "No data for pie chart");
-    }
-
-    #[test]
-    fn test_scatter_chart_insufficient_data() {
-        let data = vec![DataPoint {
-            label: "Single".to_string(),
-            value: 10.0,
-        }];
-
-        let chart = ChartComponent::with_data_and_config(
-            "test".to_string(),
-            data,
-            ChartConfig {
-                chart_type: ChartType::Scatter,
-                ..ChartConfig::default()
-            },
-        );
-
-        let result = chart.generate();
-        assert_eq!(result, "Need at least 2 data points for scatter chart");
-    }
-
-    #[test]
-    fn test_all_chart_types_with_same_data() {
-        let data = create_test_data();
-
-        let chart_types = [
-            ChartType::Bar,
-            ChartType::Line,
-            ChartType::Histogram,
-            ChartType::Pie,
-            ChartType::Scatter,
-        ];
-
-        for chart_type in &chart_types {
-            let config = ChartConfig {
-                chart_type: *chart_type,
-                title: Some(format!("{:?} Chart", chart_type)),
-                width: 40,
-                height: 15,
-                show_title: true,
-                show_values: true,
-                show_grid: false,
-            };
-
-            let chart =
-                ChartComponent::with_data_and_config("test".to_string(), data.clone(), config);
-            let result = chart.generate();
-
-            // All chart types should generate some content
-            assert!(
-                !result.is_empty(),
-                "Chart type {:?} generated empty content",
-                chart_type
-            );
-            assert!(
-                result.contains(&format!("{:?} Chart", chart_type)),
-                "Chart type {:?} missing title",
-                chart_type
-            );
-        }
-    }
-
-    #[test]
-    fn test_chart_layout_calculation_new_types() {
-        let data = create_test_data();
-        let chart =
-            ChartComponent::with_data_and_config("test".to_string(), data, ChartConfig::default());
-
-        // Test pie chart layout
-        let pie_config = ChartConfig {
-            chart_type: ChartType::Pie,
-            width: 50,
-            height: 20,
-            ..ChartConfig::default()
-        };
-        let pie_layout = chart.calculate_chart_layout(&pie_config, None);
-        assert!(pie_layout.y_label_width > 0); // Should have legend space
-        assert_eq!(pie_layout.chart_width, pie_layout.chart_height); // Should be square-ish
-
-        // Test scatter chart layout
-        let scatter_config = ChartConfig {
-            chart_type: ChartType::Scatter,
-            width: 60,
-            height: 25,
-            ..ChartConfig::default()
-        };
-        let scatter_layout = chart.calculate_chart_layout(&scatter_config, None);
-        assert!(scatter_layout.y_label_width > 0); // Should have Y-axis labels
-        assert!(scatter_layout.x_label_height > 0); // Should have X-axis labels
-        assert!(scatter_layout.chart_width < scatter_layout.total_width); // Should reserve space for labels
-    }
-
-    #[test]
-    fn test_scatter_chart_with_grid() {
-        let data = create_test_data();
-        let config = ChartConfig {
-            chart_type: ChartType::Scatter,
-            title: None,
-            width: 30,
-            height: 15,
-            show_title: false,
-            show_values: false,
-            show_grid: true,
-        };
-
-        let chart = ChartComponent::with_data_and_config("test".to_string(), data, config);
-        let result = chart.generate();
-
-        // Should contain grid characters when show_grid is true
-        assert!(
-            result.contains('│') || result.contains('─'),
-            "Scatter chart with grid should contain grid lines"
-        );
-    }
-
-    #[test]
-    fn test_center_text() {
-        assert_eq!(ChartComponent::center_text("test", 10), "   test   ");
-        assert_eq!(ChartComponent::center_text("hello", 9), "  hello  ");
-        assert_eq!(ChartComponent::center_text("toolong", 5), "toolong");
-    }
-
-    #[test]
-    fn test_data_setters_and_getters() {
-        let mut chart = ChartComponent::new("test".to_string());
-        let data = create_test_data();
-
-        chart.set_data(data.clone());
-        assert_eq!(chart.get_data().len(), 3);
-        assert_eq!(chart.get_data()[0].label, "Jan");
-
-        let new_config = ChartConfig {
-            chart_type: ChartType::Histogram,
-            ..ChartConfig::default()
-        };
-
-        chart.set_config(new_config.clone());
-        assert_eq!(chart.get_config().chart_type, ChartType::Histogram);
     }
 }

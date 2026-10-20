@@ -103,9 +103,11 @@ When the program ends, the keyboard goes back to boxmux.
 
 ### Paste
 
-boxmux does not turn on bracketed paste for its own terminal, so pasted text reaches boxmux
-as ordinary key presses and is sent to the focused terminal key by key, like typing. A tab
-character in pasted text moves the focus, like the Tab key.
+boxmux turns on bracketed paste in your terminal, so a paste arrives as one piece rather than
+as key presses. It goes to the focused terminal: wrapped in `ESC [ 200 ~` and `ESC [ 201 ~`
+when the program asked for bracketed paste (mode 2004, as shells and editors do), so the
+program can tell it from typing, and as plain text otherwise. A pasted Tab goes to the program;
+it does not move the focus. When no terminal has the focus, a paste does nothing.
 
 ### Mouse
 
@@ -121,10 +123,19 @@ Positions are relative to the terminal's top-left cell. Reports use the SGR form
 `ESC [ M` format. A drag that starts in the terminal stays with it until the button is
 released, with positions held to the terminal's edges.
 
-Limitations of the current emulator: in the classic format, button releases are not reported
-in mode 1000, and pointer motion (including dragging with a button held) is reported only in
-mode 1003. In the SGR format, motion is reported in every mode but carries the motion flag
-only in mode 1003, so in modes 1000 and 1002 it looks like repeated button presses.
+What is reported depends on the mode the program chose:
+
+| Mode | Reported |
+|------|----------|
+| 9 (X10) | Button presses, without modifier keys |
+| 1000 | Presses and releases |
+| 1002 | Presses, releases, and motion while a button is held |
+| 1003 | Presses, releases and all motion |
+
+Wheel turns are reported as buttons 64 and up. Shift, Alt (or Cmd) and Ctrl are reported with
+the xterm modifier bits. The classic format names no button on release and cannot express
+positions past column or row 223; such events are not sent. The SGR format names the released
+button and has no position limit.
 
 Otherwise the mouse works as for any box: a click on an unfocused terminal box focuses it,
 the top border moves the box, the corner resizes it, and the wheel scrolls the box's
@@ -138,7 +149,8 @@ program uses the alternate screen (as full-screen programs do). The scrollback k
 bottom. While the program does not use the mouse, the wheel and the scrollbar scroll back
 through earlier output.
 
-The program's cursor is not drawn.
+The program's cursor is drawn as a cell in reverse video, unless the program hid it
+(`ESC [ ? 25 l`). Cursor shapes (DECSCUSR) are not drawn.
 
 When the program ends, its last screen stays in the tab.
 
@@ -148,33 +160,38 @@ boxmux contains its own terminal emulator. It handles:
 
 - **Text**: UTF-8, wide (two-column) characters, line wrapping with auto-wrap on or off
   (DECAWM), insert mode (IRM), linefeed/newline mode (LNM), tab stops (HTS, TBC, CHT, CBT,
-  default stops every 8 columns).
-- **Attributes**: bold, dim, italic, underline (double underline is drawn as underline),
+  default stops every 8 columns), repeat of the last character (`b`).
+- **Character sets**: G0 and G1 with shift in and shift out; the DEC special graphics set
+  (`ESC ( 0`), whose letters become line-drawing characters (`lqqk` is `┌──┐`), and the UK
+  set (`#` is `£`).
+- **Attributes**: bold, dim, italic, underline (every underline style is drawn as underline),
   blink, reverse, hidden, strikethrough; the 16 ANSI colors, the 256-color palette and
-  24-bit color, for foreground and background.
-- **Cursor movement**: CUP/HVP (`H`, `f`), CUU/CUD/CUF/CUB (`A`-`D`), save and restore with
-  `ESC 7` / `ESC 8`, index, reverse index and next line (`ESC D`, `ESC M`, `ESC E`), origin
-  mode (DECOM).
+  24-bit color, for foreground and background, with parameters separated by semicolons or
+  colons (`38;2;r;g;b`, `38:2::r:g:b`).
+- **Cursor movement**: CUP/HVP (`H`, `f`), CUU/CUD/CUF/CUB (`A`-`D`), HPR/VPR (`a`, `e`),
+  CNL/CPL (`E`, `F`), CHA/HPA (`G`, `` ` ``), VPA (`d`), save and restore with `ESC 7` /
+  `ESC 8` and `CSI s` / `CSI u` (position, attributes, character sets, origin and wrap
+  modes), index, reverse index and next line (`ESC D`, `ESC M`, `ESC E`), origin mode
+  (DECOM). Up and down movement stops at the scroll region's margins, as in xterm.
 - **Editing**: erase in display and in line (`J`, `K`, including `3J` to clear the
-  scrollback), insert and delete lines (`L`, `M`), scroll up and down (`S`, `T`), scroll
-  regions (DECSTBM), `P` (clears the given number of cells at the cursor; it does not shift
-  the rest of the line).
+  scrollback), insert, delete and erase characters (`@`, `P`, `X`), insert and delete lines
+  within the scroll region (`L`, `M`), scroll up and down (`S`, `T`), scroll regions
+  (DECSTBM), screen alignment (`ESC # 8`). Erased cells take the current background color.
 - **Screens**: the alternate screen through modes 47, 1047 and 1049 (1049 also saves the
-  cursor), full reset (`ESC c`).
-- **Modes**: application cursor keys (DECCKM), mouse reporting (1000, 1002, 1003, 1006).
-  Only the first mode of a `CSI ? ... h/l` sequence with several modes takes effect.
-- **Replies to queries**: device status and cursor position (`CSI 5 n`, `CSI 6 n`), primary
-  device attributes (`CSI c`, `ESC Z`), terminal parameters (DECREQTPARM) and mode queries
-  (DECRQM). Replies are written back to the program.
+  cursor; leaving 1047 clears it), full reset (`ESC c`), reverse video (mode 5).
+- **Modes**: application cursor keys (DECCKM), application keypad, mouse reporting (9, 1000,
+  1002, 1003, with the SGR format 1006), bracketed paste (2004). A `CSI ? ... h/l` sequence
+  may set several modes at once.
+- **Replies to queries**: device status and cursor position (`CSI 5 n`, `CSI 6 n`,
+  `CSI ? 6 n`), primary and secondary device attributes (`CSI c`, `ESC Z`, `CSI > c`), mode
+  queries (DECRQM, `CSI ? n $ p`), the screen size (`CSI 18 t`, `CSI 14 t`). Requests for
+  settings (DECRQSS) and termcap entries (XTGETTCAP) are answered as not available, so
+  programs go on with their defaults. Replies are written back to the program.
 - **OSC**: window title (OSC 0 and 2) and clipboard writes (OSC 52), described below.
 
-Not implemented, among others: cursor horizontal/vertical absolute (`G`, `d`), cursor
-next/previous line (`E`, `F`), insert and erase characters (`@`, `X`), repeat (`b`),
-`CSI s` / `CSI u`, cursor shapes, the DEC special graphics character set (line-drawing
-characters selected with `ESC ( 0` are shown as plain letters), double-width and
-double-height lines, combining characters (they are dropped), and secondary device
-attributes (`CSI > c` gets the primary answer). Programs that rely on these may draw
-incorrectly.
+Not implemented: cursor shapes, double-width and double-height lines (`ESC # 3` to `6`; such
+lines are shown at normal size), left and right margins, sixel images, and combining
+characters (they are dropped). Programs that rely on these may draw incorrectly.
 
 ### Title
 

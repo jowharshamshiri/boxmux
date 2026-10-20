@@ -47,18 +47,19 @@ One data point per line, as a label and a number:
 - `label:value` (when it contains a colon and no comma),
 - `label value` (otherwise; the label is the first word).
 
-Empty lines and lines starting with `#` are skipped, as are lines whose value is not a number.
-Anything after the value (`CPU,67,extra`) is ignored. Points keep their order.
+Empty lines and lines starting with `#` are skipped. Any other line must be a label and a
+number; otherwise the box shows an error naming the line (`chart data line 3 is not
+'label,value': ...`). Points keep their order.
 
 ### Chart types
 
 | `chart_type` | What it draws |
 |--------------|---------------|
-| `bar` | One horizontal bar per point, with the label on the left and the value on the right. |
-| `line` | The points in order, as dots, with a value scale on the left and labels underneath. Needs at least two points. |
-| `scatter` | The points in order, each with its own marker, with a value scale on the left and labels underneath. |
-| `pie` | Shaded slices proportional to the values, with a legend giving each label's percentage. The values must not add up to zero. |
-| `histogram` | Vertical bars. When the points fit side by side (about one per two columns), each point gets its own bar, proportional to its value with the fraction dropped, labelled with the value. With more points, the values are grouped into 6 to 12 ranges and each bar counts the points in its range, labelled with the range starts. Labels of the points are not shown. |
+| `bar` | One horizontal bar per point, with the label on the left and the value on the right. Bars are proportional to the largest value; negative values get no bar. Points beyond the height of the box are not shown. |
+| `line` | The points in order, evenly spread from left to right, as `●` joined by a dotted line, with the largest and smallest values on the scale on the left and the labels underneath where they fit. |
+| `scatter` | The points as `◆`. When every label is a number, a point's label is its position from left to right; otherwise the points are evenly spread in order, like a line chart without the line. |
+| `pie` | A filled circle whose slices (`█`, `▓`, `▒`, `░`, `●`, `○`) are proportional to the values, clockwise from the top, with a legend giving each label's percentage. It shows the first six points; negative values get no slice, and when no value is positive the box shows `no positive values`. |
+| `histogram` | How the values are distributed: the range from the smallest to the largest value is cut into equal parts (up to 12, and no more than there are points), and each part is a vertical bar as tall as the number of values in it. Under the bars are the counts and the start of each part. Labels are not shown. |
 
 The chart fills the box and is redrawn at the new size when the box or the terminal is
 resized. The chart has no title of its own; the box title serves as one.
@@ -144,9 +145,10 @@ app:
 ### JSON
 
 Data that starts with `[` is read as a JSON array of objects. The columns are the keys of the
-first object, in alphabetical order; keys that only later objects have are not shown. Strings,
+first object, in the order they are written; keys that only later objects have are not shown,
+and a key an object lacks is an empty cell. Strings,
 numbers and booleans are shown as written, `null` as an empty cell, and nested arrays or objects
-as JSON text. Data that is not valid JSON shows an error message in the box.
+as JSON text. Data that is not a JSON array of objects shows an error message in the box.
 
 ```yaml
 app:
@@ -180,17 +182,18 @@ All settings are optional. Unknown keys are errors.
 | `show_headers` | boolean | `true` | Draw the header row. |
 | `sort_column` | string | none | Header of the column the rows are sorted by. Values that are both numbers compare as numbers; otherwise they compare as text (case-sensitive). A name that matches no header leaves the rows unsorted. |
 | `sort_ascending` | boolean | `true` | Sort order for `sort_column`. |
-| `filters` | map of column header to text | none | Show only rows whose value in each named column equals the text, ignoring case. Every filter must match. Filters naming a column the table does not have are ignored. |
+| `filters` | map of column header to text | none | Show only rows whose value in each named column equals the text, ignoring case. Every filter must match, so a filter naming a column the table does not have leaves no rows. |
 | `border_style` | `none`, `single`, `double`, `rounded`, `thick` | `single` | Lines drawn around and inside the table. |
-| `zebra_striping` | boolean | `false` | Accepted, but currently has no visible effect. |
-| `max_column_width` | number | `30` | Widest a column gets; longer values are cut and end with `…`. Columns are at least 3 wide. |
-| `show_row_numbers` | boolean | `false` | Add a `#` column numbering the rows shown, from 1. |
+| `zebra_striping` | boolean | `false` | Shade every other row with a gray background. |
+| `max_column_width` | number | `30` | Widest a column gets, in terminal columns (wide characters count as two); longer values are cut and end with `…`. Columns are at least 3 wide. |
+| `show_row_numbers` | boolean | `false` | Add a `#` column numbering the rows from 1, after filtering and sorting; on later pages the numbers continue. |
 | `page_size` | number | none | Rows per page. Without it the table is not paged. |
 | `current_page` | number | `0` | The page shown, counting from 0. Needs `page_size`. |
-| `show_page_info` | boolean | `false` | Add a line `Page N of M (R total rows)` under the table. Needs `page_size`. |
+| `show_page_info` | boolean | `false` | Add a line `Page N of M (R rows)` under the table, counting the rows left after filtering. Needs `page_size`. |
 
-Filtering happens first, then sorting, then paging. A table with no header or no rows shows
-`No data`.
+Filtering happens first, then sorting, then paging. Rows with fewer fields than the header
+get empty cells; extra fields are dropped. Data with no header line shows `No data`; a header
+with no rows draws just the header.
 
 ```yaml
 app:
@@ -294,5 +297,4 @@ While drawing:
 - A chart needs an area of at least 20 columns by 5 rows. The area is the inside of the
   border less a one-column margin on each side, so the box must be at least 24 columns wide
   and 7 rows tall; a smaller box shows `too small`.
-- A chart without data points shows `No chart data`.
-- Column widths count bytes, so text outside ASCII can make columns look uneven.
+- A chart without data points shows `no chart data`.

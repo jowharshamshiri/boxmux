@@ -19,6 +19,18 @@ static APP_SCHEMA_COMPILED: LazyLock<Validator> = LazyLock::new(|| {
     jsonschema::validator_for(&schema).expect("embedded app schema must compile")
 });
 
+/// The schema of one box: the box definition of the app schema.
+static BOX_SCHEMA_COMPILED: LazyLock<Validator> = LazyLock::new(|| {
+    let mut schema: Value =
+        serde_json::from_str(APP_SCHEMA).expect("embedded app schema must be valid JSON");
+    let definitions = schema["definitions"].take();
+    let box_schema = serde_json::json!({
+        "$ref": "#/definitions/box",
+        "definitions": definitions,
+    });
+    jsonschema::validator_for(&box_schema).expect("embedded box schema must compile")
+});
+
 /// One problem in a configuration, with the place it was found.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationError {
@@ -41,6 +53,24 @@ pub fn validate_schema(document: &Value) -> Result<(), Vec<ValidationError>> {
         .iter_errors(document)
         .map(|error| ValidationError {
             location: describe_path(document, &error.instance_path().to_string()),
+            message: error.to_string(),
+        })
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// Checks one box, as sent over the control socket, against the box definition of the
+/// schema. Locations start at the box (`position.x1`, `children[0] ('inner').script`).
+pub fn validate_box(muxbox: &Value) -> Result<(), Vec<ValidationError>> {
+    let errors: Vec<ValidationError> = BOX_SCHEMA_COMPILED
+        .iter_errors(muxbox)
+        .map(|error| ValidationError {
+            location: describe_path(muxbox, &error.instance_path().to_string())
+                .replace("configuration", "box"),
             message: error.to_string(),
         })
         .collect();
@@ -238,13 +268,18 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                 "a PTY box runs its script once as an interactive session; refresh_interval does not apply".into(),
             );
         }
+        // On a box with children the interval is inherited by the children's scripts.
         if muxbox.refresh_interval.is_some()
             && muxbox.script.is_none()
             && muxbox.plugin_component.is_none()
+            && muxbox
+                .children
+                .as_ref()
+                .is_none_or(|children| children.is_empty())
         {
             error(
                 format!("{}.refresh_interval", location),
-                "refresh_interval needs a script to rerun or a plugin_component to redraw".into(),
+                "refresh_interval needs a script to rerun, a plugin_component to redraw, or children to pass it on to".into(),
             );
         }
         if muxbox.refresh_interval == Some(0) {
@@ -304,6 +339,45 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                     );
                 }
             }
+        }
+    }
+
+    let mut bindings: Vec<(String, &String)> = Vec::new();
+    bindings.extend(
+        app.hot_keys
+            .iter()
+            .flatten()
+            .map(|(key, _)| ("app.hot_keys".to_string(), key)),
+    );
+    bindings.extend(
+        app.on_keypress
+            .iter()
+            .flatten()
+            .map(|(key, _)| ("app.on_keypress".to_string(), key)),
+    );
+    for (i, layout) in app.layouts.iter().enumerate() {
+        let location = format!("app.layouts[{}] ('{}').on_keypress", i, layout.id);
+        bindings.extend(
+            layout
+                .on_keypress
+                .iter()
+                .flatten()
+                .map(|(key, _)| (location.clone(), key)),
+        );
+    }
+    for (location, muxbox) in &boxes {
+        let location = format!("{}.on_keypress", location);
+        bindings.extend(
+            muxbox
+                .on_keypress
+                .iter()
+                .flatten()
+                .map(|(key, _)| (location.clone(), key)),
+        );
+    }
+    for (location, key) in bindings {
+        if let Err(message) = crate::runtime::keys::check_key_name(key) {
+            error(format!("{}.{}", location, key), message);
         }
     }
 
@@ -396,6 +470,68 @@ mod tests {
             .iter()
             .map(|e| e.to_string())
             .collect()
+    }
+
+    #[test]
+    fn binding_key_names_are_checked_everywhere() {
+        let errors = semantic_errors(
+            r#"
+app:
+  hot_keys: {Ctrl+Enterr: pick}
+  on_keypress: {q: ["echo"]}
+  layouts:
+    - id: main
+      on_keypress: {Shift+a: ["echo"]}
+      children:
+        - id: menu
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          on_keypress: {Hyper+x: ["echo"], Ctrl+x: ["echo"]}
+          choices: [{id: pick, content: Pick, script: ["echo"]}]
+"#,
+        );
+        assert_eq!(errors.len(), 4, "{:#?}", errors);
+        for expected in [
+            "app.hot_keys.Ctrl+Enterr: 'Enterr' is not a key",
+            "app.on_keypress.q: q always quits",
+            "app.layouts[0] ('main').on_keypress.Shift+a: Shift is part of the character",
+            "('menu').on_keypress.Hyper+x: 'Hyper' is not a modifier",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.contains(expected)),
+                "{}: {:#?}",
+                expected,
+                errors
+            );
+        }
+    }
+
+    #[test]
+    fn refresh_interval_on_a_box_with_children_is_passed_on() {
+        let yaml = |children: &str| {
+            format!(
+                r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: group
+          position: {{x1: "0", y1: "0", x2: "9", y2: "9"}}
+          refresh_interval: 500
+          {}
+"#,
+                children
+            )
+        };
+        let with_children = yaml(
+            r#"children: [{id: inner, position: {x1: "0", y1: "0", x2: "5", y2: "5"}, script: ["date"]}]"#,
+        );
+        assert_eq!(semantic_errors(&with_children), Vec::<String>::new());
+        let alone = semantic_errors(&yaml("content: nothing to refresh"));
+        assert!(
+            alone[0].contains("refresh_interval needs a script"),
+            "{:?}",
+            alone
+        );
     }
 
     #[test]

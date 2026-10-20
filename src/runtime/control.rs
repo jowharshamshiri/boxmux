@@ -1,9 +1,9 @@
 //! Commands from the control socket.
 
 use super::executor::RunSpec;
-use super::{Refresh, RefreshAction, Runtime};
+use super::{Refresh, Runtime};
 use crate::model::common::ExecutionMode;
-use crate::model::stream::{RunId, RunOrigin, Stream, StreamStatus};
+use crate::model::stream::{RunId, RunOrigin, Stream, StreamKind, StreamStatus};
 use crate::runtime::display::Display;
 use crate::socket::protocol::{ProcessStatus, Reply, SocketFunction};
 use crate::{App, MuxBox};
@@ -22,12 +22,14 @@ impl<D: Display> Runtime<D> {
             }
             SocketFunction::StopBoxRefresh { box_id } => self.set_refresh_paused(&box_id, true),
             SocketFunction::StartBoxRefresh { box_id } => self.set_refresh_paused(&box_id, false),
-            SocketFunction::ReplaceBox { box_id, new_box } => self.replace_box(&box_id, *new_box),
+            SocketFunction::ReplaceBox { box_id, new_box } => {
+                self.replace_box(&box_id, new_box.into_muxbox())
+            }
             SocketFunction::AddBox {
                 layout_id,
                 parent_id,
                 muxbox,
-            } => self.add_box(&layout_id, parent_id.as_deref(), *muxbox),
+            } => self.add_box(&layout_id, parent_id.as_deref(), muxbox.into_muxbox()),
             SocketFunction::RemoveBox { box_id } => self.remove_box(&box_id),
             SocketFunction::SwitchActiveLayout { layout_id } => self.switch_layout(&layout_id),
             SocketFunction::SpawnPtyProcess {
@@ -95,12 +97,7 @@ impl<D: Display> Runtime<D> {
         if script.iter().all(|line| line.trim().is_empty()) {
             return Err("the script is empty".to_string());
         }
-        let muxbox = self.box_mut(box_id)?;
-        let had_script = muxbox.script.is_some();
-        muxbox.script = Some(script);
-        if !had_script {
-            muxbox.initialize_streams();
-        }
+        self.box_mut(box_id)?.script = Some(script);
         let origin = RunOrigin::BoxScript {
             box_id: box_id.to_string(),
         };
@@ -113,12 +110,22 @@ impl<D: Display> Runtime<D> {
         } else {
             self.start_box_script(box_id, true)?;
         }
-        self.refresh.entry(box_id.to_string()).or_insert(Refresh {
-            action: RefreshAction::Script,
-            interval: None,
-            next_due: None,
-            paused: false,
-        });
+        // A box that had no script now refreshes like one configured with this script; an
+        // existing schedule (and its pause) is kept.
+        if !self.refresh.contains_key(box_id) {
+            let (action, interval) = self
+                .refresh_settings(box_id)
+                .expect("the box has a script now");
+            self.refresh.insert(
+                box_id.to_string(),
+                Refresh {
+                    action,
+                    interval,
+                    next_due: interval.map(|interval| Instant::now() + interval),
+                    paused: false,
+                },
+            );
+        }
         Ok(Reply::ok())
     }
 
@@ -146,13 +153,25 @@ impl<D: Display> Runtime<D> {
     }
 
     fn set_refresh_paused(&mut self, box_id: &str, paused: bool) -> Result<Reply, String> {
-        let refresh = self
-            .refresh
-            .get_mut(box_id)
-            .ok_or_else(|| format!("box '{}' has no script running in the shown layout", box_id))?;
-        if refresh.interval.is_none() {
-            return Err(format!("box '{}' has no refresh_interval", box_id));
+        if self.ctx.app.get_muxbox_by_id(box_id).is_none() {
+            return Err(format!("there is no box '{}'", box_id));
         }
+        let (action, interval) = self
+            .refresh_settings(box_id)
+            .ok_or_else(|| format!("box '{}' has no script", box_id))?;
+        if interval.is_none() {
+            return Err(format!(
+                "box '{}' does not refresh: it has no refresh_interval, or its script runs in a PTY",
+                box_id
+            ));
+        }
+        // A box of a layout that was never shown has no schedule yet.
+        let refresh = self.refresh.entry(box_id.to_string()).or_insert(Refresh {
+            action,
+            interval,
+            next_due: Some(Instant::now()),
+            paused,
+        });
         refresh.paused = paused;
         if !paused {
             refresh.next_due = Some(Instant::now());
@@ -178,6 +197,7 @@ impl<D: Display> Runtime<D> {
                     .collect::<Vec<_>>()
                     .join("; ")
             })?;
+        crate::model::app::check_plugin_components(&candidate, &self.ctx.plugins)?;
         self.ctx.app = candidate;
         Ok(())
     }
@@ -387,6 +407,12 @@ impl<D: Display> Runtime<D> {
         let stream = muxbox
             .get_selected_stream()
             .ok_or_else(|| format!("box '{}' has no tabs", box_id))?;
+        if !matches!(stream.kind, StreamKind::Run(_)) {
+            return Err(format!(
+                "the visible tab of box '{}' ('{}') does not show a process",
+                box_id, stream.label
+            ));
+        }
         let active = stream.run.and_then(|run| self.executor.get(run));
         let size = active.and_then(|a| a.pty()).map(|s| s.size());
         let status = ProcessStatus {

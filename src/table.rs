@@ -1,35 +1,19 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+//! Tables drawn as text from CSV or JSON data, filtered, sorted and paged as a box's
+//! `table_config` says.
 
-/// Table data structure for enhanced data visualization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use unicode_width::UnicodeWidthChar;
+
+/// A table: column headers and rows of cells.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableData {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
-    pub metadata: HashMap<String, String>,
 }
 
-/// Table configuration for rendering and behavior
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TableConfig {
-    pub title: Option<String>,
-    pub width: usize,
-    pub height: usize,
-    pub show_headers: bool,
-    pub sort_column: Option<String>,
-    pub sort_ascending: bool,
-    pub filters: HashMap<String, String>,
-    pub column_widths: Option<Vec<usize>>,
-    pub border_style: TableBorderStyle,
-    pub zebra_striping: bool,
-    pub highlight_row: Option<usize>,
-    pub max_column_width: Option<usize>,
-    pub show_row_numbers: bool,
-    pub pagination: Option<TablePagination>,
-}
-
-/// Border styles for tables
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+/// How a table's borders are drawn.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum TableBorderStyle {
     None,
@@ -39,807 +23,441 @@ pub enum TableBorderStyle {
     Thick,
 }
 
-/// Pagination configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TablePagination {
-    pub page_size: usize,
-    pub current_page: usize,
-    pub show_page_info: bool,
-}
-
-/// Sort direction for columns
-#[derive(Debug, Clone, PartialEq)]
-pub enum SortDirection {
-    Ascending,
-    Descending,
-}
-
-/// Data type for column sorting
-#[derive(Debug, Clone)]
-pub enum ColumnType {
-    Text,
-    Number,
-    Date,
-    Boolean,
-}
-
-impl Default for TableConfig {
-    fn default() -> Self {
-        Self {
-            title: None,
-            width: 80,
-            height: 20,
-            show_headers: true,
-            sort_column: None,
-            sort_ascending: true,
-            filters: HashMap::new(),
-            column_widths: None,
-            border_style: TableBorderStyle::Single,
-            zebra_striping: false,
-            highlight_row: None,
-            max_column_width: Some(30),
-            show_row_numbers: false,
-            pagination: None,
-        }
-    }
-}
-
 /// The `table_config` of a box: how its table is sorted, filtered, paged and drawn.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct TableSettings {
+    /// Whether the header row is shown (default: true).
     pub show_headers: Option<bool>,
     /// Header of the column rows are sorted by.
     pub sort_column: Option<String>,
+    /// Default: true.
     pub sort_ascending: Option<bool>,
     /// Only rows whose value in the named column equals the given text, ignoring case, are
     /// shown.
-    pub filters: Option<std::collections::BTreeMap<String, String>>,
+    pub filters: Option<BTreeMap<String, String>>,
+    /// Default: single.
     pub border_style: Option<TableBorderStyle>,
+    /// Shades every other row.
     pub zebra_striping: Option<bool>,
+    /// Columns wider than this many cells are cut off with `…` (default: 30).
     pub max_column_width: Option<usize>,
+    /// A first column numbering the rows (numbering continues across pages).
     pub show_row_numbers: Option<bool>,
     /// Rows per page; the table is not paged without it.
     pub page_size: Option<usize>,
+    /// The page shown, from 0.
     pub current_page: Option<usize>,
+    /// A line under the table saying which page is shown.
     pub show_page_info: Option<bool>,
 }
 
-impl TableSettings {
-    /// The rendering configuration for a table of `width` x `height` cells.
-    pub fn to_config(&self, width: usize, height: usize) -> TableConfig {
-        let defaults = TableConfig::default();
-        TableConfig {
-            title: None,
-            width,
-            height,
-            show_headers: self.show_headers.unwrap_or(defaults.show_headers),
-            sort_column: self.sort_column.clone(),
-            sort_ascending: self.sort_ascending.unwrap_or(defaults.sort_ascending),
-            filters: self
-                .filters
-                .iter()
-                .flatten()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            column_widths: None,
-            border_style: self.border_style.clone().unwrap_or(defaults.border_style),
-            zebra_striping: self.zebra_striping.unwrap_or(defaults.zebra_striping),
-            highlight_row: None,
-            max_column_width: self.max_column_width.or(defaults.max_column_width),
-            show_row_numbers: self.show_row_numbers.unwrap_or(defaults.show_row_numbers),
-            pagination: self.page_size.map(|page_size| TablePagination {
-                page_size,
-                current_page: self.current_page.unwrap_or(0),
-                show_page_info: self.show_page_info.unwrap_or(false),
-            }),
-        }
-    }
-}
+const DEFAULT_MAX_COLUMN_WIDTH: usize = 30;
+/// A column is never narrower than this, so a cut-off value still shows something.
+const MIN_COLUMN_WIDTH: usize = 3;
+/// SGR sequences shading a zebra row and ending the shading (back to the box background).
+const SHADE_ON: &str = "\x1b[100m";
+const SHADE_OFF: &str = "\x1b[49m";
 
-/// The table text for `data` (CSV, or a JSON array of objects) in a `width` x `height` area.
-pub fn table_text(data: &str, settings: &TableSettings, width: usize, height: usize) -> String {
+/// The table text for `data` (CSV, or a JSON array of objects).
+pub fn table_text(data: &str, settings: &TableSettings) -> String {
     let parsed = if data.trim_start().starts_with('[') {
         match parse_table_data_from_json(data) {
             Ok(parsed) => parsed,
             Err(e) => return format!("table data is not valid JSON: {}", e),
         }
     } else {
-        parse_table_data(data, None)
+        parse_table_data(data, ',')
     };
-    render_table(&parsed, &settings.to_config(width, height))
+    render_table(&parsed, settings)
 }
 
-/// Generate table display string from data and configuration
-pub fn render_table(data: &TableData, config: &TableConfig) -> String {
-    if data.headers.is_empty() || data.rows.is_empty() {
+/// Parses CSV text: the first line holds the headers, every other non-empty line a row.
+/// Values are trimmed; quoting is not supported.
+pub fn parse_table_data(content: &str, delimiter: char) -> TableData {
+    let split = |line: &str| -> Vec<String> {
+        line.split(delimiter)
+            .map(|s| s.trim().to_string())
+            .collect()
+    };
+    let mut lines = content.lines().filter(|line| !line.trim().is_empty());
+    let headers = lines.next().map(split).unwrap_or_default();
+    let rows = lines.map(split).collect();
+    TableData { headers, rows }
+}
+
+/// Parses a JSON array of objects. The columns are the keys of the first object, in the order
+/// they are written; a missing value is empty.
+pub fn parse_table_data_from_json(content: &str) -> Result<TableData, String> {
+    let objects: Vec<serde_json::Map<String, serde_json::Value>> = serde_json::from_str(content)
+        .map_err(|e| format!("{} (expected an array of objects)", e))?;
+    let headers: Vec<String> = objects
+        .first()
+        .map(|first| first.keys().cloned().collect())
+        .unwrap_or_default();
+    let text = |value: &serde_json::Value| match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    };
+    let rows = objects
+        .iter()
+        .map(|object| {
+            headers
+                .iter()
+                .map(|header| object.get(header).map(text).unwrap_or_default())
+                .collect()
+        })
+        .collect();
+    Ok(TableData { headers, rows })
+}
+
+fn text_width(text: &str) -> usize {
+    text.chars().map(|c| c.width().unwrap_or(0)).sum()
+}
+
+/// `text` padded with spaces to `width` columns, or cut to `width` columns ending in `…`.
+fn fit(text: &str, width: usize) -> String {
+    let full = text_width(text);
+    if full <= width {
+        return format!("{}{}", text, " ".repeat(width - full));
+    }
+    let mut out = String::new();
+    let mut used = 0;
+    for ch in text.chars() {
+        let w = ch.width().unwrap_or(0);
+        if used + w > width.saturating_sub(1) {
+            break;
+        }
+        out.push(ch);
+        used += w;
+    }
+    out.push('…');
+    used += 1;
+    out.push_str(&" ".repeat(width.saturating_sub(used)));
+    out
+}
+
+/// Characters of one border style: the left end, joint and right end of the top, separator
+/// and bottom lines, their horizontal line, and the vertical line.
+struct Glyphs {
+    top: [char; 3],
+    separator: [char; 3],
+    bottom: [char; 3],
+    horizontal: char,
+    vertical: char,
+}
+
+fn glyphs(style: TableBorderStyle) -> Option<Glyphs> {
+    let (top, separator, bottom, horizontal, vertical) = match style {
+        TableBorderStyle::None => return None,
+        TableBorderStyle::Single => (['┌', '┬', '┐'], ['├', '┼', '┤'], ['└', '┴', '┘'], '─', '│'),
+        TableBorderStyle::Double => (['╔', '╦', '╗'], ['╠', '╬', '╣'], ['╚', '╩', '╝'], '═', '║'),
+        TableBorderStyle::Rounded => (['╭', '┬', '╮'], ['├', '┼', '┤'], ['╰', '┴', '╯'], '─', '│'),
+        TableBorderStyle::Thick => (['┏', '┳', '┓'], ['┣', '╋', '┫'], ['┗', '┻', '┛'], '━', '┃'),
+    };
+    Some(Glyphs {
+        top,
+        separator,
+        bottom,
+        horizontal,
+        vertical,
+    })
+}
+
+/// A horizontal border line across columns of `widths` (each with one space of padding on
+/// both sides).
+fn border_line(widths: &[usize], [left, joint, right]: [char; 3], horizontal: char) -> String {
+    let segments: Vec<String> = widths
+        .iter()
+        .map(|w| horizontal.to_string().repeat(w + 2))
+        .collect();
+    format!("{}{}{}", left, segments.join(&joint.to_string()), right)
+}
+
+/// A row of cells, each already fitted to its column.
+fn cell_line(cells: &[String], vertical: Option<char>) -> String {
+    match vertical {
+        Some(v) => format!("{v} {} {v}", cells.join(&format!(" {} ", v))),
+        None => cells.join("  "),
+    }
+}
+
+/// The table as lines of text, with SGR shading for zebra rows.
+pub fn render_table(data: &TableData, settings: &TableSettings) -> String {
+    if data.headers.is_empty() {
         return "No data".to_string();
     }
-
-    // Apply filters first
-    let filtered_rows = apply_filters(data, &config.filters);
-
-    // Apply sorting
-    let sorted_rows = apply_sorting(
-        &filtered_rows,
-        &data.headers,
-        &config.sort_column,
-        config.sort_ascending,
-    );
-
-    // Apply pagination
-    let (paginated_rows, page_info) = apply_pagination(&sorted_rows, &config.pagination);
-
-    // Calculate column widths
-    let column_widths = calculate_column_widths(data, config, &paginated_rows);
-
-    let mut result = String::new();
-
-    // Add title if present
-    if let Some(title) = &config.title {
-        result.push_str(&format!("{}\n", title));
-    }
-
-    // Render table structure
-    result.push_str(&render_top_border(&column_widths, &config.border_style));
-
-    // Render headers
-    if config.show_headers {
-        result.push_str(&render_header_row(
-            &data.headers,
-            &column_widths,
-            &config.border_style,
-            config.show_row_numbers,
-        ));
-        result.push_str(&render_separator(&column_widths, &config.border_style));
-    }
-
-    // Render data rows
-    for (index, row) in paginated_rows.iter().enumerate() {
-        let is_highlighted = config.highlight_row == Some(index);
-        let is_zebra = config.zebra_striping && index % 2 == 1;
-        result.push_str(&render_data_row(
-            row,
-            &column_widths,
-            &config.border_style,
-            config.show_row_numbers,
-            index,
-            is_highlighted,
-            is_zebra,
-        ));
-    }
-
-    // Render bottom border
-    result.push_str(&render_bottom_border(&column_widths, &config.border_style));
-
-    // Add pagination info
-    if let Some(info) = page_info {
-        result.push_str(&format!("\n{}", info));
-    }
-
-    result
-}
-
-/// Apply filters to table data
-fn apply_filters(data: &TableData, filters: &HashMap<String, String>) -> Vec<Vec<String>> {
-    if filters.is_empty() {
-        return data.rows.clone();
-    }
-
-    let mut filtered = Vec::new();
-
-    for row in &data.rows {
-        let mut matches = true;
-
-        for (column_name, filter_value) in filters {
-            if let Some(column_index) = data.headers.iter().position(|h| h == column_name) {
-                if column_index < row.len() {
-                    let cell_value = &row[column_index];
-                    if cell_value.to_lowercase() != filter_value.to_lowercase() {
-                        matches = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if matches {
-            filtered.push(row.clone());
-        }
-    }
-
-    filtered
-}
-
-/// Apply sorting to table data
-fn apply_sorting(
-    rows: &[Vec<String>],
-    headers: &[String],
-    sort_column: &Option<String>,
-    ascending: bool,
-) -> Vec<Vec<String>> {
-    if let Some(column_name) = sort_column {
-        if let Some(column_index) = headers.iter().position(|h| h == column_name) {
-            let mut sorted = rows.to_vec();
-
-            sorted.sort_by(|a, b| {
-                let default_string = String::new();
-                let a_val = a.get(column_index).unwrap_or(&default_string);
-                let b_val = b.get(column_index).unwrap_or(&default_string);
-
-                // Try to parse as numbers first
-                if let (Ok(a_num), Ok(b_num)) = (a_val.parse::<f64>(), b_val.parse::<f64>()) {
-                    if ascending {
-                        a_num
-                            .partial_cmp(&b_num)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    } else {
-                        b_num
-                            .partial_cmp(&a_num)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                } else {
-                    // Fall back to string comparison
-                    if ascending {
-                        a_val.cmp(b_val)
-                    } else {
-                        b_val.cmp(a_val)
-                    }
-                }
-            });
-
-            return sorted;
-        }
-    }
-
-    rows.to_vec()
-}
-
-/// Apply pagination to table data
-fn apply_pagination(
-    rows: &[Vec<String>],
-    pagination: &Option<TablePagination>,
-) -> (Vec<Vec<String>>, Option<String>) {
-    if let Some(pag) = pagination {
-        let total_rows = rows.len();
-        let total_pages = total_rows.div_ceil(pag.page_size);
-        let start_index = pag.current_page * pag.page_size;
-        let end_index = std::cmp::min(start_index + pag.page_size, total_rows);
-
-        let paginated = if start_index < total_rows {
-            rows[start_index..end_index].to_vec()
-        } else {
-            Vec::new()
-        };
-
-        let page_info = if pag.show_page_info {
-            Some(format!(
-                "Page {} of {} ({} total rows)",
-                pag.current_page + 1,
-                total_pages,
-                total_rows
-            ))
-        } else {
-            None
-        };
-
-        (paginated, page_info)
-    } else {
-        (rows.to_vec(), None)
-    }
-}
-
-/// Calculate optimal column widths
-fn calculate_column_widths(
-    data: &TableData,
-    config: &TableConfig,
-    rows: &[Vec<String>],
-) -> Vec<usize> {
-    if let Some(widths) = &config.column_widths {
-        return widths.clone();
-    }
-
-    let mut widths = Vec::new();
-    let max_width = config.max_column_width.unwrap_or(30);
-
-    for (i, header) in data.headers.iter().enumerate() {
-        let mut max_len = header.len();
-
-        // Check all rows for this column
-        for row in rows {
-            if let Some(cell) = row.get(i) {
-                max_len = max_len.max(cell.len());
-            }
-        }
-
-        // Apply max width constraint
-        max_len = max_len.min(max_width);
-
-        // Minimum width of 3 for readability
-        max_len = max_len.max(3);
-
-        widths.push(max_len);
-    }
-
-    widths
-}
-
-/// Render top border of table
-fn render_top_border(widths: &[usize], style: &TableBorderStyle) -> String {
-    match style {
-        TableBorderStyle::None => String::new(),
-        TableBorderStyle::Single => {
-            let mut border = String::from("┌");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┬');
-                }
-            }
-            border.push('┐');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Double => {
-            let mut border = String::from("╔");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"═".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('╦');
-                }
-            }
-            border.push('╗');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Rounded => {
-            let mut border = String::from("╭");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┬');
-                }
-            }
-            border.push('╮');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Thick => {
-            let mut border = String::from("┏");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"━".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┳');
-                }
-            }
-            border.push('┓');
-            border.push('\n');
-            border
-        }
-    }
-}
-
-/// Render bottom border of table
-fn render_bottom_border(widths: &[usize], style: &TableBorderStyle) -> String {
-    match style {
-        TableBorderStyle::None => String::new(),
-        TableBorderStyle::Single => {
-            let mut border = String::from("└");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┴');
-                }
-            }
-            border.push('┘');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Double => {
-            let mut border = String::from("╚");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"═".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('╩');
-                }
-            }
-            border.push('╝');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Rounded => {
-            let mut border = String::from("╰");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┴');
-                }
-            }
-            border.push('╯');
-            border.push('\n');
-            border
-        }
-        TableBorderStyle::Thick => {
-            let mut border = String::from("┗");
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&"━".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push('┻');
-                }
-            }
-            border.push('┛');
-            border.push('\n');
-            border
-        }
-    }
-}
-
-/// Render separator line between header and data
-fn render_separator(widths: &[usize], style: &TableBorderStyle) -> String {
-    match style {
-        TableBorderStyle::None => String::new(),
-        TableBorderStyle::Single => {
-            let mut sep = String::from("├");
-            for (i, &width) in widths.iter().enumerate() {
-                sep.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    sep.push('┼');
-                }
-            }
-            sep.push('┤');
-            sep.push('\n');
-            sep
-        }
-        TableBorderStyle::Double => {
-            let mut sep = String::from("╠");
-            for (i, &width) in widths.iter().enumerate() {
-                sep.push_str(&"═".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    sep.push('╬');
-                }
-            }
-            sep.push('╣');
-            sep.push('\n');
-            sep
-        }
-        TableBorderStyle::Rounded | TableBorderStyle::Thick => {
-            // Use single line separator for rounded and thick styles
-            let mut sep = String::from("├");
-            for (i, &width) in widths.iter().enumerate() {
-                sep.push_str(&"─".repeat(width + 2));
-                if i < widths.len() - 1 {
-                    sep.push('┼');
-                }
-            }
-            sep.push('┤');
-            sep.push('\n');
-            sep
-        }
-    }
-}
-
-/// Render header row
-fn render_header_row(
-    headers: &[String],
-    widths: &[usize],
-    style: &TableBorderStyle,
-    show_row_numbers: bool,
-) -> String {
-    let vertical_char = match style {
-        TableBorderStyle::None => ' ',
-        TableBorderStyle::Single | TableBorderStyle::Rounded | TableBorderStyle::Thick => '│',
-        TableBorderStyle::Double => '║',
-    };
-
-    let mut row = String::new();
-
-    if style != &TableBorderStyle::None {
-        row.push(vertical_char);
-    }
-
-    // Add row number column header if enabled
-    if show_row_numbers {
-        row.push_str(" # ");
-        if style != &TableBorderStyle::None {
-            row.push(vertical_char);
-        }
-    }
-
-    for (i, header) in headers.iter().enumerate() {
-        let width = widths[i];
-        let truncated = if header.len() > width {
-            format!("{}…", &header[..width.saturating_sub(1)])
-        } else {
-            header.clone()
-        };
-
-        row.push(' ');
-        row.push_str(&format!("{:width$}", truncated, width = width));
-        row.push(' ');
-
-        if i < headers.len() - 1 && style != &TableBorderStyle::None {
-            row.push(vertical_char);
-        }
-    }
-
-    if style != &TableBorderStyle::None {
-        row.push(vertical_char);
-    }
-
-    row.push('\n');
-    row
-}
-
-/// Render data row
-fn render_data_row(
-    row: &[String],
-    widths: &[usize],
-    style: &TableBorderStyle,
-    show_row_numbers: bool,
-    row_index: usize,
-    _is_highlighted: bool,
-    _is_zebra: bool,
-) -> String {
-    let vertical_char = match style {
-        TableBorderStyle::None => ' ',
-        TableBorderStyle::Single | TableBorderStyle::Rounded | TableBorderStyle::Thick => '│',
-        TableBorderStyle::Double => '║',
-    };
-
-    let mut result = String::new();
-
-    if style != &TableBorderStyle::None {
-        result.push(vertical_char);
-    }
-
-    // Add row number if enabled
-    if show_row_numbers {
-        result.push_str(&format!(" {} ", row_index + 1));
-        if style != &TableBorderStyle::None {
-            result.push(vertical_char);
-        }
-    }
-
-    for (i, cell) in row.iter().enumerate() {
-        let width = widths.get(i).copied().unwrap_or(10);
-        let truncated = if cell.len() > width {
-            format!("{}…", &cell[..width.saturating_sub(1)])
-        } else {
-            cell.clone()
-        };
-
-        result.push(' ');
-        result.push_str(&format!("{:width$}", truncated, width = width));
-        result.push(' ');
-
-        if i < row.len() - 1 && style != &TableBorderStyle::None {
-            result.push(vertical_char);
-        }
-    }
-
-    if style != &TableBorderStyle::None {
-        result.push(vertical_char);
-    }
-
-    result.push('\n');
-    result
-}
-
-/// Parse table data from CSV-like text content
-pub fn parse_table_data(content: &str, delimiter: Option<char>) -> TableData {
-    let delimiter = delimiter.unwrap_or(',');
-    let lines: Vec<&str> = content.lines().collect();
-
-    if lines.is_empty() {
-        return TableData {
-            headers: Vec::new(),
-            rows: Vec::new(),
-            metadata: HashMap::new(),
-        };
-    }
-
-    // First line is headers
-    let headers: Vec<String> = lines[0]
-        .split(delimiter)
-        .map(|s| s.trim().to_string())
+    let columns = data.headers.len();
+    // Every row has exactly one cell per header.
+    let normalized: Vec<Vec<String>> = data
+        .rows
+        .iter()
+        .map(|row| {
+            let mut row: Vec<String> = row.iter().take(columns).cloned().collect();
+            row.resize(columns, String::new());
+            row
+        })
         .collect();
 
-    // Remaining lines are data rows
-    let mut rows = Vec::new();
-    for line in lines.iter().skip(1) {
-        if line.trim().is_empty() {
-            continue;
+    let filtered = apply_filters(&data.headers, normalized, settings.filters.as_ref());
+    let sorted = apply_sorting(
+        &data.headers,
+        filtered,
+        settings.sort_column.as_deref(),
+        settings.sort_ascending.unwrap_or(true),
+    );
+    let total_rows = sorted.len();
+    let (first_row, page) = match settings.page_size {
+        Some(size) => {
+            let start = settings.current_page.unwrap_or(0).saturating_mul(size);
+            let page: Vec<Vec<String>> = sorted.into_iter().skip(start).take(size).collect();
+            (start, page)
         }
+        None => (0, sorted),
+    };
 
-        let row: Vec<String> = line
-            .split(delimiter)
-            .map(|s| s.trim().to_string())
-            .collect();
-
-        rows.push(row);
+    // Row numbers form the first column when shown.
+    let show_headers = settings.show_headers.unwrap_or(true);
+    let mut headers: Vec<String> = data.headers.clone();
+    let mut rows: Vec<Vec<String>> = page;
+    if settings.show_row_numbers.unwrap_or(false) {
+        headers.insert(0, "#".to_string());
+        for (i, row) in rows.iter_mut().enumerate() {
+            row.insert(0, (first_row + i + 1).to_string());
+        }
     }
 
-    let mut metadata = HashMap::new();
-    metadata.insert("source".to_string(), "parsed_csv".to_string());
-    metadata.insert("delimiter".to_string(), delimiter.to_string());
-    metadata.insert("rows_count".to_string(), rows.len().to_string());
-    metadata.insert("columns_count".to_string(), headers.len().to_string());
+    let max_width = settings
+        .max_column_width
+        .unwrap_or(DEFAULT_MAX_COLUMN_WIDTH)
+        .max(MIN_COLUMN_WIDTH);
+    let widths: Vec<usize> = (0..headers.len())
+        .map(|i| {
+            let header_width = if show_headers {
+                text_width(&headers[i])
+            } else {
+                0
+            };
+            rows.iter()
+                .map(|row| text_width(&row[i]))
+                .chain(std::iter::once(header_width))
+                .max()
+                .unwrap_or(0)
+                .clamp(MIN_COLUMN_WIDTH, max_width)
+        })
+        .collect();
+    let fitted = |row: &[String]| -> Vec<String> {
+        row.iter()
+            .zip(&widths)
+            .map(|(cell, w)| fit(cell, *w))
+            .collect()
+    };
 
-    TableData {
-        headers,
-        rows,
-        metadata,
+    let glyphs = glyphs(settings.border_style.unwrap_or(TableBorderStyle::Single));
+    let vertical = glyphs.as_ref().map(|g| g.vertical);
+    let mut lines = Vec::new();
+    if let Some(g) = &glyphs {
+        lines.push(border_line(&widths, g.top, g.horizontal));
     }
+    if show_headers {
+        lines.push(cell_line(&fitted(&headers), vertical));
+        if let Some(g) = &glyphs {
+            lines.push(border_line(&widths, g.separator, g.horizontal));
+        }
+    }
+    let zebra = settings.zebra_striping.unwrap_or(false);
+    for (i, row) in rows.iter().enumerate() {
+        let line = cell_line(&fitted(row), vertical);
+        if zebra && i % 2 == 1 {
+            lines.push(format!("{}{}{}", SHADE_ON, line, SHADE_OFF));
+        } else {
+            lines.push(line);
+        }
+    }
+    if let Some(g) = &glyphs {
+        lines.push(border_line(&widths, g.bottom, g.horizontal));
+    }
+    if let (Some(size), true) = (settings.page_size, settings.show_page_info.unwrap_or(false)) {
+        let pages = total_rows.div_ceil(size.max(1)).max(1);
+        lines.push(format!(
+            "Page {} of {} ({} rows)",
+            settings.current_page.unwrap_or(0) + 1,
+            pages,
+            total_rows
+        ));
+    }
+    lines.join("\n")
 }
 
-/// Parse table data from JSON content
-pub fn parse_table_data_from_json(content: &str) -> Result<TableData, serde_json::Error> {
-    // Try to parse as array of objects first
-    if let Ok(objects) = serde_json::from_str::<Vec<serde_json::Value>>(content) {
-        if objects.is_empty() {
-            return Ok(TableData {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                metadata: HashMap::new(),
-            });
+fn column_of(headers: &[String], name: &str) -> Option<usize> {
+    headers.iter().position(|h| h == name)
+}
+
+/// The rows whose value in each filtered column equals the filter text, ignoring case. A
+/// filter on a column the data does not have keeps no rows.
+fn apply_filters(
+    headers: &[String],
+    rows: Vec<Vec<String>>,
+    filters: Option<&BTreeMap<String, String>>,
+) -> Vec<Vec<String>> {
+    let Some(filters) = filters.filter(|f| !f.is_empty()) else {
+        return rows;
+    };
+    let wanted: Vec<(Option<usize>, String)> = filters
+        .iter()
+        .map(|(column, value)| (column_of(headers, column), value.to_lowercase()))
+        .collect();
+    rows.into_iter()
+        .filter(|row| {
+            wanted
+                .iter()
+                .all(|(column, value)| column.is_some_and(|c| row[c].to_lowercase() == *value))
+        })
+        .collect()
+}
+
+/// Rows sorted by `column`: numerically when both values are numbers, otherwise as text. An
+/// unknown column leaves the order unchanged.
+fn apply_sorting(
+    headers: &[String],
+    mut rows: Vec<Vec<String>>,
+    column: Option<&str>,
+    ascending: bool,
+) -> Vec<Vec<String>> {
+    let Some(index) = column.and_then(|name| column_of(headers, name)) else {
+        return rows;
+    };
+    rows.sort_by(|a, b| {
+        let order = match (a[index].parse::<f64>(), b[index].parse::<f64>()) {
+            (Ok(x), Ok(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+            _ => a[index].cmp(&b[index]),
+        };
+        if ascending {
+            order
+        } else {
+            order.reverse()
         }
-
-        // Extract headers from first object
-        let mut headers = Vec::new();
-        if let Some(serde_json::Value::Object(map)) = objects.first() {
-            for key in map.keys() {
-                headers.push(key.clone());
-            }
-        }
-
-        // Extract rows
-        let mut rows = Vec::new();
-        for obj in &objects {
-            if let serde_json::Value::Object(map) = obj {
-                let mut row = Vec::new();
-                for header in &headers {
-                    let value = map
-                        .get(header)
-                        .map(|v| match v {
-                            serde_json::Value::String(s) => s.clone(),
-                            serde_json::Value::Number(n) => n.to_string(),
-                            serde_json::Value::Bool(b) => b.to_string(),
-                            serde_json::Value::Null => "".to_string(),
-                            _ => format!("{}", v),
-                        })
-                        .unwrap_or_default();
-                    row.push(value);
-                }
-                rows.push(row);
-            }
-        }
-
-        let mut metadata = HashMap::new();
-        metadata.insert("source".to_string(), "parsed_json".to_string());
-        metadata.insert("format".to_string(), "array_of_objects".to_string());
-        metadata.insert("rows_count".to_string(), rows.len().to_string());
-        metadata.insert("columns_count".to_string(), headers.len().to_string());
-
-        return Ok(TableData {
-            headers,
-            rows,
-            metadata,
-        });
-    }
-
-    // Try to parse as structured table data
-    serde_json::from_str(content)
+    });
+    rows
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_csv_data() {
-        let csv_content = "Name,Age,City\nJohn,25,New York\nJane,30,Los Angeles\nBob,35,Chicago";
-        let table = parse_table_data(csv_content, None);
-
-        assert_eq!(table.headers, vec!["Name", "Age", "City"]);
-        assert_eq!(table.rows.len(), 3);
-        assert_eq!(table.rows[0], vec!["John", "25", "New York"]);
-        assert_eq!(table.rows[2], vec!["Bob", "35", "Chicago"]);
+    fn settings(yaml: &str) -> TableSettings {
+        serde_yaml::from_str(yaml).unwrap()
     }
 
     #[test]
-    fn test_table_rendering() {
-        let data = TableData {
-            headers: vec!["ID".to_string(), "Name".to_string(), "Status".to_string()],
-            rows: vec![
-                vec!["1".to_string(), "Alice".to_string(), "Active".to_string()],
-                vec!["2".to_string(), "Bob".to_string(), "Inactive".to_string()],
-                vec!["3".to_string(), "Charlie".to_string(), "Active".to_string()],
-            ],
-            metadata: HashMap::new(),
-        };
-
-        let config = TableConfig::default();
-        let result = render_table(&data, &config);
-
-        assert!(result.contains("ID"));
-        assert!(result.contains("Alice"));
-        assert!(result.contains("┌"));
-        assert!(result.contains("└"));
+    fn csv_rows_are_trimmed_and_blank_lines_skipped() {
+        let table = parse_table_data("Name, Age\n\nAlice, 30\nBob,25\n", ',');
+        assert_eq!(table.headers, vec!["Name", "Age"]);
+        assert_eq!(table.rows, vec![vec!["Alice", "30"], vec!["Bob", "25"]]);
     }
 
     #[test]
-    fn test_table_filtering() {
-        let data = TableData {
-            headers: vec!["Name".to_string(), "Status".to_string()],
-            rows: vec![
-                vec!["Alice".to_string(), "Active".to_string()],
-                vec!["Bob".to_string(), "Inactive".to_string()],
-                vec!["Charlie".to_string(), "Active".to_string()],
-            ],
-            metadata: HashMap::new(),
-        };
-
-        let mut filters = HashMap::new();
-        filters.insert("Status".to_string(), "Active".to_string());
-
-        let filtered = apply_filters(&data, &filters);
-        assert_eq!(filtered.len(), 2);
-        assert!(filtered.iter().all(|row| row[1] == "Active"));
+    fn json_columns_keep_the_order_of_the_first_object() {
+        let table =
+            parse_table_data_from_json(r#"[{"name":"a","id":1,"ok":true},{"id":2}]"#).unwrap();
+        assert_eq!(table.headers, vec!["name", "id", "ok"]);
+        assert_eq!(table.rows[0], vec!["a", "1", "true"]);
+        assert_eq!(table.rows[1], vec!["", "2", ""]);
+        assert!(parse_table_data_from_json(r#"{"a": 1}"#).is_err());
     }
 
     #[test]
-    fn test_table_sorting() {
-        let rows = vec![
-            vec!["Charlie".to_string(), "30".to_string()],
-            vec!["Alice".to_string(), "25".to_string()],
-            vec!["Bob".to_string(), "35".to_string()],
-        ];
-        let headers = vec!["Name".to_string(), "Age".to_string()];
-
-        // Sort by name
-        let sorted = apply_sorting(&rows, &headers, &Some("Name".to_string()), true);
-        assert_eq!(sorted[0][0], "Alice");
-        assert_eq!(sorted[2][0], "Charlie");
-
-        // Sort by age (numeric)
-        let sorted = apply_sorting(&rows, &headers, &Some("Age".to_string()), true);
-        assert_eq!(sorted[0][1], "25");
-        assert_eq!(sorted[2][1], "35");
+    fn every_line_of_a_table_has_the_same_width() {
+        let data = parse_table_data("Name,City\nZoë,Zürich\n日本語の名前,東京\nBob,Paris\n", ',');
+        for yaml in [
+            "{}",
+            "show_row_numbers: true",
+            "border_style: double\nshow_row_numbers: true",
+            "border_style: none",
+            "max_column_width: 4",
+        ] {
+            let text = render_table(&data, &settings(yaml));
+            let widths: Vec<usize> = text.lines().map(crate::utils::display_width).collect();
+            assert!(
+                widths.windows(2).all(|w| w[0] == w[1]),
+                "{}:\n{}\n{:?}",
+                yaml,
+                text,
+                widths
+            );
+        }
     }
 
     #[test]
-    fn test_json_parsing() {
-        let json_content = r#"[
-            {"id": 1, "name": "Alice", "active": true},
-            {"id": 2, "name": "Bob", "active": false}
-        ]"#;
-
-        let table = parse_table_data_from_json(json_content).unwrap();
-        assert_eq!(table.rows.len(), 2);
-        assert!(table.headers.contains(&"id".to_string()));
-        assert!(table.headers.contains(&"name".to_string()));
+    fn long_values_are_cut_at_character_boundaries() {
+        // Multi-byte text longer than the column used to be sliced by bytes and panic.
+        let data = parse_table_data("Text\nÄÖÜäöüß日本語テキスト\n", ',');
+        let text = render_table(&data, &settings("max_column_width: 5"));
+        assert!(text.contains("ÄÖÜä…"), "{}", text);
+        let text = render_table(&data, &settings("max_column_width: 4"));
+        assert!(text.contains("ÄÖÜ…"), "{}", text);
+        let data = parse_table_data("Text\n日本語テキスト\n", ',');
+        let text = render_table(&data, &settings("max_column_width: 4"));
+        // Wide characters take two columns: one fits, then the ellipsis, then padding.
+        assert!(text.contains("│ 日…  │"), "{}", text);
     }
 
     #[test]
-    fn test_pagination() {
-        let rows = vec![
-            vec!["1".to_string()],
-            vec!["2".to_string()],
-            vec!["3".to_string()],
-            vec!["4".to_string()],
-            vec!["5".to_string()],
-        ];
+    fn row_numbers_continue_across_pages() {
+        let data = parse_table_data("N\na\nb\nc\nd\ne\n", ',');
+        let text = render_table(
+            &data,
+            &settings(
+                "show_row_numbers: true\npage_size: 2\ncurrent_page: 1\nshow_page_info: true",
+            ),
+        );
+        assert!(text.contains("│ 3   │ c   │"), "{}", text);
+        assert!(text.contains("│ 4   │ d   │"), "{}", text);
+        assert!(!text.contains(" a "), "{}", text);
+        assert!(text.ends_with("Page 2 of 3 (5 rows)"), "{}", text);
+    }
 
-        let pagination = TablePagination {
-            page_size: 2,
-            current_page: 1,
-            show_page_info: true,
-        };
+    #[test]
+    fn zebra_striping_shades_every_other_row() {
+        let data = parse_table_data("N\na\nb\nc\n", ',');
+        let text = render_table(&data, &settings("zebra_striping: true\nborder_style: none"));
+        let lines: Vec<&str> = text.lines().collect();
+        assert!(!lines[1].contains(SHADE_ON));
+        assert!(lines[2].starts_with(SHADE_ON) && lines[2].ends_with(SHADE_OFF));
+        assert!(!lines[3].contains(SHADE_ON));
+    }
 
-        let (paginated, info) = apply_pagination(&rows, &Some(pagination));
-        assert_eq!(paginated.len(), 2);
-        assert_eq!(paginated[0][0], "3");
-        assert_eq!(paginated[1][0], "4");
-        assert!(info.unwrap().contains("Page 2 of 3"));
+    #[test]
+    fn filters_match_whole_values_ignoring_case_and_unknown_columns_match_nothing() {
+        let data = parse_table_data("Name,Dept\nA,Eng\nB,engineering\nC,ENG\n", ',');
+        let text = render_table(&data, &settings("filters: {Dept: eng}"));
+        assert!(
+            text.contains(" A ") && text.contains(" C ") && !text.contains(" B "),
+            "{}",
+            text
+        );
+        let text = render_table(&data, &settings("filters: {Team: x}"));
+        assert!(!text.contains(" A "), "{}", text);
+    }
+
+    #[test]
+    fn sorting_is_numeric_for_numbers_and_textual_otherwise() {
+        let data = parse_table_data("Name,Age\nCarol,9\nAlice,30\nBob,100\n", ',');
+        let text = render_table(&data, &settings("sort_column: Age\nsort_ascending: false"));
+        let bob = text.find("Bob").unwrap();
+        let alice = text.find("Alice").unwrap();
+        let carol = text.find("Carol").unwrap();
+        assert!(bob < alice && alice < carol, "{}", text);
+        let text = render_table(&data, &settings("sort_column: Name"));
+        assert!(text.find("Alice").unwrap() < text.find("Bob").unwrap());
+    }
+
+    #[test]
+    fn short_and_long_rows_fit_the_headers() {
+        let data = parse_table_data("A,B\n1\n2,3,4\n", ',');
+        let text = render_table(&data, &settings("{}"));
+        assert!(!text.contains('4'), "extra cells are dropped: {}", text);
+        assert_eq!(text.lines().count(), 6, "{}", text);
     }
 }

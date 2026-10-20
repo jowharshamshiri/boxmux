@@ -26,14 +26,14 @@ pub enum SocketFunction {
     /// Replaces the configuration of a box. `new_box.id` must equal `box_id`.
     ReplaceBox {
         box_id: String,
-        new_box: Box<MuxBox>,
+        new_box: BoxDefinition,
     },
     /// Adds a box to a layout, at the top level or inside `parent_id`.
     AddBox {
         layout_id: String,
         #[serde(default)]
         parent_id: Option<String>,
-        muxbox: Box<MuxBox>,
+        muxbox: BoxDefinition,
     },
     /// Removes a box and stops everything running for it.
     RemoveBox { box_id: String },
@@ -60,6 +60,62 @@ pub enum SocketFunction {
 
 fn default_true() -> bool {
     true
+}
+
+/// A box sent in a request, kept as the JSON the sender wrote. Reading one checks it against
+/// the schema like a box in a configuration file, so a missing `position` or a misspelled
+/// field is an error rather than a default.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoxDefinition {
+    json: serde_json::Value,
+    muxbox: Box<MuxBox>,
+}
+
+impl BoxDefinition {
+    pub fn into_muxbox(self) -> MuxBox {
+        *self.muxbox
+    }
+}
+
+impl std::str::FromStr for BoxDefinition {
+    type Err = String;
+
+    fn from_str(json: &str) -> Result<Self, String> {
+        let value: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        BoxDefinition::try_from(value)
+    }
+}
+
+impl TryFrom<serde_json::Value> for BoxDefinition {
+    type Error = String;
+
+    fn try_from(json: serde_json::Value) -> Result<Self, String> {
+        crate::validation::validate_box(&json).map_err(|errors| {
+            errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
+        let muxbox = serde_json::from_value(json.clone()).map_err(|e| e.to_string())?;
+        Ok(BoxDefinition {
+            json,
+            muxbox: Box::new(muxbox),
+        })
+    }
+}
+
+impl Serialize for BoxDefinition {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.json.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for BoxDefinition {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let json = serde_json::Value::deserialize(deserializer)?;
+        BoxDefinition::try_from(json).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -116,6 +172,45 @@ pub struct ProcessStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn boxes_in_requests_are_checked_like_configuration_boxes() {
+        let request = |muxbox: &str| {
+            serde_json::from_str::<SocketFunction>(&format!(
+                r#"{{"command":"add_box","layout_id":"l","muxbox":{}}}"#,
+                muxbox
+            ))
+        };
+        let missing_position = request(r#"{"id": "b"}"#).unwrap_err().to_string();
+        assert!(
+            missing_position.contains("position"),
+            "{}",
+            missing_position
+        );
+        let misspelled = request(
+            r#"{"id": "b", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"}, "titel": "x"}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(misspelled.contains("titel"), "{}", misspelled);
+        let nested = request(
+            r#"{"id": "b", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"},
+                "children": [{"id": "c", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"}, "border_color": "pink"}]}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            nested.contains("children[0] ('c').border_color"),
+            "{}",
+            nested
+        );
+        // A valid box is sent on as written: unset fields stay unset rather than null.
+        let valid =
+            request(r#"{"id": "b", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"}}"#)
+                .unwrap();
+        let sent = serde_json::to_value(&valid).unwrap();
+        assert_eq!(sent["muxbox"].as_object().unwrap().len(), 2);
+    }
 
     #[test]
     fn requests_use_snake_case_command_names() {
@@ -180,10 +275,9 @@ mod tests {
     /// One request of every command, with every optional field set.
     fn samples() -> Vec<SocketFunction> {
         let muxbox = || {
-            Box::new(MuxBox {
-                id: "b".into(),
-                ..MuxBox::default()
-            })
+            r#"{"id": "b", "position": {"x1": "0", "y1": "0", "x2": "10", "y2": "5"}}"#
+                .parse::<BoxDefinition>()
+                .unwrap()
         };
         let id = || "b".to_string();
         vec![

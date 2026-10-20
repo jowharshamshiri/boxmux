@@ -514,3 +514,271 @@ app:
         );
     }
 }
+
+/// Pastes "hello" into a terminal program that turns bracketed paste on or off first, and
+/// returns what the program read.
+#[cfg(unix)]
+fn paste_into_terminal(mode: char) -> String {
+    let yaml = format!(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: term
+          position: {{x1: "0", y1: "0", x2: "59", y2: "9"}}
+          tab_order: 1
+          execution_mode: Pty
+          script:
+            - printf '\033[?2004{}ready\n'
+            - read -r line
+            - printf 'got[%s]\n' "$line" | cat -v
+            - sleep 5
+"#,
+        mode
+    );
+    let mut runtime = runtime(&yaml, 60, 10);
+    pump_until(&mut runtime, "the program", |r| screen_contains(r, "ready"));
+    runtime.handle(Event::Input(TermEvent::Paste("hello\r".to_string())));
+    pump_until(&mut runtime, "the paste", |r| screen_contains(r, "got["));
+    let rows = runtime.display.rows();
+    runtime.executor.kill_all();
+    rows.into_iter()
+        .find(|row| row.contains("got["))
+        .unwrap()
+        .trim()
+        .trim_matches('│')
+        .trim()
+        .to_string()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_paste_is_bracketed_only_for_programs_that_asked() {
+    let bracketed = paste_into_terminal('h');
+    assert!(bracketed.contains("got[^[[200~hello]"), "{}", bracketed);
+    let plain = paste_into_terminal('l');
+    assert!(plain.contains("got[hello]"), "{}", plain);
+}
+
+use crate::socket::protocol::SocketFunction;
+
+/// A file in the temporary directory that scripts append to, removed when dropped.
+#[cfg(unix)]
+struct RunLog(std::path::PathBuf);
+
+#[cfg(unix)]
+impl RunLog {
+    fn new(name: &str) -> Self {
+        let path =
+            std::env::temp_dir().join(format!("boxmux-runlog-{}-{}", name, std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        RunLog(path)
+    }
+
+    fn runs(&self) -> usize {
+        std::fs::read_to_string(&self.0)
+            .map(|text| text.lines().count())
+            .unwrap_or(0)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for RunLog {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn boxes_of_a_hidden_layout_do_not_refresh() {
+    let log = RunLog::new("hidden");
+    let yaml = format!(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: a
+          position: {{x1: "0", y1: "0", x2: "39", y2: "9"}}
+          content: main
+    - id: other
+      children:
+        - id: b
+          position: {{x1: "0", y1: "0", x2: "39", y2: "9"}}
+          refresh_interval: 50
+          script: ["echo x >> '{}'"]
+"#,
+        log.0.display()
+    );
+    let mut runtime = runtime(&yaml, 40, 10);
+    // Nothing of the hidden layout runs at start.
+    let start = Instant::now();
+    pump_until(&mut runtime, "a moment", |_| {
+        start.elapsed() > Duration::from_millis(300)
+    });
+    assert_eq!(log.runs(), 0);
+    // Shown, it refreshes.
+    assert!(
+        runtime
+            .handle_socket(SocketFunction::SwitchActiveLayout {
+                layout_id: "other".into()
+            })
+            .ok
+    );
+    pump_until(&mut runtime, "refreshes", |_| log.runs() >= 2);
+    // Hidden again, it stops.
+    assert!(
+        runtime
+            .handle_socket(SocketFunction::SwitchActiveLayout {
+                layout_id: "main".into()
+            })
+            .ok
+    );
+    pump_until(&mut runtime, "the last run", |r| {
+        r.executor
+            .run_for_origin(&crate::model::stream::RunOrigin::BoxScript { box_id: "b".into() })
+            .is_none()
+    });
+    let hidden = log.runs();
+    let start = Instant::now();
+    pump_until(&mut runtime, "a moment", |_| {
+        start.elapsed() > Duration::from_millis(300)
+    });
+    assert_eq!(log.runs(), hidden);
+}
+
+#[test]
+fn replacing_a_script_keeps_the_other_tabs_and_starts_refreshing() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      refresh_interval: 100
+      children:
+        - id: a
+          position: {x1: "0", y1: "0", x2: "59", y2: "9"}
+          content: static
+"#;
+    let mut runtime = runtime(yaml, 60, 10);
+    let socket = runtime.handle_socket(SocketFunction::ReplaceBoxContent {
+        box_id: "a".into(),
+        content: "from socket".into(),
+        success: true,
+    });
+    assert!(socket.ok);
+    let reply = runtime.handle_socket(SocketFunction::ReplaceBoxScript {
+        box_id: "a".into(),
+        script: vec!["echo replaced".into()],
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    pump_until(&mut runtime, "the script output", |r| {
+        screen_contains(r, "replaced")
+    });
+    let labels: Vec<String> = runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("a")
+        .unwrap()
+        .streams
+        .values()
+        .map(|s| s.label.clone())
+        .collect();
+    assert_eq!(labels, vec!["Content", "Socket", "Output"]);
+    // The layout's refresh_interval applies to the new script.
+    let refresh = runtime.refresh.get("a").expect("the script is scheduled");
+    assert_eq!(refresh.interval, Some(Duration::from_millis(100)));
+}
+
+#[test]
+fn refresh_control_names_what_is_wrong() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: once
+          position: {x1: "0", y1: "0", x2: "39", y2: "4"}
+          script: ["echo once"]
+        - id: plain
+          position: {x1: "0", y1: "5", x2: "39", y2: "9"}
+          content: text
+    - id: later
+      children:
+        - id: periodic
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          refresh_interval: 1000
+          script: ["echo periodic"]
+"#;
+    let mut runtime = runtime(yaml, 40, 10);
+    let error = |reply: crate::socket::protocol::Reply| reply.error.unwrap_or_default();
+    let stop = |id: &str| SocketFunction::StopBoxRefresh { box_id: id.into() };
+    assert!(error(runtime.handle_socket(stop("missing"))).contains("there is no box 'missing'"));
+    assert!(error(runtime.handle_socket(stop("plain"))).contains("has no script"));
+    assert!(error(runtime.handle_socket(stop("once"))).contains("does not refresh"));
+    // A box of a layout that was never shown can be paused before it is shown.
+    assert!(runtime.handle_socket(stop("periodic")).ok);
+    assert!(runtime.refresh["periodic"].paused);
+    assert!(
+        runtime
+            .handle_socket(SocketFunction::StartBoxRefresh {
+                box_id: "periodic".into()
+            })
+            .ok
+    );
+    assert!(!runtime.refresh["periodic"].paused);
+}
+
+#[test]
+fn process_queries_refuse_tabs_without_a_process_and_invalid_signals() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: a
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          content: text
+"#;
+    let mut runtime = runtime(yaml, 40, 10);
+    let reply = runtime.handle_socket(SocketFunction::QueryPtyStatus { box_id: "a".into() });
+    assert!(!reply.ok);
+    assert!(reply.error.unwrap().contains("does not show a process"));
+    for signal in [0, -9] {
+        assert!(runtime
+            .executor
+            .signal(crate::model::stream::RunId(1), signal)
+            .unwrap_err()
+            .contains("not a signal number"));
+    }
+}
+
+#[test]
+fn a_box_added_over_the_socket_must_use_a_loaded_plugin() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: a
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          content: text
+"#;
+    let mut runtime = runtime(yaml, 40, 10);
+    let muxbox = r#"{"id": "g", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"}, "plugin_component": "gauge"}"#;
+    let reply = runtime.handle_socket(SocketFunction::AddBox {
+        layout_id: "main".into(),
+        parent_id: None,
+        muxbox: muxbox.parse().unwrap(),
+    });
+    assert!(!reply.ok);
+    assert!(reply.error.unwrap().contains("plugin component 'gauge'"));
+    assert!(runtime.ctx.app.get_muxbox_by_id("g").is_none());
+}
