@@ -1,0 +1,19 @@
+# The suite on Linux arm64.
+apiVersion: test.machinegenesis.dev/v1
+kind: TestPlan
+metadata:
+  name: arm64
+targets:
+  linux-arm64:
+    uses: ubuntu-2604-arm64-pve
+    resources: {cpu: 4, memory: 8GiB, disk: 64GiB}
+    caches:
+      tools: {}
+      target: {}
+tasks:
+  test-linux-arm64:
+    target: linux-arm64
+    shell: bash
+    command: sh mg-test/test.sh
+    results: out/results.jsonl
+    evidence: [out/test.log]

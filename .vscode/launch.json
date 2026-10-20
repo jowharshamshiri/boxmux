@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "layouts/dashboard.yaml"
+                "layouts/system_monitor_pro.yaml"
             ],
             "cwd": "${workspaceFolder}"
         },
