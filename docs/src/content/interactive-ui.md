@@ -1,310 +1,276 @@
 ---
 title: Interactive UI Features
-description: Mouse-driven interface manipulation - box resizing, dragging, cursor styles, scrolling interactions, and real-time YAML persistence for dynamic layouts
+description: Mouse and keyboard interaction in BoxMux - focus, menus, tabs, scrolling, moving and resizing boxes, and how new positions are saved to the YAML file
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Box Resizing](#box-resizing)
-- [Box Movement](#box-movement)
-- [Scrolling Interactions](#scrolling-interactions)
-- [Dynamic Cursor Styles](#dynamic-cursor-styles)
-- [YAML Persistence](#yaml-persistence)
-- [Performance Optimizations](#performance-optimizations)
-- [Practical Examples](#practical-examples)
+- [Focus and Keyboard](#focus-and-keyboard)
+- [Menus](#menus)
+- [Tabs](#tabs)
+- [Scrolling](#scrolling)
+- [Moving and Resizing Boxes](#moving-and-resizing-boxes)
+- [Saving Positions to the YAML File](#saving-positions-to-the-yaml-file)
+- [Hover Highlighting](#hover-highlighting)
+- [Overlapping Boxes](#overlapping-boxes)
+- [Terminal Boxes](#terminal-boxes)
+- [Copying Text](#copying-text)
+- [Notices](#notices)
+- [Practical Example](#practical-example)
 
 ## Overview
 
-BoxMux provides comprehensive mouse-driven interface manipulation, allowing users to modify layouts interactively without editing YAML files. All changes are automatically persisted to the original configuration files.
+BoxMux reads keyboard and mouse input from the terminal. With the mouse you can:
 
-**Interactive Features:**
-- **Box resizing** by dragging corners
-- **Box movement** by dragging title bars
-- **Scrolling** with sensitive scrollbars and drag-to-scroll
-- **Hover highlighting** on every clickable element, out of the box
-- **Mouse-wheel scrolling** of whichever box is under the cursor
-- **Dynamic cursor styles** that change based on interaction zones
-- **Real-time YAML synchronization** for persistent changes
-- **Performance optimizations** for smooth interactions
+- click a box to focus it
+- click a menu entry to run it
+- click tabs to switch between them, and `×` to close one
+- scroll with the wheel, the scrollbars, or by dragging a scrollbar knob
+- move a box by dragging its top border
+- resize a box by dragging its bottom-right corner
 
-## Box Resizing
+Moved and resized boxes are written back to the YAML file, so the new layout is there the next time you start BoxMux. Start with `--lock` to turn moving and resizing off; BoxMux then never writes the file.
 
-### Corner Dragging
-Resize boxes by clicking and dragging the **bottom-right corner**:
+The terminal must report mouse events; almost all current terminal emulators do.
 
-```yaml
-- id: 'resizable_box'
-  title: 'Drag Corner to Resize'
-  position: {x1: 10%, y1: 10%, x2: 60%, y2: 60%}
-  content: 'Drag the bottom-right corner to resize this box'
-```
+## Focus and Keyboard
 
-**Interaction:**
-1. **Hover** over bottom-right corner → cursor changes to resize indicator (■)
-2. **Click and drag** → box resizes in real-time with visual feedback  
-3. **Release** → new dimensions automatically saved to YAML file
+One box at a time has the focus. Its border uses the focus color (the theme's blue, or `selected_border_color`), and keys act on it.
 
-### Size Constraints
-- **Minimum size**: 2x2 characters to ensure usability
-- **Terminal boundaries**: Cannot resize beyond terminal dimensions
-- **Proportional scaling**: Width and height adjust based on drag direction
+- At start, the focus is on the box with `selected: true`, or else on the box with the lowest `tab_order`. When neither exists, no box has the focus until you click one.
+- Tab moves the focus to the next box in `tab_order` and Shift+Tab to the previous one, wrapping around. Boxes without `tab_order` are skipped (clicking still focuses them).
+- A box's `next_focus_id` overrides the order for Tab: pressing Tab in that box moves to the named box, which must be in the same layout.
 
-### Z-Index Layering
-Boxes with higher `z_index` values appear on top and receive resize interactions first:
+| Key | Action |
+|-----|--------|
+| `q` | Quit (without modifiers; a focused terminal box receives it instead) |
+| Tab / Shift+Tab | Next / previous box |
+| Up / Down | Move the menu selection; in other boxes, scroll one line |
+| Enter | Run the selected menu entry |
+| Left / Right | Scroll one column |
+| PageUp / PageDown | Scroll one page up / down |
+| Shift+PageUp / Shift+PageDown | Scroll one page left / right |
+| Home / End | Scroll to the left / right end |
+| Ctrl+Home / Ctrl+End | Scroll to the top / bottom |
+| Ctrl+C (Cmd+C where the terminal passes it) | Copy the focused box's text to the clipboard |
+| Ctrl+Z | Suspend BoxMux (Unix); `fg` resumes it |
 
-```yaml
-- id: 'background_box'
-  z_index: 1
-  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
-  
-- id: 'foreground_box'  
-  z_index: 2
-  position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
-  # This box can be resized even when overlapping background_box
-```
-
-## Box Movement
-
-### Title Bar Dragging
-Move boxes by clicking and dragging the **title bar** or **top border**:
+Keys also run `hot_keys` and `on_keypress` handlers; see [Key Bindings](/docs/user-guide#key-bindings).
 
 ```yaml
-- id: 'movable_box'
-  title: 'Drag Title to Move'
-  position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
-  content: 'Drag the title bar to move this box around'
+app:
+  layouts:
+    - id: 'focus_demo'
+      root: true
+      children:
+        - id: 'menu'
+          title: 'Menu (Tab 1)'
+          position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+          tab_order: 1
+          next_focus_id: 'details'   # Tab from here goes to 'details', skipping 'log'
+          choices:
+            - id: 'one'
+              content: 'First'
+              script: ['echo first']
+              redirect_output: 'details'
+        - id: 'log'
+          title: 'Log (Tab 2)'
+          position: {x1: 30%, y1: 0%, x2: 65%, y2: 100%}
+          tab_order: 2
+          content: 'Shift+Tab reaches this box from details'
+        - id: 'details'
+          title: 'Details (Tab 3)'
+          position: {x1: 65%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 3
+          content: 'Output appears here'
 ```
 
-**Interaction:**
-1. **Hover** over title bar → cursor changes to move indicator (_)
-2. **Click and drag** → box follows mouse with real-time preview
-3. **Release** → new position automatically saved to YAML file
+## Menus
 
-### Movement Constraints  
-- **Boundary limits**: Box cannot be moved outside terminal bounds
-- **Minimum visibility**: At least title bar must remain visible
-- **Grid snapping**: Optional snap-to-grid for precise alignment
+A box with `choices` shows them as a menu. The selected entry is marked with `►` and drawn in the selected-menu colors (`selected_menu_fg_color`, `selected_menu_bg_color`).
 
-## Scrolling Interactions
+- Up and Down move the selection, wrapping at the ends, and scroll the menu to keep it in view.
+- Enter runs the selected entry. Clicking an entry selects and runs it. Only the label is clickable, not the empty space after it.
+- While an entry's script runs, the entry shows ` …`. Running it again while it runs only brings its output tab into view.
 
-### Sensitive Scrollbars
-Click scrollbar areas to jump to specific positions:
+With `overflow_behavior: wrap`, long labels wrap and continue under the label, not under the `►` marker. With `truncate` they are cut with `…`.
+
+## Tabs
+
+A box that has more than one stream (its content, its menu, its script output, output of choices and key handlers, socket content) shows a tab bar in its top border instead of the title.
+
+- Click a tab to show it. Hidden tabs keep receiving output.
+- Tabs with a `×` can be closed: output of choices, key handlers, redirected scripts, socket content and spawned terminals. Closing a tab stops the process that feeds it. The box's own content, menu and script output cannot be closed.
+- When the tabs do not fit, `◀` and `▶` appear at the ends of the bar; click them to scroll the bar. The last tab can always be scrolled into view.
+- When a choice or key handler starts, its tab becomes the shown tab.
+
+See [Stream Architecture](/docs/stream-architecture) for how tabs are created and labelled.
+
+## Scrolling
+
+With `overflow_behavior: scroll` (the default), content larger than the box gets scrollbars drawn on the right and bottom border: `█` and `■` are the knobs, `│` and `─` the tracks.
+
+| Mouse action | Result |
+|--------------|--------|
+| Wheel up / down | Scroll 3 lines |
+| Wheel left / right (horizontal wheel or tilt) | Scroll 3 columns |
+| Click on a scrollbar track | Jump so the knob is centered on the clicked cell |
+| Drag a scrollbar knob | Scroll with the knob |
+
+The wheel scrolls the box under the pointer, whether or not it has the focus.
+
+With `overflow_behavior: wrap` there is only vertical scrolling. With `truncate` there is no scrolling.
+
+`vertical_scroll` and `horizontal_scroll` (0 to 100, in percent) set where a box starts scrolled to. `auto_scroll_bottom: true` scrolls to the bottom whenever new output arrives in the shown tab; terminal tabs always do this.
 
 ```yaml
-- id: 'scrollable_content'
-  title: 'Scrollable Box'
-  content: |
-    Line 1 of many lines
-    Line 2 of many lines
-    ... many more lines ...
-    Line 100 of many lines
-  overflow_behavior: 'scroll'
+- id: 'long_text'
+  title: 'Scroll Me'
+  position: {x1: 10%, y1: 10%, x2: 50%, y2: 40%}
+  overflow_behavior: scroll
+  vertical_scroll: 100       # Start at the bottom
+  script:
+    - seq 1 200
 ```
 
-**Scrollbar Interactions:**
-- **Click scrollbar track** → jump to clicked position
-- **Click above thumb** → page up
-- **Click below thumb** → page down
+## Moving and Resizing Boxes
 
-### Drag-to-Scroll
-Click and drag the scrollbar thumb for smooth scrolling:
+### Moving
 
-**Thumb Dragging:**
-1. **Click scrollbar thumb** → cursor changes, thumb highlights
-2. **Drag vertically** → content scrolls proportionally
-3. **Release** → scroll position maintained
+Press the left button on the box's top border, outside any tab, and drag. The box follows the pointer and stops at the edges of its parent (the enclosing box, or the screen); its size does not change.
 
-### Mouse Wheel Support
-- **Wheel up/down** → scroll content vertically
-- **Shift + wheel** → scroll content horizontally (where applicable)
-- **Scrolls the box under the cursor** → the wheel acts on whichever scrollable box the pointer is over, even if it is not the focused box, so you can scroll one panel while another stays focused
+### Resizing
+
+The bottom-right corner of a resizable box is drawn as `⋱`. Drag it to change the box's width and height. The top-left corner stays in place, the box cannot become smaller than 3 by 3 cells, and it cannot grow past the edges of its parent.
+
+With `--lock`, the corner is drawn as `┘` and neither moving nor resizing is possible.
+
+Nested boxes are positioned relative to their parent, so they move and scale with it.
+
+## Saving Positions to the YAML File
+
+When you release the mouse after moving or resizing a box, BoxMux writes the box's new `position` into the YAML file it was started with:
+
+```yaml
+# Before
+- id: 'demo_box'
+  position: {x1: 10%, y1: 10%, x2: 50%, y2: 50%}   # main panel
+
+# After resizing the box
+- id: 'demo_box'
+  position: {x1: "10%", y1: "10%", x2: "75%", y2: "65%"}   # main panel
+```
+
+- Only the `position` of that box changes. Comments, key order and the rest of the file are left as they were.
+- Each edge keeps its unit: a percentage stays a percentage, a cell count stays a cell count.
+- Before writing, BoxMux checks that the edited file still parses and differs from the original only in that position. If the box's id appears more than once in the file, or its `position` cannot be found, nothing is written and a notice says why.
+- The file is replaced atomically (written to a temporary file in the same directory, then renamed), with its permissions kept.
+- BoxMux does not reload the file while it runs. Edits you make in an editor meanwhile are kept, because BoxMux reads the file again before each save and changes only the position.
+
+While BoxMux runs without `--lock`, it holds an exclusive lock on `<config>.lock` next to the YAML file, so a second instance cannot write the same file. That second instance refuses to start; run it with `--lock` to view the same file without editing it. The lock file is removed when BoxMux exits.
+
+Scroll positions, the shown tab and the focused box are not saved.
 
 ## Hover Highlighting
 
-Every element you can click highlights when the mouse is over it, with no styling required — boxes, menu choices, stream tabs, tab close buttons, and scrollbar knobs all show a hover affordance using the active theme's colors.
+The element under the mouse pointer is highlighted:
 
-- **Out of the box**: Hover works on a plain configuration with no color fields; the highlight colors come from the [automatic theme](styling/theme).
-- **Reliable clear**: Highlights are mutually exclusive and cleared promptly when the pointer moves away, so a stale highlight never lingers on a box you have left.
-- **Discoverability**: Because anything clickable lights up on hover, the hover state doubles as a hint for what is interactive.
-
-## Dynamic Cursor Styles
-
-The cursor automatically changes based on the mouse position to indicate available interactions:
-
-### Cursor Types
-
-| Cursor Style | Interaction Zone | Purpose |
-|--------------|------------------|---------|
-| **■ (BlinkingBlock)** | Bottom-right corner | Box resizing |  
-| **_ (BlinkingUnderScore)** | Title bar/top border | Box movement |
-| **\| (BlinkingBar)** | Sensitive choices/buttons | Interactive elements |
-| **→ (DefaultUserShape)** | Default areas | No special interaction |
-
-### Edge Case Handling
-- **100% width panels**: Enhanced detection for resize corners at terminal edge
-- **Overlapping boxes**: Cursor reflects topmost (highest z-index) box interaction
-- **Small boxes**: Cursor zones adapt to available space
-
-## YAML Persistence
-
-### Automatic Synchronization
-All interactive changes are immediately saved to the original YAML configuration:
+- Menu entries, tabs, tab close buttons and the tab bar arrows use the hover colors: black on bright yellow by default, or `highlighted_menu_fg_color` / `highlighted_menu_bg_color`.
+- A box under the pointer uses its `highlighted_*` settings (`highlighted_border_color`, `highlighted_bg_color`, `highlighted_fg_color`, `highlighted_title_fg_color`, `highlighted_title_bg_color`, `highlighted_fill_char`) when they are set. Without them, a hovered box looks the same as when it is not hovered.
 
 ```yaml
-# Original configuration
-- id: 'demo_box' 
+- id: 'hover_demo'
+  title: 'Hover Me'
   position: {x1: 10%, y1: 10%, x2: 50%, y2: 50%}
-
-# After user resizes box → automatically becomes:
-- id: 'demo_box'
-  position: {x1: 10%, y1: 10%, x2: 75%, y2: 65%}
+  highlighted_border_color: 'bright_yellow'
+  highlighted_title_fg_color: 'bright_yellow'
+  content: 'The border turns yellow under the pointer'
 ```
 
-### Preserved Formatting
-- **YAML structure**: Original file formatting and comments preserved
-- **Field order**: Existing field ordering maintained
-- **Indentation**: Consistent with original file style
+Run BoxMux with `--calibrate` to highlight the single cell under the pointer. This helps when a terminal reports mouse positions that are off by a cell.
 
-### Live Synchronization Features
-- **Bounds changes**: Position and size updates
-- **Active layout**: Layout switching persisted
-- **Scroll positions**: Scroll state maintained across restarts
-- **Box properties**: Dynamic property changes saved
+## Overlapping Boxes
 
-### Atomic Operations
-- **File locking**: Prevents corruption during concurrent access
-- **Backup creation**: Temporary backup before writing changes
-- **Validation**: Configuration validated before saving
-- **Rollback**: Automatic rollback on validation failures
+Boxes may overlap. Among siblings, boxes are drawn in order of `z_index` (default 0), lowest first; boxes with the same `z_index` are drawn in the order they appear in the file. A box's children are drawn after it, on top of it.
 
-## Performance Optimizations
+Clicks, hover and the mouse wheel act on the box that is visible at the pointer.
 
-### Smooth Dragging
-BoxMux implements dual-layer optimization for lag-free interactions:
+```yaml
+- id: 'background_box'
+  title: 'Background'
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  content: 'Behind'
 
-**Message Coalescing:**
-- Multiple rapid mouse movements consolidated into single updates
-- Intermediate drag events skipped when queue is full
-- Reduces CPU load during high-frequency mouse input
+- id: 'foreground_box'
+  title: 'Foreground'
+  z_index: 1
+  position: {x1: 20%, y1: 20%, x2: 80%, y2: 80%}
+  content: 'On top: drag my top border or corner'
+```
 
-**60 FPS Throttling:**
-- Screen redraws limited to 16ms intervals during drag operations
-- Provides smooth visual feedback without excessive rendering
-- Automatically disables throttling when interaction ends
+`fill: false` leaves a box's background unpainted, so the boxes beneath show through.
 
-### Memory Management
-- **Efficient redraws**: Only affected screen regions updated
-- **Background processing**: Non-critical updates deferred during interactions
-- **Resource cleanup**: Temporary UI state cleaned up after interactions
+## Terminal Boxes
 
-## Practical Examples
+A box whose shown tab is a running terminal program (`execution_mode: Pty`, or a terminal started through the socket) behaves differently while it has the focus:
 
-### Dashboard Layout Editor
+- Every key except Tab and Shift+Tab goes to the program, including `q`, Ctrl+C and the arrow keys.
+- If the program has turned on mouse reporting (as `htop`, `vim` with `mouse=a`, or `mc` do), mouse clicks, drags and wheel events inside the terminal area go to the program, with coordinates relative to the box. A drag that starts in the program stays with it until the button is released. Otherwise the mouse acts on BoxMux as usual, and the wheel scrolls the terminal's scrollback.
+- The top border and the resize corner still belong to BoxMux, so the box can be moved and resized. The program is told the new size.
+
+## Copying Text
+
+Ctrl+C copies the text of the focused box's shown tab to the clipboard, without color codes; for a menu, it copies the entry labels. BoxMux sends the text to the terminal with the OSC 52 escape sequence and shows "copied N lines". Whether the text reaches the system clipboard depends on the terminal: some need the feature enabled, and some ignore it (see [Troubleshooting](/docs/troubleshooting#copy-to-clipboard-does-nothing)).
+
+Programs running in terminal boxes can copy text the same way; BoxMux passes their OSC 52 requests on to your terminal. Requests to read the clipboard are refused.
+
+## Notices
+
+Short messages appear on the bottom row of the screen for 5 seconds: confirmations such as "copied 12 lines" and errors (in red) such as a failed save, a handler that failed, or a hot key whose choice is not in the shown layout.
+
+## Practical Example
+
 ```yaml
 app:
-  title: 'Interactive Dashboard'
   layouts:
     - id: 'main'
-      active: true
-      boxes:
-        # Header bar - movable and resizable
+      root: true
+      title: 'Interactive Dashboard'
+      children:
         - id: 'header'
           title: 'System Overview'
           z_index: 2
           position: {x1: 0%, y1: 0%, x2: 100%, y2: 15%}
-          content: 'Drag title to move, drag corner to resize'
-          
-        # Left sidebar - can be resized horizontally  
+          content: 'Drag a top border to move a box, a ⋱ corner to resize it'
+
         - id: 'sidebar'
           title: 'Controls'
-          z_index: 1
           position: {x1: 0%, y1: 15%, x2: 25%, y2: 100%}
+          tab_order: 1
           choices:
-            - id: 'monitor_cpu'
-              script: ['top -l 0 -s 1']
+            - id: 'processes'
+              content: 'Processes'
+              script: ['ps aux | head -n 40']
               redirect_output: 'main_display'
-              
-        # Main display area - resizable content area
+            - id: 'cpu_watch'
+              content: 'Watch Load'
+              execution_mode: Thread
+              script:
+                - while true; do uptime; sleep 1; done
+              redirect_output: 'main_display'
+
         - id: 'main_display'
           title: 'Output'
-          z_index: 1
           position: {x1: 25%, y1: 15%, x2: 100%, y2: 100%}
-          content: 'Main content area - fully interactive'
-          overflow_behavior: 'scroll'
-          auto_scroll: true
+          content: 'Pick a control on the left'
+          auto_scroll_bottom: true
+          highlighted_border_color: 'bright_cyan'
 ```
 
-**Interactive Features:**
-- **Resize sidebar**: Drag right edge to adjust sidebar width
-- **Move header**: Drag title bar to reposition header
-- **Scroll main area**: Use scrollbars or mouse wheel in main display
-- **Auto-save**: All layout changes saved to `dashboard.yaml`
+Try it:
 
-### Development Environment
-```yaml
-- id: 'editor_area'
-  title: 'Editor Simulation'
-  z_index: 3
-  position: {x1: 5%, y1: 5%, x2: 70%, y2: 85%}  
-  content: 'Main editor area (drag to move/resize)'
-  
-- id: 'file_tree'
-  title: 'Files'
-  z_index: 2  
-  position: {x1: 70%, y1: 5%, x2: 95%, y2: 50%}
-  choices:
-    - id: 'src'
-      script: ['find src -name "*.rs"']
-      redirect_output: 'editor_area'
-      
-- id: 'terminal'
-  title: 'Terminal'
-  z_index: 2
-  position: {x1: 70%, y1: 50%, x2: 95%, y2: 85%}
-  pty: true
-  script: ['bash']
-  
-- id: 'status'
-  title: 'Status'
-  z_index: 1
-  position: {x1: 5%, y1: 85%, x2: 95%, y2: 95%}
-  content: 'Ready - layout changes auto-saved'
-```
-
-**Workflow:**
-1. **Adjust layout**: Resize editor, file tree, and terminal panes by dragging corners
-2. **Reposition panels**: Move panels by dragging title bars  
-3. **Layer management**: Higher z_index panels can be resized over lower ones
-4. **Persistent setup**: Layout changes saved to config file for next session
-
-### Multi-Monitor Simulation
-```yaml
-# Simulate multiple monitor regions with interactive boundaries
-- id: 'monitor1'
-  title: 'Monitor 1 (Primary)'
-  z_index: 1
-  position: {x1: 0%, y1: 0%, x2: 60%, y2: 100%}
-  content: 'Primary display - drag border to adjust split'
-  
-- id: 'monitor2' 
-  title: 'Monitor 2 (Secondary)'
-  z_index: 1
-  position: {x1: 60%, y1: 0%, x2: 100%, y2: 100%}
-  content: 'Secondary display'
-  
-- id: 'floating_window'
-  title: 'Floating Window'
-  z_index: 5
-  position: {x1: 30%, y1: 20%, x2: 80%, y2: 60%}
-  content: 'Movable window that can float over both monitors'
-```
-
-**Usage:**
-- **Adjust monitor split**: Resize monitor1 to change the split point
-- **Float windows**: Move floating_window between "monitor" regions
-- **Z-index layering**: Floating window appears over monitor backgrounds
-
----
-
-The interactive UI system makes BoxMux layouts fully dynamic while maintaining the simplicity of YAML configuration through automatic persistence.
+1. Click "Watch Load": a tab with that name opens in the output box and gains a line every second.
+2. Click "Processes": a second tab opens. Click between the two tabs; the hidden one keeps updating.
+3. Click `×` on the "Watch Load" tab to stop the loop.
+4. Drag the output box's `⋱` corner, then quit with `q` and look at its `position` in the file.

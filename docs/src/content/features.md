@@ -1,148 +1,133 @@
 ---
 title: Features
-description: Overview of BoxMux capabilities for building terminal user interfaces
+description: Overview of what BoxMux does, with links to the pages that describe each part.
 ---
 
 
-## Core Framework Features
+This page lists what BoxMux does today. Each section links to the page with the details.
 
-### YAML Configuration System
-- **Interface Design**: Define terminal layouts using YAML configuration files
-- **Nested Box Hierarchy**: Create layouts with parent-child box relationships and automatic bounds calculation
-- **Multi-Layout Support**: Switch between different layouts dynamically with root/active layout management
-- **Schema Validation**: Built-in JSON schema validation ensures configuration correctness
-- **Live Configuration Updates**: Modify YAML files and see changes reflected in real-time
+## Configuration
 
-### Interactive Box Components
-- **Flexible Positioning**: Percentage-based and absolute positioning with anchor system support (TopLeft, Center, etc.)
-- **Dynamic Resizing**: Interactive box resizing with mouse drag support and automatic YAML persistence
-- **Automatic Theming**: Light/dark theme auto-detected from the terminal with readable defaults rendered out of the box (no color fields required), overridable with `--light` / `--dark`; highlights use palette-safe colors that render consistently across terminal color schemes
-- **Border Styling**: Theme-aware defaults plus customizable borders with 16 ANSI colors and bright variants
-- **Focus Management**: Tab order navigation with configurable focus chains; the focused box is marked with a distinct border and tab color
-- **Overflow Handling**: Multiple overflow behaviors including scroll, wrap, fill, and cross_out modes
+- One YAML file describes the whole interface: `app` holds `layouts`, and layouts hold boxes,
+  which can hold more boxes.
+- The file is checked when it is loaded: against a JSON schema, then for consistency (unique
+  ids, existing `redirect_output` and `next_focus_id` targets, `min_*` not larger than
+  `max_*`, and so on). Unknown keys are errors. Errors name the location, for example
+  `app.layouts[0] ('main').children[1] ('logs').border_color`; YAML syntax errors show the line
+  and column.
+- Variables: `${NAME}` and `${NAME:default}` are substituted in every string, with values from
+  the box, its enclosing boxes, the layout, the app and the environment. See
+  [Variables](/docs/variables).
 
-## Script Execution & Automation
+See the [Configuration Reference](/docs/configuration).
 
-### Real-time Script Execution
-- **Background Threading**: Execute shell scripts in dedicated threads with configurable refresh intervals
-- **Live Output Streaming**: Stream script output incrementally as it's generated
-- **Output Redirection**: Route script output between different boxes with `redirect_output` and `append_output`
-- **Error Handling**: Graceful handling of script failures with visual error state indication
-- **Library Support**: Include external script libraries with the `libs` field
+## Layouts and boxes
 
-### Execution Features
-- **Choice-based Actions**: Execute scripts from interactive menu selections
-- **Hot Key Actions**: Global keyboard shortcuts to trigger actions
-- **Conditional Execution**: Script execution based on system state and environment variables
-- **Multi-threaded Processing**: Concurrent script execution across multiple boxes
+- Several layouts per file. The layout marked `root: true` (or the first one) is shown at
+  start; another can be shown with the `switch_active_layout` control command.
+- Box positions (`x1`, `y1`, `x2`, `y2`) are percentages of the parent (`"50%"`, up to two
+  decimals) or cell counts written as strings (`"12"`).
+- `anchor`, `min_width`, `min_height`, `max_width` and `max_height` constrain a box's size
+  around a fixed point.
+- `z_index` decides which of two overlapping sibling boxes is drawn on top.
+- `overflow_behavior`: `scroll` (default, with scrollbars on the border), `wrap` or `truncate`.
+- `title_position`: `left`, `center` or `right`.
+- Colors: 16 ANSI color names for borders, text, titles and menus, with separate settings for
+  the focused box (`selected_*`), the box under the pointer (`highlighted_*`) and boxes whose
+  last run failed (`error_*`). Colors are inherited from enclosing boxes and the layout.
+- A light and a dark default theme. The theme follows the terminal background (asked with
+  OSC 11 on Unix, or read from `COLORFGBG`), or is forced with `--light` / `--dark`.
 
-## PTY (Pseudo-Terminal) Integration
+## Scripts
 
-### Interactive Terminal Support
-- **PTY Integration**: Run interactive programs like vim, htop, SSH, and bash sessions
-- **ANSI Processing**: ANSI escape sequence handling with color support and cursor management
-- **Input Routing**: Direct keyboard input to focused PTY processes with special key support
-- **Process Management**: Process lifecycle control including spawn, kill, and restart operations
+- `script` runs in a shell (`bash` by default on Unix, PowerShell on Windows; set with
+  `app.shell`).
+- `refresh_interval` (milliseconds) reruns it; a run still in progress is not started again.
+  Intervals are inherited from enclosing boxes and the layout.
+- `execution_mode`: `Immediate` (default; output shown when the script ends), `Thread` (output
+  streamed line by line) or `Pty` (an interactive terminal).
+- `redirect_output` sends the output to another box, `append_output` appends instead of
+  replacing, `auto_scroll_bottom` keeps the newest line in view, and `save_in_file` writes the
+  output to a file.
+- `libs` lists script files sourced before every script.
+- Scripts get `BOXMUX_SOCKET` and `BOXMUX_BOX` in their environment.
+- When BoxMux exits, every process it started is stopped (whole process groups on Unix,
+  process trees on Windows).
 
-### PTY Features
-- **Scrollback Buffer**: Circular buffer storage for PTY output with configurable capacity (default 10,000 lines)
-- **Error Recovery**: Fallback system that avoids problematic PTY usage after failures
-- **Visual Indicators**: Lightning bolt (⚡) prefix and color-coded borders for PTY-enabled boxes
-- **Process Information**: Display of running process details in box titles
+## Menus, keys and tabs
 
-## Socket API & Remote Control
+- `choices` are menu entries. Enter or a click on the label runs the selected entry; its
+  output opens a tab in the box (or in the `redirect_output` box), and the entry shows ` …`
+  while it runs.
+- `hot_keys` bind key names to choice ids; `on_keypress` binds key names to scripts in the
+  app, a layout or a box.
+- A box with several outputs shows them as tabs in its top border. Tabs opened by runs can be
+  closed with `×`, which also stops their process.
 
-### Unix Socket Server
-- **Remote Control Interface**: Control BoxMux applications via Unix socket commands
-- **CLI**: Command-line interface for socket operations
-- **Real-time Updates**: Update box content, scripts, and configurations remotely
-- **Layout Management**: Switch layouts and manage box hierarchies via socket commands
+See [Interactive UI](/docs/interactive-ui) and [Stream Architecture](/docs/stream-architecture).
 
-### Socket API Operations
-- **Content Management**: `replace-box-content`, `replace-box-script` commands
-- **Box Management**: `add-box`, `remove-box`, `replace-box` operations  
-- **PTY Control**: `spawn-pty`, `kill-pty`, `restart-pty`, `send-pty-input` commands
-- **Process Monitoring**: `query-pty-status` for detailed process information
-- **Refresh Control**: `start-box-refresh`, `stop-box-refresh` commands
-- **Stream Control**: `close-stream`, `switch-stream`, `list-streams` commands
+## Embedded terminals
 
-## User Interface & Interaction
+- `execution_mode: Pty` runs a program in a pseudo-terminal sized to the inside of the box.
+- The focused terminal receives every key except Tab and Shift+Tab, and pasted text. Mouse
+  events reach the program when it asks for mouse reporting.
+- The emulator handles 256 and 24-bit color, the alternate screen, scroll regions, line drawing
+  characters, wide characters, mouse modes and window titles (shown as the tab label), and
+  keeps scrollback.
+- Terminal processes can be started, stopped, restarted, queried and sent input through the
+  control socket.
 
-### Mouse Support
-- **Click Interactions**: Click to select boxes, activate menu items, and trigger actions
-- **Hover Affordance**: Every clickable element (boxes, menu items, tabs, close buttons, scrollbar knobs) highlights on hover by default, with no styling required
-- **Scrollbar Controls**: Interactive scrollbars with click-to-jump and drag-to-scroll support
-- **Mouse Wheel Scrolling**: The wheel scrolls whichever box is under the cursor, even when it is not the focused box
-- **Border Dragging**: Resize boxes interactively by dragging borders with real-time feedback
-- **Dynamic Cursor Styles**: Context-sensitive cursor shapes for different interactive elements
-- **Performance Optimized**: Message coalescing and 60 FPS throttling for smooth drag operations
+See [PTY Features](/docs/pty-features).
 
-### Keyboard Navigation
-- **Key Support**: Arrow keys, page up/down, home/end with modifier key combinations
-- **Focus Chain Navigation**: Tab/Shift+Tab navigation through focusable elements
-- **Special Key Handling**: F1-F24, Ctrl/Alt/Shift combinations for PTY applications
-- **Global Shortcuts**: Configurable application-level key bindings
-- **Platform-specific Support**: Key handling for macOS (Cmd) and Linux/Windows (Ctrl)
+## Charts, tables and plugins
 
-## Data Visualization & Content
+- Charts: `chart_type` `bar`, `line`, `histogram`, `pie` or `scatter`, with data from
+  `chart_data` or the box's script output.
+- Tables: `table_data` in CSV or JSON (or the script output), with `table_config` for
+  sorting, filtering, paging, border styles, row numbers and column widths.
+- Plugins: shared libraries with a C interface draw the content of boxes that set
+  `plugin_component`.
 
-### Content Types
-- **Table System**: CSV/JSON data parsing with sorting, filtering, and pagination support
-- **Chart Library**: Unicode-based charts including bar, line, and histogram visualizations
-- **Plugin System**: Dynamic loading of custom components with security validation
-- **Text Processing**: Text wrapping with word boundary preservation
-- **Content Streaming**: Auto-scroll to bottom for log files and streaming output
+See [Data Visualization](/docs/data-visualization) and [Plugin System](/docs/plugin-system).
 
-### Variable & Template System
-- **Hierarchical Variables**: Environment, application, layout, and box-level variable support
-- **Template Substitution**: Dynamic content generation using variable substitution
-- **Environment Integration**: Seamless integration with system environment variables
-- **Context-aware Resolution**: Intelligent variable precedence resolution
+## Mouse and keyboard
 
-## Testing & Quality Assurance
+- Click a box to focus it, a menu label to run it, a tab to show it, `×` to close it.
+- Drag a box's top border to move it, and its bottom-right corner (`⋱`) to resize it. The new
+  position is written back into the YAML file, keeping comments and each edge's unit. `--lock`
+  disables this.
+- Click a scrollbar track to jump, drag its knob to scroll; the wheel scrolls the box under the
+  pointer.
+- Tab and Shift+Tab move the focus along `tab_order`; `next_focus_id` overrides the next box.
+- Up and Down move the menu selection or scroll; Left and Right scroll sideways; Page Up and
+  Page Down scroll a page (with Shift, sideways); Home and End go to the start and end of the
+  lines; Ctrl+Home and Ctrl+End go to the top and bottom.
+- Ctrl+C copies the text of the focused box's visible tab to the clipboard through the
+  terminal (OSC 52).
+- `q` quits.
 
-### Test Coverage
-- **Unit Tests**: 437+ tests covering framework components with 99.8% success rate
-- **Integration Tests**: End-to-end application testing with real-world scenarios
-- **PTY Tests**: Testing for pseudo-terminal functionality
-- **Socket API Tests**: Validation of remote control operations
-- **Performance Tests**: Benchmarking and optimization validation
+## Control socket
 
-### Development Features
-- **Hot Reload**: Live reloading of configuration changes during development
-- **Debug Logging**: Logging system with configurable verbosity levels
-- **Error Reporting**: Error context with stack traces and execution breadcrumbs
-- **Performance Monitoring**: Built-in metrics collection and analysis tools
+- A running instance listens on a local socket (a Unix socket file, or a named pipe on
+  Windows).
+- Commands: `replace_box_content`, `replace_box_script`, `stop_box_refresh`,
+  `start_box_refresh`, `replace_box`, `add_box`, `remove_box`, `switch_active_layout`,
+  `spawn_pty_process`, `kill_pty_process`, `restart_pty_process`, `query_pty_status`,
+  `send_pty_input` and `send_signal` (Unix only).
+- Each is available as a `boxmux` subcommand and as a JSON request. Boxes added or replaced
+  through the socket are checked like boxes in the YAML file.
 
-## Architecture & Performance
+See the [API Reference](/docs/api).
 
-### Multi-threaded Architecture
-- **Unified Threading System**: Single ThreadManager coordinating all background operations
-- **Message Passing**: Efficient inter-thread communication using structured message system
-- **Resource Management**: Proper cleanup and resource leak prevention
-- **Thread Safety**: Thread-safe implementation with Arc&lt;Mutex&lt;&gt;&gt; patterns
+## Command line and diagnostics
 
-### Performance Optimizations
-- **Render-on-Change**: The screen is redrawn only when content, layout, focus, or hover state actually changes, so an idle dashboard uses almost no CPU
-- **Efficient Rendering**: Diff-based screen updates minimizing terminal I/O overhead
-- **Terminal Self-Recovery**: Raw mode and mouse tracking are re-asserted each frame, so the UI recovers automatically if a child process resets the terminal
-- **Memory Management**: Circular buffers and bounded storage preventing memory leaks
-- **Input Optimization**: Message coalescing and event throttling for responsive interactions
-- **Cross-platform Support**: Optimized implementations for macOS, Linux, and Windows
+- `--frame-delay` sets the minimum time between redraws; the screen is only redrawn when
+  something changed.
+- `--log-file` and `--log-level` write a log.
+- `--calibrate` highlights the cell under the mouse pointer.
+- Errors and short messages appear on the bottom row of the screen for a few seconds.
 
-## Configuration & Customization
+## Platforms
 
-### YAML Schema Features
-- **Type Safety**: JSON schema validation for configuration elements  
-- **Nested Structures**: Support for nested box hierarchies and relationships
-- **Dynamic Updates**: Live synchronization of configuration changes to YAML files
-- **Validation Feedback**: Error messages for configuration issues
-- **Documentation Integration**: Schema-driven documentation generation
-
-### Extensibility
-- **Plugin Architecture**: Dynamic component loading with fallback to mock implementations
-- **Custom Components**: Create specialized box types for specific use cases
-- **Theme System**: Automatic light/dark theming with readable defaults out of the box (`--light` / `--dark` to force a theme), plus fully customizable color schemes and visual styling
-- **Layout Templates**: Reusable layout patterns and component libraries
-
-BoxMux uses YAML configuration to define terminal UI applications with interactive components and real-time updates.
+Linux (x86-64 and arm64), FreeBSD, macOS (same code as other Unix systems, not tested on
+macOS machines) and Windows 10 or later (ConPTY; `send_signal` is not available).

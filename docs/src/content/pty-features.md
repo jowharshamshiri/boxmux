@@ -1,453 +1,246 @@
 ---
 title: PTY Features
-description: Interactive terminal emulation in BoxMux boxes with keyboard interaction, ANSI processing, and process management.
+description: Interactive programs in BoxMux boxes - execution_mode Pty, keyboard, paste and mouse forwarding, terminal size, the built-in terminal emulator, status colors, clipboard, socket control and Windows notes
 ---
-
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Basic PTY Configuration](#basic-pty-configuration)
-- [Interactive Applications](#interactive-applications)
-- [PTY Process Management](#pty-process-management)
-- [Input and Navigation](#input-and-navigation)
-- [Visual Indicators](#visual-indicators)
-- [Socket Control](#socket-control)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
 
 ## Overview
 
-PTY (Pseudo-Terminal) features allow you to run interactive terminal applications like `vim`, `htop`, `ssh`, `less`, `nano`, and database shells within BoxMux boxes. This provides terminal multiplexing with organized box layouts.
+A box can show a live terminal: the script runs in a pseudo-terminal (PTY), and boxmux
+draws the program's screen inside the box. Interactive programs such as `htop`, `vim`,
+`less`, `ssh` or a shell work there, and you type into them when the box has the focus.
 
-### Key Benefits
+There are three ways to start a program in a PTY:
 
-- **Interactivity**: Keyboard input routing to terminal applications
-- **Process Management**: Kill, restart, and monitor PTY processes
-- **ANSI Support**: Handling of colors, cursor movements, and escape sequences
-- **Scrollback Buffer**: 10,000-line circular buffer for command history
-- **Visual Feedback**: Lightning bolt indicators and color-coded borders
-- **Error Recovery**: Fallback to regular execution on PTY failures
-
-## Basic PTY Configuration
-
-Enable PTY for any box by adding `pty: true`:
+| How | Where the terminal appears |
+|-----|---------------------------|
+| A box with `execution_mode: Pty` and a `script` | The box's output tab. The script starts when its layout is first shown and runs once |
+| A choice with `execution_mode: Pty` | A closeable tab, labelled with the choice's `content`, in the box (or in its `redirect_output` box) |
+| The `spawn_pty_process` control command | A closeable tab labelled `Terminal` (see [API Reference](/docs/api#spawn_pty_process)) |
 
 ```yaml
 app:
   layouts:
-    - id: 'main'
+    - id: main
       children:
-        - id: 'interactive_box'
-          title: 'Interactive Terminal ⚡'
-          pty: true
+        - id: top
+          title: Processes
+          position: {x1: 0%, y1: 0%, x2: 60%, y2: 100%}
+          execution_mode: Pty
           script:
             - htop
-          position:
-            x1: 0%
-            y1: 0%
-            x2: 100%
-            y2: 100%
+        - id: tools
+          title: Tools
+          position: {x1: 60%, y1: 0%, x2: 100%, y2: 100%}
+          choices:
+            - id: shell
+              content: Shell
+              execution_mode: Pty
+              script:
+                - bash
+            - id: logs
+              content: Follow syslog
+              execution_mode: Pty
+              redirect_output: top
+              script:
+                - less +F /var/log/syslog
 ```
 
-### PTY vs Regular Execution
+There is no `pty:` key; `execution_mode` is the only switch, and an unknown key is a load
+error.
 
-```yaml
-# Regular script execution (non-interactive)
-- id: 'regular_box'
-  title: 'System Info'
-  script:
-    - ps aux | head -10
-    - df -h
-  refresh_interval: 5000
+### Rules
 
-# PTY execution (interactive)
-- id: 'pty_box'
-  title: 'Interactive Top ⚡'
-  pty: true
-  script:
-    - htop
-  # No refresh_interval needed - PTY runs continuously
-```
+- A `Pty` box cannot have a `refresh_interval`. Loading fails with
+  `a PTY box runs its script once as an interactive session; refresh_interval does not apply`.
+  A `refresh_interval` inherited from an enclosing box or the layout is ignored for it.
+- The box that shows the terminal must be in the shown layout when the program starts,
+  because the terminal size comes from the box. A choice or `spawn_pty_process` that targets a
+  box of another layout fails with
+  `box '<id>' is not in the shown layout, so it has no size for a terminal`. A box with no
+  room inside its border fails with `box '<id>' is too small to show a terminal`.
+- One run per origin: activating a PTY choice while its program still runs does not start a
+  second copy; it brings the existing tab into view.
+- Programs keep running when you switch to another layout.
 
-## Interactive Applications
+## Environment and terminal size
 
-### System Monitoring
+- The script runs in the app's shell (`bash` by default, `powershell` on Windows), in
+  boxmux's working directory, with boxmux's environment plus `TERM=xterm-256color`,
+  `BOXMUX_SOCKET` and `BOXMUX_BOX` (see [API Reference](/docs/api#environment-of-scripts)).
+- The terminal size is the inside of the box's border: the whole area within the border,
+  without the one-column margin that text boxes have.
+- When the box changes size (terminal window resized, box moved or resized with the mouse,
+  layout switched), the PTY is resized and the program is told (on Unix it receives
+  `SIGWINCH`).
 
-```yaml
-- id: 'htop_monitor'
-  title: 'System Monitor ⚡'
-  pty: true
-  script:
-    - htop
-  position:
-    x1: 0%
-    y1: 0%
-    x2: 50%
-    y2: 50%
+## Input
 
-- id: 'iotop_monitor'
-  title: 'IO Monitor ⚡'
-  pty: true
-  script:
-    - sudo iotop
-  position:
-    x1: 50%
-    y1: 0%
-    x2: 100%
-    y2: 50%
-```
+### Keyboard
 
-### Text Editors
+When the focused box's visible tab is a terminal whose program is running, **every key goes
+to the program except Tab and Shift+Tab**, which always move the focus so you can leave the
+terminal. That includes `q`, Ctrl+C, Enter and the arrow keys; boxmux's own bindings for them
+do not apply while the terminal has the focus.
 
-```yaml
-- id: 'vim_editor'
-  title: 'Text Editor ⚡'
-  pty: true
-  script:
-    - vim /path/to/config.yaml
-  position:
-    x1: 0%
-    y1: 0%
-    x2: 100%
-    y2: 70%
+Keys are sent as an xterm would send them:
 
-- id: 'nano_editor'
-  title: 'Simple Editor ⚡'
-  pty: true
-  script:
-    - nano /etc/hosts
-```
+| Key | Bytes |
+|-----|-------|
+| Characters | UTF-8 |
+| Ctrl+letter, Ctrl+`@` `[` `\` `]` `^` `_` `?` (and Ctrl+2..8) | The control character (Ctrl+C is `0x03`) |
+| Alt+key | `ESC` followed by the key |
+| Enter, Backspace, Esc | `\r`, `0x7f` (Ctrl+Backspace `0x08`, Alt+Backspace `ESC 0x7f`), `ESC` |
+| Arrows, Home, End | `ESC [ A`... or, after the program enabled application cursor keys (DECCKM), `ESC O A`... |
+| Arrows etc. with Shift/Alt/Ctrl | `ESC [ 1 ; <mod> A` (xterm modifier codes) |
+| Insert, Delete, PageUp, PageDown | `ESC [ 2 ~`, `ESC [ 3 ~`, `ESC [ 5 ~`, `ESC [ 6 ~` (with `; <mod>` when modified) |
+| F1-F4 | `ESC O P`..`ESC O S` (`ESC [ 1 ; <mod> P`.. when modified) |
+| F5-F12 | `ESC [ 15 ~` .. `ESC [ 24 ~` |
 
-### Remote Connections
+Keys with no encoding here (for example F13 and up) are not sent. To send a Tab to the
+program, use the socket: `boxmux send_pty_input <box> $'\t'`.
 
-```yaml
-- id: 'ssh_session'
-  title: 'Production Server ⚡'
-  pty: true
-  script:
-    - ssh user@production-server.com
-  position:
-    x1: 0%
-    y1: 0%
-    x2: 50%
-    y2: 100%
+When the program ends, the keyboard goes back to boxmux.
 
-- id: 'database_shell'
-  title: 'Database Console ⚡'
-  pty: true
-  script:
-    - psql -h localhost -U postgres -d myapp
-  position:
-    x1: 50%
-    y1: 0%
-    x2: 100%
-    y2: 100%
-```
+### Paste
 
-### File Navigation
+boxmux does not turn on bracketed paste for its own terminal, so pasted text reaches boxmux
+as ordinary key presses and is sent to the focused terminal key by key, like typing. A tab
+character in pasted text moves the focus, like the Tab key.
 
-```yaml
-- id: 'file_manager'
-  title: 'File Manager ⚡'
-  pty: true
-  script:
-    - ranger
-    # or: mc (midnight commander)
-    # or: nnn
-```
+### Mouse
 
-## PTY Process Management
+Mouse events are sent to the program only when all of these hold:
 
-### Lifecycle Control
+- the box has the focus and its visible tab is a running terminal;
+- the program has turned on mouse reporting (mode 1000, 1002 or 1003);
+- the pointer is inside the terminal area of that box, not on its border and not on a box
+  drawn above it.
 
-PTY processes have full lifecycle management:
+Positions are relative to the terminal's top-left cell. Reports use the SGR format
+(`ESC [ < b ; x ; y M/m`) when the program enabled mode 1006, otherwise the classic
+`ESC [ M` format. A drag that starts in the terminal stays with it until the button is
+released, with positions held to the terminal's edges.
 
-- **Automatic Start**: Process starts when box initializes
-- **Process Monitoring**: Track running/stopped/failed states  
-- **Manual Control**: Kill, restart via keyboard or socket
-- **Resource Cleanup**: Proper cleanup when BoxMux exits
+Limitations of the current emulator: in the classic format, button releases are not reported
+in mode 1000, and pointer motion (including dragging with a button held) is reported only in
+mode 1003. In the SGR format, motion is reported in every mode but carries the motion flag
+only in mode 1003, so in modes 1000 and 1002 it looks like repeated button presses.
 
-### Process Status
+Otherwise the mouse works as for any box: a click on an unfocused terminal box focuses it,
+the top border moves the box, the corner resizes it, and the wheel scrolls the box's
+content.
 
-PTY boxes show process information in their titles:
+## The screen
 
-```
-Interactive Top ⚡ [PID: 12345, Running]
-SSH Session ⚡ [PID: 12346, Connected]  
-Text Editor ⚡ [Process Stopped]
-Database Shell ⚡ [PID: 12347, Error]
-```
+The tab shows the program's scrollback followed by its screen, or only the screen while the
+program uses the alternate screen (as full-screen programs do). The scrollback keeps up to
+10,000 lines. Whenever the screen changes and the tab is visible, the box scrolls to the
+bottom. While the program does not use the mouse, the wheel and the scrollbar scroll back
+through earlier output.
 
-### Process Actions
+The program's cursor is not drawn.
 
-Available process management actions:
+When the program ends, its last screen stays in the tab.
 
-```yaml
-# In choice menus for PTY control
-- id: 'pty_controls'
-  title: 'PTY Controls'
-  choices:
-    - id: 'kill_htop'
-      content: 'Kill htop process'
-      script:
-        - echo '{"Command": {"action": "kill_pty", "box_id": "htop_monitor"}}' | nc -U /tmp/boxmux.sock
-    
-    - id: 'restart_ssh'
-      content: 'Restart SSH session'
-      script:
-        - echo '{"Command": {"action": "restart_pty", "box_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
-```
+### Terminal emulator
 
-## Input and Navigation
+boxmux contains its own terminal emulator. It handles:
 
-### Keyboard Input Routing
+- **Text**: UTF-8, wide (two-column) characters, line wrapping with auto-wrap on or off
+  (DECAWM), insert mode (IRM), linefeed/newline mode (LNM), tab stops (HTS, TBC, CHT, CBT,
+  default stops every 8 columns).
+- **Attributes**: bold, dim, italic, underline (double underline is drawn as underline),
+  blink, reverse, hidden, strikethrough; the 16 ANSI colors, the 256-color palette and
+  24-bit color, for foreground and background.
+- **Cursor movement**: CUP/HVP (`H`, `f`), CUU/CUD/CUF/CUB (`A`-`D`), save and restore with
+  `ESC 7` / `ESC 8`, index, reverse index and next line (`ESC D`, `ESC M`, `ESC E`), origin
+  mode (DECOM).
+- **Editing**: erase in display and in line (`J`, `K`, including `3J` to clear the
+  scrollback), insert and delete lines (`L`, `M`), scroll up and down (`S`, `T`), scroll
+  regions (DECSTBM), `P` (clears the given number of cells at the cursor; it does not shift
+  the rest of the line).
+- **Screens**: the alternate screen through modes 47, 1047 and 1049 (1049 also saves the
+  cursor), full reset (`ESC c`).
+- **Modes**: application cursor keys (DECCKM), mouse reporting (1000, 1002, 1003, 1006).
+  Only the first mode of a `CSI ? ... h/l` sequence with several modes takes effect.
+- **Replies to queries**: device status and cursor position (`CSI 5 n`, `CSI 6 n`), primary
+  device attributes (`CSI c`, `ESC Z`), terminal parameters (DECREQTPARM) and mode queries
+  (DECRQM). Replies are written back to the program.
+- **OSC**: window title (OSC 0 and 2) and clipboard writes (OSC 52), described below.
 
-When a PTY box is focused, all keyboard input is routed directly to the running process:
+Not implemented, among others: cursor horizontal/vertical absolute (`G`, `d`), cursor
+next/previous line (`E`, `F`), insert and erase characters (`@`, `X`), repeat (`b`),
+`CSI s` / `CSI u`, cursor shapes, the DEC special graphics character set (line-drawing
+characters selected with `ESC ( 0` are shown as plain letters), double-width and
+double-height lines, combining characters (they are dropped), and secondary device
+attributes (`CSI > c` gets the primary answer). Programs that rely on these may draw
+incorrectly.
 
-- **Regular Keys**: Letters, numbers, symbols sent directly
-- **Special Keys**: Arrow keys, function keys (F1-F24), navigation keys
-- **Modifier Keys**: Ctrl, Alt, Shift combinations
-- **Terminal Keys**: Tab, Backspace, Delete, Enter, Escape
+### Title
 
-### Navigation Keys Supported
+When the program sets a title with OSC 0 or OSC 2 (`ESC ] 2 ; title BEL`), the title becomes
+the label of its tab. A box showing a single tab displays its own `title` when it has one,
+so the program's title is visible when the box has no `title` or shows several tabs.
 
-```
-Arrow Keys:     ↑ ↓ ← →
-Function Keys:  F1 F2 F3 ... F24
-Navigation:     Home End PageUp PageDown
-Editing:        Insert Delete Backspace
-Modifiers:      Ctrl+C Ctrl+Z Ctrl+D etc.
-```
+### Clipboard (OSC 52)
 
-### Focus Management
+A program can copy text to the clipboard with OSC 52 (`ESC ] 52 ; c ; <base64> BEL`), as
+`tmux` and `vim` with OSC 52 support do. boxmux passes the text on to your terminal with its
+own OSC 52 sequence, so your terminal must support OSC 52 for it to reach the system
+clipboard, and shows a notice such as `shell copied 3 lines`. Text that is not valid base64
+UTF-8 is ignored.
 
-Switch between PTY and regular boxes:
+Requests to read the clipboard (`ESC ] 52 ; c ; ? BEL`) are refused: programs never get the
+clipboard's contents.
 
-- **Tab/Shift+Tab**: Navigate between focusable boxes
-- **Mouse Click**: Focus PTY box and enable input routing
-- **Box Selection**: Visual indicators show which box receives input
+## Status and colors
 
-### Scrollback Navigation
+While the program runs, the box uses its normal colors. When it ends, the border shows how:
 
-PTY boxes maintain scrollback history:
+| How the program ended | Border | `query_pty_status` |
+|-----------------------|--------|--------------------|
+| Exit code 0 | Yellow | `exited with code 0` |
+| Stopped by boxmux (tab closed, `kill_pty_process`) | Yellow | `killed` |
+| Non-zero exit code | The box's error colors (`error_border_color`, default red; bright red when focused) | `exited with code <n>` |
+| Ended by a signal from elsewhere (including `send_signal`) | Error colors | `failed: ended by <signal>` |
+| Could not be started | Error colors | `failed: <reason>` |
 
-- **Circular Buffer**: 10,000 lines of command history
-- **Memory Efficient**: Automatic cleanup of old content
-- **Search Support**: Search through command history
-- **Thread Safe**: Concurrent access from PTY reader threads
+The yellow border is fixed and takes precedence over the focus color. Error colors follow the
+`error_*` and `error_selected_*` settings (see [Configuration](/docs/configuration)).
 
-## Visual Indicators
+## Stopping and restarting
 
-### Box Title Indicators
+- **Closing the tab** (`×`) of a choice or socket terminal stops the program and every
+  process it started. A box's own script tab has no `×`.
+- **Activating the choice again** after its program ended starts it again in the same tab.
+- **Removing or replacing the box** through the socket stops it.
+- **Quitting boxmux** stops every program it started.
 
-PTY boxes display special visual indicators:
+Stopping means `SIGTERM` to the program's process group, then `SIGKILL` after 500 ms if it is
+still there (Unix), or `taskkill /T` followed by a forced `taskkill /T /F` (Windows).
 
-```
-Regular Box:      "System Info"
-PTY Box:          "Interactive Top ⚡" 
-PTY with Process:   "SSH Session ⚡ [PID: 12345, Running]"
-PTY Error State:    "Failed Process ⚡ [Process Stopped]"
-```
+## Socket control
 
-### Border Colors
-
-PTY boxes use distinct border colors:
-
-- **PTY Active**: Bright cyan borders
-- **PTY Error**: Red borders with error indicators
-- **Regular Box**: Standard border colors
-
-### Status Information
-
-Process status appears in box titles:
-
-- **PID**: Process ID when running
-- **State**: Running, Stopped, Error, Connected
-- **Resource Info**: Memory usage, connection status
-
-## Socket Control
-
-### Remote PTY Management
-
-Control PTY processes via Unix socket:
+The control socket works on the process feeding a box's **visible tab**:
 
 ```bash
-# Kill PTY process
-echo '{"Command": {"action": "kill_pty", "box_id": "htop_box"}}' | nc -U /tmp/boxmux.sock
-
-# Restart PTY process  
-echo '{"Command": {"action": "restart_pty", "box_id": "ssh_session"}}' | nc -U /tmp/boxmux.sock
-
-# Query PTY status
-echo '{"Command": {"action": "pty_status", "box_id": "vim_box"}}' | nc -U /tmp/boxmux.sock
-
-# Send input to PTY (for automation)
-echo '{"Command": {"action": "pty_input", "box_id": "database", "input": "SELECT * FROM users LIMIT 5;\n"}}' | nc -U /tmp/boxmux.sock
+boxmux query_pty_status top          # running?, pid, size, status
+boxmux send_pty_input top q          # type into it
+boxmux send_pty_input shell $'make\r'
+boxmux send_signal top 19            # Unix only
+boxmux kill_pty_process top
+boxmux restart_pty_process top       # run the same script again
+boxmux spawn_pty_process tools 'ssh build-host' --redirect-output top
 ```
 
-### Batch Operations
+See the [API Reference](/docs/api) for fields, results and errors.
 
-```bash
-# Kill all PTY processes
-for box in htop_box ssh_session vim_editor; do
-  echo '{"Command": {"action": "kill_pty", "box_id": "'$box'"}}' | nc -U /tmp/boxmux.sock
-done
+## Windows
 
-# Restart development environment
-echo '{"Command": {"action": "restart_pty", "box_id": "vim_editor"}}' | nc -U /tmp/boxmux.sock
-echo '{"Command": {"action": "restart_pty", "box_id": "test_runner"}}' | nc -U /tmp/boxmux.sock
-```
-
-## Error Handling
-
-### Automatic Fallback
-
-When PTY fails, BoxMux automatically falls back to regular execution:
-
-```yaml
-- id: 'robust_box'
-  title: 'System Status'
-  pty: true  # Try PTY first
-  script:
-    - htop  # Interactive if PTY works, static output if PTY fails
-```
-
-### Failure Tracking
-
-BoxMux tracks PTY failures and avoids repeated attempts:
-
-- **Failure Threshold**: After 3 consecutive failures, avoid PTY for that box
-- **Success Recovery**: Clear failure count on successful PTY startup
-- **Box-Specific**: Failure tracking per box, not global
-
-### Error States
-
-PTY boxes can be in various error states:
-
-```yaml
-# Error state indicators in titles
-"Process Name ⚡ [Process Stopped]"      # Process exited
-"Process Name ⚡ [PTY Failed]"           # PTY allocation failed  
-"Process Name ⚡ [Connection Lost]"      # SSH/network failure
-"Process Name ⚡ [Permission Denied]"    # Insufficient permissions
-```
-
-### Error Recovery
-
-Manual recovery options:
-
-- **Box Restart**: Kill and restart PTY process
-- **Configuration Reload**: Reload YAML with updated settings
-- **Fallback Mode**: Disable PTY and use regular execution
-
-## Best Practices
-
-### Performance Considerations
-
-```yaml
-# Good: Specific PTY processes
-- id: 'htop_box'
-  pty: true
-  script:
-    - htop
-
-# Avoid: Heavy output in PTY
-- id: 'log_box'  
-  pty: false  # Use regular execution for high-volume logs
-  script:
-    - tail -f /var/log/messages
-  auto_scroll_bottom: true
-```
-
-### Resource Management
-
-```yaml
-# Limit concurrent PTY processes
-app:
-  layouts:
-    - id: 'development'
-      children:
-        # Core interactive tools (keep PTY)
-        - id: 'vim_editor'
-          pty: true
-          script: [vim]
-        
-        - id: 'htop_monitor'  
-          pty: true
-          script: [htop]
-          
-        # Background processes (regular execution)
-        - id: 'build_output'
-          pty: false
-          streaming: true
-          script: [./watch-build.sh]
-```
-
-### Security Considerations
-
-```yaml
-# Be careful with PTY and sensitive operations
-- id: 'secure_session'
-  title: 'Admin Console ⚡'
-  pty: true
-  script:
-    - ssh -o ServerAliveInterval=60 admin@secure-server
-  # Consider: timeout, logging, access controls
-```
-
-### Layout Design
-
-```yaml
-# Organize PTY boxes logically
-app:
-  layouts:
-    - id: 'development'
-      title: 'Development Environment'
-      children:
-        # Main editor (large space)
-        - id: 'editor'
-          title: 'Code Editor ⚡'
-          pty: true
-          script: [vim]
-          position: {x1: 0%, y1: 0%, x2: 70%, y2: 70%}
-          
-        # Monitoring (side box)  
-        - id: 'system'
-          title: 'System Monitor ⚡'
-          pty: true
-          script: [htop]
-          position: {x1: 70%, y1: 0%, x2: 100%, y2: 50%}
-          
-        # Terminal (bottom)
-        - id: 'shell'
-          title: 'Shell ⚡'
-          pty: true
-          script: [bash]
-          position: {x1: 0%, y1: 70%, x2: 100%, y2: 100%}
-```
-
-### Troubleshooting
-
-Common PTY issues and solutions:
-
-```yaml
-# Issue: PTY not starting
-# Solution: Check permissions and binary paths
-- id: 'debug_box'
-  pty: true
-  script:
-    - /usr/bin/htop  # Use full path
-    
-# Issue: Input not working
-# Solution: Ensure box is focused and check key bindings
-
-# Issue: Display corruption
-# Solution: Use ANSI processing and proper terminal size
-- id: 'clean_display'
-  pty: true
-  script:
-    - TERM=xterm-256color htop
-```
-
-PTY features provide powerful terminal multiplexing capabilities within BoxMux's organized box system, enabling complex interactive workflows with proper process management and visual organization.
+- PTYs use the Windows pseudo-console (ConPTY), Windows 10 and later.
+- Scripts run in Windows PowerShell (`powershell -NoLogo -NoProfile -NonInteractive -Command`)
+  unless the app sets `shell: pwsh` (PowerShell 7). Write PTY scripts for that shell.
+- `send_signal` is not supported; it always fails with
+  `signal <n> cannot be sent on Windows; use kill_pty_process`.
+- Stopping a program ends its whole process tree with `taskkill`.
+- Ctrl+Z does not suspend boxmux.

@@ -56,7 +56,7 @@ export const features: Feature[] = [
     {
         icon: Workflow,
         title: 'Script Execution',
-        description: 'Execute shell scripts with output streaming, background threading, and output redirection'
+        description: 'Run shell scripts once or on an interval, stream their output and send it to any box'
     },
     {
         icon: Paintbrush,
@@ -66,7 +66,7 @@ export const features: Feature[] = [
     {
         icon: Zap,
         title: 'Socket Remote Control',
-        description: 'Control BoxMux applications via Unix sockets with CLI and API commands'
+        description: 'Control a running BoxMux from scripts and the command line through its control socket'
     }
 ];
 

@@ -510,7 +510,7 @@
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "Only rows whose value in the named column contains the given text"
+              "description": "Only rows whose value in the named column equals the given text, ignoring case"
             },
             "border_style": {
               "type": "string",

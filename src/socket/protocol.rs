@@ -149,4 +149,216 @@ mod tests {
             SocketFunction::ReplaceBoxContent { success: true, .. }
         ));
     }
+
+    /// The published protocol schema, `api-spec.json` at the repository root.
+    fn api_spec() -> serde_json::Value {
+        serde_json::from_str(include_str!("../../api-spec.json"))
+            .expect("api-spec.json must be valid JSON")
+    }
+
+    /// The command name of a request. The match lists every variant, so adding one fails to
+    /// compile here until it is also added to `samples` (and then to api-spec.json).
+    fn command_name(function: &SocketFunction) -> &'static str {
+        match function {
+            SocketFunction::ReplaceBoxContent { .. } => "replace_box_content",
+            SocketFunction::ReplaceBoxScript { .. } => "replace_box_script",
+            SocketFunction::StopBoxRefresh { .. } => "stop_box_refresh",
+            SocketFunction::StartBoxRefresh { .. } => "start_box_refresh",
+            SocketFunction::ReplaceBox { .. } => "replace_box",
+            SocketFunction::AddBox { .. } => "add_box",
+            SocketFunction::RemoveBox { .. } => "remove_box",
+            SocketFunction::SwitchActiveLayout { .. } => "switch_active_layout",
+            SocketFunction::SpawnPtyProcess { .. } => "spawn_pty_process",
+            SocketFunction::KillPtyProcess { .. } => "kill_pty_process",
+            SocketFunction::RestartPtyProcess { .. } => "restart_pty_process",
+            SocketFunction::QueryPtyStatus { .. } => "query_pty_status",
+            SocketFunction::SendPtyInput { .. } => "send_pty_input",
+            SocketFunction::SendSignal { .. } => "send_signal",
+        }
+    }
+
+    /// One request of every command, with every optional field set.
+    fn samples() -> Vec<SocketFunction> {
+        let muxbox = || {
+            Box::new(MuxBox {
+                id: "b".into(),
+                ..MuxBox::default()
+            })
+        };
+        let id = || "b".to_string();
+        vec![
+            SocketFunction::ReplaceBoxContent {
+                box_id: id(),
+                content: "text".into(),
+                success: false,
+            },
+            SocketFunction::ReplaceBoxScript {
+                box_id: id(),
+                script: vec!["date".into()],
+            },
+            SocketFunction::StopBoxRefresh { box_id: id() },
+            SocketFunction::StartBoxRefresh { box_id: id() },
+            SocketFunction::ReplaceBox {
+                box_id: id(),
+                new_box: muxbox(),
+            },
+            SocketFunction::AddBox {
+                layout_id: "l".into(),
+                parent_id: Some("p".into()),
+                muxbox: muxbox(),
+            },
+            SocketFunction::RemoveBox { box_id: id() },
+            SocketFunction::SwitchActiveLayout {
+                layout_id: "l".into(),
+            },
+            SocketFunction::SpawnPtyProcess {
+                box_id: id(),
+                script: vec!["top".into()],
+                redirect_output: Some("o".into()),
+            },
+            SocketFunction::KillPtyProcess { box_id: id() },
+            SocketFunction::RestartPtyProcess { box_id: id() },
+            SocketFunction::QueryPtyStatus { box_id: id() },
+            SocketFunction::SendPtyInput {
+                box_id: id(),
+                input: "q".into(),
+            },
+            SocketFunction::SendSignal {
+                box_id: id(),
+                signal: 2,
+            },
+        ]
+    }
+
+    /// The command names serde accepts, read from its error for an unknown command. This
+    /// catches a variant that `samples` leaves out.
+    fn accepted_command_names() -> std::collections::BTreeSet<String> {
+        let error = serde_json::from_str::<SocketFunction>(r#"{"command":"?"}"#)
+            .expect_err("'?' is not a command")
+            .to_string();
+        let list = error
+            .split("expected one of ")
+            .nth(1)
+            .unwrap_or_else(|| panic!("unexpected serde error format: {}", error));
+        list.split(", ")
+            .map(|name| {
+                name.trim_start_matches('`')
+                    .split('`')
+                    .next()
+                    .expect("split yields at least one part")
+                    .to_string()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn api_spec_lists_exactly_the_commands_and_fields_of_the_protocol() {
+        use std::collections::{BTreeMap, BTreeSet};
+        let spec = api_spec();
+
+        let mut expected: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for sample in samples() {
+            let value = serde_json::to_value(&sample).unwrap();
+            let object = value.as_object().expect("requests serialize as objects");
+            assert_eq!(object["command"], command_name(&sample));
+            let fields = object.keys().filter(|k| *k != "command").cloned().collect();
+            let previous = expected.insert(command_name(&sample).to_string(), fields);
+            assert!(
+                previous.is_none(),
+                "two samples of {}",
+                command_name(&sample)
+            );
+        }
+        assert_eq!(
+            expected.keys().cloned().collect::<BTreeSet<_>>(),
+            accepted_command_names(),
+            "samples() must contain one request of every command"
+        );
+
+        let mut documented: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for reference in spec["oneOf"].as_array().expect("the root is a oneOf") {
+            let pointer = reference["$ref"]
+                .as_str()
+                .expect("each alternative is a $ref")
+                .trim_start_matches('#');
+            let definition = spec
+                .pointer(pointer)
+                .unwrap_or_else(|| panic!("{} is not defined", pointer));
+            let properties = definition["properties"]
+                .as_object()
+                .unwrap_or_else(|| panic!("{} has no properties", pointer));
+            let name = properties["command"]["const"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{} has no command const", pointer))
+                .to_string();
+            let fields = properties
+                .keys()
+                .filter(|k| *k != "command")
+                .cloned()
+                .collect();
+            assert_eq!(definition["additionalProperties"], false, "{}", name);
+            documented.insert(name, fields);
+        }
+        assert_eq!(documented, expected);
+    }
+
+    #[test]
+    fn api_spec_examples_are_valid_requests() {
+        let spec = api_spec();
+        let schema = jsonschema::validator_for(&spec).expect("api-spec.json must compile");
+        let examples = spec["examples"]
+            .as_array()
+            .expect("api-spec.json has examples");
+        let mut covered = std::collections::BTreeSet::new();
+        for example in examples {
+            let request: SocketFunction = serde_json::from_value(example.clone())
+                .unwrap_or_else(|e| panic!("example {} is not a request: {}", example, e));
+            covered.insert(command_name(&request));
+            let errors: Vec<String> = schema.iter_errors(example).map(|e| e.to_string()).collect();
+            assert!(
+                errors.is_empty(),
+                "example {} fails the schema: {:?}",
+                example,
+                errors
+            );
+        }
+        for sample in samples() {
+            let value = serde_json::to_value(&sample).unwrap();
+            assert!(
+                covered.contains(command_name(&sample)),
+                "no example of {}",
+                command_name(&sample)
+            );
+            assert!(schema.is_valid(&value), "{} fails the schema", value);
+        }
+    }
+
+    #[test]
+    fn api_spec_describes_the_replies() {
+        let spec = api_spec();
+        let reply_schema = serde_json::json!({
+            "$ref": "#/definitions/reply",
+            "definitions": spec["definitions"].clone(),
+        });
+        let schema = jsonschema::validator_for(&reply_schema).expect("reply schema compiles");
+        let status = ProcessStatus {
+            box_id: "b".into(),
+            stream: "Terminal".into(),
+            running: true,
+            pid: Some(42),
+            status: "running".into(),
+            rows: Some(24),
+            cols: Some(80),
+        };
+        let replies = [
+            Reply::ok(),
+            Reply::error("there is no box 'x'"),
+            Reply::with_result(serde_json::to_value(status).unwrap()),
+            Reply::with_result(serde_json::json!({ "run": 7 })),
+        ];
+        for reply in replies {
+            let value = serde_json::to_value(&reply).unwrap();
+            assert!(schema.is_valid(&value), "{} fails the reply schema", value);
+        }
+    }
 }

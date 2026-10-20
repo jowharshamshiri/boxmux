@@ -11,1011 +11,709 @@ description: Complete reference for BoxMux YAML configuration files - file struc
 - [Layout Configuration](#layout-configuration)
 - [Box Configuration](#box-configuration)
 - [Position Configuration](#position-configuration)
+- [Content and Tabs](#content-and-tabs)
 - [Choice Configuration](#choice-configuration)
-- [PTY Configuration](#pty-configuration)
-- [Hot Keys Configuration](#hot-keys-configuration)
-- [Mouse Configuration](#mouse-configuration)
-- [Color Reference](#color-reference)
 - [Script Configuration](#script-configuration)
+- [PTY Configuration](#pty-configuration)
+- [Keyboard Configuration](#keyboard-configuration)
+- [Focus and Navigation](#focus-and-navigation)
+- [Overflow and Scrolling](#overflow-and-scrolling)
+- [Color Reference](#color-reference)
 - [Chart Configuration](#chart-configuration)
 - [Table Configuration](#table-configuration)
 - [Plugin Configuration](#plugin-configuration)
-- [Clipboard Configuration](#clipboard-configuration)
-- [Scrolling Configuration](#scrolling-configuration)
-- [Performance Configuration](#performance-configuration)
+- [Layering](#layering)
+- [Mouse and Clipboard](#mouse-and-clipboard)
 - [Variable System](#variable-system)
-- [Schema Validation](#schema-validation)
-- [Features](#features)
-- [Validation Rules](#validation-rules)
+- [Validation](#validation)
 - [Examples](#examples)
+- [Common Patterns](#common-patterns)
 
 ## File Structure
 
-BoxMux configuration files use YAML format with the following top-level structure:
+A BoxMux configuration is one YAML file with a single top-level key, `app`:
 
 ```yaml
 app:
-  libs:          # Optional: External script libraries
-  variables:     # Optional: Global variables for template substitution
-  layouts:       # Required: Layout definitions
+  layouts:            # Required: one or more layouts
+    - id: main
+      children:
+        - id: hello
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          content: 'Hello'
+  # libs:             # Optional: script files sourced before every script
+  # variables:        # Optional: values for ${NAME} substitution
+  # hot_keys:         # Optional: keys that run menu choices
+  # on_keypress:      # Optional: keys that run scripts
+  # shell:            # Optional: the shell scripts run in
+  # plugins:          # Optional: plugin libraries
+```
+
+Every object accepts only the keys listed in this reference. An unknown or misspelled key is a load error; it is never ignored.
+
+Run a configuration with:
+
+```bash
+boxmux my-config.yaml
 ```
 
 ## Application Configuration
 
 ### Root Application (`app`)
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `libs` | `array[string]` | No | List of external script library files |
-| `variables` | `object` | No | Global variables for template substitution |
-| `hot_keys` | `object` | No | Global hot key mappings (F1-F24 to choice IDs) |
-| `mouse_enabled` | `boolean` | No | Enable mouse interaction (default: true) |
-| `layouts` | `array[Layout]` | Yes | List of layout definitions |
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `layouts` | `array[Layout]` | Yes | - | The layouts. At least one is required. |
+| `libs` | `array[string]` | No | - | Script files sourced before every script. Relative paths are relative to the YAML file. |
+| `variables` | `object` | No | - | Variables for `${NAME}` substitution in the whole file. |
+| `hot_keys` | `object` | No | - | Key name to choice id. The key runs that choice. |
+| `on_keypress` | `object` | No | - | Key name to script lines. Runs in the background; output is not shown. |
+| `shell` | `string` | No | `bash` (`powershell` on Windows) | The shell scripts run in: `bash`, `sh`, `zsh`, `powershell` or `pwsh`. |
+| `plugins` | `array[{path}]` | No | - | Plugin libraries that draw `plugin_component` boxes. |
 
 ```yaml
 app:
+  shell: bash
   libs:
     - lib/utils.sh
-    - lib/network.sh
   variables:
     APP_NAME: "BoxMux Dashboard"
-    DEFAULT_USER: "admin"
   hot_keys:
-    'F1': 'build'
-    'F2': 'test'
-    'F3': 'deploy'
-  mouse_enabled: true
+    F5: refresh_status
   layouts:
-    - id: 'main'
+    - id: main
       title: '${APP_NAME}'
-      # ... layout configuration
+      children:
+        - id: actions
+          title: Actions
+          position: {x1: 0%, y1: 0%, x2: 30%, y2: 100%}
+          tab_order: 1
+          choices:
+            - id: refresh_status
+              content: 'Status [F5]'
+              script: [uptime]
 ```
 
 ## Layout Configuration
 
-Layouts define the overall structure and appearance of your interface.
+A layout is one screen of boxes. The layout with `root: true` is shown at start; without one, the first layout is shown. At most one layout may be `root`.
 
 ### Layout Properties
 
-> **All color properties are optional.** When omitted, they default to the
-> [automatic light/dark theme](styling/theme), which is detected from the terminal
-> (or forced with `--light` / `--dark`) and renders readable colors out of the box.
-> A `theme` default in the table below means "follows the active theme"; set a value
-> only to override the theme for that element.
-
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `id` | `string` | Yes | - | Unique identifier for the layout |
-| `root` | `boolean` | No | `false` | Whether this is the root/main layout |
-| `title` | `string` | No | - | Layout title (shown in terminal title bar) |
-| `bg_color` | `string` | No | `theme` | Background color |
-| `fg_color` | `string` | No | `theme` | Foreground/text color |
-| `title_fg_color` | `string` | No | `theme` | Title text color |
-| `title_bg_color` | `string` | No | `theme` | Title background color |
-| `selected_fg_color` | `string` | No | `theme` | Selected element text color |
-| `selected_bg_color` | `string` | No | `theme` | Selected element background color |
-| `selected_title_fg_color` | `string` | No | `theme` | Selected title text color |
-| `selected_title_bg_color` | `string` | No | `theme` | Selected (active) title/tab background; the focused box uses a distinct focus color |
-| `border_color` | `string` | No | `theme` | Border color |
-| `selected_border_color` | `string` | No | `theme` | Focused box border color (a distinct focus color) |
-| `menu_fg_color` | `string` | No | `theme` | Menu item text color |
-| `menu_bg_color` | `string` | No | `theme` | Menu item background color (blends with the box background) |
-| `selected_menu_fg_color` | `string` | No | `theme` | Selected menu item text color |
-| `selected_menu_bg_color` | `string` | No | `theme` | Selected menu item background color |
-| `fill_char` | `char` | No | `' '` | Character used to fill empty space (a space shows the background color) |
-| `children` | `array[Box]` | No | `[]` | List of child boxes |
+| `id` | `string` | Yes | - | Unique layout id. |
+| `title` | `string` | No | - | Shown as the terminal window title while the layout is shown. |
+| `root` | `boolean` | No | `false` | Show this layout at start. |
+| `children` | `array[Box]` | No | - | The top-level boxes. |
+| `refresh_interval` | `integer` | No | - | Default `refresh_interval` (milliseconds) for the boxes of the layout. |
+| `fill` | `boolean` | No | `true` | `false` leaves the terminal's own background behind the boxes. Also the default for boxes. |
+| `fill_char` | `char` | No | `' '` | Character that fills the screen behind the boxes. Also the default for boxes. |
+| `selected_fill_char`, `highlighted_fill_char` | `char` | No | - | Defaults for the boxes of the layout. |
+| `overflow_behavior` | `string` | No | `scroll` | Default for the boxes of the layout. |
+| `title_position` | `string` | No | `center` | Default for the boxes of the layout. |
+| `on_keypress` | `object` | No | - | Key name to script lines, active while the layout is shown. |
+| `variables` | `object` | No | - | Variables for the strings inside this layout. |
+| Color settings | `string` | No | theme | Every color setting listed under [Color Reference](#color-reference). Boxes use them when they do not set their own. |
+
+The layout's `fg_color` and `bg_color` also color the screen behind the boxes.
 
 ### Example Layout
 
 ```yaml
 app:
   layouts:
-    - id: 'dashboard'
+    - id: dashboard
       root: true
       title: 'My Dashboard'
-      bg_color: 'black'
-      fg_color: 'white'
-      title_fg_color: 'yellow'
-      title_bg_color: 'blue'
-      selected_bg_color: 'blue'
-      border_color: 'green'
+      border_color: green
+      title_fg_color: bright_yellow
       children:
-        - id: 'header'
-          # ... box configuration
+        - id: header
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 20%}
+          content: 'Welcome'
 ```
 
 ## Box Configuration
 
-Boxes are the building blocks of your interface. They can contain content, menus, or other boxes.
+Boxes are the building blocks of a layout. A box can show static text, a menu, script output, a terminal, a chart, a table or plugin output, and it can contain other boxes.
 
 ### Box Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `id` | `string` | Yes | - | Unique identifier for the box |
-| `title` | `string` | No | - | Box title shown in title bar |
-| `position` | `Position` | Yes | - | Box position and size |
-| `content` | `string` | No | - | Static text content |
-| `border` | `boolean` | No | `true` | Whether to show border |
-| `tab_order` | `string` | No | - | Tab navigation order (numeric string) |
-| `next_focus_id` | `string` | No | - | ID of next box for custom navigation |
-| `refresh_interval` | `number` | No | - | Auto-refresh interval in milliseconds |
-| `script` | `array[string]` | No | - | Shell commands to execute |
-| `pty` | `boolean` | No | `false` | Enable PTY (pseudo-terminal) for interactive programs |
-| `choices` | `array[Choice]` | No | - | Interactive menu choices |
-| `redirect_output` | `string` | No | - | Box ID to redirect script output to |
-| `append_output` | `boolean` | No | `false` | Whether to append or replace output |
-| `on_keypress` | `object` | No | - | Keyboard event handlers |
-| `variables` | `object` | No | - | Box-local variables for template substitution |
-| `overflow_behavior` | `string` | No | `"scroll"` | How to handle overflow: "scroll", "fill", "cross_out", "removed" |
-| `scroll` | `boolean` | No | `false` | Enable scrolling for content |
-| `auto_scroll_bottom` | `boolean` | No | `false` | Automatically scroll to bottom when new content arrives |
-| `streaming` | `boolean` | No | `false` | Enable live streaming output for scripts |
-| `auto_scroll` | `boolean` | No | `false` | Enable auto-scroll for streaming content |
-| `z_index` | `number` | No | `0` | Box layering order - higher values appear on top |
-| `clipboard_enabled` | `boolean` | No | `false` | Enable Ctrl+C clipboard copying |
-| `performance_monitoring` | `boolean` | No | `false` | Enable performance monitoring |
-| `scroll_config` | `object` | No | - | Enhanced scrolling configuration |
-| `min_width` | `number` | No | - | Minimum width in characters |
-| `min_height` | `number` | No | - | Minimum height in characters |
-| `max_width` | `number` | No | - | Maximum width in characters |
-| `max_height` | `number` | No | - | Maximum height in characters |
-| `children` | `array[Box]` | No | `[]` | List of child boxes |
+| `id` | `string` | Yes | - | Box id, unique across the whole file. |
+| `position` | `Position` | Yes | - | Edges of the box. See [Position Configuration](#position-configuration). |
+| `title` | `string` | No | - | Text in the top border. |
+| `anchor` | `string` | No | `Center` | The point that stays in place when `min_*`/`max_*` change the size. |
+| `min_width`, `min_height`, `max_width`, `max_height` | `integer` | No | - | Size limits in cells (at least 1). |
+| `children` | `array[Box]` | No | - | Boxes inside this box. |
+| `content` | `string` | No | - | Static text. |
+| `choices` | `array[Choice]` | No | - | A menu. See [Choice Configuration](#choice-configuration). |
+| `script` | `string` or `array[string]` | No | - | Script whose output the box shows. |
+| `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
+| `refresh_interval` | `integer` | No | inherited | Milliseconds between runs of the script (at least 1). |
+| `redirect_output` | `string` | No | - | Box id that shows the output of this box's script and key handlers. |
+| `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
+| `save_in_file` | `string` | No | - | File the script output is written to after each run. |
+| `auto_scroll_bottom` | `boolean` | No | `false` | Scroll to the bottom when new output arrives. |
+| `on_keypress` | `object` | No | - | Key name to script lines, active while the box has focus. |
+| `variables` | `object` | No | - | Variables for this box and the boxes inside it. |
+| `tab_order` | `integer` | No | - | Position in the Tab focus order (0 or more). Boxes without one are skipped by Tab. |
+| `next_focus_id` | `string` | No | - | Box that Tab moves to from this box. |
+| `selected` | `boolean` | No | `false` | Give this box the focus when the layout is first shown. |
+| `overflow_behavior` | `string` | No | inherited, else `scroll` | `scroll`, `wrap` or `truncate`. |
+| `horizontal_scroll`, `vertical_scroll` | `number` | No | `0` | Initial scroll position, in percent (0 to 100). |
+| `title_position` | `string` | No | inherited, else `center` | `left`, `center` or `right`. |
+| `z_index` | `integer` | No | `0` | Drawing order among sibling boxes. Higher is on top. |
+| `fill` | `boolean` | No | inherited, else `true` | `false` leaves the background unpainted, so what is beneath shows through. |
+| `fill_char`, `selected_fill_char`, `highlighted_fill_char` | `char` | No | inherited, else `' '` | Character that fills empty cells, normally, when focused, and under the mouse pointer. |
+| `chart_type`, `chart_data` | `string` | No | - | See [Chart Configuration](#chart-configuration). |
+| `table_data`, `table_config` | `string`, `object` | No | - | See [Table Configuration](#table-configuration). |
+| `plugin_component`, `plugin_config` | `string`, `object` | No | - | See [Plugin Configuration](#plugin-configuration). |
+| Color settings | `string` | No | inherited, else theme | See [Color Reference](#color-reference). |
 
-### Styling Properties
+"Inherited" means the value comes from the nearest enclosing box that sets it, else from the layout.
 
-All layout-level styling properties can be overridden at the box level:
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `bg_color` | `string` | Inherited | Background color |
-| `fg_color` | `string` | Inherited | Text color |
-| `title_fg_color` | `string` | Inherited | Title text color |
-| `title_bg_color` | `string` | Inherited | Title background color |
-| `selected_bg_color` | `string` | Inherited | Selected background color |
-| `selected_fg_color` | `string` | Inherited | Selected text color |
-| `selected_title_fg_color` | `string` | Inherited | Selected title text color |
-| `selected_title_bg_color` | `string` | Inherited | Selected title background color |
-| `border_color` | `string` | Inherited | Border color |
-| `selected_border_color` | `string` | Inherited | Selected border color |
-| `fill_char` | `char` | Inherited | Fill character |
-| `selected_fill_char` | `char` | Inherited | Selected fill character |
+A box always has a border when it is at least 2 by 2 cells. There is no setting to turn the border off.
 
 ## Position Configuration
 
-Positions define where boxes appear on screen using percentage-based coordinates.
+A box's `position` has four edges, `x1`, `y1`, `x2` and `y2`. Each edge is a string in one of two forms:
+
+- A percentage with up to two decimals: `"50%"`, `"33.25%"`. `0%` is the first cell of the parent and `100%` is its last cell.
+- A cell count: `"12"`. This is an offset in cells from the parent's first cell. It is clamped to the parent's last cell.
+
+Write cell counts in quotes. An unquoted `12` is a YAML number, and the loader rejects it because positions must be strings. Unquoted percentages such as `50%` are already strings in YAML.
+
+Positions are relative to the parent box, including its border, or to the screen for top-level boxes. Both edges are part of the box, so `x1: 0%` and `x2: 50%` cover the first half of the columns plus the middle column. If an edge is given before its opposite edge (for example `x2` left of `x1`), the two are swapped.
 
 ### Position Properties
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `x1` | `string` | Yes | Left edge (percentage or absolute) |
-| `y1` | `string` | Yes | Top edge (percentage or absolute) |
-| `x2` | `string` | Yes | Right edge (percentage or absolute) |
-| `y2` | `string` | Yes | Bottom edge (percentage or absolute) |
+| `x1` | `string` | Yes | Left edge |
+| `y1` | `string` | Yes | Top edge |
+| `x2` | `string` | Yes | Right edge |
+| `y2` | `string` | Yes | Bottom edge |
 
 ### Position Formats
 
 ```yaml
-# Percentage-based (recommended)
-position:
-  x1: 10%      # 10% from left edge
-  y1: 20%      # 20% from top edge
-  x2: 90%      # 90% from left edge (width = 80%)
-  y2: 80%      # 80% from top edge (height = 60%)
+# Percentages of the parent
+- id: percent_box
+  position:
+    x1: 10%
+    y1: 20%
+    x2: 90%
+    y2: 80%
 
-# Absolute positioning (not recommended)
-position:
-  x1: 10       # 10 characters from left
-  y1: 5        # 5 lines from top
-  x2: 80       # 80 characters from left
-  y2: 24       # 24 lines from top
+# Cell offsets inside the parent (quoted)
+- id: cell_box
+  position: {x1: "2", y1: "1", x2: "40", y2: "10"}
+
+# Mixed units: three rows high, half the width
+- id: mixed_box
+  position: {x1: "0", y1: "0", x2: 50%, y2: "2"}
+```
+
+Boxes that share an edge value, such as `x2: 50%` on one box and `x1: 50%` on the next, overlap by one column, so their borders sit on the same column.
+
+### Size Limits and Anchor
+
+`min_width`, `min_height`, `max_width` and `max_height` (in cells) grow or shrink the box after its position is worked out. The `anchor` is the point that stays in place: `TopLeft`, `TopRight`, `BottomLeft`, `BottomRight`, `Center` (the default), `CenterTop`, `CenterBottom`, `CenterLeft` or `CenterRight`. After resizing, the box is moved back inside its parent if it left it. A minimum larger than the maximum is a load error.
+
+```yaml
+- id: dialog
+  position: {x1: 30%, y1: 30%, x2: 70%, y2: 70%}
+  min_width: 40
+  max_height: 12
+  anchor: Center
+  content: 'At least 40 columns wide, at most 12 rows high'
 ```
 
 ### Position Examples
 
 ```yaml
-# Full screen
-position: { x1: 0%, y1: 0%, x2: 100%, y2: 100% }
+- id: full_screen
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
 
-# Top half
-position: { x1: 0%, y1: 0%, x2: 100%, y2: 50% }
+- id: top_half
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 50%}
 
-# Bottom half
-position: { x1: 0%, y1: 50%, x2: 100%, y2: 100% }
+- id: left_sidebar
+  position: {x1: 0%, y1: 0%, x2: 20%, y2: 100%}
 
-# Left sidebar
-position: { x1: 0%, y1: 0%, x2: 20%, y2: 100% }
-
-# Centered box
-position: { x1: 25%, y1: 25%, x2: 75%, y2: 75% }
+- id: bottom_rows   # the last three rows
+  position: {x1: 0%, y1: 100%, x2: 100%, y2: 100%}
+  min_height: 3
+  anchor: BottomLeft
 ```
+
+## Content and Tabs
+
+A box shows one tab for each source of content it has, in this order:
+
+- **Content**: the `content` text.
+- **Choices**: the `choices` menu.
+- **Output**: the output of the box's `script`.
+
+A box with one tab shows its `title` in the top border. A box with several tabs shows them in the top border instead; click a tab to switch to it. Runs started later get their own tab, which can be closed with its `×`. These include choice runs, box key handler runs, output redirected from other boxes, and processes started through the control socket. Closing such a tab stops its process. When the tabs do not fit, `◀` and `▶` arrows scroll the tab bar.
+
+Text that fits in the box is centered horizontally and vertically. The content area keeps a one-column margin inside the border. A terminal (`execution_mode: Pty`) fills the whole inside of the border.
+
+Script output keeps its SGR color sequences, so colored output is shown in color. Other control sequences are removed.
 
 ## Choice Configuration
 
-Choices create interactive menu items within boxes.
+Choices make a menu inside a box.
 
 ### Choice Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `id` | `string` | Yes | - | Unique identifier for the choice |
-| `content` | `string` | Yes | - | Text displayed in the menu |
-| `script` | `array[string]` | No | - | Commands to execute when selected |
-| `thread` | `boolean` | No | `false` | Whether to run script in background thread |
-| `streaming` | `boolean` | No | `false` | Enable live streaming output line-by-line |
-| `pty` | `boolean` | No | `false` | Run script in PTY for interactive programs |
-| `redirect_output` | `string` | No | - | Box ID to send output to |
-| `append_output` | `boolean` | No | `false` | Whether to append or replace output |
+| `id` | `string` | Yes | - | Choice id, unique across the whole file. |
+| `content` | `string` | No | the id | The label shown in the menu. |
+| `script` | `string` or `array[string]` | No | - | Script run when the choice is activated. |
+| `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
+| `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
+| `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
+
+Up and Down move the selection (marked with `►`) and wrap around. Enter, or a click on a label, runs the selected choice. The output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box. While the script runs, the label ends with ` …`. Activating a choice that is still running shows its tab instead of starting it again.
 
 ### Choice Example
 
 ```yaml
 choices:
-  - id: 'deploy'
+  - id: deploy
     content: 'Deploy Application'
     script:
       - echo 'Starting deployment...'
       - ./deploy.sh
-      - echo 'Deployment complete!'
-    redirect_output: 'status'
+    execution_mode: Thread
+    redirect_output: status
     append_output: true
-    
-  - id: 'status'
+
+  - id: check_status
     content: 'Check Status'
     script:
       - systemctl status myapp
-    redirect_output: 'output'
-```
-
-## PTY Configuration
-
-PTY (pseudo-terminal) enables running interactive terminal programs within boxes.
-
-### PTY Box Fields
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `pty` | `boolean` | No | `false` | Enable PTY for interactive programs |
-
-### PTY Example
-
-```yaml
-- id: 'interactive_terminal'
-  title: 'System Monitor ⚡'
-  pty: true
-  script:
-    - htop
-  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
-```
-
-### PTY Choice Fields
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `pty` | `boolean` | No | `false` | Enable PTY for choice execution |
-
-```yaml
-choices:
-  - id: 'edit_config'
-    content: 'Edit Configuration'
-    pty: true
-    script:
-      - vim /etc/app/config.yaml
-```
-
-## Hot Keys Configuration
-
-Global hot keys provide instant access to choice actions using function keys.
-
-### Application Hot Keys
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `hot_keys` | `object` | No | `{}` | Function key to choice ID mappings |
-
-### Hot Keys Example
-
-```yaml
-app:
-  hot_keys:
-    'F1': 'build'
-    'F2': 'test'  
-    'F3': 'deploy'
-    'F5': 'git_status'
-  layouts:
-    - id: 'main'
-      children:
-        - id: 'actions'
-          choices:
-            - id: 'build'
-              content: 'Build [F1]'
-              script: ['cargo build']
-```
-
-## Mouse Configuration
-
-Mouse interaction for clicking boxes and menu items.
-
-### Application Mouse Settings
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `mouse_enabled` | `boolean` | No | `true` | Enable mouse interaction |
-
-### Mouse Example
-
-```yaml
-app:
-  mouse_enabled: true  # Allow clicking boxes and menu items
-  layouts:
-    - id: 'main'
-      children:
-        - id: 'sensitive_menu'
-          title: 'Click to Execute'
-          choices:
-            - id: 'action1'
-              content: 'Action 1'
-              script: ['echo "Clicked!"']
-```
-
-## Color Reference
-
-BoxMux supports the following color names:
-
-### Basic Colors
-
-- `black`
-- `red`
-- `green`
-- `yellow`
-- `blue`
-- `magenta`
-- `cyan`
-- `white`
-
-### Bright Colors
-
-- `bright_black`
-- `bright_red`
-- `bright_green`
-- `bright_yellow`
-- `bright_blue`
-- `bright_magenta`
-- `bright_cyan`
-- `bright_white`
-
-> **Note on the 16 base colors:** these names map to the terminal's own palette, so
-> `red`, `bright_blue`, etc. match whatever your terminal theme defines for them. That
-> makes them ideal for blending with the terminal, but their exact appearance varies
-> between terminals (some palettes render `bright_black` as a light tint, for example).
-> For elements that need guaranteed contrast — selection, active-tab, and focus
-> highlights — BoxMux's automatic theme uses fixed colors that render consistently
-> everywhere, which is why you do not need to pick highlight colors yourself.
-
-### Special Colors
-
-- `reset` - Reset to default
-- `default` - Use default color
-
-### Color Usage Examples
-
-```yaml
-# Basic usage
-bg_color: 'black'
-fg_color: 'white'
-
-# Bright colors for emphasis
-title_fg_color: 'bright_yellow'
-selected_bg_color: 'bright_blue'
-
-# Mixed color scheme
-bg_color: 'black'
-fg_color: 'green'
-title_fg_color: 'bright_white'
-title_bg_color: 'blue'
-border_color: 'cyan'
+    redirect_output: status
 ```
 
 ## Script Configuration
 
-Scripts define commands that boxes can execute.
+### Script Format
 
-### Script Properties
-
-Scripts are defined as arrays of shell commands:
+A script is either a single string or a list of strings:
 
 ```yaml
-script:
-  - echo 'Hello World'
-  - date
-  - ls -la
+# A list: one command per element
+- id: time
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+  script:
+    - echo 'Current time:'
+    - date
+
+# A single string: kept exactly as written, including indentation and blank lines
+- id: log_sizes
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  script: |
+    for f in *.log; do
+      wc -l "$f"
+    done
 ```
 
-### Script Features
+The elements of a list are joined with newlines and run as one script, in one shell process. The script runs in the shell set by `app.shell`, in the directory boxmux was started from. The files listed in `app.libs` are sourced first. Standard output and standard error are both shown.
 
-- **Multi-line commands**: Use YAML block syntax for complex commands
-- **Environment variables**: Access environment variables in scripts
-- **Pipes and redirection**: Use shell features within commands
-- **Background execution**: Use `thread: true` for long-running scripts
+Every script gets two extra environment variables: `BOXMUX_SOCKET`, the name of the control socket, and `BOXMUX_BOX`, the id of the box that shows the output. A script can use them to call `boxmux` control commands, such as `boxmux replace_box_content`.
 
-### Script Examples
+### Execution Modes
+
+| `execution_mode` | Behaviour |
+|------------------|-----------|
+| `Immediate` (default) | Runs in the background. The output is shown when the script finishes. |
+| `Thread` | Runs in the background. The output is shown line by line as it arrives. |
+| `Pty` | Runs in a pseudo-terminal shown live in the box. See [PTY Configuration](#pty-configuration). |
+
+A script that exits with a non-zero status puts its tab in the error state, which shows the error colors (a red border by default).
+
+### Running on a Schedule
+
+| Property | Description |
+|----------|-------------|
+| `refresh_interval` | Milliseconds between runs. Inherited from the nearest enclosing box, else from the layout. |
+
+A box script runs once when its layout is first shown. With a `refresh_interval`, it runs again at that interval. A run that is still in progress is not started a second time; the missed intervals are skipped.
+
+`refresh_interval` needs a `script` (or a `plugin_component`, which is then redrawn at that interval). A box with `execution_mode: Pty` cannot set `refresh_interval`; an inherited interval does not apply to it.
+
+### Output Settings
+
+| Property | Description |
+|----------|-------------|
+| `redirect_output` | Show the output in another box, in a tab labelled with this box's title (or id). |
+| `append_output` | Add each run's output after the previous output. |
+| `save_in_file` | After each run, write the output (without colors) to this file. The file is overwritten. A relative path is relative to the YAML file. |
+| `auto_scroll_bottom` | Keep the view at the bottom as output arrives. |
 
 ```yaml
-# Simple commands
-script:
-  - echo 'Current time:'
-  - date
+- id: clock
+  title: Clock
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 30%}
+  refresh_interval: 1000
+  script:
+    - date '+%H:%M:%S'
 
-# Multi-line command
-script:
-  - >
-    echo "System info:"
-    uname -a
-    df -h
+- id: build_log
+  title: Build
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  execution_mode: Thread
+  auto_scroll_bottom: true
+  save_in_file: build.log
+  script:
+    - cargo build 2>&1
+```
 
-# Complex pipeline
-script:
-  - ps aux | grep -v grep | grep nginx | wc -l
+## PTY Configuration
 
-# Background script
-script:
-  - tail -f /var/log/syslog
-thread: true
+`execution_mode: Pty` runs the script in a pseudo-terminal. Interactive programs such as `htop`, `vim` or a shell work in the box.
+
+```yaml
+- id: monitor
+  title: 'System Monitor'
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  execution_mode: Pty
+  tab_order: 1
+  script:
+    - htop
+```
+
+- The terminal is the inside of the border and follows the box's size.
+- While the box has focus, every key except Tab and Shift+Tab goes to the program. This includes `q`.
+- Mouse events go to the program only when it turned on mouse reporting.
+- A title the program sets becomes the tab label.
+- When the program ends with status 0, or is stopped, the border turns yellow. A failure shows the error colors.
+
+A choice can also use `execution_mode: Pty`; its terminal opens in a tab of the box or of its `redirect_output` box.
+
+```yaml
+choices:
+  - id: edit_config
+    content: 'Edit Configuration'
+    execution_mode: Pty
+    script:
+      - vim config.yaml
+```
+
+## Keyboard Configuration
+
+### Hot Keys
+
+`app.hot_keys` maps a key name to a choice id. Pressing the key runs that choice, as if it were selected and Enter pressed. The choice must exist (this is checked at load) and must be in the layout that is shown; otherwise a notice says so.
+
+```yaml
+app:
+  hot_keys:
+    F1: build
+    Ctrl+t: test
+  layouts:
+    - id: main
+      children:
+        - id: actions
+          title: Actions
+          position: {x1: 0%, y1: 0%, x2: 40%, y2: 100%}
+          choices:
+            - id: build
+              content: 'Build [F1]'
+              script: ['cargo build']
+            - id: test
+              content: 'Test [Ctrl+t]'
+              script: ['cargo test']
+```
+
+### Key Handlers
+
+`on_keypress` maps a key name to script lines. It can be set on the app, on a layout and on a box.
+
+- App handlers run on every layout. Layout handlers run while their layout is shown. Their output is not shown; a failure appears as a notice.
+- Box handlers run while the box has focus and its visible tab is not a menu. Their output opens in a tab named after the key, in the box or in its `redirect_output` box.
+
+```yaml
+on_keypress:
+  r:
+    - echo 'Refreshing...'
+    - date
+  Ctrl+l:
+    - clear-logs.sh
+```
+
+All matching bindings run, at every level. They run in addition to what boxmux itself does with the key. The exception is `q` without modifiers, which always quits. A focused box showing a live terminal receives the keys instead, so no bindings run.
+
+### Key Names
+
+| Key | Name |
+|-----|------|
+| Letters, digits, symbols | The character itself: `a`, `A`, `5`, `?` |
+| Space | `Space` |
+| Special keys | `Enter`, `Tab`, `Shift+Tab`, `Backspace`, `Delete`, `Insert`, `Esc`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right` |
+| Function keys | `F1`, `F2`, and so on |
+| Modifiers | `Ctrl+`, `Alt+`, `Cmd+`, `Shift+` before the key: `Ctrl+r`, `Alt+x`, `Shift+Up` |
+
+Modifier names and special key names are matched without regard to case, and modifiers may be given in any order. A single character must match exactly: `a` and `A` are different keys. Shift is part of the character for printable keys, so write `A`, not `Shift+a`.
+
+## Focus and Navigation
+
+| Property | Description |
+|----------|-------------|
+| `tab_order` | Position in the Tab order (an integer). Boxes with equal values follow the order they appear in the file. |
+| `next_focus_id` | Box that Tab moves to from this box. It must be in the same layout. |
+| `selected` | The box that has focus when the layout is first shown. At most one per layout. |
+
+Tab moves the focus to the next box in `tab_order`, wrapping around. Shift+Tab moves backwards and does not follow `next_focus_id`. Boxes without `tab_order` are skipped by Tab, but can still be focused with a click or through `next_focus_id`. Without `selected`, the box with the lowest `tab_order` starts with the focus.
+
+## Overflow and Scrolling
+
+`overflow_behavior` decides what happens to content larger than the box:
+
+| Value | Behaviour |
+|-------|-----------|
+| `scroll` (default) | Content scrolls in both directions. Scrollbars appear on the border. |
+| `wrap` | Long lines break into several rows; rows scroll vertically. A wrapped menu entry continues under its label. |
+| `truncate` | Content is cut off, and a cut line ends with `…`. No scrolling. |
+
+`vertical_scroll` and `horizontal_scroll` set the starting scroll position in percent. `auto_scroll_bottom: true` keeps the newest output in view. Terminals always follow their output.
+
+```yaml
+- id: notes
+  position: {x1: 10%, y1: 10%, x2: 50%, y2: 90%}
+  overflow_behavior: wrap
+  content: |
+    This long line breaks at the box edge instead of needing horizontal scrolling.
+```
+
+## Color Reference
+
+### Color Names
+
+| Name | Terminal color |
+|------|----------------|
+| `default` | The terminal's default color |
+| `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white` | ANSI colors 0-7 |
+| `bright_black`, `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white` | ANSI colors 8-15 |
+
+Names are lower case. Any other value is a load error. These colors come from the terminal's palette, so they look different in different terminal themes.
+
+### Color Settings
+
+Boxes and layouts accept the same color settings:
+
+| Element | Normal | Focused box | Under the mouse pointer | Error | Error and focused |
+|---------|--------|-------------|-------------------------|-------|-------------------|
+| Text | `fg_color` | `selected_fg_color` | `highlighted_fg_color` | `error_fg_color` | `error_selected_fg_color` |
+| Background | `bg_color` | `selected_bg_color` | `highlighted_bg_color` | `error_bg_color` | `error_selected_bg_color` |
+| Border | `border_color` | `selected_border_color` | `highlighted_border_color` | `error_border_color` | `error_selected_border_color` |
+| Title text | `title_fg_color` | `selected_title_fg_color` | `highlighted_title_fg_color` | `error_title_fg_color` | `error_selected_title_fg_color` |
+| Title background | `title_bg_color` | `selected_title_bg_color` | `highlighted_title_bg_color` | `error_title_bg_color` | `error_selected_title_bg_color` |
+
+Menu entries have their own settings: `menu_fg_color` and `menu_bg_color` for entries, `selected_menu_fg_color` and `selected_menu_bg_color` for the selected entry (the one Enter runs), and `highlighted_menu_fg_color` and `highlighted_menu_bg_color` for the entry under the mouse pointer.
+
+A box is in the error state when its visible tab's last run failed.
+
+Each setting is looked up on the box, then on the enclosing boxes from the nearest out, then on the layout. When nothing sets it, the [theme](styling/theme) supplies the color. Every color setting is optional. [Visual Themes](styling/theme) describes the theme colors and how the state settings fall back.
+
+```yaml
+- id: status
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 20%}
+  fg_color: bright_white
+  bg_color: blue
+  border_color: cyan
+  selected_border_color: bright_yellow
+  error_border_color: magenta
+  script: [./check.sh]
 ```
 
 ## Chart Configuration
 
-Charts visualize data using Unicode-based rendering.
+| Property | Type | Description |
+|----------|------|-------------|
+| `chart_type` | `string` | `bar`, `line`, `histogram`, `pie` or `scatter`. |
+| `chart_data` | `string` | One data point per line. Without it, the output of the box's `script` is the data. |
 
-### Chart Properties
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `chart_type` | `string` | Yes | - | Chart type: 'bar', 'line', 'histogram' |
-| `width` | `number` | No | 40 | Chart width in characters |
-| `height` | `number` | No | 10 | Chart height in lines |
-| `title` | `string` | No | - | Chart title |
-| `x_label` | `string` | No | - | X-axis label |
-| `y_label` | `string` | No | - | Y-axis label |
-
-### Chart Data Format
-
-Charts accept data in CSV format:
+Each data line is `label,value`, `label:value` or `label value`. Empty lines and lines starting with `#` are skipped, as are lines whose value is not a number. A chart needs `chart_data` or a `script`. The chart fills the box. The area inside the border and margins must be at least 20 columns by 5 rows; a smaller box shows `too small`.
 
 ```yaml
-chart_data: |
-  1,10
-  2,15
-  3,8
-  4,20
-  5,25
-```
-
-### Chart Examples
-
-```yaml
-# Bar chart
-- id: 'cpu_chart'
-  title: 'CPU Usage'
-  chart_config:
-    chart_type: 'bar'
-    width: 50
-    height: 15
-    title: 'CPU Usage Over Time'
+- id: sales
+  title: 'Weekly Sales'
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  chart_type: bar
   chart_data: |
     Mon,45
     Tue,67
     Wed,23
-    Thu,89
-    Fri,56
 
-# Line chart with live data
-- id: 'memory_trend'
-  title: 'Memory Trend'
-  refresh_interval: 2000
-  chart_config:
-    chart_type: 'line'
-    width: 60
-    height: 12
-  script:
-    - free | awk 'NR==2{printf "%.1f\n", $3/$2 * 100.0}'
+- id: disk
+  title: 'Disk Use (%)'
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 50%}
+  chart_type: bar
+  refresh_interval: 60000
+  script: |
+    df -P | tail -n +2 | awk '{gsub("%", "", $5); print $6 "," $5}'
 ```
 
 ## Table Configuration
 
-Tables display structured data with sorting, filtering, and pagination.
+| Property | Type | Description |
+|----------|------|-------------|
+| `table_data` | `string` | CSV whose first line is the header row, or a JSON array of objects. Without it, the output of the box's `script` is the data. |
+| `table_config` | `object` | How the table is sorted, filtered, paged and drawn. |
 
-### Table Properties
+`table_config` accepts these keys; any other key is a load error:
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `headers` | `array[string]` | No | - | Column headers |
-| `sortable` | `boolean` | No | false | Enable column sorting |
-| `filterable` | `boolean` | No | false | Enable row filtering |
-| `page_size` | `number` | No | 10 | Rows per page |
-| `show_row_numbers` | `boolean` | No | false | Display row numbers |
-| `zebra_striping` | `boolean` | No | false | Alternating row colors |
-| `border_style` | `string` | No | 'single' | Border style: 'none', 'single', 'double', 'rounded', 'thick' |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `show_headers` | `boolean` | `true` | Show the header row. |
+| `sort_column` | `string` | - | Header of the column to sort by. |
+| `sort_ascending` | `boolean` | `true` | Sort direction. |
+| `filters` | `object` | - | Column header to text. Only rows whose value in that column equals the text, ignoring case, are shown. |
+| `border_style` | `string` | `single` | `none`, `single`, `double`, `rounded` or `thick`. |
+| `zebra_striping` | `boolean` | `false` | Alternate the row style. |
+| `max_column_width` | `integer` | `30` | Widest a column may be. |
+| `show_row_numbers` | `boolean` | `false` | Number the rows. |
+| `page_size` | `integer` | - | Rows per page. Without it, the table is not paged. |
+| `current_page` | `integer` | `0` | Page shown; `0` is the first page. |
+| `show_page_info` | `boolean` | `false` | Show the page number under the table. |
 
-### Table Data Format
-
-Tables accept CSV or JSON data:
-
-```yaml
-# CSV format
-table_data: |
-  nginx,2.5,45MB
-  mysql,15.2,312MB
-  redis,0.8,28MB
-
-# JSON format
-table_data: |
-  [
-    {"process": "nginx", "cpu": 2.5, "memory": "45MB"},
-    {"process": "mysql", "cpu": 15.2, "memory": "312MB"},
-    {"process": "redis", "cpu": 0.8, "memory": "28MB"}
-  ]
-```
-
-### Table Examples
+A table needs `table_data` or a `script`.
 
 ```yaml
-# Process monitoring table
-- id: 'process_table'
-  title: 'System Processes'
-  table_config:
-    headers: ['Process', 'CPU %', 'Memory']
-    sortable: true
-    filterable: true
-    page_size: 15
-    zebra_striping: true
-    border_style: 'double'
-  refresh_interval: 5000
-  script:
-    - ps aux --no-headers | awk '{printf "%s,%.1f,%s\n", $11, $3, $4}' | head -20
-
-# Static data table
-- id: 'config_table'
-  title: 'Configuration'
-  table_config:
-    headers: ['Setting', 'Value', 'Description']
-    show_row_numbers: true
+- id: services
+  title: Services
+  position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
   table_data: |
-    refresh_rate,1000ms,Box refresh interval
-    socket_path,/tmp/boxmux.sock,Unix socket location
-    log_level,info,Application log level
+    Service,Status,CPU
+    nginx,running,2.5
+    mysql,running,15.2
+    redis,stopped,0.0
+  table_config:
+    sort_column: CPU
+    sort_ascending: false
+    border_style: rounded
+    zebra_striping: true
 ```
+
+A box shows only one kind of generated content. Setting more than one of `plugin_component`, `chart_type` and `table_data`/`table_config` on the same box is a load error.
 
 ## Plugin Configuration
 
-Plugins enable dynamic component loading with security validation.
+Plugins are shared libraries that draw the content of boxes. List them under `app.plugins`. A relative path is relative to the YAML file. A path without an extension is expanded to `libNAME.so`, `libNAME.dylib` or `NAME.dll`, depending on the platform.
 
-### Plugin Properties
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `plugin_type` | `string` | Yes | - | Plugin type identifier |
-| `plugin_config` | `object` | No | `{}` | Plugin-specific configuration |
-| `security_permissions` | `array[string]` | No | `[]` | Required permissions |
-
-### Plugin Examples
+| Property | Type | Description |
+|----------|------|-------------|
+| `plugin_component` | `string` | Name of a component a loaded plugin offers. |
+| `plugin_config` | `object` | Passed to the plugin as JSON. |
 
 ```yaml
-# Custom visualization plugin
-- id: 'custom_viz'
-  title: 'Custom Visualization'
-  plugin_type: 'data_visualizer'
-  plugin_config:
-    data_source: '/tmp/metrics.json'
-    visualization_type: 'heatmap'
-  security_permissions:
-    - 'filesystem_read'
-
-# External API plugin
-- id: 'api_monitor'
-  title: 'API Status'
-  plugin_type: 'http_monitor'
-  plugin_config:
-    endpoints:
-      - 'https://api.example.com/health'
-      - 'https://api.example.com/status'
-  security_permissions:
-    - 'network_access'
-```
-
-## Clipboard Configuration
-
-Enable clipboard integration for copying box content:
-
-```yaml
-# Enable clipboard for specific box
-- id: 'results_box'
-  title: 'Command Results'
-  clipboard_enabled: true
-  script:
-    - ps aux | head -20
-
-# Global clipboard configuration
 app:
-  clipboard_config:
-    enabled: true
-    copy_keybind: 'ctrl+c'     # Keyboard shortcut
-    visual_feedback: true       # Show visual confirmation
-    max_copy_size: 1048576     # Maximum bytes to copy (1MB)
+  plugins:
+    # Built with: cargo build --release --manifest-path examples/plugins/gauge/Cargo.toml
+    - path: examples/plugins/gauge/target/release/boxmux_gauge
+  layouts:
+    - id: main
+      children:
+        - id: gauges
+          title: Gauges
+          position: {x1: 0%, y1: 0%, x2: 60%, y2: 40%}
+          plugin_component: gauge
+          plugin_config:
+            gauges:
+              - {label: CPU, value: 42}
+              - {label: Memory, value: 6.1, max: 16}
 ```
 
-## Scrolling Configuration
+boxmux refuses to start if a plugin cannot be loaded, if two plugins offer the same component, or if a box uses a component no plugin offers. Plugins run inside the boxmux process with its permissions; there is no sandbox. With `refresh_interval`, a plugin box is redrawn at that interval. See [Plugin System](plugin-system) for how to write a plugin.
 
-Advanced scrolling features with position preservation and navigation:
+## Layering
+
+`z_index` orders sibling boxes that overlap: higher values are drawn on top. Boxes with equal values are drawn in file order, so later boxes are on top. Child boxes are always drawn on top of their parent.
 
 ```yaml
-# Enhanced scrolling box
-- id: 'scrollable_content'
-  title: 'Large Output'
-  scroll: true
-  scroll_config:
-    preserve_position: true     # Maintain position during refresh
-    show_indicators: true       # Show scroll position indicators
-    page_size: 10              # Lines per page scroll
-    smooth_scrolling: true     # Enable smooth scrolling
-    auto_scroll_new: false     # Don't auto-scroll to new content
-    scroll_buffer_size: 2000   # Maximum lines to keep
-  script:
-    - ps aux | head -100
+- id: background
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  z_index: 1
+  content: 'Background'
 
-# Minimal scrolling setup
-- id: 'simple_scroll'
-  scroll: true
-  script:
-    - find / -name '*.log' 2>/dev/null
+- id: popup
+  position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
+  z_index: 5
+  content: 'On top'
 ```
 
-## Performance Configuration
+## Mouse and Clipboard
 
-Configure performance monitoring and optimization:
+The mouse and clipboard need no configuration.
 
-```yaml
-# Performance monitoring box
-- id: 'performance'
-  title: 'System Performance'
-  performance_monitoring: true
-  perf_config:
-    collect_metrics: true       # Collect performance metrics
-    show_benchmarks: true      # Display benchmark results
-    memory_tracking: true      # Track memory usage
-    cpu_profiling: false       # CPU profiling (development only)
-  script:
-    - |  
-      echo "Performance Metrics:"
-      echo "Memory: $(ps -o rss= -p $$) KB"
-      echo "CPU: $(ps -o %cpu= -p $$)%"
-
-# Global performance settings
-app:
-  performance:
-    enable_benchmarks: true
-    benchmark_threshold_ms: 1000  # Warn if operations exceed 1s
-    memory_limit_mb: 512         # Memory limit for BoxMux
-    max_refresh_rate: 10         # Maximum refreshes per second
-```
+- Click a box to focus it, a choice label to run it, a tab to show it, and `×` to close a tab.
+- Drag a box's top border to move it, and its bottom-right corner (`⋱`) to resize it. The new position is written back to the YAML file. Comments are kept, and each edge keeps its unit (percent or cells). Start boxmux with `--lock` to turn moving and resizing off; the file is then never written.
+- Click a scrollbar track to jump, drag the knob to scroll, or use the mouse wheel (3 lines per step).
+- Ctrl+C (or Cmd+C) copies the text of the focused box's visible tab to the clipboard, using the OSC 52 escape sequence. When the focused box shows a live terminal, Ctrl+C goes to the program instead.
 
 ## Variable System
 
-BoxMux includes hierarchical variable substitution for dynamic configuration, template-driven interfaces, and environment-specific deployments.
-
-### Variable Syntax
-
-Variables use the following patterns:
-
-- `${VARIABLE}` - Standard variable substitution
-- `${VARIABLE:default_value}` - Variable with fallback default
-- `${VARIABLE:}` - Variable with empty default
-- `$SIMPLE_VAR` - Simple environment variable (legacy support)
-
-### Variable Precedence (Hierarchical Resolution)
-
-Variables are resolved in strict hierarchical order:
-
-1. **Box-specific variables** (highest precedence, most granular)
-2. **Parent box variables** (inherited through box hierarchy)
-3. **Layout-level variables** (layout scope)
-4. **Application-global variables** (app-wide scope)
-5. **Environment variables** (system fallback)
-6. **Default values** (built-in fallbacks, lowest precedence)
-
-This hierarchical approach allows child boxes to override parent settings while providing sensible fallbacks.
-
-### Variable Declaration
-
-#### Application-level Variables
-
-Define global variables that apply across all layouts:
+Any string value can use `${NAME}` and `${NAME:default}`. Values are looked up in the box's `variables`, then the enclosing boxes' variables, the layout's, the app's, and finally the environment. When the name is defined nowhere, the default is used.
 
 ```yaml
 app:
   variables:
-    APP_NAME: "Production Dashboard"
-    SERVER_HOST: "prod-server.company.com"
-    LOG_LEVEL: "info"
-    DEFAULT_USER: "admin"
-```
-
-#### Box-level Variables
-
-Define box-specific variables that override global settings:
-
-```yaml
-- id: 'web_server_box'
-  variables:
-    SERVICE_NAME: "nginx"
-    PORT: "80"
-    CONFIG_PATH: "/etc/nginx"
-  title: '${SERVICE_NAME} Server Status'
-  script:
-    - echo "Checking ${SERVICE_NAME} on port ${PORT}"
-    - systemctl status ${SERVICE_NAME}
-```
-
-### Variable Inheritance
-
-Child boxes automatically inherit variables from their parents, creating a natural configuration hierarchy:
-
-```yaml
-app:
-  variables:
-    ENVIRONMENT: "production"
-    
+    ENVIRONMENT: production
   layouts:
-    - id: 'monitoring'
+    - id: main
       children:
-        - id: 'parent_box'
+        - id: web
           variables:
-            SERVICE_GROUP: "web-services"
-          children:
-            - id: 'child_box'
-              variables:
-                SERVICE_NAME: "api-gateway"
-              title: '${SERVICE_NAME} in ${SERVICE_GROUP} (${ENVIRONMENT})'
-              # Resolves to: "api-gateway in web-services (production)"
+            SERVICE: nginx
+          title: '${SERVICE} (${ENVIRONMENT})'
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          script:
+            - systemctl status ${SERVICE}
+            - echo "User: ${USER:unknown}"
 ```
 
-### Variable Fields
+Substitution happens when the file is loaded, before validation. A reference to an undefined name without a default is left as written, and so is shell syntax such as `${i}`, `${X:-y}` or `${#list[@]}`. `$${` writes a literal `${`.
 
-Variables work in all configuration fields:
+See the [Variable System Guide](variables) for the details.
 
-```yaml
-- id: 'dynamic_box'
-  variables:
-    SERVICE: "database"
-    LOG_FILE: "/var/log/postgresql.log"
-  title: '${SERVICE} Monitor'           # Title substitution
-  content: 'Monitoring ${SERVICE}'      # Content substitution
-  script:                               # Script substitution
-    - echo "Starting ${SERVICE} check"
-    - tail -f ${LOG_FILE}
-  redirect_output: '${SERVICE}_output'  # Redirect target substitution
-  choices:
-    - id: 'restart'
-      content: 'Restart ${SERVICE}'     # Choice content substitution
-      script:
-        - systemctl restart ${SERVICE}  # Choice script substitution
+## Validation
+
+The file is checked when it is loaded. Any problem stops boxmux before the interface starts: the errors are printed and the exit code is non-zero.
+
+A YAML syntax error names the file, line and column, and shows the line:
+
+```text
+boxmux: config.yaml:7:18: did not find expected ',' or '}' at line 7 column 18, while parsing a flow mapping at line 6 column 21
+7 |           content: hi
+  |                  ^
 ```
 
-### Environment Variable Integration
+Other errors name the place in the file, with the layout and box ids along the way:
 
-Seamlessly integrate with existing environment variables:
-
-```yaml
-# These variables will use environment values if set,
-# otherwise fall back to YAML-defined defaults
-app:
-  variables:
-    LOG_LEVEL: "info"  # Overridden by $LOG_LEVEL if set
-    
-  layouts:
-    - id: 'app_box'
-      script:
-        - echo "Running with LOG_LEVEL=${LOG_LEVEL}"
-        - echo "User: ${USER:unknown}"          # Uses $USER or "unknown"
-        - echo "Home: ${HOME:/tmp}"             # Uses $HOME or "/tmp"
+```text
+boxmux: config.yaml: invalid configuration:
+  app.layouts[0] ('main').children[0] ('logs').border_color: "purple" is not one of ["default","black","red",...]
+  app.layouts[0] ('main').children[0] ('logs'): Additional properties are not allowed ('pty' was unexpected)
 ```
 
-**Learn more**: See the complete [Variable System Guide](/docs/variables) for additional patterns and best practices.
+Besides the types and allowed values of every key, the loader checks:
 
-## Schema Validation
-
-BoxMux includes JSON Schema validation for configuration files.
-
-### Validation Features
-
-- Automatic validation on configuration load
-- Detailed error messages with line/column information
-- Schema validation for all configuration sections
-- Type checking and required field validation
-
-### Validation Example
-
-When loading invalid configuration:
-
-```bash
-$ boxmux invalid-config.yaml
-Error: Configuration validation failed
-  --> invalid-config.yaml:15:3
-   |
-15 |   position: "invalid"
-   |   ^^^^^^^^ expected object with x1, y1, x2, y2 properties
-   |
-   = help: position must be an object with percentage-based coordinates
-```
-
-## Features
-
-### Keyboard Event Handlers
-
-Define custom keyboard shortcuts:
-
-```yaml
-on_keypress:
-  r:                    # Press 'r' key
-    - echo 'Refreshing...'
-    - date
-  q:                    # Press 'q' key
-    - exit
-  'ctrl+c':            # Ctrl+C combination
-    - echo 'Interrupted'
-```
-
-### Title Positioning
-
-Control where titles appear:
-
-```yaml
-title_position: 'start'    # Left-aligned
-title_position: 'center'   # Centered
-title_position: 'end'      # Right-aligned
-```
-
-### Anchoring
-
-Control how boxes are anchored:
-
-```yaml
-anchor: 'TopLeft'      # Default
-anchor: 'TopRight'
-anchor: 'BottomLeft'
-anchor: 'BottomRight'
-anchor: 'Center'
-```
-
-### Overflow Behavior
-
-Control how content overflow is handled:
-
-```yaml
-overflow_behavior: 'scroll'      # Default: enable scrolling
-overflow_behavior: 'fill'        # Fill with solid block
-overflow_behavior: 'cross_out'   # Cross out with X's
-overflow_behavior: 'removed'     # Hide the box
-```
-
-## Validation Rules
-
-### Required Fields
-
-- `app.layouts` must contain at least one layout
-- Each layout must have a unique `id`
-- Each box must have a unique `id` within its layout
-- Each box must have a `position`
-- Each choice must have a unique `id` and `content`
-
-### ID Naming Rules
-
-- IDs must be strings
-- IDs should be unique within their scope
-- IDs should be descriptive and meaningful
-- Avoid special characters and spaces
-
-### Position Validation
-
-- All position values must be valid percentages or numbers
-- `x1` must be less than `x2`
-- `y1` must be less than `y2`
-- Positions should not create zero-width or zero-height boxes
-
-### Color Validation
-
-- All color values must be valid color names
-- Colors are case-sensitive
-- Invalid colors will fall back to defaults
-
-### New Features Examples
-
-#### Stream Architecture with Tab System
-```yaml
-# Multi-stream box with tab system
-- id: 'control_panel'
-  title: 'Operations'
-  content: 'Control panel ready'     # → Content tab
-  choices:                           # → Operations tab
-    - id: 'deploy'
-      script: ['./deploy.sh']
-      redirect_output: 'output'      # → Deploy tab in output box
-      streaming: true                # Live streaming output
-    - id: 'monitor'
-      script: ['./monitor.sh'] 
-      redirect_output: 'output'      # → Monitor tab in output box
-      streaming: true
-
-- id: 'output'
-  title: 'Results'
-  content: 'Command output appears here...'
-  auto_scroll: true                  # Auto-scroll for streaming content
-  # Tabs: [Content] + [Deploy] + [Monitor] as commands run
-```
-
-#### Interactive UI with Z-Index Layering
-```yaml
-# Background box
-- id: 'background'
-  title: 'Background Layer'
-  z_index: 1                         # Lower layer
-  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
-  content: 'Background content'
-  
-# Foreground box (appears on top, can be resized/moved)
-- id: 'floating_window'
-  title: 'Drag Title to Move →'
-  z_index: 5                         # Higher layer - appears on top
-  position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
-  content: |
-    Interactive window features:
-    
-    • Drag title bar to move
-    • Drag bottom-right corner to resize
-    • Changes auto-save to YAML file
-    • Z-index controls layering order
-```
-
-#### Advanced Overflow Handling
-```yaml
-# Text wrapping with choice scrolling
-- id: 'wrapped_content'
-  title: 'Text Wrapping Demo'
-  position: {x1: 10%, y1: 10%, x2: 50%, y2: 90%}
-  overflow_behavior: 'wrap'          # Wrap text at boundaries
-  content: |
-    This is a very long line of text that will automatically wrap at box boundaries instead of being truncated or requiring horizontal scrolling.
-    
-# Scrollable choices menu
-- id: 'scrollable_menu'
-  title: 'Large Menu'
-  position: {x1: 50%, y1: 10%, x2: 90%, y2: 90%}
-  overflow_behavior: 'scroll'        # Show scrollbars
-  choices:
-    - {id: 'opt1', content: 'Option 1'}
-    - {id: 'opt2', content: 'Option 2'}
-    # ... 20 more options that require scrolling
-```
-
-#### PTY Features with Socket Control
-```yaml
-# Interactive terminal with PTY
-- id: 'terminal'
-  title: 'Interactive Terminal'
-  position: {x1: 0%, y1: 0%, x2: 60%, y2: 100%}
-  pty: true
-  script: ['bash']
-  # Supports full terminal interaction, cursor movement, colors
-  
-# PTY-controlled system monitor
-- id: 'htop_monitor'
-  title: 'System Monitor'
-  position: {x1: 60%, y1: 0%, x2: 100%, y2: 100%}
-  pty: true
-  script: ['htop']
-  # Interactive htop with mouse and keyboard support
-```
+- Layout ids, box ids and choice ids are unique across the file.
+- At most one layout is `root`, and at most one box per layout is `selected`.
+- `redirect_output` names an existing box, and `next_focus_id` names a box in the same layout.
+- Every `hot_keys` entry names an existing choice.
+- A choice with `redirect_output` has a `script`.
+- `refresh_interval` is at least 1, needs a `script` or `plugin_component`, and is not set on a `Pty` box.
+- `min_width`/`min_height` are not larger than `max_width`/`max_height`.
+- A chart has `chart_data` or a `script`, `chart_data` has a `chart_type`, and a table has `table_data` or a `script`.
+- A box has at most one of `plugin_component`, `chart_type` and `table_data`/`table_config`.
 
 ## Examples
 
@@ -1023,76 +721,46 @@ overflow_behavior: 'removed'     # Hide the box
 
 ```yaml
 app:
-  libs:
-    - lib/system.sh
-    - lib/network.sh
   layouts:
-    - id: 'main'
+    - id: main
       root: true
       title: 'System Dashboard'
-      bg_color: 'black'
-      fg_color: 'white'
-      title_fg_color: 'bright_yellow'
-      title_bg_color: 'blue'
-      selected_bg_color: 'bright_blue'
-      border_color: 'green'
+      border_color: green
+      title_fg_color: bright_yellow
       children:
-        - id: 'header'
+        - id: header
           title: 'System Status'
-          position:
-            x1: 0%
-            y1: 0%
-            x2: 100%
-            y2: 15%
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 15%}
           content: 'System Dashboard v1.0'
-          border: true
-          
-        - id: 'sidebar'
-          title: 'Navigation'
-          position:
-            x1: 0%
-            y1: 15%
-            x2: 25%
-            y2: 85%
-          tab_order: '1'
+
+        - id: sidebar
+          title: Navigation
+          position: {x1: 0%, y1: 15%, x2: 25%, y2: 85%}
+          tab_order: 1
           choices:
-            - id: 'cpu'
-              content: 'CPU Usage'
-              script:
-                - top -l 1 | grep "CPU usage"
-              redirect_output: 'main_content'
-            - id: 'memory'
+            - id: memory
               content: 'Memory Usage'
               script:
-                - top -l 1 | grep "PhysMem"
-              redirect_output: 'main_content'
-            - id: 'disk'
+                - free -h
+              redirect_output: main_content
+            - id: disk
               content: 'Disk Usage'
               script:
                 - df -h
-              redirect_output: 'main_content'
-              
-        - id: 'main_content'
-          title: 'Output'
-          position:
-            x1: 25%
-            y1: 15%
-            x2: 100%
-            y2: 85%
+              redirect_output: main_content
+
+        - id: main_content
+          title: Output
+          position: {x1: 25%, y1: 15%, x2: 100%, y2: 85%}
+          tab_order: 2
           content: 'Select an option from the menu'
-          scroll: true
-          
-        - id: 'footer'
-          title: 'Status'
-          position:
-            x1: 0%
-            y1: 85%
-            x2: 100%
-            y2: 100%
+
+        - id: footer
+          title: Clock
+          position: {x1: 0%, y1: 85%, x2: 100%, y2: 100%}
           refresh_interval: 1000
           script:
             - date
-          border: false
 ```
 
 ### Minimal Configuration Example
@@ -1100,27 +768,21 @@ app:
 ```yaml
 app:
   layouts:
-    - id: 'simple'
-      root: true
+    - id: simple
       children:
-        - id: 'content'
-          position:
-            x1: 10%
-            y1: 10%
-            x2: 90%
-            y2: 90%
+        - id: content
+          position: {x1: 10%, y1: 10%, x2: 90%, y2: 90%}
           content: 'Hello, World!'
 ```
 
 ## Best Practices
 
-1. **Use meaningful IDs**: Choose descriptive names for layouts, boxes, and choices
-2. **Plan your layout**: Sketch your interface before writing YAML
-3. **Test incrementally**: Start with simple configurations and add complexity
-4. **Use consistent styling**: Define colors at the layout level when possible
-5. **Optimize refresh intervals**: Balance real-time updates with performance
-6. **Handle errors gracefully**: Consider what happens when scripts fail
-7. **Document your configuration**: Use YAML comments to explain complex sections
+1. **Use meaningful ids**: ids appear in error messages and are used by `redirect_output`, `hot_keys` and socket commands.
+2. **Start small**: load a simple file first, then add boxes, so each load error points at what you just changed.
+3. **Set colors at the layout level**: boxes inherit them, so one change restyles the whole layout.
+4. **Choose refresh intervals with care**: a short interval starts a new process each time.
+5. **Make failures visible**: a script that exits non-zero shows the error colors, so let your scripts fail when something is wrong.
+6. **Comment your configuration**: comments are kept when boxmux saves moved or resized boxes.
 
 ## Common Patterns
 
@@ -1129,14 +791,14 @@ app:
 ```yaml
 # Header + Sidebar + Main + Footer
 children:
-  - id: 'header'
-    position: { x1: 0%, y1: 0%, x2: 100%, y2: 10% }
-  - id: 'sidebar'
-    position: { x1: 0%, y1: 10%, x2: 20%, y2: 90% }
-  - id: 'main'
-    position: { x1: 20%, y1: 10%, x2: 100%, y2: 90% }
-  - id: 'footer'
-    position: { x1: 0%, y1: 90%, x2: 100%, y2: 100% }
+  - id: header
+    position: {x1: 0%, y1: 0%, x2: 100%, y2: 10%}
+  - id: sidebar
+    position: {x1: 0%, y1: 10%, x2: 20%, y2: 90%}
+  - id: main
+    position: {x1: 20%, y1: 10%, x2: 100%, y2: 90%}
+  - id: footer
+    position: {x1: 0%, y1: 90%, x2: 100%, y2: 100%}
 ```
 
 ### Grid Layout
@@ -1144,23 +806,25 @@ children:
 ```yaml
 # 2x2 grid
 children:
-  - id: 'top_left'
-    position: { x1: 0%, y1: 0%, x2: 50%, y2: 50% }
-  - id: 'top_right'
-    position: { x1: 50%, y1: 0%, x2: 100%, y2: 50% }
-  - id: 'bottom_left'
-    position: { x1: 0%, y1: 50%, x2: 50%, y2: 100% }
-  - id: 'bottom_right'
-    position: { x1: 50%, y1: 50%, x2: 100%, y2: 100% }
+  - id: top_left
+    position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  - id: top_right
+    position: {x1: 50%, y1: 0%, x2: 100%, y2: 50%}
+  - id: bottom_left
+    position: {x1: 0%, y1: 50%, x2: 50%, y2: 100%}
+  - id: bottom_right
+    position: {x1: 50%, y1: 50%, x2: 100%, y2: 100%}
 ```
 
 ### Modal/Dialog Pattern
 
 ```yaml
-# Centered modal
-- id: 'modal'
-  position: { x1: 25%, y1: 25%, x2: 75%, y2: 75% }
-  bg_color: 'white'
-  fg_color: 'black'
-  border_color: 'red'
+# Centered box drawn above the others
+- id: modal
+  position: {x1: 25%, y1: 25%, x2: 75%, y2: 75%}
+  z_index: 10
+  bg_color: white
+  fg_color: black
+  border_color: red
+  content: 'Are you sure?'
 ```

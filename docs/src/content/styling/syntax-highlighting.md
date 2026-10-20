@@ -1,256 +1,154 @@
 ---
-title: BoxMux Code Highlighting
-description: Syntax highlighting and code formatting in BoxMux YAML configurations
+title: Colored Output and Syntax Highlighting
+description: Showing syntax-highlighted and colored program output in BoxMux boxes, writing scripts in YAML, and editor support for configuration files
 ---
 
-# BoxMux Code Highlighting
+# Colored Output and Syntax Highlighting
 
-BoxMux configurations use YAML syntax and support embedded shell scripts with proper syntax highlighting in documentation and examples.
+BoxMux does not highlight code itself. It shows the colors that programs write, so any highlighter that prints ANSI colors works in a box: `bat`, `pygmentize`, `highlight`, `delta`, or colored `grep`, `ls`, `git` and `jq`.
 
-## YAML Configuration Syntax
+## Colored Script Output
 
-BoxMux uses standard YAML syntax with specific structures for terminal UI definition:
+A box script's output keeps its SGR color and style sequences: the 16 base colors, 256 colors, 24-bit colors, bold, italic, underline and the other text attributes. Each line starts in the box's own colors. Other escape sequences are removed. See [Script Output Colors](theme#script-output-colors).
 
-```yaml
-# Basic BoxMux configuration structure
-title: "My Application"
-refresh_rate: 100
-
-variables:
-  app_name: "MyApp"
-  version: "1.0.0"
-
-layouts:
-  main:
-    type: "MuxBox"
-    bounds: { x1: "0%", y1: "0%", x2: "100%", y2: "100%" }
-    content: "Welcome to {{app_name}} v{{version}}"
-```
-
-## Shell Script Highlighting
-
-BoxMux configurations often contain embedded shell scripts with proper syntax highlighting:
+Scripts in the default `Immediate` and `Thread` modes write into a pipe, not a terminal. Many programs turn their colors off in that case, so ask for color explicitly:
 
 ```yaml
-boxes:
-  system_monitor:
-    title: "System Stats"
-    script: |
-      #!/bin/bash
-      echo "CPU Usage:"
-      top -l1 | grep "CPU usage" | awk '{print $3, $5}'
-      echo "Memory:"
-      vm_stat | grep -E "(Pages active)" | awk '{print $3}'
-    refresh_interval: 2000
-    thread: true
+- id: highlighted_source
+  title: 'main.rs'
+  position: {x1: 0%, y1: 0%, x2: 60%, y2: 100%}
+  script:
+    - bat --color=always --style=plain src/main.rs
+
+- id: recent_commits
+  title: 'Recent Commits'
+  position: {x1: 60%, y1: 0%, x2: 100%, y2: 50%}
+  script:
+    - git -c color.ui=always log --oneline -20
+
+- id: errors
+  title: 'Errors'
+  position: {x1: 60%, y1: 50%, x2: 100%, y2: 100%}
+  script:
+    - grep --color=always -n ERROR app.log | tail -20
 ```
 
-## Configuration Examples by Language
+Other common switches: `ls --color=always`, `jq -C .`, `pygmentize -f terminal256 file.py`, `diff --color=always`.
 
-### Bash Scripts
+## Interactive Programs with Their Own Colors
+
+With `execution_mode: Pty`, the script runs in a terminal inside the box. Programs see a color terminal (`TERM=xterm-256color`) and draw with their own colors, including 256-color and 24-bit color. Editors and pagers with syntax highlighting work as they do in a normal terminal:
+
 ```yaml
-boxes:
-  bash_example:
-    script: |
-      #!/bin/bash
-      for i in {1..5}; do
-        echo "Count: $i"
-        sleep 1
-      done
+- id: editor
+  title: 'Editor'
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  execution_mode: Pty
+  tab_order: 1
+  script: ['vim README.md']
 ```
 
-### Python Scripts
+While the box has focus, all keys except Tab and Shift+Tab go to the program.
+
+## Writing Scripts in YAML
+
+### Single String or List
+
 ```yaml
-boxes:
-  python_example:
-    script: |
-      #!/usr/bin/env python3
-      import json
-      import requests
-      
-      response = requests.get('https://api.github.com/user')
-      print(json.dumps(response.json(), indent=2))
+# A list: each element is one line of the script
+- id: overview
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+  script:
+    - echo "=== System Overview ==="
+    - uname -a
+    - uptime
+
+# A block string: kept exactly as written, including indentation and blank lines
+- id: disk_report
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  script: |
+    echo "=== Disk Usage ==="
+    df -h | grep -v tmpfs
+
+    echo "=== Largest Directories ==="
+    du -sh /var/* 2>/dev/null | sort -h | tail -5
 ```
 
-### Node.js Scripts
+Both forms run as one script in one shell process, so variables and the current directory carry over from one line to the next. The shell is `bash` by default (`powershell` on Windows), or the one set with `app.shell`.
+
+A list element that contains `: ` (colon and space) without quotes is read by YAML as a mapping. BoxMux turns such an element back into text, but quoting the element avoids surprises: `- 'echo "Status: ok"'`.
+
+### Other Languages
+
+The script is passed to the shell, so a `#!` line at the top is only a comment. To run another language, call its interpreter from the script, for example with a heredoc:
+
 ```yaml
-boxes:
-  nodejs_example:
-    script: |
-      #!/usr/bin/env node
-      const fs = require('fs');
-      const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      console.log(`Project: ${package.name} v${package.version}`);
+- id: python_example
+  title: Python
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 100%}
+  script: |
+    python3 - <<'EOF'
+    import json, platform
+    print(json.dumps({"python": platform.python_version()}, indent=2))
+    EOF
+
+- id: node_example
+  title: Node.js
+  position: {x1: 50%, y1: 0%, x2: 100%, y2: 100%}
+  script: |
+    node - <<'EOF'
+    const pkg = require('./package.json');
+    console.log(`Project: ${pkg.name} v${pkg.version}`);
+    EOF
 ```
 
-### Docker Commands
+Or keep longer programs in their own files and run them: `script: ['python3 tools/report.py']`.
+
+### Variables and `${...}` in Scripts
+
+BoxMux replaces `${NAME}` and `${NAME:default}` in scripts when it loads the file, if `NAME` is defined in the file or in the environment. Shell syntax such as `${i}` for an undefined name, `${X:-y}` or `${#list[@]}` is left for the shell, and so is `${pkg.name}` above. Write `$${NAME}` to pass `${NAME}` to the shell unchanged, or use `$NAME` without braces. See [Variables in Scripts](../variables#variables-in-scripts).
+
 ```yaml
-boxes:
-  docker_example:
-    script: |
-      #!/bin/bash
-      echo "Running Containers:"
-      docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-      echo ""
-      echo "Images:"
-      docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+- id: deployment
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  variables:
+    SERVER_HOST: production-server.example.com
+    SSH_USER: deploy
+    APP_PATH: /var/www/myapp
+  script:
+    - 'echo "Deploying to ${SERVER_HOST}"'
+    - 'ssh ${SSH_USER}@${SERVER_HOST} "cd ${APP_PATH} && git pull"'
 ```
 
-## Advanced Configuration Patterns
+Go templates such as `docker ps --format '{{.Names}}'` contain no `${` and pass through unchanged.
 
-### Multi-line YAML Values
+## Editor Support for Configuration Files
+
+The configuration schema is in [`schemas/app_schema.json`](https://github.com/jowharshamshiri/boxmux/blob/main/schemas/app_schema.json) (JSON Schema draft 7). Editors that use the YAML language server can check a file and complete keys with it:
+
 ```yaml
-boxes:
-  complex_script:
-    script: |
-      #!/bin/bash
-      # This is a complex monitoring script
-      echo "=== System Overview ==="
-      uname -a
-      
-      echo "=== Load Average ==="
-      uptime | awk '{print $NF}'
-      
-      echo "=== Disk Usage ==="
-      df -h | grep -v tmpfs | grep -v devtmpfs
-      
-      echo "=== Network Connections ==="
-      netstat -tuln | head -10
+# yaml-language-server: $schema=../schemas/app_schema.json
+app:
+  layouts:
+    - id: main
+      children:
+        - id: hello
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          content: 'Hello'
 ```
 
-### Variable Substitution Patterns
-```yaml
-variables:
-  server_host: "production-server.com"
-  ssh_user: "deploy"
-  app_path: "/var/www/myapp"
-
-boxes:
-  deployment:
-    script: |
-      #!/bin/bash
-      echo "Deploying to {{server_host}}"
-      ssh {{ssh_user}}@{{server_host}} "cd {{app_path}} && git pull && npm install"
-      echo "Deployment complete!"
-```
-
-## PTY Integration Examples
-
-### Interactive Terminal Sessions
-```yaml
-boxes:
-  terminal:
-    pty: true                    # Enable pseudo-terminal
-    script: "bash"               # Start interactive bash
-    title: "⚡ Interactive Terminal"
-    border_color: "BrightCyan"
-```
-
-### Interactive Applications
-```yaml
-boxes:
-  file_manager:
-    pty: true
-    script: "ranger"             # File manager requires PTY
-    title: "📁 File Manager"
-    
-  process_monitor:
-    pty: true
-    script: "htop"               # Process monitor requires PTY
-    title: "📊 Process Monitor"
-    
-  text_editor:
-    pty: true
-    script: "vim README.md"      # Text editor requires PTY
-    title: "📝 Editor"
-```
-
-## Socket API Command Syntax
-
-### CLI Command Examples
-```bash
-# Update box content via socket
-boxmux replace-box-content "status_box" "New status: Online"
-
-# Execute PTY commands
-boxmux spawn-pty "terminal_box" --script="vim file.txt" --pty
-
-# Send input to PTY processes  
-boxmux send-pty-input "terminal_box" "Hello World\n"
-
-# Query PTY status
-boxmux query-pty-status "terminal_box"
-```
-
-### Socket Function Configuration
-```yaml
-# Remote control via socket commands
-boxes:
-  remote_controlled:
-    content: "This box can be updated via socket"
-    # Content will be replaced via socket commands:
-    # boxmux replace-box-content "remote_controlled" "New content"
-```
-
-## Color and Styling Syntax
-
-### ANSI Color Support
-```yaml
-boxes:
-  colored_box:
-    border_color: "BrightCyan"       # 16 ANSI colors
-    foreground_color: "BrightWhite"  # Text color
-    background_color: "Black"        # Background color
-    title_color: "BrightYellow"      # Title color
-```
-
-### Available Colors
-```yaml
-# Standard ANSI colors
-colors:
-  - "Black"       - "Red"         - "Green"       - "Yellow"
-  - "Blue"        - "Magenta"     - "Cyan"        - "White"
-  - "BrightBlack" - "BrightRed"   - "BrightGreen" - "BrightYellow"  
-  - "BrightBlue"  - "BrightMagenta" - "BrightCyan" - "BrightWhite"
-```
-
-## Configuration Validation
-
-BoxMux includes JSON schema validation for YAML files:
-
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/jowharshamshiri/boxmux/main/schemas/app_schema.json",
-  "type": "object",
-  "properties": {
-    "title": { "type": "string" },
-    "refresh_rate": { "type": "integer", "minimum": 1 },
-    "layouts": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/definitions/MuxBox" }
-    }
-  }
-}
-```
+BoxMux substitutes variables before it validates, but an editor checks the file as written. A setting that only becomes valid after substitution, such as `border_color: '${ACCENT}'`, is flagged by the editor but loads in BoxMux. BoxMux also performs checks a schema cannot express, such as unique ids and existing `redirect_output` targets.
 
 ## Best Practices
 
 ### YAML Formatting
-- Use 2-space indentation consistently
-- Quote string values that contain special characters
-- Use `|` for multi-line script content
-- Validate YAML syntax before running
+- Use 2-space indentation consistently.
+- Quote strings that contain `: `, `#`, or start with a special character such as `*`, `&`, `!` or `{`.
+- Use `|` for scripts that span several lines.
+- Write cell positions in quotes (`"12"`); unquoted numbers are rejected.
 
 ### Script Organization
-- Use shebang lines for clarity (`#!/bin/bash`)
-- Add comments to explain complex operations
-- Test scripts independently before embedding
-- Handle errors gracefully with appropriate exit codes
-
-### Variable Usage
-- Use descriptive variable names
-- Document variable purposes in comments
-- Prefer environment variables for sensitive data
-- Use hierarchical variable scoping appropriately
-
-BoxMux uses YAML configuration files to define terminal applications with syntax highlighting and validation support.
+- Keep long scripts in files and call them, or share functions through `app.libs`.
+- Test scripts on their own before putting them in a box.
+- Exit with a non-zero status on failure; the box then shows its error colors.
+- Force color output (`--color=always`) when you want colors in a non-terminal box.

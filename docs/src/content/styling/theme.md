@@ -5,367 +5,333 @@ description: Customizing colors, styling, and visual appearance in BoxMux termin
 
 # BoxMux Visual Themes
 
-BoxMux renders with readable colors out of the box and also supports full theming through YAML configuration for color schemes and styling.
+BoxMux draws readable colors without any configuration. Every color can also be set in the YAML file, on a layout or on a box.
 
 ## Automatic Light/Dark Theme
 
-You do not need to set any colors to get a good-looking dashboard. BoxMux picks a light or dark theme automatically and applies sensible defaults to every element — panel backgrounds, text, borders, titles, menu selections, and hover highlights — so a configuration with no color fields renders cleanly in both light and dark terminals.
+A configuration with no color settings works in light and dark terminals. BoxMux picks a light or dark theme and uses it for every color the file does not set.
 
-- **Auto-detection**: The theme is chosen from the terminal (via `COLORFGBG`), defaulting to dark when it cannot be determined.
-- **Force a theme**: Pass `--light` or `--dark` on the command line to override detection:
+The theme is chosen in this order:
 
-  ```bash
-  boxmux layouts/dashboard.yaml --dark
-  boxmux layouts/dashboard.yaml --light
-  ```
+1. `--light` or `--dark` on the command line.
+2. The terminal's background color, which BoxMux asks the terminal for at start (Unix only).
+3. The `COLORFGBG` environment variable: background color 7 or 15 means light.
+4. Otherwise, dark.
 
-- **Palette-safe highlights**: Selection, active-tab, and focus colors use fixed 256-color values rather than the base 16 ANSI colors. The base 16 colors are remapped by terminal themes (for example, "bright black" is rendered as a light tint by some palettes), which can make text on a highlight unreadable; the fixed values render consistently across terminals.
-- **Focus indication**: The focused box is marked with a distinct border and tab color, so the active box is always identifiable without any configuration.
-- **Backgrounds are real backgrounds**: Empty space inside a box is painted with the box's background color (not a foreground block glyph), so the area behind text and the empty area always match — including in selected boxes and tab bars.
+```bash
+boxmux layouts/dashboard.yaml --dark
+boxmux layouts/dashboard.yaml --light
+```
 
-Any color you set explicitly (see below) overrides the theme default for that element, so you can theme as much or as little as you like.
+### Theme Colors
+
+| Element | Dark theme | Light theme |
+|---------|------------|-------------|
+| Text | `white` | `black` |
+| Background | `black` | `white` |
+| Border | `white` | dark gray (256-color 238) |
+| Border of the focused box | blue (256-color 25) | blue (256-color 25) |
+| Title | the box's text and background colors | the box's text and background colors |
+| Border in the error state | `red`; `bright_red` when focused | same |
+| Title in the error state | `bright_white` on `red` | same |
+| Selected menu entry | `bright_white` on dark gray (238) | same |
+| Menu entry or tab under the mouse pointer | `black` on `bright_yellow` | same |
+
+The focus and selection accents use fixed entries of the 256-color palette. Terminal themes usually remap only the 16 base colors, so these accents look the same in every terminal.
+
+A few elements always use the theme and have no setting:
+
+| Element | Color |
+|---------|-------|
+| The visible tab | `bright_white` on dark gray (238); on blue (25) in the focused box |
+| Scrollbar track | `bright_black` (the knob uses the border color) |
+| Border of a terminal whose program ended normally or was stopped | `yellow` |
+| Notices on the bottom row | `bright_white` on blue (25); on `red` for errors |
 
 ## ANSI Color System
 
-BoxMux uses the standard 16-color ANSI palette for all visual elements:
+Colors are written as lower-case names. Any other value is a load error.
 
 ### Standard Colors
-```yaml
-# Basic ANSI colors (8 colors)
-standard_colors:
-  - Black      # 0: Pure black
-  - Red        # 1: Dark red  
-  - Green      # 2: Dark green
-  - Yellow     # 3: Dark yellow/brown
-  - Blue       # 4: Dark blue
-  - Magenta    # 5: Dark magenta/purple
-  - Cyan       # 6: Dark cyan
-  - White      # 7: Light gray
-```
+
+| Name | ANSI color |
+|------|------------|
+| `black` | 0 |
+| `red` | 1 |
+| `green` | 2 |
+| `yellow` | 3 |
+| `blue` | 4 |
+| `magenta` | 5 |
+| `cyan` | 6 |
+| `white` | 7 |
 
 ### Bright Colors
-```yaml
-# Bright ANSI colors (8 additional colors)
-bright_colors:
-  - BrightBlack    # 8: Dark gray
-  - BrightRed      # 9: Bright red
-  - BrightGreen    # 10: Bright green  
-  - BrightYellow   # 11: Bright yellow
-  - BrightBlue     # 12: Bright blue
-  - BrightMagenta  # 13: Bright magenta
-  - BrightCyan     # 14: Bright cyan
-  - BrightWhite    # 15: Pure white
-```
+
+| Name | ANSI color |
+|------|------------|
+| `bright_black` | 8 |
+| `bright_red` | 9 |
+| `bright_green` | 10 |
+| `bright_yellow` | 11 |
+| `bright_blue` | 12 |
+| `bright_magenta` | 13 |
+| `bright_cyan` | 14 |
+| `bright_white` | 15 |
+
+`default` is the terminal's own default color.
+
+These are the terminal's palette colors, so their exact look depends on the terminal theme. Some palettes, for example, draw `bright_black` as a light gray.
 
 ## Box Styling Properties
 
+### Color Settings
+
+Boxes and layouts accept the same color settings. A box uses its own setting, else the nearest enclosing box's, else the layout's, else the theme's.
+
+| Element | Normal | Focused box | Under the mouse pointer | Error | Error and focused |
+|---------|--------|-------------|-------------------------|-------|-------------------|
+| Text | `fg_color` | `selected_fg_color` | `highlighted_fg_color` | `error_fg_color` | `error_selected_fg_color` |
+| Background | `bg_color` | `selected_bg_color` | `highlighted_bg_color` | `error_bg_color` | `error_selected_bg_color` |
+| Border | `border_color` | `selected_border_color` | `highlighted_border_color` | `error_border_color` | `error_selected_border_color` |
+| Title text | `title_fg_color` | `selected_title_fg_color` | `highlighted_title_fg_color` | `error_title_fg_color` | `error_selected_title_fg_color` |
+| Title background | `title_bg_color` | `selected_title_bg_color` | `highlighted_title_bg_color` | `error_title_bg_color` | `error_selected_title_bg_color` |
+
+Menus have three pairs:
+
+| Setting | Applies to |
+|---------|------------|
+| `menu_fg_color`, `menu_bg_color` | Menu entries. Default: the box's text and background. |
+| `selected_menu_fg_color`, `selected_menu_bg_color` | The selected entry, marked `►`, which Enter runs. |
+| `highlighted_menu_fg_color`, `highlighted_menu_bg_color` | The entry under the mouse pointer. Tabs under the pointer use these colors too. |
+
+When a box has tabs, the titles of the tabs that are not visible use the title colors.
+
 ### Basic Box Appearance
+
 ```yaml
-boxes:
-  styled_box:
-    # Border and outline styling
-    border_color: "BrightBlue"         # Box border color
-    title_color: "BrightYellow"        # Title text color
-    
-    # Content area styling  
-    foreground_color: "BrightWhite"    # Text color
-    background_color: "Black"          # Background fill
-    
-    # Fill characters for empty space
-    fill_char: " "                     # Default fill character
-    selected_fill_char: "░"            # Fill when box is selected/focused
+- id: styled_box
+  title: Status
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  content: 'All systems normal'
+  border_color: bright_blue
+  title_fg_color: bright_yellow
+  fg_color: bright_white
+  bg_color: black
 ```
 
-### Focus and State Styling
+### Fill
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `fill` | `true` | `false` leaves the box's background unpainted, so whatever is beneath shows through. |
+| `fill_char` | `' '` | Character in the empty cells of the box. |
+| `selected_fill_char` | - | Fill character while the box has focus. |
+| `highlighted_fill_char` | - | Fill character while the mouse pointer is over the box. |
+
+On a layout, `fill: false` leaves the terminal's own background behind the boxes, and `fill_char` fills the screen behind the boxes. The layout's `fg_color` and `bg_color` color that background. Boxes inherit `fill` and the fill characters from enclosing boxes and the layout.
+
+### Title Position
+
+`title_position` puts the title at the `left`, `center` (default) or `right` of the top border.
+
+## States and Fallbacks
+
+A box can be in several states at once:
+
+- **Focused**: the box has the keyboard focus.
+- **Highlighted**: the mouse pointer is over the box.
+- **Error**: the last run of the visible tab failed, for example with a non-zero exit status. A tab whose process you stopped is not an error.
+
+For each element, BoxMux tries the settings of the box's states in a fixed order. It takes the first one that is set on the box, an enclosing box or the layout. If none is set, the theme decides.
+
+| Element | Order |
+|---------|-------|
+| Text, background | `error_selected_*` (error and focused), `error_*` (error), `selected_*` (focused), `highlighted_*` (pointer), the plain setting, the theme |
+| Border, error state | `error_selected_border_color` (focused), `error_border_color`, the theme's red (`bright_red` when focused) |
+| Border, ended terminal | always `yellow` |
+| Border, focused | `selected_border_color`, the theme's focus blue |
+| Border, otherwise | `highlighted_border_color` (pointer), `border_color`, the theme's border color |
+| Title, error state | `error_selected_title_*` (focused), `error_title_*`, `bright_white` on `red` |
+| Title, otherwise | `selected_title_*` (focused), `highlighted_title_*` (pointer), `title_*`, the box's text and background |
+| Fill character | `selected_fill_char` (focused), `highlighted_fill_char` (pointer), `fill_char`, a space |
+
+Two consequences:
+
+- A focused box does not use `border_color`. Set `selected_border_color` to change the focus border.
+- State settings win over plain ones wherever they are set. A `selected_bg_color` on the layout applies to a focused box even when the box sets its own `bg_color`.
+
 ```yaml
-boxes:
-  interactive_box:
-    # Base styling
-    border_color: "White"
-    foreground_color: "White"
-    
-    # Focus indication (automatic when focusable: true)
-    focusable: true
-    
-    # Selection state styling
-    selected_fill_char: "▓"            # Highlighted fill pattern
+- id: interactive_box
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 50%}
+  tab_order: 1
+  script: ['./check.sh']
+  border_color: white
+  selected_border_color: bright_green     # Border while focused
+  highlighted_border_color: cyan          # Border while the pointer is over it
+  error_border_color: magenta             # Border when check.sh fails
+  selected_fill_char: '·'                 # Empty cells while focused
 ```
 
 ## Theme Examples
 
+There is no separate theme file. Set the colors on the layout, and every box in it inherits them.
+
 ### Professional Dark Theme
+
 ```yaml
-# Professional dark theme with blue accents
-theme:
-  name: "Professional Dark"
-  
-boxes:
-  header:
-    border_color: "BrightCyan"
-    title_color: "BrightWhite"
-    foreground_color: "BrightWhite"
-    background_color: "Black"
-    
-  content:
-    border_color: "BrightBlue"
-    foreground_color: "White"
-    background_color: "Black"
-    
-  status:
-    border_color: "BrightGreen"
-    foreground_color: "BrightGreen"
-    background_color: "Black"
-    
-  warning:
-    border_color: "BrightYellow"
-    foreground_color: "BrightYellow"
-    background_color: "Black"
-    
-  error:
-    border_color: "BrightRed"
-    foreground_color: "BrightRed"
-    background_color: "Black"
+app:
+  layouts:
+    - id: main
+      bg_color: black
+      fg_color: white
+      border_color: bright_blue
+      title_fg_color: bright_white
+      selected_border_color: bright_cyan
+      selected_menu_fg_color: black
+      selected_menu_bg_color: bright_cyan
+      children:
+        - id: header
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 20%}
+          border_color: bright_cyan
+          content: 'Operations'
+        - id: status
+          position: {x1: 0%, y1: 20%, x2: 50%, y2: 100%}
+          fg_color: bright_green
+          content: 'All services running'
+        - id: warnings
+          position: {x1: 50%, y1: 20%, x2: 100%, y2: 100%}
+          border_color: bright_yellow
+          fg_color: bright_yellow
+          content: '2 warnings'
 ```
 
 ### Retro Terminal Theme
+
 ```yaml
-# Retro green-on-black terminal theme
-theme:
-  name: "Retro Terminal"
-  
-boxes:
-  main:
-    border_color: "BrightGreen"
-    title_color: "BrightGreen"
-    foreground_color: "Green"
-    background_color: "Black"
-    fill_char: " "
-    selected_fill_char: "░"
-    
-  secondary:
-    border_color: "Green"
-    title_color: "BrightGreen"
-    foreground_color: "Green"
-    background_color: "Black"
+app:
+  layouts:
+    - id: main
+      bg_color: black
+      fg_color: green
+      border_color: green
+      title_fg_color: bright_green
+      selected_border_color: bright_green
+      selected_fill_char: '░'
+      menu_fg_color: green
+      selected_menu_fg_color: black
+      selected_menu_bg_color: bright_green
+      children:
+        - id: main_menu
+          title: Menu
+          position: {x1: 0%, y1: 0%, x2: 40%, y2: 100%}
+          tab_order: 1
+          choices:
+            - id: who
+              content: 'Who is logged in'
+              script: ['who']
+        - id: secondary
+          title: Notes
+          position: {x1: 40%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 2
+          content: 'READY.'
 ```
 
 ### High Contrast Theme
-```yaml
-# High contrast theme for accessibility
-theme:
-  name: "High Contrast"
-  
-boxes:
-  primary:
-    border_color: "BrightWhite"
-    title_color: "BrightWhite"
-    foreground_color: "BrightWhite"
-    background_color: "Black"
-    
-  secondary:
-    border_color: "BrightYellow"
-    title_color: "BrightYellow"
-    foreground_color: "BrightYellow"
-    background_color: "Black"
-    
-  accent:
-    border_color: "BrightCyan"
-    foreground_color: "BrightCyan"
-    background_color: "Black"
-```
-
-## PTY Visual Indicators
-
-PTY-enabled boxes have special visual styling to distinguish them:
 
 ```yaml
-boxes:
-  terminal_box:
-    pty: true
-    
-    # PTY visual indicators (automatic)
-    title: "⚡ Interactive Terminal"      # Lightning bolt prefix
-    border_color: "BrightCyan"           # Distinctive cyan border
-    
-    # PTY status color coding (automatic based on state)
-    # - Running: BrightCyan
-    # - Error: BrightRed  
-    # - Finished: BrightBlack
-    # - Dead: Red
+app:
+  layouts:
+    - id: main
+      bg_color: black
+      fg_color: bright_white
+      border_color: bright_white
+      title_fg_color: black
+      title_bg_color: bright_white
+      selected_border_color: bright_yellow
+      selected_title_bg_color: bright_yellow
+      selected_menu_fg_color: black
+      selected_menu_bg_color: bright_yellow
+      children:
+        - id: primary
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 50%}
+          tab_order: 1
+          content: 'Primary information'
+        - id: accent
+          position: {x1: 0%, y1: 50%, x2: 100%, y2: 100%}
+          tab_order: 2
+          fg_color: bright_cyan
+          border_color: bright_cyan
+          content: 'Secondary information'
 ```
 
-## State-Based Color Coding
+### Named Colors with Variables
 
-### Process States
+Variables work in color settings, so a scheme can be defined once:
+
 ```yaml
-boxes:
-  process_monitor:
-    # Colors change automatically based on process state
-    script: "some_long_running_process.sh"
-    
-    # State colors (automatic):
-    # - Running: Normal colors
-    # - Error: BrightRed border/text
-    # - Success: BrightGreen accents
-    # - Waiting: BrightYellow indicators
+app:
+  variables:
+    PRIMARY: bright_blue
+    ACCENT: bright_cyan
+    WARNING: bright_yellow
+  layouts:
+    - id: dashboard
+      border_color: '${PRIMARY}'
+      title_fg_color: '${ACCENT}'
+      children:
+        - id: alerts
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          border_color: '${WARNING}'
+          content: 'No alerts'
 ```
 
-### Content-Based Styling
+The substituted value must be a valid color name.
+
+## Script Output Colors
+
+Script output keeps its SGR color and style sequences. Boxes show:
+
+- The 16 base colors and their bright versions (`30`-`37`, `90`-`97`, and the background codes).
+- 256-color (`38;5;N`) and 24-bit (`38;2;R;G;B`) colors.
+- Bold, dim, italic, underline, blink, reverse, hidden and strikethrough.
+
+A reset (`ESC[0m`) returns to the box's own text and background colors. Each line starts in the box's colors; a color set on one line does not continue on the next line. Other escape sequences, such as cursor movement, are removed. A carriage return goes back to the start of the line, so progress bars show their last state.
+
 ```yaml
-boxes:
-  log_viewer:
-    script: |
-      #!/bin/bash
-      # Script output colors are preserved
-      echo -e "\\033[32mSUCCESS: Operation completed\\033[0m"
-      echo -e "\\033[33mWARNING: Check configuration\\033[0m" 
-      echo -e "\\033[31mERROR: Connection failed\\033[0m"
-      
-    # ANSI escape sequences in output are processed
-    # Colors appear correctly in the terminal
+- id: log_viewer
+  title: Log
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  script:
+    - echo "$(tput setaf 2)SUCCESS$(tput sgr0) operation completed"
+    - echo "$(tput setaf 3)WARNING$(tput sgr0) check configuration"
+    - echo "$(tput bold)$(tput setaf 1)ERROR$(tput sgr0) connection failed"
 ```
 
-## Layout-Based Theming
+`tput` prints the escape sequences for the terminal named in `TERM`. Printing the sequences directly, such as `ESC[32m` with `printf`, works the same way.
 
-### Multi-Layout Color Coordination
-```yaml
-# Consistent theming across layouts
-variables:
-  primary_color: "BrightBlue"
-  accent_color: "BrightCyan"
-  success_color: "BrightGreen"
-  warning_color: "BrightYellow"
-  error_color: "BrightRed"
-
-layouts:
-  dashboard:
-    type: "MuxBox"
-    children:
-      header:
-        border_color: "{{primary_color}}"
-        title_color: "{{accent_color}}"
-        
-      status:
-        border_color: "{{success_color}}"
-        
-  monitoring:
-    type: "MuxBox"
-    children:
-      alerts:
-        border_color: "{{warning_color}}"
-        
-      errors:
-        border_color: "{{error_color}}"
-```
-
-## Interactive Element Styling
-
-### Menu and Choice Styling
-```yaml
-boxes:
-  main_menu:
-    choices:
-      - name: "Deploy Application"
-        # Choice styling is inherited from parent box
-        
-    # Menu-specific colors
-    choice_color: "BrightGreen"          # Unselected choices
-    selected_color: "BrightYellow"       # Currently selected choice
-    border_color: "BrightBlue"           # Menu border
-```
-
-### Scrollbar and Interactive Elements
-```yaml
-boxes:
-  scrollable_content:
-    overflow_behavior: "scroll"
-    
-    # Scrollbar styling (automatic based on box colors)
-    border_color: "BrightWhite"          # Scrollbar uses box border color
-    # Scrollbar components:
-    # - Track: Uses fill_char
-    # - Thumb: Uses selected_fill_char
-    # - Arrows: Use border_color
-```
-
-## Theming Techniques
-
-### Conditional Color Schemes
-```yaml
-# Environment-based theming
-variables:
-  env: "{{ENV}}"  # production, staging, development
-  
-boxes:
-  status_indicator:
-    title: "Environment: {{env}}"
-    # Use different colors based on environment
-    border_color: |
-      {% if env == "production" %}BrightRed{% elif env == "staging" %}BrightYellow{% else %}BrightGreen{% endif %}
-```
-
-### Time-Based Themes
-```yaml
-boxes:
-  time_sensitive:
-    script: |
-      #!/bin/bash
-      hour=$(date +%H)
-      if [ $hour -lt 6 ] || [ $hour -gt 18 ]; then
-        echo "🌙 Night mode active"
-      else
-        echo "☀️ Day mode active"  
-      fi
-    
-    # Adjust colors based on script output or time
-    border_color: "BrightBlue"  # Could be dynamic based on conditions
-```
+Programs in a terminal box (`execution_mode: Pty`) draw with their own colors, including 256-color and 24-bit color.
 
 ## Z-Index and Layering
 
-Control visual stacking order for overlapping boxes:
+`z_index` orders overlapping sibling boxes; higher values are drawn on top. A box with `fill: false` lets the boxes beneath show through its empty cells.
 
 ```yaml
-boxes:
-  background_box:
-    z_index: 1                           # Behind other boxes
-    border_color: "BrightBlack"
-    
-  main_content:
-    z_index: 5                           # Normal layer
-    border_color: "BrightBlue"
-    
-  popup_overlay:
-    z_index: 10                          # Above other boxes
-    border_color: "BrightYellow"
+- id: background_box
+  position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+  z_index: 1
+  border_color: bright_black
+  content: 'Background'
+
+- id: popup_overlay
+  position: {x1: 30%, y1: 30%, x2: 70%, y2: 70%}
+  z_index: 10
+  border_color: bright_yellow
+  content: 'Popup'
 ```
 
 ## Theme Best Practices
 
-### Color Harmony
-```yaml
-# Use related colors for cohesive appearance
-theme_palette:
-  primary: "BrightBlue"        # Main accent color
-  secondary: "BrightCyan"      # Related cool color
-  neutral: "White"             # Text and borders
-  background: "Black"          # Consistent background
-  success: "BrightGreen"       # Status indication
-  warning: "BrightYellow"      # Attention grabbing
-  danger: "BrightRed"          # Error states
-```
-
-### Accessibility Considerations
-- Ensure sufficient contrast between text and background
-- Use bright colors for important information
-- Provide non-color indicators (symbols, text) for critical states
-- Test themes in different terminal environments
-- Consider colorblind-friendly color combinations
-
-### Performance Optimization
-- Use consistent colors across related boxes
-- Minimize frequent color changes
-- Choose colors that work well in various terminal emulators
-- Test theme performance with different terminal color capabilities
-
-BoxMux uses ANSI colors for terminal application styling.
+- Set colors on the layout and override them only in the boxes that need it.
+- Leave `bg_color` and `fg_color` unset if the file should work in both light and dark terminals; the automatic theme then picks readable defaults.
+- Check text against its background in both a light and a dark terminal theme, because the 16 named colors change with the terminal palette.
+- Do not rely on color alone for important states. Have scripts print a clear message, such as `ERROR: disk full`, as well as exiting with a failure status.
