@@ -1,7 +1,6 @@
-//! End-to-end tests: the real `boxmux` binary in a pseudo-terminal, driven with keyboard and
-//! SGR mouse input, its screen read back through a small terminal emulator.
-
-#![cfg(unix)]
+//! End-to-end tests: the real `boxmux` binary in a pseudo-terminal (a ConPTY on Windows),
+//! driven with keyboard and SGR mouse input, its screen read back through a small terminal
+//! emulator. Scripts in the configurations are written for the platform's default shell.
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::fs;
@@ -16,7 +15,8 @@ use unicode_width::UnicodeWidthChar;
 
 const WIDTH: u16 = 100;
 const HEIGHT: u16 = 30;
-const TIMEOUT: Duration = Duration::from_secs(10);
+// PowerShell can take seconds to start on a cold Windows machine.
+const TIMEOUT: Duration = Duration::from_secs(30);
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_boxmux")
@@ -42,8 +42,20 @@ impl Fixture {
         self.path("markers").join(name)
     }
 
-    fn socket(&self) -> PathBuf {
-        self.path("boxmux.sock")
+    /// This test's control socket: a file on Unix, a pipe name on Windows.
+    fn socket(&self) -> String {
+        if cfg!(windows) {
+            let unique = self
+                .tmp
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            format!("boxmux-test-{}", unique)
+        } else {
+            self.path("boxmux.sock").to_string_lossy().into_owned()
+        }
     }
 
     fn write_config(&self, yaml: &str) -> PathBuf {
@@ -170,6 +182,7 @@ impl LiveBoxMux {
         }
     }
 
+    #[cfg(unix)]
     fn pid(&self) -> i32 {
         self.child.process_id().expect("boxmux has a pid") as i32
     }
@@ -269,6 +282,23 @@ impl Drop for LiveBoxMux {
     }
 }
 
+/// A script that writes `text` to `markers/<name>`.
+fn write_marker(name: &str, text: &str) -> String {
+    if cfg!(windows) {
+        format!(
+            "Set-Content -NoNewline -Path markers/{} -Value {}",
+            name, text
+        )
+    } else {
+        format!("printf {} > markers/{}", text, name)
+    }
+}
+
+fn menu() -> String {
+    MENU.replace("WRITE_BUILD", &write_marker("build", "build"))
+        .replace("WRITE_TEST", &write_marker("test", "test"))
+}
+
 const MENU: &str = r#"
 app:
   layouts:
@@ -283,10 +313,10 @@ app:
           choices:
             - id: build
               content: Build Now
-              script: ["printf build > markers/build"]
+              script: ["WRITE_BUILD"]
             - id: test
               content: Run Tests
-              script: ["printf test > markers/test"]
+              script: ["WRITE_TEST"]
             - id: show
               content: Show Output
               redirect_output: output
@@ -300,7 +330,7 @@ app:
 #[test]
 fn clicking_a_choice_label_runs_exactly_that_choice() {
     let fixture = Fixture::new();
-    let config = fixture.write_config(MENU);
+    let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.wait_for_text("Run Tests");
     app.click_text("Build Now");
@@ -311,7 +341,7 @@ fn clicking_a_choice_label_runs_exactly_that_choice() {
 #[test]
 fn clicking_beside_a_choice_label_runs_nothing() {
     let fixture = Fixture::new();
-    let config = fixture.write_config(MENU);
+    let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     let (x, y) = app.wait_for_text("Build Now");
     app.click(x + "Build Now".len() + 4, y);
@@ -321,7 +351,7 @@ fn clicking_beside_a_choice_label_runs_nothing() {
 #[test]
 fn redirected_output_opens_a_tab_that_its_close_button_closes() {
     let fixture = Fixture::new();
-    let config = fixture.write_config(MENU);
+    let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.click_text("Show Output");
     app.wait_for_text("REDIRECTED_PAYLOAD");
@@ -334,7 +364,7 @@ fn redirected_output_opens_a_tab_that_its_close_button_closes() {
 #[test]
 fn control_commands_answer_and_change_the_screen() {
     let fixture = Fixture::new();
-    let config = fixture.write_config(MENU);
+    let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.wait_for_text("READY");
 
@@ -364,7 +394,7 @@ fn control_commands_answer_and_change_the_screen() {
 fn keys_typed_into_a_focused_terminal_reach_the_program() {
     let fixture = Fixture::new();
     let config = fixture.write_config(
-        r#"
+        &r#"
 app:
   layouts:
     - id: main
@@ -375,8 +405,16 @@ app:
           position: {x1: "0", y1: "0", x2: "60", y2: "12"}
           tab_order: 1
           execution_mode: Pty
-          script: ['printf "ready> "; read line; echo "got:$line"; sleep 30']
-"#,
+          script: [SCRIPT]
+"#
+        .replace(
+            "SCRIPT",
+            if cfg!(windows) {
+                r#"'$line = Read-Host "ready>"; Write-Output "got:$line"; Start-Sleep 30'"#
+            } else {
+                r#"'printf "ready> "; read line; echo "got:$line"; sleep 30'"#
+            },
+        ),
     );
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.wait_for_text("ready>");
@@ -385,6 +423,7 @@ app:
 }
 
 #[test]
+#[cfg(unix)]
 fn quitting_leaves_no_process_behind() {
     let fixture = Fixture::new();
     let config = fixture.write_config(
@@ -463,9 +502,10 @@ app:
 }
 
 #[test]
+#[cfg(unix)]
 fn a_termination_signal_restores_the_terminal() {
     let fixture = Fixture::new();
-    let config = fixture.write_config(MENU);
+    let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.wait_for_text("READY");
     let before = app.raw.len();
@@ -506,6 +546,7 @@ struct Screen {
     cells: Vec<Vec<char>>,
     x: usize,
     y: usize,
+    wrap_pending: bool,
     pending: Vec<u8>,
 }
 
@@ -517,6 +558,7 @@ impl Screen {
             cells: vec![vec![' '; width]; height],
             x: 0,
             y: 0,
+            wrap_pending: false,
             pending: Vec::new(),
         }
     }
@@ -536,10 +578,12 @@ impl Screen {
                 },
                 b'\r' => {
                     self.x = 0;
+                    self.wrap_pending = false;
                     i += 1;
                 }
                 b'\n' => {
                     self.y = (self.y + 1).min(self.height - 1);
+                    self.wrap_pending = false;
                     i += 1;
                 }
                 byte if byte < 0x20 => i += 1,
@@ -579,22 +623,42 @@ impl Screen {
                     .map(|p| p.parse().unwrap_or(0))
                     .collect();
                 let n = |k: usize| params.get(k).copied().filter(|v| *v > 0).unwrap_or(1);
-                match data[j] {
-                    b'H' | b'f' => {
-                        self.y = (n(0) - 1).min(self.height - 1);
-                        self.x = (n(1) - 1).min(self.width - 1);
-                    }
-                    b'J' if params.first() == Some(&2) => {
-                        for row in &mut self.cells {
-                            row.fill(' ');
+                let private = data[i + 2] == b'?';
+                if !private {
+                    self.wrap_pending = false;
+                    match data[j] {
+                        b'H' | b'f' => {
+                            self.y = (n(0) - 1).min(self.height - 1);
+                            self.x = (n(1) - 1).min(self.width - 1);
                         }
-                    }
-                    b'K' => {
-                        for x in self.x..self.width {
-                            self.cells[self.y][x] = ' ';
+                        b'A' => self.y = self.y.saturating_sub(n(0)),
+                        b'B' => self.y = (self.y + n(0)).min(self.height - 1),
+                        b'C' => self.x = (self.x + n(0)).min(self.width - 1),
+                        b'D' => self.x = self.x.saturating_sub(n(0)),
+                        b'G' => self.x = (n(0) - 1).min(self.width - 1),
+                        b'd' => self.y = (n(0) - 1).min(self.height - 1),
+                        b'J' if params.first() == Some(&2) => {
+                            for row in &mut self.cells {
+                                row.fill(' ');
+                            }
                         }
+                        b'K' => {
+                            let (from, to) = match params.first() {
+                                Some(1) => (0, self.x + 1),
+                                Some(2) => (0, self.width),
+                                _ => (self.x, self.width),
+                            };
+                            for x in from..to.min(self.width) {
+                                self.cells[self.y][x] = ' ';
+                            }
+                        }
+                        b'X' => {
+                            for x in self.x..(self.x + n(0)).min(self.width) {
+                                self.cells[self.y][x] = ' ';
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
                 Some(j + 1)
             }
@@ -617,13 +681,22 @@ impl Screen {
         if width == 0 {
             return;
         }
-        if self.x < self.width {
-            self.cells[self.y][self.x] = ch;
-            if width == 2 && self.x + 1 < self.width {
-                self.cells[self.y][self.x + 1] = '\0';
-            }
+        // Like a real terminal, a character after the last column goes to the next line.
+        if self.wrap_pending || self.x + width > self.width {
+            self.x = 0;
+            self.y = (self.y + 1).min(self.height - 1);
+            self.wrap_pending = false;
         }
-        self.x = (self.x + width).min(self.width - 1);
+        self.cells[self.y][self.x] = ch;
+        if width == 2 && self.x + 1 < self.width {
+            self.cells[self.y][self.x + 1] = '\0';
+        }
+        if self.x + width >= self.width {
+            self.x = self.width - 1;
+            self.wrap_pending = true;
+        } else {
+            self.x += width;
+        }
     }
 
     fn row(&self, y: usize) -> String {
@@ -654,14 +727,14 @@ fn the_socket_option_goes_before_or_after_a_control_command_but_interface_option
     for args in [
         vec![
             "--socket",
-            socket.to_str().unwrap(),
+            socket.as_str(),
             "query_pty_status",
             "b",
         ],
         vec![
             "query_pty_status",
             "--socket",
-            socket.to_str().unwrap(),
+            socket.as_str(),
             "b",
         ],
     ] {
@@ -684,6 +757,7 @@ fn the_socket_option_goes_before_or_after_a_control_command_but_interface_option
 }
 
 #[test]
+#[cfg(unix)]
 fn the_terminal_is_asked_for_its_background_and_the_answer_is_not_taken_for_keys() {
     let fixture = Fixture::new();
     // A key handler that would fire if the reply's characters were read as typed keys.
