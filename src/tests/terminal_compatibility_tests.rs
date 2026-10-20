@@ -1,4 +1,4 @@
-//! F0319: Terminal Compatibility Testing - Real terminal applications
+//! The emulator fed with the output of real terminal programs.
 //!
 //! Tests for terminal compatibility with actual command-line programs.
 //! Validates that BoxMux PTY can properly run vi, htop, top, less, and other interactive programs.
@@ -11,7 +11,7 @@ mod tests {
 
     #[test]
     fn test_ls_color_output_compatibility() {
-        // F0319: Test ls --color=always produces proper ANSI output
+        // ls --color=always produces proper ANSI output
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate ls --color output with directory listing and colors
@@ -32,7 +32,7 @@ mod tests {
 
     #[test]
     fn test_cat_file_output_compatibility() {
-        // F0319: Test cat command with various file types
+        // cat command with various file types
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate cat output with plain text
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_grep_output_compatibility() {
-        // F0319: Test grep output with line numbers and highlighting
+        // grep output with line numbers and highlighting
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate grep -n --color=always output
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn test_ps_output_compatibility() {
-        // F0319: Test ps command output with process information
+        // ps command output with process information
         let mut processor = Emulator::with_screen_size(120, 24);
 
         // Simulate ps aux output header and sample processes
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_top_like_header_compatibility() {
-        // F0319: Test top-like header with system information
+        // top-like header with system information
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate top header with cursor positioning and updates
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_vi_status_line_compatibility() {
-        // F0319: Test vi-like status line with file information
+        // vi-like status line with file information
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate vi status line at bottom of screen
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_less_pager_compatibility() {
-        // F0319: Test less pager with scroll indicators and content
+        // less pager with scroll indicators and content
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate less output with content and bottom status
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_nano_editor_compatibility() {
-        // F0319: Test nano editor interface with title and status bars
+        // nano editor interface with title and status bars
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate nano interface with title bar and content area
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_htop_process_list_compatibility() {
-        // F0319: Test htop-like process display with colors and formatting
+        // htop-like process display with colors and formatting
         let mut processor = Emulator::with_screen_size(120, 30);
 
         // Simulate htop process list with colored output
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_terminal_escape_sequence_compatibility() {
-        // F0319: Test various terminal escape sequences used by real applications
+        // various terminal escape sequences used by real applications
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Test cursor save/restore sequences
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_interactive_program_cursor_handling() {
-        // F0319: Test cursor handling for interactive programs
+        // cursor handling for interactive programs
         let mut processor = Emulator::with_screen_size(80, 24);
 
         // Simulate interactive program cursor movements
