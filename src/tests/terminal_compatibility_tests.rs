@@ -4,12 +4,6 @@
 //! Validates that BoxMux PTY can properly run vi, htop, top, less, and other interactive programs.
 
 use crate::ansi_processor::AnsiProcessor;
-use crate::model::app::AppContext;
-use crate::model::muxbox::MuxBox;
-use crate::pty_manager::PtyManager;
-use std::process::Command;
-use std::thread;
-use std::time::Duration;
 
 #[cfg(test)]
 mod tests {
@@ -42,7 +36,7 @@ mod tests {
         let mut processor = AnsiProcessor::with_screen_size(80, 24);
 
         // Simulate cat output with plain text
-        let cat_output = "Hello World\nThis is a test file\nWith multiple lines\n";
+        let cat_output = "Hello World\r\nThis is a test file\r\nWith multiple lines\r\n";
         processor.process_bytes(cat_output.as_bytes());
 
         let content = processor.get_processed_text();
@@ -100,7 +94,7 @@ mod tests {
         let mut processor = AnsiProcessor::with_screen_size(80, 24);
 
         // Simulate top header with cursor positioning and updates
-        let top_output = "\x1b[H\x1b[2Jtop - 12:34:56 up 1 day,  5:43,  3 users,  load average: 0.45, 0.32, 0.28\n";
+        let top_output = "\x1b[H\x1b[2Jtop - 12:34:56 up 1 day,  5:43,  3 users,  load average: 0.45, 0.32, 0.28\r\n";
         top_output
             .chars()
             .for_each(|c| processor.process_bytes(&[c as u8]));
@@ -265,14 +259,5 @@ mod tests {
         assert!(content.contains("Menu:"));
         assert!(content.contains("1. Option A"));
         assert!(content.contains("2. Option B"));
-    }
-
-    fn create_test_pty_muxbox() -> MuxBox {
-        let mut muxbox = MuxBox::default();
-        muxbox.id = "test_pty".to_string();
-        muxbox.title = Some("PTY Test".to_string());
-        muxbox.execution_mode = crate::model::common::ExecutionMode::Pty;
-        muxbox.script = Some(vec!["echo 'PTY Test'".to_string()]);
-        muxbox
     }
 }

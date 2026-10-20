@@ -1,6 +1,10 @@
 pub mod app;
+pub mod appearance;
+pub mod bounds;
 pub mod choice;
 pub mod common;
-pub mod defaults;
 pub mod layout;
 pub mod muxbox;
+pub mod stream;
+pub mod variables;
+pub mod yaml_edit;

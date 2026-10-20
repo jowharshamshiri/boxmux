@@ -29,22 +29,14 @@ pub struct TableConfig {
 }
 
 /// Border styles for tables
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
 pub enum TableBorderStyle {
     None,
     Single,
     Double,
     Rounded,
     Thick,
-    Custom {
-        horizontal: char,
-        vertical: char,
-        top_left: char,
-        top_right: char,
-        bottom_left: char,
-        bottom_right: char,
-        cross: char,
-    },
 }
 
 /// Pagination configuration
@@ -90,6 +82,71 @@ impl Default for TableConfig {
             pagination: None,
         }
     }
+}
+
+/// The `table_config` of a box: how its table is sorted, filtered, paged and drawn.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct TableSettings {
+    pub show_headers: Option<bool>,
+    /// Header of the column rows are sorted by.
+    pub sort_column: Option<String>,
+    pub sort_ascending: Option<bool>,
+    /// Only rows whose value in the named column contains the given text are shown.
+    pub filters: Option<std::collections::BTreeMap<String, String>>,
+    pub border_style: Option<TableBorderStyle>,
+    pub zebra_striping: Option<bool>,
+    pub max_column_width: Option<usize>,
+    pub show_row_numbers: Option<bool>,
+    /// Rows per page; the table is not paged without it.
+    pub page_size: Option<usize>,
+    pub current_page: Option<usize>,
+    pub show_page_info: Option<bool>,
+}
+
+impl TableSettings {
+    /// The rendering configuration for a table of `width` x `height` cells.
+    pub fn to_config(&self, width: usize, height: usize) -> TableConfig {
+        let defaults = TableConfig::default();
+        TableConfig {
+            title: None,
+            width,
+            height,
+            show_headers: self.show_headers.unwrap_or(defaults.show_headers),
+            sort_column: self.sort_column.clone(),
+            sort_ascending: self.sort_ascending.unwrap_or(defaults.sort_ascending),
+            filters: self
+                .filters
+                .iter()
+                .flatten()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            column_widths: None,
+            border_style: self.border_style.clone().unwrap_or(defaults.border_style),
+            zebra_striping: self.zebra_striping.unwrap_or(defaults.zebra_striping),
+            highlight_row: None,
+            max_column_width: self.max_column_width.or(defaults.max_column_width),
+            show_row_numbers: self.show_row_numbers.unwrap_or(defaults.show_row_numbers),
+            pagination: self.page_size.map(|page_size| TablePagination {
+                page_size,
+                current_page: self.current_page.unwrap_or(0),
+                show_page_info: self.show_page_info.unwrap_or(false),
+            }),
+        }
+    }
+}
+
+/// The table text for `data` (CSV, or a JSON array of objects) in a `width` x `height` area.
+pub fn table_text(data: &str, settings: &TableSettings, width: usize, height: usize) -> String {
+    let parsed = if data.trim_start().starts_with('[') {
+        match parse_table_data_from_json(data) {
+            Ok(parsed) => parsed,
+            Err(e) => return format!("table data is not valid JSON: {}", e),
+        }
+    } else {
+        parse_table_data(data, None)
+    };
+    render_table(&parsed, &settings.to_config(width, height))
 }
 
 /// Generate table display string from data and configuration
@@ -358,26 +415,6 @@ fn render_top_border(widths: &[usize], style: &TableBorderStyle) -> String {
             border.push('\n');
             border
         }
-        TableBorderStyle::Custom {
-            horizontal,
-            vertical: _,
-            top_left,
-            top_right,
-            bottom_left: _,
-            bottom_right: _,
-            cross,
-        } => {
-            let mut border = String::from(*top_left);
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&horizontal.to_string().repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push(*cross);
-                }
-            }
-            border.push(*top_right);
-            border.push('\n');
-            border
-        }
     }
 }
 
@@ -433,26 +470,6 @@ fn render_bottom_border(widths: &[usize], style: &TableBorderStyle) -> String {
             border.push('\n');
             border
         }
-        TableBorderStyle::Custom {
-            horizontal,
-            vertical: _,
-            top_left: _,
-            top_right: _,
-            bottom_left,
-            bottom_right,
-            cross,
-        } => {
-            let mut border = String::from(*bottom_left);
-            for (i, &width) in widths.iter().enumerate() {
-                border.push_str(&horizontal.to_string().repeat(width + 2));
-                if i < widths.len() - 1 {
-                    border.push(*cross);
-                }
-            }
-            border.push(*bottom_right);
-            border.push('\n');
-            border
-        }
     }
 }
 
@@ -497,26 +514,6 @@ fn render_separator(widths: &[usize], style: &TableBorderStyle) -> String {
             sep.push('\n');
             sep
         }
-        TableBorderStyle::Custom {
-            horizontal,
-            vertical,
-            top_left: _,
-            top_right: _,
-            bottom_left: _,
-            bottom_right: _,
-            cross,
-        } => {
-            let mut sep = String::from(*vertical);
-            for (i, &width) in widths.iter().enumerate() {
-                sep.push_str(&horizontal.to_string().repeat(width + 2));
-                if i < widths.len() - 1 {
-                    sep.push(*cross);
-                }
-            }
-            sep.push(*vertical);
-            sep.push('\n');
-            sep
-        }
     }
 }
 
@@ -531,7 +528,6 @@ fn render_header_row(
         TableBorderStyle::None => ' ',
         TableBorderStyle::Single | TableBorderStyle::Rounded | TableBorderStyle::Thick => '│',
         TableBorderStyle::Double => '║',
-        TableBorderStyle::Custom { vertical, .. } => *vertical,
     };
 
     let mut row = String::new();
@@ -587,7 +583,6 @@ fn render_data_row(
         TableBorderStyle::None => ' ',
         TableBorderStyle::Single | TableBorderStyle::Rounded | TableBorderStyle::Thick => '│',
         TableBorderStyle::Double => '║',
-        TableBorderStyle::Custom { vertical, .. } => *vertical,
     };
 
     let mut result = String::new();

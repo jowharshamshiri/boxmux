@@ -1,62 +1,25 @@
-#!/bin/bash
+#!/bin/sh
+# Drives a running `boxmux examples/pty_states.yaml` through its control socket.
+# Run it from a second terminal while the example is shown. Every command must succeed, so the
+# script stops at the first failure.
+set -eu
 
-# PTY Control Demo Script
-# Demonstrates socket-based PTY process management commands
+boxmux=${BOXMUX:-boxmux}
 
-echo "=== BoxMux PTY Control Demo ==="
-echo "This script demonstrates the new socket-based PTY control commands"
-echo ""
+echo "== status of the interactive shell"
+"$boxmux" query_pty_status shell
 
-# Start BoxMux in background with PTY demo config
-echo "1. Starting BoxMux with PTY demo configuration..."
-./target/release/boxmux examples/pty_error_states_demo.yaml &
-BOXMUX_PID=$!
-echo "BoxMux started with PID: $BOXMUX_PID"
-echo ""
+echo "== typing a command into it"
+"$boxmux" send_pty_input shell "echo hello from the control socket
+"
 
-# Wait for BoxMux to start
-sleep 2
-
-echo "2. Querying PTY status for all boxes..."
-echo "   Query normal PTY muxbox:"
-./target/release/boxmux query_pty_status normal_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
-
-echo "   Query error PTY muxbox:"
-./target/release/boxmux query_pty_status error_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
-
-echo "   Query dead PTY muxbox:"
-./target/release/boxmux query_pty_status dead_pty 2>/dev/null || echo "   (MuxBox may not be started yet)"
-echo ""
-
-echo "3. Demonstrating PTY process control..."
-echo "   Kill PTY process in normal_pty muxbox:"
-./target/release/boxmux kill_pty_process normal_pty 2>/dev/null || echo "   (May fail if process not running)"
-
-echo "   Restart PTY process in normal_pty muxbox:"
-./target/release/boxmux restart_pty_process normal_pty 2>/dev/null || echo "   (Restart command sent)"
-echo ""
-
-echo "4. Query status after restart..."
+echo "== restarting the box that fails"
+"$boxmux" restart_pty_process fails
 sleep 1
-./target/release/boxmux query_pty_status normal_pty 2>/dev/null || echo "   (Query after restart)"
-echo ""
+"$boxmux" query_pty_status fails
 
-echo "5. Cleanup..."
-echo "   Stopping BoxMux..."
-kill $BOXMUX_PID 2>/dev/null
-echo ""
-
-echo "=== PTY Control Commands Available ==="
-echo "kill_pty_process <muxbox_id>    - Kill PTY process for a muxbox"
-echo "restart_pty_process <muxbox_id> - Restart PTY process for a muxbox" 
-echo "query_pty_status <muxbox_id>    - Get PTY process status and info"
-echo ""
-
-echo "=== PTY Error State Indicators ==="
-echo "⚡ [PID:xxx Running] - Normal PTY (Bright Cyan border)"
-echo "⚠️ [PID:xxx Error:msg] - Error PTY (Yellow border)"  
-echo "💀 [PID:xxx Dead:reason] - Dead PTY (Red border)"
-echo "⚠️ [PID:xxx Fallback] - Fallback PTY (Yellow border)"
-echo ""
-
-echo "Demo complete!"
+echo "== starting a new terminal in the processes box"
+"$boxmux" spawn_pty_process processes top
+sleep 2
+"$boxmux" kill_pty_process processes
+"$boxmux" query_pty_status processes

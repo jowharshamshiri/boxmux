@@ -1,237 +1,5 @@
 use vte::{Params, Parser, Perform};
 
-/// F0304: Terminal Message Architecture - Comprehensive terminal operation messages
-#[derive(Debug, Clone, PartialEq)]
-pub enum TerminalMessage {
-    // Core terminal operations
-    ProcessBytes(Vec<u8>),
-    SendInput(String),
-    ResizeTerminal {
-        width: usize,
-        height: usize,
-    },
-
-    // Screen buffer operations
-    SwitchScreenBuffer {
-        to_alternate: bool,
-    },
-    ClearScreen {
-        mode: ClearMode,
-    },
-    ClearLine {
-        line: usize,
-        mode: ClearMode,
-    },
-    ScrollUp {
-        lines: usize,
-    },
-    ScrollDown {
-        lines: usize,
-    },
-
-    // Cursor operations
-    MoveCursor {
-        x: usize,
-        y: usize,
-    },
-    MoveCursorRelative {
-        dx: i32,
-        dy: i32,
-    },
-    SaveCursor,
-    RestoreCursor,
-    SetCursorVisibility {
-        visible: bool,
-    },
-    SetCursorStyle {
-        style: CursorStyle,
-    },
-    SetCursorColumn {
-        col: usize,
-    },
-    SetCursorLine {
-        line: usize,
-    },
-    CursorUp {
-        lines: usize,
-    },
-    CursorDown {
-        lines: usize,
-    },
-    CursorLeft {
-        cols: usize,
-    },
-    CursorRight {
-        cols: usize,
-    },
-    CursorToLineStart,
-    CursorNextLine {
-        lines: usize,
-    },
-    CursorPreviousLine {
-        lines: usize,
-    },
-
-    // Terminal modes
-    SetMode {
-        mode: TerminalModeType,
-        enabled: bool,
-    },
-
-    // Character attributes and formatting
-    SetAttributes {
-        attributes: TerminalAttributes,
-    },
-    ResetAttributes,
-
-    // Scrolling regions
-    SetScrollingRegion {
-        top: usize,
-        bottom: usize,
-    },
-    ResetScrollingRegion,
-    ScrollUpInRegion {
-        lines: usize,
-    }, // F0307: Scroll up within margins
-    ScrollDownInRegion {
-        lines: usize,
-    }, // F0307: Scroll down within margins
-
-    // Tab operations
-    SetTabStop,
-    ClearTabStop,
-    ClearAllTabStops,
-    TabForward {
-        count: usize,
-    },
-    TabBackward {
-        count: usize,
-    },
-
-    // Device control and queries
-    DeviceStatusReport {
-        report_type: DeviceReportType,
-    },
-    DeviceAttributes {
-        primary: bool,
-    },
-    TerminalIdentification,
-
-    // OSC operations
-    SetTerminalTitle {
-        title: String,
-    },
-    SetIconName {
-        name: String,
-    },
-    SetColorPalette {
-        index: u8,
-        color: String,
-    },
-    ClipboardOperation {
-        operation: ClipboardOp,
-    },
-
-    // Content updates with dirty regions
-    ContentUpdate {
-        content: String,
-        dirty_regions: Vec<DirtyRegion>,
-        replace_mode: bool,
-    },
-
-    // Mouse operations
-    MouseEvent {
-        event_type: MouseEventType,
-        x: usize,
-        y: usize,
-        button: Option<MouseButton>,
-        modifiers: MouseModifiers,
-    },
-
-    // Character sets
-    SetCharacterSet {
-        set: CharacterSetType,
-        charset: String,
-    },
-
-    // Terminal state queries
-    QueryTerminalState,
-    QueryCursorPosition,
-    QueryScreenSize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ClearMode {
-    FromCursor,
-    ToCursor,
-    Entire,
-    Scrollback,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TerminalModeType {
-    CursorKeys,   // DECCKM
-    Keypad,       // DECPAM
-    AutoWrap,     // DECAWM
-    Origin,       // DECOM
-    Insert,       // IRM
-    LocalEcho,    // LNM
-    ReverseVideo, // DECSCNM
-    MouseX10,     // Mouse reporting modes
-    MouseNormal,
-    MouseButtonEvent,
-    MouseAnyEvent,
-    MouseSgr,
-    BracketedPaste,
-    AlternateScreen, // 1047/1049
-}
-
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct TerminalAttributes {
-    pub fg_color: Option<TerminalColor>,
-    pub bg_color: Option<TerminalColor>,
-    pub bold: bool,
-    pub italic: bool,
-    pub underline: bool,
-    pub strikethrough: bool,
-    pub reverse: bool,
-    pub blink: bool,
-    pub dim: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TerminalColor {
-    Named(u8),                   // 0-15 standard colors
-    Palette(u8),                 // 0-255 palette colors
-    Rgb { r: u8, g: u8, b: u8 }, // 24-bit RGB
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DeviceReportType {
-    Status,         // DSR 5
-    CursorPosition, // DSR 6
-    PrinterStatus,  // DSR ?15
-    UdkStatus,      // DSR ?25
-    KeyboardStatus, // DSR ?26
-    LocatorStatus,  // DSR ?53
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ClipboardOp {
-    SetSelection { selection: String },
-    GetSelection,
-    SetClipboard { content: String },
-    GetClipboard,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct DirtyRegion {
-    pub x: usize,
-    pub y: usize,
-    pub width: usize,
-    pub height: usize,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum MouseEventType {
     Press,
@@ -259,31 +27,40 @@ pub struct MouseModifiers {
     pub meta: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CharacterSetType {
-    G0,
-    G1,
-    G2,
-    G3,
+/// A color a program set: an entry of the 256-color palette or a 24-bit color.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TermColor {
+    Indexed(u8),
+    Rgb(u8, u8, u8),
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct TextFormatting {
-    pub fg: Option<u8>,
-    pub bg: Option<u8>,
-    pub bold: bool,
-    pub underline: bool,
-    pub italic: bool,
-    pub reverse: bool,
-    pub strikethrough: bool,
+impl TermColor {
+    /// The SGR parameters selecting this color as the foreground (`background` false) or the
+    /// background.
+    fn sgr(self, background: bool) -> String {
+        let (base, bright, extended) = if background {
+            (40, 100, 48)
+        } else {
+            (30, 90, 38)
+        };
+        match self {
+            TermColor::Indexed(n) if n < 8 => format!("{}", base + u16::from(n)),
+            TermColor::Indexed(n) if n < 16 => format!("{}", bright + u16::from(n - 8)),
+            TermColor::Indexed(n) => format!("{};5;{}", extended, n),
+            TermColor::Rgb(r, g, b) => format!("{};2;{};{};{}", extended, r, g, b),
+        }
+    }
 }
+
+/// The character in the right half of a two-column character's cells.
+pub const WIDE_CONTINUATION: char = '\0';
 
 #[derive(Debug, Clone, PartialEq)]
 /// F0306: Extended TerminalCell with comprehensive SGR attribute support
 pub struct TerminalCell {
     pub character: char,
-    pub fg_color: Option<u8>,
-    pub bg_color: Option<u8>,
+    pub fg_color: Option<TermColor>,
+    pub bg_color: Option<TermColor>,
 
     // Basic text attributes
     pub bold: bool,
@@ -632,135 +409,51 @@ impl TerminalScreenBuffer {
         lines
     }
 
-    /// Convert a single terminal row to string with ANSI color codes
-    /// This preserves formatting for BoxMux's main renderer
+    /// A row as text with SGR sequences for its colors and attributes. The right halves of
+    /// wide characters are left out.
     fn terminal_row_to_string(&self, row: &[TerminalCell]) -> String {
-        let mut result = String::new();
-        let mut current_fg: Option<u8> = None;
-        let mut current_bg: Option<u8> = None;
-        let mut current_bold = false;
-        let mut current_underline = false;
-        let mut current_italic = false;
-        let mut current_reverse = false;
-        let mut current_strikethrough = false;
-
-        for cell in row {
-            // Check if we need to change formatting
-            let mut format_changed = false;
-
-            if cell.fg_color != current_fg {
-                current_fg = cell.fg_color;
-                format_changed = true;
+        fn sgr(cell: &TerminalCell) -> String {
+            let mut codes = vec!["0".to_string()];
+            for (on, code) in [
+                (cell.bold, "1"),
+                (cell.dim, "2"),
+                (cell.italic, "3"),
+                (cell.underline || cell.double_underline, "4"),
+                (cell.blink, "5"),
+                (cell.reverse, "7"),
+                (cell.hidden, "8"),
+                (cell.strikethrough, "9"),
+            ] {
+                if on {
+                    codes.push(code.to_string());
+                }
             }
-            if cell.bg_color != current_bg {
-                current_bg = cell.bg_color;
-                format_changed = true;
+            if let Some(fg) = cell.fg_color {
+                codes.push(fg.sgr(false));
             }
-            if cell.bold != current_bold {
-                current_bold = cell.bold;
-                format_changed = true;
+            if let Some(bg) = cell.bg_color {
+                codes.push(bg.sgr(true));
             }
-            if cell.underline != current_underline {
-                current_underline = cell.underline;
-                format_changed = true;
-            }
-            if cell.italic != current_italic {
-                current_italic = cell.italic;
-                format_changed = true;
-            }
-            if cell.reverse != current_reverse {
-                current_reverse = cell.reverse;
-                format_changed = true;
-            }
-            if cell.strikethrough != current_strikethrough {
-                current_strikethrough = cell.strikethrough;
-                format_changed = true;
-            }
-
-            // Apply formatting changes as ANSI escape codes
-            if format_changed {
-                let formatting = TextFormatting {
-                    fg: current_fg,
-                    bg: current_bg,
-                    bold: current_bold,
-                    underline: current_underline,
-                    italic: current_italic,
-                    reverse: current_reverse,
-                    strikethrough: current_strikethrough,
-                };
-                result.push_str(&self.generate_ansi_formatting(&formatting));
-            }
-
-            // Add the character
-            result.push(cell.character);
-        }
-
-        // Reset formatting at end of line if any was applied
-        if current_fg.is_some()
-            || current_bg.is_some()
-            || current_bold
-            || current_underline
-            || current_italic
-            || current_reverse
-            || current_strikethrough
-        {
-            result.push_str("\x1b[0m"); // Reset all formatting
-        }
-
-        result
-    }
-
-    /// Generate ANSI escape sequence for terminal formatting
-    fn generate_ansi_formatting(&self, formatting: &TextFormatting) -> String {
-        let mut codes = Vec::new();
-
-        // Reset first if any formatting is different
-        codes.push("0".to_string()); // Reset all
-
-        // Text attributes
-        if formatting.bold {
-            codes.push("1".to_string());
-        }
-        if formatting.italic {
-            codes.push("3".to_string());
-        }
-        if formatting.underline {
-            codes.push("4".to_string());
-        }
-        if formatting.reverse {
-            codes.push("7".to_string());
-        }
-        if formatting.strikethrough {
-            codes.push("9".to_string());
-        }
-
-        // Foreground color
-        if let Some(fg_color) = formatting.fg {
-            if fg_color < 8 {
-                codes.push(format!("{}", 30 + fg_color));
-            } else if fg_color < 16 {
-                codes.push(format!("{}", 90 + (fg_color - 8)));
-            } else {
-                codes.push(format!("38;5;{}", fg_color));
-            }
-        }
-
-        // Background color
-        if let Some(bg_color) = formatting.bg {
-            if bg_color < 8 {
-                codes.push(format!("{}", 40 + bg_color));
-            } else if bg_color < 16 {
-                codes.push(format!("{}", 100 + (bg_color - 8)));
-            } else {
-                codes.push(format!("48;5;{}", bg_color));
-            }
-        }
-
-        if codes.is_empty() {
-            String::new()
-        } else {
             format!("\x1b[{}m", codes.join(";"))
         }
+        let plain = TerminalCell::default();
+        let mut result = String::new();
+        let mut current = sgr(&plain);
+        for cell in row {
+            if cell.character == WIDE_CONTINUATION {
+                continue;
+            }
+            let wanted = sgr(cell);
+            if wanted != current {
+                result.push_str(&wanted);
+                current = wanted;
+            }
+            result.push(cell.character);
+        }
+        if current != sgr(&plain) {
+            result.push_str("\x1b[0m");
+        }
+        result
     }
 
     /// Get content as string for stream updates - integrates with BoxMux stream system
@@ -813,7 +506,10 @@ pub struct TerminalState {
     // DCS (Device Control String) processing
     pub dcs_sequence_type: Option<char>,
     pub dcs_buffer: Option<Vec<u8>>,
-    pub pending_response: Option<String>,
+    /// Replies to queries (DSR, DA, DECRQM...) waiting to be written back to the program.
+    pub pending_responses: Vec<String>,
+    /// A character was written to the last column; the next one goes to the next line.
+    pub wrap_pending: bool,
 
     // OSC (Operating System Command) processing
     pub osc_buffer: Option<Vec<u8>>,
@@ -846,7 +542,8 @@ impl TerminalState {
             sgr_state: SGRState::default(),
             dcs_sequence_type: None,
             dcs_buffer: None,
-            pending_response: None,
+            pending_responses: Vec::new(),
+            wrap_pending: false,
             osc_buffer: None,
         };
 
@@ -1431,11 +1128,11 @@ impl TerminalState {
         match data {
             "1c" => {
                 // Terminal ID query response
-                self.pending_response = Some("\x1b[?6c".to_string());
+                self.pending_responses.push("\x1b[?6c".to_string());
             }
             "2c" => {
                 // Secondary device attributes
-                self.pending_response = Some("\x1b[>0;276;0c".to_string());
+                self.pending_responses.push("\x1b[>0;276;0c".to_string());
             }
             _ => {
                 log::debug!("Unknown DCS query: {}", data);
@@ -1614,281 +1311,11 @@ impl TerminalState {
     }
 }
 
-/// F0304: Terminal Message Processor - Handles TerminalMessage enum operations
-pub struct TerminalMessageProcessor {
-    pub ansi_processor: AnsiProcessor,
-    pub message_queue: Vec<TerminalMessage>,
-    pub pending_responses: Vec<String>,
-}
-
-impl Default for TerminalMessageProcessor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TerminalMessageProcessor {
-    pub fn new() -> Self {
-        TerminalMessageProcessor {
-            ansi_processor: AnsiProcessor::new(),
-            message_queue: Vec::new(),
-            pending_responses: Vec::new(),
-        }
-    }
-
-    /// Process a terminal message and update terminal state
-    pub fn process_message(&mut self, message: TerminalMessage) {
-        match message {
-            TerminalMessage::ProcessBytes(bytes) => {
-                self.ansi_processor.process_bytes(&bytes);
-            }
-            TerminalMessage::SendInput(input) => {
-                // Send input to terminal - would be handled by PTY in real implementation
-                log::debug!("Terminal input: {}", input);
-            }
-            TerminalMessage::ResizeTerminal { width, height } => {
-                self.ansi_processor.resize_screen(width, height);
-            }
-            TerminalMessage::SwitchScreenBuffer { to_alternate } => {
-                if to_alternate {
-                    self.ansi_processor
-                        .terminal_state
-                        .switch_to_alternate_screen();
-                } else {
-                    self.ansi_processor
-                        .terminal_state
-                        .switch_to_primary_screen();
-                }
-            }
-            TerminalMessage::ClearScreen { mode } => match mode {
-                ClearMode::Entire => self.ansi_processor.terminal_state.clear_screen(),
-                ClearMode::FromCursor => self
-                    .ansi_processor
-                    .terminal_state
-                    .get_active_buffer()
-                    .clear_from_cursor_to_end(),
-                ClearMode::ToCursor => self
-                    .ansi_processor
-                    .terminal_state
-                    .get_active_buffer()
-                    .clear_from_beginning_to_cursor(),
-                ClearMode::Scrollback => {
-                    self.ansi_processor
-                        .terminal_state
-                        .get_active_buffer()
-                        .scrollback
-                        .clear();
-                }
-            },
-            TerminalMessage::MoveCursor { x, y } => {
-                self.ansi_processor.terminal_state.set_cursor_position(x, y);
-            }
-            TerminalMessage::MoveCursorRelative { dx, dy } => {
-                self.ansi_processor
-                    .terminal_state
-                    .move_cursor_relative(dx, dy);
-            }
-            TerminalMessage::SaveCursor => {
-                self.ansi_processor.terminal_state.save_cursor();
-            }
-            TerminalMessage::RestoreCursor => {
-                self.ansi_processor.terminal_state.restore_cursor();
-            }
-            TerminalMessage::SetCursorVisibility { visible } => {
-                self.ansi_processor
-                    .terminal_state
-                    .set_cursor_visibility(visible);
-            }
-            TerminalMessage::SetCursorStyle { style } => {
-                self.ansi_processor.terminal_state.set_cursor_style(style);
-            }
-            TerminalMessage::SetCursorColumn { col } => {
-                self.ansi_processor.terminal_state.set_cursor_column(col);
-            }
-            TerminalMessage::SetCursorLine { line } => {
-                self.ansi_processor.terminal_state.set_cursor_line(line);
-            }
-            TerminalMessage::CursorUp { lines } => {
-                self.ansi_processor.terminal_state.cursor_up(lines);
-            }
-            TerminalMessage::CursorDown { lines } => {
-                self.ansi_processor.terminal_state.cursor_down(lines);
-            }
-            TerminalMessage::CursorLeft { cols } => {
-                self.ansi_processor.terminal_state.cursor_left(cols);
-            }
-            TerminalMessage::CursorRight { cols } => {
-                self.ansi_processor.terminal_state.cursor_right(cols);
-            }
-            TerminalMessage::CursorToLineStart => {
-                self.ansi_processor.terminal_state.cursor_to_line_start();
-            }
-            TerminalMessage::CursorNextLine { lines } => {
-                self.ansi_processor.terminal_state.cursor_next_line(lines);
-            }
-            TerminalMessage::CursorPreviousLine { lines } => {
-                self.ansi_processor
-                    .terminal_state
-                    .cursor_previous_line(lines);
-            }
-            TerminalMessage::SetMode { mode, enabled } => {
-                self.set_terminal_mode(mode, enabled);
-            }
-            TerminalMessage::SetScrollingRegion { top, bottom } => {
-                // F0307: Use enhanced scrolling region methods
-                self.ansi_processor
-                    .terminal_state
-                    .set_scrolling_region(Some(top + 1), Some(bottom + 1));
-            }
-            TerminalMessage::ResetScrollingRegion => {
-                // F0307: Reset scrolling region to full screen
-                self.ansi_processor.terminal_state.reset_scrolling_region();
-            }
-            TerminalMessage::ScrollUpInRegion { lines } => {
-                // F0307: Scroll up within the current scrolling region
-                self.ansi_processor
-                    .terminal_state
-                    .scroll_up_in_region(lines);
-            }
-            TerminalMessage::ScrollDownInRegion { lines } => {
-                // F0307: Scroll down within the current scrolling region
-                self.ansi_processor
-                    .terminal_state
-                    .scroll_down_in_region(lines);
-            }
-            TerminalMessage::DeviceStatusReport { report_type } => {
-                let response = self.generate_device_status_report(report_type);
-                self.pending_responses.push(response);
-            }
-            TerminalMessage::SetTerminalTitle { title } => {
-                self.ansi_processor.terminal_state.terminal_title = Some(title);
-            }
-            TerminalMessage::ContentUpdate {
-                content,
-                dirty_regions: _,
-                replace_mode,
-            } => {
-                if replace_mode {
-                    self.ansi_processor.processed_text = content;
-                } else {
-                    self.ansi_processor.processed_text.push_str(&content);
-                }
-            }
-            // Add more message handlers as needed
-            _ => {
-                log::debug!("Unhandled terminal message: {:?}", message);
-            }
-        }
-    }
-
-    fn set_terminal_mode(&mut self, mode: TerminalModeType, enabled: bool) {
-        match mode {
-            TerminalModeType::CursorKeys => {
-                self.ansi_processor.terminal_state.mode.cursor_key_mode = enabled;
-            }
-            TerminalModeType::Keypad => {
-                self.ansi_processor.terminal_state.mode.keypad_mode = enabled;
-            }
-            TerminalModeType::AutoWrap => {
-                self.ansi_processor.terminal_state.mode.auto_wrap_mode = enabled;
-            }
-            TerminalModeType::Origin => {
-                self.ansi_processor.terminal_state.mode.origin_mode = enabled;
-            }
-            TerminalModeType::Insert => {
-                self.ansi_processor.terminal_state.mode.insert_mode = enabled;
-            }
-            TerminalModeType::AlternateScreen => {
-                if enabled {
-                    self.ansi_processor
-                        .terminal_state
-                        .switch_to_alternate_screen();
-                } else {
-                    self.ansi_processor
-                        .terminal_state
-                        .switch_to_primary_screen();
-                }
-            }
-            // F0310: Mouse Protocol Support - Enable/disable mouse reporting modes
-            TerminalModeType::MouseX10 => {
-                self.ansi_processor.terminal_state.mode.mouse_x10_mode = enabled;
-            }
-            TerminalModeType::MouseNormal => {
-                self.ansi_processor.terminal_state.mode.mouse_normal_mode = enabled;
-            }
-            TerminalModeType::MouseButtonEvent => {
-                self.ansi_processor
-                    .terminal_state
-                    .mode
-                    .mouse_button_event_mode = enabled;
-            }
-            TerminalModeType::MouseAnyEvent => {
-                self.ansi_processor.terminal_state.mode.mouse_any_event_mode = enabled;
-            }
-            TerminalModeType::MouseSgr => {
-                self.ansi_processor.terminal_state.mode.mouse_sgr_mode = enabled;
-            }
-            _ => {
-                log::debug!("Unhandled terminal mode: {:?}", mode);
-            }
-        }
-    }
-
-    /// F0311: Generate comprehensive device status reports
-    fn generate_device_status_report(&self, report_type: DeviceReportType) -> String {
-        match report_type {
-            DeviceReportType::Status => "\x1b[0n".to_string(), // Terminal OK (always ready)
-            DeviceReportType::CursorPosition => {
-                let cursor = self.ansi_processor.terminal_state.get_cursor();
-                format!("\x1b[{};{}R", cursor.y + 1, cursor.x + 1)
-            }
-            DeviceReportType::PrinterStatus => {
-                // Printer status - report no printer (always ready)
-                "\x1b[?10n".to_string()
-            }
-            DeviceReportType::UdkStatus => {
-                // User-Defined Keys status - UDK unlocked
-                "\x1b[?20n".to_string()
-            }
-            DeviceReportType::KeyboardStatus => {
-                // Keyboard status - North American keyboard
-                "\x1b[?27;1n".to_string()
-            }
-            DeviceReportType::LocatorStatus => {
-                // Locator (mouse) status - not available
-                "\x1b[?50n".to_string()
-            }
-        }
-    }
-
-    /// Get pending terminal responses (for device queries, etc.)
-    pub fn get_pending_responses(&mut self) -> Vec<String> {
-        std::mem::take(&mut self.pending_responses)
-    }
-
-    /// Queue a message for processing
-    pub fn queue_message(&mut self, message: TerminalMessage) {
-        self.message_queue.push(message);
-    }
-
-    /// Process all queued messages
-    pub fn process_queued_messages(&mut self) {
-        let messages = std::mem::take(&mut self.message_queue);
-        for message in messages {
-            self.process_message(message);
-        }
-    }
-}
-
+/// A terminal emulator: bytes a program writes go in, a screen of styled cells comes out.
 pub struct AnsiProcessor {
-    pub processed_text: String,
     pub terminal_state: TerminalState,
-    pub use_screen_buffer: bool,
-    pub alternate_screen_mode: bool, // Legacy compatibility
-    // F0316: Performance Optimization - Dirty region tracking
-    previous_screen_state: Option<Vec<Vec<TerminalCell>>>,
-    _dirty_regions_cache: Vec<DirtyRegion>,
-    baseline_captured: bool,
+    /// Kept across calls, so an escape sequence split between two reads is still understood.
+    parser: Parser,
 }
 
 impl AnsiProcessor {
@@ -1898,26 +1325,9 @@ impl AnsiProcessor {
 
     pub fn with_screen_size(width: usize, height: usize) -> Self {
         AnsiProcessor {
-            processed_text: String::new(),
             terminal_state: TerminalState::new(width, height),
-            use_screen_buffer: false,
-            alternate_screen_mode: false,
-            // F0316: Performance Optimization - Initialize dirty region tracking
-            previous_screen_state: None,
-            _dirty_regions_cache: Vec::new(),
-            baseline_captured: false,
+            parser: Parser::new(),
         }
-    }
-
-    pub fn set_screen_mode(&mut self, use_screen_buffer: bool) {
-        self.use_screen_buffer = use_screen_buffer;
-    }
-
-    /// Check if we should replace content instead of appending
-    pub fn should_replace_content(&self) -> bool {
-        self.terminal_state.full_screen_program_detected
-            || self.alternate_screen_mode
-            || self.terminal_state.use_alternate_screen
     }
 
     pub fn resize_screen(&mut self, width: usize, height: usize) {
@@ -1932,296 +1342,95 @@ impl AnsiProcessor {
         self.terminal_state.get_cursor().y
     }
 
-    pub fn detect_full_screen_program(&self) -> bool {
-        self.terminal_state.full_screen_program_detected
-    }
-
     pub fn is_using_alternate_screen(&self) -> bool {
         self.terminal_state.use_alternate_screen
     }
 
-    /// Get current screen content for stream integration
-    /// This feeds PTY terminal content into BoxMux's main differential drawing system
-    pub fn get_screen_content_for_stream(&self) -> String {
-        if self.use_screen_buffer {
-            // Use terminal screen buffer content with proper formatting
-            self.terminal_state
-                .get_active_buffer_ref()
-                .get_content_for_stream()
-        } else {
-            // Fall back to processed text for non-screen buffer mode
-            self.get_processed_text()
-        }
-    }
-
-    /// Get terminal content lines for stream updates
-    pub fn get_terminal_content_lines(&self, include_scrollback: bool) -> Vec<String> {
-        if self.use_screen_buffer {
-            self.terminal_state
-                .get_active_buffer_ref()
-                .to_content_lines(include_scrollback)
-        } else {
-            // For non-screen buffer mode, return processed text as lines
-            self.processed_text.lines().map(|s| s.to_string()).collect()
-        }
-    }
-
-    /// F0304: Convert current terminal state changes to TerminalMessage
-    pub fn get_state_changes(&self) -> Vec<TerminalMessage> {
-        let mut messages = Vec::new();
-
-        // Check for pending terminal responses
-        if let Some(response) = &self.terminal_state.pending_response {
-            messages.push(TerminalMessage::ContentUpdate {
-                content: response.clone(),
-                dirty_regions: vec![],
-                replace_mode: false,
-            });
-        }
-
-        // Check for terminal title changes
-        if let Some(title) = &self.terminal_state.terminal_title {
-            messages.push(TerminalMessage::SetTerminalTitle {
-                title: title.clone(),
-            });
-        }
-
-        // Check for screen buffer mode changes
-        if self.terminal_state.use_alternate_screen {
-            messages.push(TerminalMessage::SwitchScreenBuffer { to_alternate: true });
-        }
-
-        messages
-    }
-
-    /// F0304: Create TerminalMessage for content updates with dirty regions
-    pub fn create_content_update_message(&self, replace_mode: bool) -> TerminalMessage {
-        let content = if self.use_screen_buffer {
-            self.get_screen_content_for_stream()
-        } else {
-            self.processed_text.clone()
-        };
-
-        // Calculate dirty regions based on recent changes
-        let dirty_regions = self.calculate_dirty_regions();
-
-        TerminalMessage::ContentUpdate {
-            content,
-            dirty_regions,
-            replace_mode,
-        }
-    }
-
-    /// F0316: Capture baseline screen state for differential drawing
-    pub fn capture_baseline(&mut self) {
-        if self.use_screen_buffer {
-            let current_screen = &self.terminal_state.get_active_buffer_ref().content;
-            self.previous_screen_state = Some(current_screen.clone());
-            self.baseline_captured = true;
-        }
-    }
-
-    /// F0316: Update previous screen state after processing changes
-    pub fn update_screen_state(&mut self) {
-        if self.use_screen_buffer && self.baseline_captured {
-            let current_screen = &self.terminal_state.get_active_buffer_ref().content;
-            self.previous_screen_state = Some(current_screen.clone());
-        }
-    }
-
-    /// F0316: Check if baseline has been captured for differential drawing
-    pub fn has_baseline(&self) -> bool {
-        self.baseline_captured && self.previous_screen_state.is_some()
-    }
-
-    /// F0318: Get terminal state for character set and other state inspection
     pub fn get_terminal_state(&self) -> &TerminalState {
         &self.terminal_state
     }
 
-    /// Calculate dirty regions for efficient screen updates
-    fn calculate_dirty_regions(&self) -> Vec<DirtyRegion> {
-        // F0316: Performance Optimization - Proper dirty region calculation
-        if !self.use_screen_buffer {
-            // For non-screen buffer mode, mark entire screen as dirty
-            return vec![DirtyRegion {
-                x: 0,
-                y: 0,
-                width: self.terminal_state.screen_width,
-                height: self.terminal_state.screen_height,
-            }];
+    /// Writes `c` at the cursor with the current attributes. A wide character also takes the
+    /// next cell.
+    fn put_char_at_cursor(&mut self, c: char, width: usize) {
+        let cursor_y = self.terminal_state.get_cursor().y;
+        let cursor_x = self.terminal_state.get_cursor().x;
+        let (screen_width, screen_height) = (
+            self.terminal_state.screen_width,
+            self.terminal_state.screen_height,
+        );
+        if cursor_y >= screen_height || cursor_x >= screen_width {
+            return;
         }
+        let mut cell = self.terminal_state.current_attributes.clone();
+        cell.character = c;
 
-        // If no previous state exists or baseline not captured, mark entire screen as dirty
-        let previous_state = match &self.previous_screen_state {
-            Some(prev) => prev,
-            None => {
-                return vec![DirtyRegion {
-                    x: 0,
-                    y: 0,
-                    width: self.terminal_state.screen_width,
-                    height: self.terminal_state.screen_height,
-                }];
-            }
-        };
-
-        let current_screen = &self.terminal_state.get_active_buffer_ref().content;
-        let mut dirty_regions = Vec::new();
-        let mut current_region: Option<DirtyRegion> = None;
-
-        // Compare line by line to find changed regions
-        for y in 0..self.terminal_state.screen_height.min(previous_state.len()) {
-            let mut line_has_changes = false;
-            let current_line = &current_screen[y];
-            let previous_line = &previous_state[y];
-
-            // Find the range of changed cells in this line
-            let mut first_changed: Option<usize> = None;
-            let mut last_changed: Option<usize> = None;
-
-            for x in 0..self
-                .terminal_state
-                .screen_width
-                .min(current_line.len().min(previous_line.len()))
-            {
-                if current_line[x] != previous_line[x] {
-                    if first_changed.is_none() {
-                        first_changed = Some(x);
-                    }
-                    last_changed = Some(x);
-                    line_has_changes = true;
-                }
-            }
-
-            if line_has_changes {
-                let first_x = first_changed.unwrap_or(0);
-                let last_x = last_changed.unwrap_or(0);
-                let width = (last_x - first_x + 1).max(1);
-
-                // Try to merge with existing region or create new one
-                match &mut current_region {
-                    Some(region)
-                        if region.y + region.height == y
-                            && region.x == first_x
-                            && region.width == width =>
-                    {
-                        // Extend current region vertically
-                        region.height += 1;
-                    }
-                    Some(region) => {
-                        // Different area, finalize current region and start new one
-                        dirty_regions.push(region.clone());
-                        current_region = Some(DirtyRegion {
-                            x: first_x,
-                            y,
-                            width,
-                            height: 1,
-                        });
-                    }
-                    None => {
-                        // Start new region
-                        current_region = Some(DirtyRegion {
-                            x: first_x,
-                            y,
-                            width,
-                            height: 1,
-                        });
-                    }
-                }
+        // F0308: Apply reverse video mode (DECSCNM) globally
+        if self.terminal_state.mode.reverse_video {
+            std::mem::swap(&mut cell.fg_color, &mut cell.bg_color);
+            if cell.fg_color.is_none() && cell.bg_color.is_none() {
+                cell.fg_color = Some(TermColor::Indexed(0));
+                cell.bg_color = Some(TermColor::Indexed(15));
             }
         }
 
-        // Add final region if exists
-        if let Some(region) = current_region {
-            dirty_regions.push(region);
+        let screen = self.terminal_state.get_active_screen();
+        let row = &mut screen[cursor_y];
+        // Writing over half of a wide character leaves its other half blank.
+        if row[cursor_x].character == WIDE_CONTINUATION && cursor_x > 0 {
+            row[cursor_x - 1].character = ' ';
         }
-
-        // If no changes detected, still return empty vec (no dirty regions)
-        dirty_regions
-    }
-
-    fn put_char_at_cursor(&mut self, c: char) {
-        if self.use_screen_buffer
-            && self.terminal_state.get_cursor().y < self.terminal_state.screen_height
-            && self.terminal_state.get_cursor().x < self.terminal_state.screen_width
-        {
-            // Extract needed values first to avoid borrow checker issues
-            let cursor_y = self.terminal_state.get_cursor().y;
-            let cursor_x = self.terminal_state.get_cursor().x;
-            let reverse_video = self.terminal_state.mode.reverse_video;
-            let mut cell = self.terminal_state.current_attributes.clone();
-            cell.character = c;
-
-            // F0308: Apply reverse video mode (DECSCNM) globally
-            if reverse_video {
-                // Swap foreground and background colors for reverse video effect
-                std::mem::swap(&mut cell.fg_color, &mut cell.bg_color);
-
-                // If no explicit colors were set, use default reverse (white on black becomes black on white)
-                if cell.fg_color.is_none() && cell.bg_color.is_none() {
-                    cell.fg_color = Some(0); // Black foreground
-                    cell.bg_color = Some(15); // White background
-                }
+        if cursor_x + 1 < screen_width && row[cursor_x + 1].character == WIDE_CONTINUATION {
+            row[cursor_x + 1].character = ' ';
+        }
+        if width == 2 && cursor_x + 1 < screen_width {
+            let mut continuation = cell.clone();
+            continuation.character = WIDE_CONTINUATION;
+            if cursor_x + 2 < screen_width && row[cursor_x + 2].character == WIDE_CONTINUATION {
+                row[cursor_x + 2].character = ' ';
             }
-
-            let screen = self.terminal_state.get_active_screen();
-            screen[cursor_y][cursor_x] = cell;
-        } else {
-            self.processed_text.push(c);
+            row[cursor_x + 1] = continuation;
         }
-    }
-
-    pub fn get_screen_content(&self) -> String {
-        if self.use_screen_buffer {
-            let mut content = String::new();
-            let screen = self.terminal_state.get_active_screen_ref();
-            for row in screen {
-                let line: String = row.iter().map(|cell| cell.character).collect();
-                content.push_str(line.trim_end());
-                content.push('\n');
-            }
-            content
-        } else {
-            self.processed_text.clone()
-        }
+        row[cursor_x] = cell;
     }
 
     pub fn process_bytes(&mut self, bytes: &[u8]) {
-        let mut parser = Parser::new();
+        let mut parser = std::mem::take(&mut self.parser);
         for &byte in bytes {
             parser.advance(self, byte);
         }
+        self.parser = parser;
+    }
+
+    /// Takes the replies to terminal queries that must be written back to the program.
+    pub fn take_responses(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.terminal_state.pending_responses)
+    }
+
+    /// The lines a box shows for this terminal, with SGR color sequences: the scrollback and
+    /// the screen, or only the screen while the program uses the alternate screen.
+    pub fn display_lines(&self) -> Vec<String> {
+        let buffer = self.terminal_state.get_active_buffer_ref();
+        buffer.to_content_lines(!self.terminal_state.use_alternate_screen)
     }
 
     pub fn process_string(&mut self, text: &str) {
         self.process_bytes(text.as_bytes());
     }
 
+    /// The text of the screen, without colors, trailing spaces or trailing empty lines.
     pub fn get_processed_text(&self) -> String {
-        if self.use_screen_buffer {
-            let mut content = String::new();
-            let screen = self.terminal_state.get_active_screen_ref();
-            for row in screen {
-                let line: String = row.iter().map(|cell| cell.character).collect();
-                content.push_str(line.trim_end());
-                content.push('\n');
-            }
-            content.trim_end().to_string() // Remove trailing newline for consistency
-        } else {
-            self.processed_text.clone()
+        let mut content = String::new();
+        for row in self.terminal_state.get_active_screen_ref() {
+            let line: String = row
+                .iter()
+                .map(|cell| cell.character)
+                .filter(|c| *c != WIDE_CONTINUATION)
+                .collect();
+            content.push_str(line.trim_end());
+            content.push('\n');
         }
-    }
-
-    pub fn clear_processed_text(&mut self) {
-        self.processed_text.clear();
-        if !self.use_screen_buffer {
-            self.terminal_state.get_cursor_mut().x = 0;
-            self.terminal_state.get_cursor_mut().y = 0;
-        }
-    }
-
-    pub fn clear_screen_buffer(&mut self) {
-        self.terminal_state.clear_screen();
+        content.trim_end().to_string()
     }
 
     /// F0306: Enhanced SGR parameter handling with comprehensive color and attribute support
@@ -2276,7 +1485,10 @@ impl AnsiProcessor {
             29 => self.terminal_state.current_attributes.strikethrough = false,
 
             // Standard 8-color foreground (30-37)
-            30..=37 => self.terminal_state.current_attributes.fg_color = Some((param - 30) as u8),
+            30..=37 => {
+                self.terminal_state.current_attributes.fg_color =
+                    Some(TermColor::Indexed((param - 30) as u8))
+            }
             38 => {
                 // Extended foreground color (handled in apply_sgr_sequence for 38;5;n and 38;2;r;g;b)
                 self.terminal_state.sgr_state.expecting_extended_fg = true;
@@ -2284,7 +1496,10 @@ impl AnsiProcessor {
             39 => self.terminal_state.current_attributes.fg_color = None, // Default foreground
 
             // Standard 8-color background (40-47)
-            40..=47 => self.terminal_state.current_attributes.bg_color = Some((param - 40) as u8),
+            40..=47 => {
+                self.terminal_state.current_attributes.bg_color =
+                    Some(TermColor::Indexed((param - 40) as u8))
+            }
             48 => {
                 // Extended background color (handled in apply_sgr_sequence for 48;5;n and 48;2;r;g;b)
                 self.terminal_state.sgr_state.expecting_extended_bg = true;
@@ -2332,10 +1547,12 @@ impl AnsiProcessor {
 
             // Bright/intense colors (90-97 foreground, 100-107 background)
             90..=97 => {
-                self.terminal_state.current_attributes.fg_color = Some((param - 90 + 8) as u8)
+                self.terminal_state.current_attributes.fg_color =
+                    Some(TermColor::Indexed((param - 90 + 8) as u8))
             }
             100..=107 => {
-                self.terminal_state.current_attributes.bg_color = Some((param - 100 + 8) as u8)
+                self.terminal_state.current_attributes.bg_color =
+                    Some(TermColor::Indexed((param - 100 + 8) as u8))
             }
 
             _ => {} // Ignore unknown parameters
@@ -2361,7 +1578,7 @@ impl AnsiProcessor {
                                 // 256-color palette: 38;5;n
                                 if let Some(&palette_index) = param_iter.next() {
                                     self.terminal_state.current_attributes.fg_color =
-                                        Some(palette_index as u8);
+                                        u8::try_from(palette_index).ok().map(TermColor::Indexed);
                                 }
                             }
                             2 => {
@@ -2369,11 +1586,8 @@ impl AnsiProcessor {
                                 if let (Some(&r), Some(&g), Some(&b)) =
                                     (param_iter.next(), param_iter.next(), param_iter.next())
                                 {
-                                    // Convert RGB to nearest palette color for now
-                                    let palette_index =
-                                        Self::rgb_to_palette(r as u8, g as u8, b as u8);
                                     self.terminal_state.current_attributes.fg_color =
-                                        Some(palette_index);
+                                        Some(TermColor::Rgb(r as u8, g as u8, b as u8));
                                 }
                             }
                             _ => {} // Unknown extended color mode
@@ -2388,7 +1602,7 @@ impl AnsiProcessor {
                                 // 256-color palette: 48;5;n
                                 if let Some(&palette_index) = param_iter.next() {
                                     self.terminal_state.current_attributes.bg_color =
-                                        Some(palette_index as u8);
+                                        u8::try_from(palette_index).ok().map(TermColor::Indexed);
                                 }
                             }
                             2 => {
@@ -2396,11 +1610,8 @@ impl AnsiProcessor {
                                 if let (Some(&r), Some(&g), Some(&b)) =
                                     (param_iter.next(), param_iter.next(), param_iter.next())
                                 {
-                                    // Convert RGB to nearest palette color for now
-                                    let palette_index =
-                                        Self::rgb_to_palette(r as u8, g as u8, b as u8);
                                     self.terminal_state.current_attributes.bg_color =
-                                        Some(palette_index);
+                                        Some(TermColor::Rgb(r as u8, g as u8, b as u8));
                                 }
                             }
                             _ => {} // Unknown extended color mode
@@ -2413,20 +1624,6 @@ impl AnsiProcessor {
                 }
             }
         }
-    }
-
-    /// F0306: Convert 24-bit RGB to nearest 256-color palette index
-    fn rgb_to_palette(r: u8, g: u8, b: u8) -> u8 {
-        // Standard colors 0-15 (handled by existing logic)
-        // 216 color cube: 16-231
-        // Grayscale: 232-255
-
-        // Simple approximation: map RGB to 6x6x6 color cube
-        let r6 = ((r as f32 / 255.0) * 5.0).round() as u8;
-        let g6 = ((g as f32 / 255.0) * 5.0).round() as u8;
-        let b6 = ((b as f32 / 255.0) * 5.0).round() as u8;
-
-        16 + (36 * r6) + (6 * g6) + b6
     }
 
     // Helper to extract first parameter from Params
@@ -2476,7 +1673,7 @@ impl AnsiProcessor {
                 }
             } // DECTCEM - Cursor Visible
             47 => {
-                if self.alternate_screen_mode {
+                if self.terminal_state.use_alternate_screen {
                     1
                 } else {
                     2
@@ -2511,14 +1708,14 @@ impl AnsiProcessor {
                 }
             } // Mouse SGR mode
             1047 => {
-                if self.alternate_screen_mode {
+                if self.terminal_state.use_alternate_screen {
                     1
                 } else {
                     2
                 }
             } // Alternate Screen Buffer (Clear)
             1049 => {
-                if self.alternate_screen_mode {
+                if self.terminal_state.use_alternate_screen {
                     1
                 } else {
                     2
@@ -2587,44 +1784,52 @@ impl AnsiProcessor {
 
 impl Perform for AnsiProcessor {
     fn print(&mut self, c: char) {
-        // F0308: Handle insert mode - shift characters right before inserting
-        if self.use_screen_buffer && self.terminal_state.mode.insert_mode {
-            self.terminal_state.insert_character_at_cursor();
+        let width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        if width == 0 {
+            // Combining marks and other zero-width characters have no cell of their own.
+            return;
+        }
+        let screen_width = self.terminal_state.screen_width;
+        let auto_wrap = self.terminal_state.mode.auto_wrap_mode;
+        // A character that does not fit on the rest of the line wraps first, like on a real
+        // terminal: either the previous one filled the line, or this one is wide.
+        let fits = self.terminal_state.get_cursor().x + width <= screen_width;
+        if self.terminal_state.wrap_pending || !fits {
+            if auto_wrap {
+                self.terminal_state.get_cursor_mut().x = 0;
+                self.terminal_state.line_feed_with_scrolling();
+            } else {
+                self.terminal_state.get_cursor_mut().x = screen_width.saturating_sub(width);
+            }
+            self.terminal_state.wrap_pending = false;
         }
 
-        self.put_char_at_cursor(c);
-        self.terminal_state.get_cursor_mut().x += 1;
-
-        // F0308: Handle auto-wrap mode
-        let screen_width = self.terminal_state.screen_width;
-        let auto_wrap_enabled = self.terminal_state.mode.auto_wrap_mode;
-
-        if self.use_screen_buffer && self.terminal_state.get_cursor().x >= screen_width {
-            if auto_wrap_enabled {
-                // Auto-wrap: move to next line
-                self.terminal_state.get_cursor_mut().x = 0;
-                self.terminal_state.line_feed_with_scrolling(); // Use scrolling-aware line feed
-            } else {
-                // No auto-wrap: keep cursor at right margin
-                self.terminal_state.get_cursor_mut().x = screen_width.saturating_sub(1);
+        // F0308: Handle insert mode - shift characters right before inserting
+        if self.terminal_state.mode.insert_mode {
+            for _ in 0..width {
+                self.terminal_state.insert_character_at_cursor();
             }
+        }
+
+        self.put_char_at_cursor(c, width);
+        let next = self.terminal_state.get_cursor().x + width;
+        if next >= screen_width {
+            // The cursor stays on the last column until the next character arrives.
+            self.terminal_state.get_cursor_mut().x = screen_width.saturating_sub(1);
+            self.terminal_state.wrap_pending = auto_wrap;
+        } else {
+            self.terminal_state.get_cursor_mut().x = next;
         }
     }
 
     fn execute(&mut self, byte: u8) {
+        if matches!(byte, b'\n' | 0x0B | 0x0C | b'\r' | b'\t' | 0x08) {
+            self.terminal_state.wrap_pending = false;
+        }
         match byte {
-            b'\n' => {
-                if !self.use_screen_buffer {
-                    self.processed_text.push('\n');
-                    // Simple line tracking for non-screen buffer mode
-                    self.terminal_state.get_cursor_mut().y += 1;
-                    self.terminal_state.get_cursor_mut().x = 0;
-                } else {
-                    // F0307: Use scrolling region aware line feed for screen buffer mode
-                    self.terminal_state.line_feed_with_scrolling();
-                    // Line feed doesn't reset column in screen buffer mode - that's \r (carriage return)
-                }
-            }
+            // Line feed, vertical tab and form feed all move down one line; returning to the
+            // first column is the carriage return's job.
+            b'\n' | 0x0B | 0x0C => self.terminal_state.line_feed_with_scrolling(),
             b'\r' => {
                 self.terminal_state.get_cursor_mut().x = 0;
             }
@@ -2632,22 +1837,10 @@ impl Perform for AnsiProcessor {
                 // F0313: Use proper tab stops for horizontal tab
                 self.terminal_state.tab_forward();
             }
-            b'\x08' => {
-                // Backspace
-                if self.terminal_state.get_cursor().x > 0 {
-                    self.terminal_state.get_cursor_mut().x -= 1;
-                    if self.use_screen_buffer
-                        && self.terminal_state.get_cursor().y < self.terminal_state.screen_height
-                        && self.terminal_state.get_cursor().x < self.terminal_state.screen_width
-                    {
-                        let cursor_y = self.terminal_state.get_cursor().y;
-                        let cursor_x = self.terminal_state.get_cursor().x;
-                        let screen = self.terminal_state.get_active_screen();
-                        screen[cursor_y][cursor_x] = TerminalCell::default();
-                    } else {
-                        self.processed_text.pop();
-                    }
-                }
+            0x08 => {
+                // Backspace moves left; it does not erase.
+                let cursor = self.terminal_state.get_cursor_mut();
+                cursor.x = cursor.x.saturating_sub(1);
             }
             0x0E => {
                 // F0318: SO (Shift Out) - Switch to G1 character set
@@ -2672,7 +1865,9 @@ impl Perform for AnsiProcessor {
                     let query_type = Self::get_param(params, 0);
                     if query_type == 1 {
                         // Request terminal ID
-                        self.terminal_state.pending_response = Some("\x1b[>0;276;0c".to_string());
+                        self.terminal_state
+                            .pending_responses
+                            .push("\x1b[>0;276;0c".to_string());
                     }
                 }
             }
@@ -2812,6 +2007,13 @@ impl Perform for AnsiProcessor {
     }
 
     fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, c: char) {
+        // Moving the cursor cancels a pending wrap at the last column.
+        if matches!(
+            c,
+            'H' | 'f' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'd' | '`' | 'a' | 'e' | 'r' | 'u'
+        ) {
+            self.terminal_state.wrap_pending = false;
+        }
         match c {
             'm' => {
                 // SGR - Set Graphics Rendition (colors, bold, etc.)
@@ -2835,7 +2037,6 @@ impl Perform for AnsiProcessor {
                 if row == 1 && col == 1 {
                     // Home cursor position - very common in full-screen apps
                     self.terminal_state.full_screen_program_detected = true;
-                    self.use_screen_buffer = true;
                 }
 
                 // F0305: Use cursor management system
@@ -2895,51 +2096,44 @@ impl Perform for AnsiProcessor {
                 // Clear screen commands often indicate full-screen programs
                 if n == 2 || n == 1 {
                     self.terminal_state.full_screen_program_detected = true;
-                    self.use_screen_buffer = true;
                 }
 
-                if self.use_screen_buffer {
-                    // Extract values to avoid borrow checker issues
-                    let cursor_x = self.terminal_state.get_cursor().x;
-                    let cursor_y = self.terminal_state.get_cursor().y;
-                    let screen_width = self.terminal_state.screen_width;
-                    let screen_height = self.terminal_state.screen_height;
-
-                    match n {
-                        0 => {
-                            // Clear from cursor to end of display
-                            let screen = self.terminal_state.get_active_screen();
-                            for y in cursor_y..screen_height {
-                                let start_x = if y == cursor_y { cursor_x } else { 0 };
-                                for x in start_x..screen_width {
-                                    screen[y][x] = TerminalCell::default();
-                                }
+                let cursor_x = self.terminal_state.get_cursor().x;
+                let cursor_y = self.terminal_state.get_cursor().y;
+                let screen_width = self.terminal_state.screen_width;
+                let screen_height = self.terminal_state.screen_height;
+                match n {
+                    0 => {
+                        // From the cursor to the end of the screen.
+                        let screen = self.terminal_state.get_active_screen();
+                        for (y, row) in screen.iter_mut().enumerate().skip(cursor_y) {
+                            let start_x = if y == cursor_y { cursor_x } else { 0 };
+                            for cell in row.iter_mut().take(screen_width).skip(start_x) {
+                                *cell = TerminalCell::default();
                             }
                         }
-                        1 => {
-                            // Clear from start of display to cursor
-                            let screen = self.terminal_state.get_active_screen();
-                            for y in 0..=cursor_y.min(screen_height.saturating_sub(1)) {
-                                let end_x = if y == cursor_y {
-                                    cursor_x
-                                } else {
-                                    screen_width
-                                };
-                                for x in 0..end_x.min(screen_width) {
-                                    screen[y][x] = TerminalCell::default();
-                                }
-                            }
-                        }
-                        2 => {
-                            // Clear entire display - definitely full-screen program
-                            self.clear_screen_buffer();
-                        }
-                        _ => {}
                     }
-                } else if n == 2 {
-                    self.processed_text.clear();
-                    self.terminal_state.get_cursor_mut().x = 0;
-                    self.terminal_state.get_cursor_mut().y = 0;
+                    1 => {
+                        // From the start of the screen to the cursor, inclusive.
+                        let screen = self.terminal_state.get_active_screen();
+                        for (y, row) in screen
+                            .iter_mut()
+                            .enumerate()
+                            .take(cursor_y.min(screen_height - 1) + 1)
+                        {
+                            let end_x = if y == cursor_y {
+                                cursor_x + 1
+                            } else {
+                                screen_width
+                            };
+                            for cell in row.iter_mut().take(end_x.min(screen_width)) {
+                                *cell = TerminalCell::default();
+                            }
+                        }
+                    }
+                    2 => self.terminal_state.clear_screen(),
+                    3 => self.terminal_state.get_active_buffer().scrollback.clear(),
+                    _ => {}
                 }
             }
             'K' => {
@@ -2950,35 +2144,24 @@ impl Perform for AnsiProcessor {
                     0
                 };
 
-                if self.use_screen_buffer
-                    && self.terminal_state.get_cursor().y < self.terminal_state.screen_height
-                {
+                if self.terminal_state.get_cursor().y < self.terminal_state.screen_height {
                     // Extract values to avoid borrow checker issues
                     let cursor_x = self.terminal_state.get_cursor().x;
                     let cursor_y = self.terminal_state.get_cursor().y;
                     let screen_width = self.terminal_state.screen_width;
 
-                    let screen = self.terminal_state.get_active_screen();
-                    match n {
-                        0 => {
-                            // Clear from cursor to end of line
-                            for x in cursor_x..screen_width {
-                                screen[cursor_y][x] = TerminalCell::default();
-                            }
-                        }
-                        1 => {
-                            // Clear from start of line to cursor
-                            for x in 0..=cursor_x.min(screen_width.saturating_sub(1)) {
-                                screen[cursor_y][x] = TerminalCell::default();
-                            }
-                        }
-                        2 => {
-                            // Clear entire line
-                            for x in 0..screen_width {
-                                screen[cursor_y][x] = TerminalCell::default();
-                            }
-                        }
-                        _ => {}
+                    let row = &mut self.terminal_state.get_active_screen()[cursor_y];
+                    let cleared = match n {
+                        // From the cursor to the end of the line.
+                        0 => cursor_x..screen_width,
+                        // From the start of the line to the cursor, inclusive.
+                        1 => 0..(cursor_x + 1).min(screen_width),
+                        // The whole line.
+                        2 => 0..screen_width,
+                        _ => 0..0,
+                    };
+                    for cell in &mut row[cleared] {
+                        *cell = TerminalCell::default();
                     }
                 }
             }
@@ -3042,27 +2225,21 @@ impl Perform for AnsiProcessor {
                         }
                         47 => {
                             // F0312: Simple Alternate Screen (no cursor save, no clear)
-                            self.alternate_screen_mode = true;
                             self.terminal_state.full_screen_program_detected = true;
                             self.terminal_state.switch_to_alternate_screen();
-                            self.use_screen_buffer = true;
                         }
                         1047 => {
                             // F0312: Alternate Screen Buffer (with clear, no cursor save)
-                            self.alternate_screen_mode = true;
                             self.terminal_state.full_screen_program_detected = true;
                             self.terminal_state.switch_to_alternate_screen();
-                            self.use_screen_buffer = true;
                             self.terminal_state.clear_alternate_screen();
                         }
                         1049 => {
                             // F0312: Alternate Screen Buffer (with cursor save/restore and clear)
-                            self.alternate_screen_mode = true;
                             self.terminal_state.full_screen_program_detected = true;
                             // Save cursor position before switching
                             self.terminal_state.save_cursor();
                             self.terminal_state.switch_to_alternate_screen();
-                            self.use_screen_buffer = true;
                             self.terminal_state.clear_alternate_screen();
                         }
                         2004 => {
@@ -3139,19 +2316,16 @@ impl Perform for AnsiProcessor {
                         }
                         47 => {
                             // F0312: Exit Simple Alternate Screen (no cursor restore)
-                            self.alternate_screen_mode = false;
                             self.terminal_state.switch_to_primary_screen();
                             // Keep full_screen_program_detected true once detected
                         }
                         1047 => {
                             // F0312: Exit Alternate Screen Buffer (no cursor restore)
-                            self.alternate_screen_mode = false;
                             self.terminal_state.switch_to_primary_screen();
                             // Keep full_screen_program_detected true once detected
                         }
                         1049 => {
                             // F0312: Exit Alternate Screen Buffer (with cursor restore)
-                            self.alternate_screen_mode = false;
                             self.terminal_state.switch_to_primary_screen();
                             // Restore cursor position after switching back
                             self.terminal_state.restore_cursor();
@@ -3271,29 +2445,34 @@ impl Perform for AnsiProcessor {
                     match report_type {
                         5 => {
                             // Terminal status - always ready
-                            self.terminal_state.pending_response = Some("\x1b[0n".to_string());
+                            self.terminal_state
+                                .pending_responses
+                                .push("\x1b[0n".to_string());
                         }
                         6 => {
                             // Cursor Position Report (CPR)
                             let cursor_x = self.terminal_state.get_cursor().x + 1;
                             let cursor_y = self.terminal_state.get_cursor().y + 1;
-                            self.terminal_state.pending_response =
-                                Some(format!("\x1b[{};{}R", cursor_y, cursor_x));
+                            self.terminal_state
+                                .pending_responses
+                                .push(format!("\x1b[{};{}R", cursor_y, cursor_x));
                         }
                         14 => {
                             // F0311: Terminal Size Report (TSR) - Window size in characters
                             let cols = self.terminal_state.screen_width;
                             let rows = self.terminal_state.screen_height;
-                            self.terminal_state.pending_response =
-                                Some(format!("\x1b[8;{};{}t", rows, cols));
+                            self.terminal_state
+                                .pending_responses
+                                .push(format!("\x1b[8;{};{}t", rows, cols));
                         }
                         15 => {
                             // F0311: Terminal Size Report in pixels (if supported)
                             // Report approximate pixel size (assume 8x16 character cell)
                             let pixel_width = self.terminal_state.screen_width * 8;
                             let pixel_height = self.terminal_state.screen_height * 16;
-                            self.terminal_state.pending_response =
-                                Some(format!("\x1b[4;{};{}t", pixel_height, pixel_width));
+                            self.terminal_state
+                                .pending_responses
+                                .push(format!("\x1b[4;{};{}t", pixel_height, pixel_width));
                         }
                         _ => {
                             log::debug!("Unknown DSR request: {}", report_type);
@@ -3303,8 +2482,9 @@ impl Perform for AnsiProcessor {
                     // Default DSR - cursor position report
                     let cursor_x = self.terminal_state.get_cursor().x + 1;
                     let cursor_y = self.terminal_state.get_cursor().y + 1;
-                    self.terminal_state.pending_response =
-                        Some(format!("\x1b[{};{}R", cursor_y, cursor_x));
+                    self.terminal_state
+                        .pending_responses
+                        .push(format!("\x1b[{};{}R", cursor_y, cursor_x));
                 }
             }
             'c' => {
@@ -3312,30 +2492,37 @@ impl Perform for AnsiProcessor {
                 if params.is_empty() || Self::get_param(params, 0) == 0 {
                     // Primary Device Attributes - VT102/VT220 compatible terminal
                     // ?1 = VT101/VT102; ?6 = VT102; ?62 = VT220; ?63 = VT320; ?64 = VT420; ?65 = VT520
-                    self.terminal_state.pending_response =
-                        Some("\x1b[?62;1;2;6;7;8;9c".to_string());
+                    self.terminal_state
+                        .pending_responses
+                        .push("\x1b[?62;1;2;6;7;8;9c".to_string());
                 } else if Self::get_param(params, 0) == 1 {
                     // Secondary Device Attributes - Terminal version and capabilities
                     // Format: ESC[>Pp;Pv;Pc where:
                     // Pp = Terminal type (0 = VT100-series)
                     // Pv = Firmware version (276 = common version number)
                     // Pc = ROM cartridge registration number (0 = no cartridge)
-                    self.terminal_state.pending_response = Some("\x1b[>0;276;0c".to_string());
+                    self.terminal_state
+                        .pending_responses
+                        .push("\x1b[>0;276;0c".to_string());
                 } else if Self::get_param(params, 0) == 2 {
                     // Tertiary Device Attributes - Unit ID (rarely supported)
-                    self.terminal_state.pending_response = Some("\x1b[P!|00000000".to_string());
+                    self.terminal_state
+                        .pending_responses
+                        .push("\x1b[P!|00000000".to_string());
                 }
             }
             'x' => {
                 // F0311: Request Terminal Parameters (DECREQTPARM)
                 if params.is_empty() || Self::get_param(params, 0) == 0 {
                     // Solicit terminal parameters report
-                    self.terminal_state.pending_response =
-                        Some("\x1b[2;1;1;128;128;1;0x".to_string());
+                    self.terminal_state
+                        .pending_responses
+                        .push("\x1b[2;1;1;128;128;1;0x".to_string());
                 } else if Self::get_param(params, 0) == 1 {
                     // Request terminal parameters report
-                    self.terminal_state.pending_response =
-                        Some("\x1b[3;1;1;128;128;1;0x".to_string());
+                    self.terminal_state
+                        .pending_responses
+                        .push("\x1b[3;1;1;128;128;1;0x".to_string());
                 }
             }
             '$' => {
@@ -3345,21 +2532,24 @@ impl Perform for AnsiProcessor {
                         // DEC private mode query
                         let mode = Self::get_param(params, 0);
                         let status = self.get_private_mode_status(mode);
-                        self.terminal_state.pending_response =
-                            Some(format!("\x1b[?{};{}$y", mode, status));
+                        self.terminal_state
+                            .pending_responses
+                            .push(format!("\x1b[?{};{}$y", mode, status));
                     } else {
                         // Standard mode query
                         let mode = Self::get_param(params, 0);
                         let status = self.get_standard_mode_status(mode);
-                        self.terminal_state.pending_response =
-                            Some(format!("\x1b[{};{}$y", mode, status));
+                        self.terminal_state
+                            .pending_responses
+                            .push(format!("\x1b[{};{}$y", mode, status));
                     }
                 } else {
                     // Standard mode query (no intermediate)
                     let mode = Self::get_param(params, 0);
                     let status = self.get_standard_mode_status(mode);
-                    self.terminal_state.pending_response =
-                        Some(format!("\x1b[{};{}$y", mode, status));
+                    self.terminal_state
+                        .pending_responses
+                        .push(format!("\x1b[{};{}$y", mode, status));
                 }
             }
             'g' => {
@@ -3380,9 +2570,7 @@ impl Perform for AnsiProcessor {
                     }
                     3 => {
                         // Clear all tab stops
-                        for stop in &mut self.terminal_state.tab_stops {
-                            *stop = false;
-                        }
+                        self.terminal_state.tab_stops.fill(false);
                     }
                     _ => {
                         log::debug!("Unknown TBC mode: {}", mode);
@@ -3420,6 +2608,9 @@ impl Perform for AnsiProcessor {
     }
 
     fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        if intermediates.is_empty() && matches!(byte, b'8' | b'D' | b'E' | b'M') {
+            self.terminal_state.wrap_pending = false;
+        }
         match byte {
             b'7' => {
                 // Save cursor position (DECSC)
@@ -3430,18 +2621,24 @@ impl Perform for AnsiProcessor {
                 self.terminal_state.restore_cursor();
             }
             b'c' => {
-                // Reset terminal (RIS) - indicates full-screen program
-                self.terminal_state.full_screen_program_detected = true;
-                self.use_screen_buffer = true;
-                self.clear_screen_buffer();
+                // RIS: back to the power-on state, keeping the size.
+                let (width, height) = (
+                    self.terminal_state.screen_width,
+                    self.terminal_state.screen_height,
+                );
+                self.terminal_state = TerminalState::new(width, height);
             }
             b'Z' => {
                 // F0311: Identify Terminal (DECID) - respond with device attributes
-                self.terminal_state.pending_response = Some("\x1b[?62;1;2;6;7;8;9c".to_string());
+                self.terminal_state
+                    .pending_responses
+                    .push("\x1b[?62;1;2;6;7;8;9c".to_string());
             }
             5 => {
                 // F0311: ENQ (Enquiry) - respond with ANSWERBACK string
-                self.terminal_state.pending_response = Some("BoxMux Terminal\r".to_string());
+                self.terminal_state
+                    .pending_responses
+                    .push("BoxMux Terminal\r".to_string());
             }
             b'D' => {
                 // Index (IND) - cursor down with scroll
@@ -3561,6 +2758,82 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_sequence_split_between_two_reads_is_still_understood() {
+        let mut processor = AnsiProcessor::with_screen_size(20, 3);
+        processor.process_bytes(b"a\x1b[3");
+        processor.process_bytes(b"1mb\x1b[0mc");
+        assert_eq!(processor.get_processed_text(), "abc");
+        let line = &processor.display_lines()[0];
+        assert!(line.contains("\x1b[0;31mb"), "{:?}", line);
+    }
+
+    #[test]
+    fn writing_the_last_column_waits_for_the_next_character_to_wrap() {
+        let mut processor = AnsiProcessor::with_screen_size(4, 3);
+        // A full line followed by CR LF must not leave an empty line.
+        processor.process_string("abcd\r\nefgh\r\n");
+        assert_eq!(processor.get_processed_text(), "abcd\nefgh");
+        // A character after a full line goes to the next line.
+        let mut processor = AnsiProcessor::with_screen_size(4, 3);
+        processor.process_string("abcdX");
+        assert_eq!(processor.get_processed_text(), "abcd\nX");
+        // Moving the cursor cancels the pending wrap.
+        let mut processor = AnsiProcessor::with_screen_size(4, 3);
+        processor.process_string("abcd\x1b[1;1HZ");
+        assert_eq!(processor.get_processed_text(), "Zbcd");
+    }
+
+    #[test]
+    fn wide_characters_take_two_cells_and_wrap_as_a_whole() {
+        let mut processor = AnsiProcessor::with_screen_size(5, 3);
+        processor.process_string("日本語");
+        // Two wide characters fill four columns; the third does not fit in the last column.
+        assert_eq!(processor.get_processed_text(), "日本\n語");
+        assert_eq!((processor.get_cursor_x(), processor.get_cursor_y()), (2, 1));
+        let lines = processor.display_lines();
+        assert_eq!(crate::utils::display_width(&lines[0]), 5, "{:?}", lines[0]);
+    }
+
+    #[test]
+    fn truecolor_and_palette_colors_are_kept_exactly() {
+        let mut processor = AnsiProcessor::with_screen_size(10, 2);
+        processor.process_string("\x1b[38;2;10;20;30;48;5;200mx");
+        let cell = &processor.terminal_state.get_active_screen_ref()[0][0];
+        assert_eq!(cell.fg_color, Some(TermColor::Rgb(10, 20, 30)));
+        assert_eq!(cell.bg_color, Some(TermColor::Indexed(200)));
+        assert!(processor.display_lines()[0].contains("38;2;10;20;30;48;5;200"));
+    }
+
+    #[test]
+    fn backspace_moves_left_without_erasing() {
+        let mut processor = AnsiProcessor::with_screen_size(10, 2);
+        processor.process_string("abc\x08\x08");
+        assert_eq!(processor.get_processed_text(), "abc");
+        assert_eq!(processor.get_cursor_x(), 1);
+        processor.process_string("X");
+        assert_eq!(processor.get_processed_text(), "aXc");
+    }
+
+    #[test]
+    fn erasing_to_the_cursor_clears_the_start_of_the_screen() {
+        let mut processor = AnsiProcessor::with_screen_size(4, 3);
+        processor.process_string("abcd\r\nefgh\r\nijkl\x1b[2;2H\x1b[1J");
+        assert_eq!(processor.get_processed_text(), "\n  gh\nijkl");
+    }
+
+    #[test]
+    fn a_full_reset_returns_to_the_initial_state() {
+        let mut processor = AnsiProcessor::with_screen_size(10, 3);
+        processor.process_string("\x1b[?1h\x1b[31mtext\x1bc");
+        assert_eq!(processor.get_processed_text(), "");
+        assert!(!processor.terminal_state.mode.cursor_key_mode);
+        assert_eq!(
+            processor.terminal_state.current_attributes,
+            TerminalCell::default()
+        );
+    }
+
+    #[test]
     fn test_ansi_processor_basic_text() {
         let mut processor = AnsiProcessor::new();
         processor.process_string("Hello World");
@@ -3577,10 +2850,15 @@ mod tests {
     #[test]
     fn test_ansi_processor_newlines() {
         let mut processor = AnsiProcessor::new();
-        processor.process_string("Line 1\nLine 2\n");
-        assert_eq!(processor.get_processed_text(), "Line 1\nLine 2\n");
+        // A PTY turns each newline a program prints into CR LF.
+        processor.process_string("Line 1\r\nLine 2\r\n");
+        assert_eq!(processor.get_processed_text(), "Line 1\nLine 2");
         assert_eq!(processor.get_cursor_y(), 2);
         assert_eq!(processor.get_cursor_x(), 0);
+        // A bare line feed moves down without returning to the first column.
+        let mut processor = AnsiProcessor::new();
+        processor.process_string("ab\ncd");
+        assert_eq!(processor.get_processed_text(), "ab\n  cd");
     }
 
     #[test]
@@ -3591,43 +2869,19 @@ mod tests {
     }
 
     #[test]
-    fn test_ansi_processor_stream_integration() {
-        let mut processor = AnsiProcessor::new();
-
-        // Test non-screen buffer mode (line-based)
-        processor.set_screen_mode(false);
-        processor.process_string("Line 1\nLine 2");
-        let stream_content = processor.get_screen_content_for_stream();
-        assert_eq!(stream_content, "Line 1\nLine 2");
-
-        // Test screen buffer mode with ANSI colors
-        processor.set_screen_mode(true);
-        processor.process_string("\x1b[31mRed text\x1b[0m");
-        let screen_stream_content = processor.get_screen_content_for_stream();
-
-        // Should contain ANSI formatting codes for proper BoxMux rendering
-        assert!(screen_stream_content.contains("Red text"));
-        assert!(!screen_stream_content.is_empty());
-
-        // Test terminal content lines extraction
-        let content_lines = processor.get_terminal_content_lines(false);
-        assert!(!content_lines.is_empty());
-    }
-
-    #[test]
     fn test_terminal_screen_buffer_to_content_lines() {
         let mut buffer = TerminalScreenBuffer::new(80, 24, 1000);
 
         // Add some content with formatting
         buffer.content[0][0] = TerminalCell {
             character: 'H',
-            fg_color: Some(1), // Red foreground
+            fg_color: Some(TermColor::Indexed(1)),
             bold: true,
             ..Default::default()
         };
         buffer.content[0][1] = TerminalCell {
             character: 'i',
-            fg_color: Some(1),
+            fg_color: Some(TermColor::Indexed(1)),
             bold: true,
             ..Default::default()
         };
@@ -3644,7 +2898,6 @@ mod tests {
     #[test]
     fn test_enhanced_vte_parser_integration() {
         let mut processor = AnsiProcessor::new();
-        processor.set_screen_mode(true);
 
         // Test application keypad mode (ESC sequences)
         processor.process_string("\x1b="); // ESC =
@@ -3655,8 +2908,9 @@ mod tests {
 
         // Test device status report (CSI sequence)
         processor.process_string("\x1b[6n");
-        assert!(processor.terminal_state.pending_response.is_some());
-        let response = processor.terminal_state.pending_response.as_ref().unwrap();
+        let responses = processor.take_responses();
+        assert_eq!(responses.len(), 1, "one reply per query");
+        let response = &responses[0];
         assert!(response.contains("R")); // Cursor position report
 
         // Test scrolling region (CSI sequence)
@@ -3688,124 +2942,35 @@ mod tests {
     }
 
     #[test]
-    fn test_terminal_message_architecture() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test basic message processing
-        let message = TerminalMessage::ResizeTerminal {
-            width: 100,
-            height: 50,
-        };
-        processor.process_message(message);
-        assert_eq!(processor.ansi_processor.terminal_state.screen_width, 100);
-        assert_eq!(processor.ansi_processor.terminal_state.screen_height, 50);
-
-        // Test cursor movement
-        let cursor_msg = TerminalMessage::MoveCursor { x: 10, y: 5 };
-        processor.process_message(cursor_msg);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 10);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 5);
-
-        // Test cursor visibility
-        let visibility_msg = TerminalMessage::SetCursorVisibility { visible: false };
-        processor.process_message(visibility_msg);
-        assert!(!processor.ansi_processor.terminal_state.get_cursor().visible);
-
-        // Test terminal modes
-        let mode_msg = TerminalMessage::SetMode {
-            mode: TerminalModeType::AutoWrap,
-            enabled: true,
-        };
-        processor.process_message(mode_msg);
-        assert!(processor.ansi_processor.terminal_state.mode.auto_wrap_mode);
-
-        // Test terminal title
-        let title_msg = TerminalMessage::SetTerminalTitle {
-            title: "Test Terminal".to_string(),
-        };
-        processor.process_message(title_msg);
-        assert_eq!(
-            processor.ansi_processor.terminal_state.terminal_title,
-            Some("Test Terminal".to_string())
-        );
-    }
-
-    #[test]
-    fn test_terminal_message_queue() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Queue multiple messages
-        processor.queue_message(TerminalMessage::MoveCursor { x: 5, y: 10 });
-        processor.queue_message(TerminalMessage::SetCursorVisibility { visible: false });
-        processor.queue_message(TerminalMessage::ResizeTerminal {
-            width: 120,
-            height: 40,
-        });
-
-        // Process all queued messages
-        processor.process_queued_messages();
-
-        // Verify all messages were processed
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 5);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 10);
-        assert!(!processor.ansi_processor.terminal_state.get_cursor().visible);
-        assert_eq!(processor.ansi_processor.terminal_state.screen_width, 120);
-        assert_eq!(processor.ansi_processor.terminal_state.screen_height, 40);
-
-        // Queue should be empty after processing
-        assert!(processor.message_queue.is_empty());
-    }
-
-    #[test]
-    fn test_device_status_reports() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test cursor position report
-        processor.process_message(TerminalMessage::MoveCursor { x: 20, y: 15 });
-        processor.process_message(TerminalMessage::DeviceStatusReport {
-            report_type: DeviceReportType::CursorPosition,
-        });
-
-        let responses = processor.get_pending_responses();
-        assert_eq!(responses.len(), 1);
-        assert_eq!(responses[0], "\x1b[16;21R"); // 1-indexed coordinates
-
-        // Test status report
-        processor.process_message(TerminalMessage::DeviceStatusReport {
-            report_type: DeviceReportType::Status,
-        });
-
-        let responses = processor.get_pending_responses();
-        assert_eq!(responses.len(), 1);
-        assert_eq!(responses[0], "\x1b[0n"); // Terminal OK
-    }
-
-    #[test]
     fn test_f0311_terminal_queries() {
         let mut processor = AnsiProcessor::new();
 
         // Test Primary Device Attributes via VTE parser
         processor.process_bytes("\x1b[c".as_bytes());
-        assert!(processor.terminal_state.pending_response.is_some());
-        let response = processor.terminal_state.pending_response.take().unwrap();
+        let mut responses = processor.take_responses();
+        assert_eq!(responses.len(), 1, "one reply per query");
+        let response = responses.remove(0);
         assert!(response.contains("[?62")); // VT220 compatible terminal
 
         // Test Device Status Report - cursor position
         processor.process_bytes("\x1b[6n".as_bytes());
-        assert!(processor.terminal_state.pending_response.is_some());
-        let response = processor.terminal_state.pending_response.take().unwrap();
+        let mut responses = processor.take_responses();
+        assert_eq!(responses.len(), 1, "one reply per query");
+        let response = responses.remove(0);
         assert!(response.ends_with("R")); // Cursor Position Report format
 
         // Test Secondary Device Attributes
         processor.process_bytes("\x1b[1c".as_bytes());
-        assert!(processor.terminal_state.pending_response.is_some());
-        let response = processor.terminal_state.pending_response.take().unwrap();
+        let mut responses = processor.take_responses();
+        assert_eq!(responses.len(), 1, "one reply per query");
+        let response = responses.remove(0);
         assert_eq!(response, "\x1b[>0;276;0c"); // Secondary DA format
 
         // Test Terminal Status Report
         processor.process_bytes("\x1b[5n".as_bytes());
-        assert!(processor.terminal_state.pending_response.is_some());
-        let response = processor.terminal_state.pending_response.take().unwrap();
+        let mut responses = processor.take_responses();
+        assert_eq!(responses.len(), 1, "one reply per query");
+        let response = responses.remove(0);
         assert_eq!(response, "\x1b[0n"); // Terminal OK
     }
 
@@ -3815,7 +2980,7 @@ mod tests {
 
         // Test initial state - should be on primary screen
         assert!(!processor.is_using_alternate_screen());
-        assert!(!processor.should_replace_content());
+        assert!(!processor.is_using_alternate_screen());
 
         // Add some content to primary screen
         processor.process_string("Primary screen content");
@@ -3825,19 +2990,22 @@ mod tests {
         // Test Mode 47 - Simple Alternate Screen
         processor.process_bytes("\x1b[?47h".as_bytes());
         assert!(processor.is_using_alternate_screen());
-        assert!(processor.should_replace_content());
+        assert!(processor.is_using_alternate_screen());
 
         // Add content to alternate screen
         processor.process_string("Alternate screen content");
-        let alt_content = processor.get_processed_text();
+        assert!(processor
+            .get_processed_text()
+            .contains("Alternate screen content"));
 
         // Exit Mode 47
         processor.process_bytes("\x1b[?47l".as_bytes());
         assert!(!processor.is_using_alternate_screen());
 
-        // Should return to primary screen with preserved content
-        let restored_content = processor.get_processed_text();
-        // Note: Content handling depends on screen buffer mode
+        // The primary screen shows again, without the alternate screen's text.
+        assert!(!processor
+            .get_processed_text()
+            .contains("Alternate screen content"));
 
         // Test Mode 1047 - Alternate Screen with Clear
         processor.process_bytes("\x1b[?1047h".as_bytes());
@@ -3875,14 +3043,13 @@ mod tests {
         let mut processor = AnsiProcessor::new();
 
         // Enable screen buffer mode for proper isolation testing
-        processor.set_screen_mode(true);
 
         // Add content to primary screen
         processor.process_string("Primary line 1\n");
         processor.process_string("Primary line 2\n");
 
         // Get primary screen content
-        let primary_lines = processor.get_terminal_content_lines(false);
+        let primary_lines = processor.display_lines();
         assert!(primary_lines.len() >= 2);
         assert!(primary_lines[0].contains("Primary line 1"));
 
@@ -3895,7 +3062,7 @@ mod tests {
         processor.process_string("Alternate line 2\n");
 
         // Get alternate screen content
-        let alt_lines = processor.get_terminal_content_lines(false);
+        let alt_lines = processor.display_lines();
         assert!(alt_lines.len() >= 2);
         assert!(alt_lines[0].contains("Alternate line 1"));
 
@@ -3903,43 +3070,16 @@ mod tests {
         processor.process_bytes("\x1b[?1047l".as_bytes());
         assert!(!processor.is_using_alternate_screen());
 
-        // Verify primary screen content is preserved
-        let restored_lines = processor.get_terminal_content_lines(false);
-        // Primary content should be restored (buffer isolation working)
+        // The primary screen's content comes back without the alternate screen's.
+        let restored_lines = processor.display_lines().join("\n");
+        assert!(
+            !restored_lines.contains("Alternate line 1"),
+            "{}",
+            restored_lines
+        );
 
         // Verify buffer isolation is working
         assert!(processor.terminal_state.verify_buffer_isolation());
-    }
-
-    #[test]
-    fn test_terminal_message_content_update() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test content update with replace mode
-        let content_msg = TerminalMessage::ContentUpdate {
-            content: "New content".to_string(),
-            dirty_regions: vec![DirtyRegion {
-                x: 0,
-                y: 0,
-                width: 80,
-                height: 1,
-            }],
-            replace_mode: true,
-        };
-        processor.process_message(content_msg);
-        assert_eq!(processor.ansi_processor.processed_text, "New content");
-
-        // Test content update with append mode
-        let append_msg = TerminalMessage::ContentUpdate {
-            content: " appended".to_string(),
-            dirty_regions: vec![],
-            replace_mode: false,
-        };
-        processor.process_message(append_msg);
-        assert_eq!(
-            processor.ansi_processor.processed_text,
-            "New content appended"
-        );
     }
 
     #[test]
@@ -4089,51 +3229,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cursor_message_operations() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test cursor movement messages
-        processor.process_message(TerminalMessage::MoveCursor { x: 20, y: 15 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 20);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 15);
-
-        // Test directional movement messages
-        processor.process_message(TerminalMessage::CursorUp { lines: 5 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 10);
-
-        processor.process_message(TerminalMessage::CursorRight { cols: 10 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 30);
-
-        processor.process_message(TerminalMessage::CursorDown { lines: 3 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 13);
-
-        processor.process_message(TerminalMessage::CursorLeft { cols: 15 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 15);
-
-        // Test line operations messages
-        processor.process_message(TerminalMessage::CursorToLineStart);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 0);
-
-        processor.process_message(TerminalMessage::CursorNextLine { lines: 2 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 0);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 15);
-
-        // Test column/line positioning messages
-        processor.process_message(TerminalMessage::SetCursorColumn { col: 40 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 40);
-
-        processor.process_message(TerminalMessage::SetCursorLine { line: 5 });
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 5);
-
-        // Test save/restore messages
-        processor.process_message(TerminalMessage::SaveCursor);
-        processor.process_message(TerminalMessage::MoveCursor { x: 60, y: 20 });
-        processor.process_message(TerminalMessage::RestoreCursor);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().x, 40);
-        assert_eq!(processor.ansi_processor.terminal_state.get_cursor().y, 5);
-    }
-
-    #[test]
     fn test_character_attribute_system() {
         let mut processor = AnsiProcessor::new();
 
@@ -4207,58 +3302,58 @@ mod tests {
         processor.apply_sgr_param(30); // Black
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(0)
+            Some(TermColor::Indexed(0))
         );
 
         processor.apply_sgr_param(31); // Red
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(1)
+            Some(TermColor::Indexed(1))
         );
 
         processor.apply_sgr_param(37); // White
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(7)
+            Some(TermColor::Indexed(7))
         );
 
         // Test bright colors (foreground)
         processor.apply_sgr_param(90); // Bright black
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(8)
+            Some(TermColor::Indexed(8))
         );
 
         processor.apply_sgr_param(97); // Bright white
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(15)
+            Some(TermColor::Indexed(15))
         );
 
         // Test standard 8 colors (background)
         processor.apply_sgr_param(40); // Black background
         assert_eq!(
             processor.terminal_state.current_attributes.bg_color,
-            Some(0)
+            Some(TermColor::Indexed(0))
         );
 
         processor.apply_sgr_param(47); // White background
         assert_eq!(
             processor.terminal_state.current_attributes.bg_color,
-            Some(7)
+            Some(TermColor::Indexed(7))
         );
 
         // Test bright colors (background)
         processor.apply_sgr_param(100); // Bright black background
         assert_eq!(
             processor.terminal_state.current_attributes.bg_color,
-            Some(8)
+            Some(TermColor::Indexed(8))
         );
 
         processor.apply_sgr_param(107); // Bright white background
         assert_eq!(
             processor.terminal_state.current_attributes.bg_color,
-            Some(15)
+            Some(TermColor::Indexed(15))
         );
 
         // Test color reset
@@ -4373,39 +3468,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rgb_to_palette_conversion() {
-        // Test primary colors
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(255, 0, 0),
-            16 + 36 * 5 + 6 * 0 + 0
-        ); // Red
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(0, 255, 0),
-            16 + 36 * 0 + 6 * 5 + 0
-        ); // Green
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(0, 0, 255),
-            16 + 36 * 0 + 6 * 0 + 5
-        ); // Blue
-
-        // Test white and black
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(255, 255, 255),
-            16 + 36 * 5 + 6 * 5 + 5
-        ); // White
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(0, 0, 0),
-            16 + 36 * 0 + 6 * 0 + 0
-        ); // Black
-
-        // Test mid-range color
-        assert_eq!(
-            AnsiProcessor::rgb_to_palette(128, 128, 128),
-            16 + 36 * 3 + 6 * 3 + 3
-        ); // Gray
-    }
-
-    #[test]
     fn test_sgr_sequence_processing() {
         let mut processor = AnsiProcessor::new();
 
@@ -4420,7 +3482,7 @@ mod tests {
         processor.apply_sgr_param(31); // Red foreground
         assert_eq!(
             processor.terminal_state.current_attributes.fg_color,
-            Some(1)
+            Some(TermColor::Indexed(1))
         );
     }
 
@@ -4567,36 +3629,6 @@ mod tests {
         terminal_state.reverse_line_feed_with_scrolling();
         assert_eq!(terminal_state.get_cursor().y, 11); // Should move up one line
         assert_eq!(terminal_state.get_cursor().x, 10); // X position unchanged
-    }
-
-    #[test]
-    fn test_scrolling_region_message_operations() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test set scrolling region message
-        processor.process_message(TerminalMessage::SetScrollingRegion { top: 5, bottom: 15 });
-        assert_eq!(processor.ansi_processor.terminal_state.scroll_region.top, 5); // 0-based (6-1)
-        assert_eq!(
-            processor.ansi_processor.terminal_state.scroll_region.bottom,
-            15
-        ); // 0-based (16-1)
-
-        // Test reset scrolling region message
-        processor.process_message(TerminalMessage::ResetScrollingRegion);
-        assert_eq!(processor.ansi_processor.terminal_state.scroll_region.top, 0);
-        assert_eq!(
-            processor.ansi_processor.terminal_state.scroll_region.bottom,
-            23
-        ); // Screen height - 1
-
-        // Test scroll up in region message
-        processor.process_message(TerminalMessage::SetScrollingRegion { top: 5, bottom: 10 });
-        processor.process_message(TerminalMessage::ScrollUpInRegion { lines: 2 });
-        // Verify scrolling occurred (content would be moved, but we can't easily test without content setup)
-
-        // Test scroll down in region message
-        processor.process_message(TerminalMessage::ScrollDownInRegion { lines: 1 });
-        // Verify scrolling occurred
     }
 
     #[test]
@@ -4794,36 +3826,5 @@ mod tests {
 
         // Reverse video effects are tested implicitly through put_char_at_cursor
         // The color swapping logic is applied when characters are written
-    }
-
-    #[test]
-    fn test_terminal_mode_message_integration() {
-        let mut processor = TerminalMessageProcessor::new();
-
-        // Test mode setting through messages
-        processor.process_message(TerminalMessage::SetMode {
-            mode: TerminalModeType::CursorKeys,
-            enabled: true,
-        });
-        assert!(processor.ansi_processor.terminal_state.mode.cursor_key_mode);
-
-        processor.process_message(TerminalMessage::SetMode {
-            mode: TerminalModeType::AutoWrap,
-            enabled: true,
-        });
-        assert!(processor.ansi_processor.terminal_state.mode.auto_wrap_mode);
-
-        processor.process_message(TerminalMessage::SetMode {
-            mode: TerminalModeType::Origin,
-            enabled: true,
-        });
-        assert!(processor.ansi_processor.terminal_state.mode.origin_mode);
-
-        // Test disabling modes
-        processor.process_message(TerminalMessage::SetMode {
-            mode: TerminalModeType::CursorKeys,
-            enabled: false,
-        });
-        assert!(!processor.ansi_processor.terminal_state.mode.cursor_key_mode);
     }
 }

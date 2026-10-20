@@ -1,0 +1,38 @@
+# Terminal boxes and how their border shows the state of their process: the configured color
+# while it runs, yellow once it has ended, red when it failed. Control them from another
+# terminal with `boxmux query_pty_status <box>`, `kill_pty_process`, `restart_pty_process`.
+app:
+  layouts:
+    - id: pty_states
+      root: true
+      title: PTY states
+      children:
+        - id: shell
+          title: Interactive shell
+          position: {x1: "0%", y1: "0%", x2: "49%", y2: "59%"}
+          border_color: bright_cyan
+          tab_order: 1
+          execution_mode: Pty
+          script: bash
+        - id: finishes
+          title: Ends successfully
+          position: {x1: "50%", y1: "0%", x2: "100%", y2: "29%"}
+          tab_order: 2
+          execution_mode: Pty
+          script: |
+            echo "counting to 3"
+            for i in 1 2 3; do echo "$i"; sleep 1; done
+        - id: fails
+          title: Fails
+          position: {x1: "50%", y1: "30%", x2: "100%", y2: "59%"}
+          tab_order: 3
+          execution_mode: Pty
+          script: |
+            echo "this command fails with exit code 3"
+            exit 3
+        - id: processes
+          title: Processes (refreshes every 2s)
+          position: {x1: "0%", y1: "60%", x2: "100%", y2: "100%"}
+          tab_order: 4
+          refresh_interval: 2000
+          script: ps -eo pid,stat,comm | head -20
