@@ -13,24 +13,20 @@ app:
             y2: "30%"
           border_color: "blue"
           content: |
-            Socket PTY Spawn Demo - F0136 Implementation
+            Start a process in a box from another terminal. Each script line is
+            its own argument. The command reaches this instance through its
+            control socket (pass --socket or set BOXMUX_SOCKET when several run).
 
-            Use these CLI commands to spawn PTY processes remotely:
+            # Run a script in a terminal in pty_demo_box
+            boxmux spawn_pty_process pty_demo_box 'echo Hello PTY' date 'sleep 2' 'echo Done'
 
-            # Basic PTY spawn with simple script
-            boxmux spawn_pty_process pty_demo_box '["echo Hello PTY", "date", "sleep 2", "echo Done"]'
+            # Run it for source_box, showing the output in output_box
+            boxmux spawn_pty_process source_box 'echo Redirected output' --redirect-output output_box
 
-            # PTY spawn with library sourcing
-            boxmux spawn_pty_process pty_demo_box '["echo Using libs"]' --libs '["/usr/local/lib/utils.sh"]'
-
-            # PTY spawn with output redirection
-            boxmux spawn_pty_process source_box '["echo Redirected output"]' --redirect-output output_box
-
-            # Query PTY status after spawning
+            # Look at, stop or restart the process
             boxmux query_pty_status pty_demo_box
-
-            # Kill PTY process when needed
             boxmux kill_pty_process pty_demo_box
+            boxmux restart_pty_process pty_demo_box
 
         - id: "pty_demo_box"
           title: "PTY Demo Box - Target for Spawning"
@@ -71,9 +67,8 @@ app:
             y2: "95%"
           border_color: "magenta"
           content: |
-            PTY Status Commands:
+            PTY status commands:
             - Query: boxmux query_pty_status pty_demo_box
             - Kill: boxmux kill_pty_process pty_demo_box
             - Restart: boxmux restart_pty_process pty_demo_box
-
-            Watch this space for status updates...
+            - Signal: boxmux send_signal pty_demo_box 2

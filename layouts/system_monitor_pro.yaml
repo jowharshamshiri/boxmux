@@ -26,7 +26,7 @@ app:
           fg_color: 'bright_red'
           refresh_interval: 1000
           script:
-            - "echo 'SYSTEM: $(uname -n) | UPTIME: $(uptime | cut -d, -f1 | cut -d' ' -f4-) | LOAD: $(uptime | cut -d: -f4- | cut -d, -f1) | TIME: $(date \"+%H:%M:%S\")'"
+            - "echo \"SYSTEM: $(uname -n) | UPTIME: $(uptime | sed 's/.*up *//; s/, *[0-9]* user.*//') | LOAD: $(uptime | sed 's/.*load averages*: *//') | TIME: $(date +%H:%M:%S)\""
 
         # CPU monitoring
         - id: 'cpu_monitor'
@@ -291,4 +291,4 @@ app:
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_red'
-          content: "System monitoring active\\n\\nSelect a control option to view detailed information\\n\\nMonitored metrics:\\n- CPU usage and load\\n- Memory consumption\\n- Disk space and I/O\\n- Network activity\\n- Process monitoring\\n- System health\\n\\nAlerts will appear here when thresholds are exceeded"
+          content: "System monitoring active\n\nSelect a control option to view detailed information\n\nMonitored metrics:\n- CPU usage and load\n- Memory consumption\n- Disk space and I/O\n- Network activity\n- Process monitoring\n- System health\n\nAlerts will appear here when thresholds are exceeded"

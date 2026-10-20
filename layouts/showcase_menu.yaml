@@ -24,7 +24,7 @@ app:
           border_color: 'bright_white'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "Welcome to BoxMux Professional Dashboards\\n\\nBoxMux is a YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.\\n\\nSelect a showcase below to see BoxMux in action with real-world professional scenarios."
+          content: "Welcome to BoxMux Professional Dashboards\n\nBoxMux is a YAML-driven terminal UI framework for creating rich, interactive CLI applications and dashboards.\n\nSelect a showcase below to see BoxMux in action with real-world professional scenarios."
 
         # Showcase menu
         - id: 'showcase_selector'
@@ -231,4 +231,4 @@ app:
           border_color: 'bright_yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "BoxMux Professional Dashboard Showcases\\n\\nSelect a dashboard from the left box to view detailed\\nfeatures and capabilities.\\n\\nEach showcase demonstrates:\\n\\n• Real-time system monitoring\\n• Interactive command boxes\\n• Professional color schemes\\n• Modular box architecture\\n• Cross-platform compatibility\\n\\nBoxMux Features:\\n• YAML-driven configuration\\n• Multi-threaded architecture\\n• Unix socket communication\\n• Comprehensive validation\\n• Extensible component system\\n\\nAll showcases are fully functional and demonstrate\\nreal-world professional use cases."
+          content: "BoxMux Professional Dashboard Showcases\n\nSelect a dashboard from the left box to view detailed\nfeatures and capabilities.\n\nEach showcase demonstrates:\n\n• Real-time system monitoring\n• Interactive command boxes\n• Professional color schemes\n• Modular box architecture\n• Cross-platform compatibility\n\nBoxMux Features:\n• YAML-driven configuration\n• Multi-threaded architecture\n• Unix socket communication\n• Comprehensive validation\n• Extensible component system\n\nAll showcases are fully functional and demonstrate\nreal-world professional use cases."

@@ -14,10 +14,10 @@ app:
         - id: "control_box"
           title: "Control MuxBox"
           position:
-            x1: "0"
-            y1: "0"
-            x2: "40"
-            y2: "100"
+            x1: "0%"
+            y1: "0%"
+            x2: "40%"
+            y2: "100%"
           choices:
             # F0081: These choices can be triggered by hot keys
             - id: "deploy"
@@ -47,20 +47,20 @@ app:
         - id: "output_log"
           title: "Output Log"
           position:
-            x1: "40"
-            y1: "0"  
-            x2: "100"
-            y2: "70"
+            x1: "40%"
+            y1: "0%"
+            x2: "100%"
+            y2: "70%"
           content: "Press Ctrl+d, F2, F3, or Ctrl+r to trigger commands\nOutput will appear here"
           auto_scroll_bottom: true  # Auto-scroll to see new output
           
         - id: "status_box"
           title: "Instructions"
           position:
-            x1: "40"
-            y1: "70"
-            x2: "100" 
-            y2: "100"
+            x1: "40%"
+            y1: "70%"
+            x2: "100%"
+            y2: "100%"
           content: |
             FEATURES DEMONSTRATED:
             

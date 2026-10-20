@@ -9,6 +9,10 @@ pub struct DataPoint {
     pub value: f64,
 }
 
+/// The smallest area, in columns and rows, a chart is drawn in.
+pub const MIN_WIDTH: usize = 20;
+pub const MIN_HEIGHT: usize = 5;
+
 /// Supported chart types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -140,12 +144,11 @@ impl ChartComponent {
             return "No chart data".to_string();
         }
 
-        // Update config dimensions if not set
-        let effective_config = ChartConfig {
-            width: self.config.width.max(20),
-            height: self.config.height.max(5),
-            ..self.config.clone()
-        };
+        // Below this size no chart type has room for its axes and labels.
+        if self.config.width < MIN_WIDTH || self.config.height < MIN_HEIGHT {
+            return "too small".chars().take(self.config.width).collect();
+        }
+        let effective_config = self.config.clone();
 
         // Calculate smart layout based on chart type and data
         let layout = self.calculate_chart_layout(&effective_config, muxbox_title);
@@ -475,43 +478,15 @@ impl ChartComponent {
             result.push_str(&format!("{} {}\n", y_label, row.iter().collect::<String>()));
         }
 
-        // Add X-axis labels showing actual data point labels
+        // X-axis labels under their points.
         if layout.x_label_height > 0 && !self.data.is_empty() {
-            let padding = " ".repeat(layout.y_label_width + 1); // Align with chart
-            result.push_str(&padding);
-
-            // Show labels for each data point, but space them out to avoid crowding
-            let max_labels = layout.chart_width / 6; // Each label needs ~6 chars
-            let step = if self.data.len() > max_labels {
-                self.data.len() / max_labels.max(1)
-            } else {
-                1
-            };
-
-            for (i, point) in self.data.iter().enumerate() {
-                if i % step == 0 || i == self.data.len() - 1 {
-                    let x = if self.data.len() > 1 {
-                        (i as f64 / (self.data.len() - 1) as f64 * (layout.chart_width - 1) as f64)
-                            as usize
-                    } else {
-                        layout.chart_width / 2
-                    };
-
-                    // Position label under the data point
-                    let spaces_before = x.saturating_sub(
-                        result
-                            .lines()
-                            .last()
-                            .unwrap_or("")
-                            .len()
-                            .saturating_sub(layout.y_label_width + 1),
-                    );
-                    if spaces_before < layout.chart_width {
-                        result.push_str(&" ".repeat(spaces_before));
-                        result.push_str(&point.label.chars().take(4).collect::<String>());
-                    }
-                }
-            }
+            let last = self.data.len() - 1;
+            let points = self.data.iter().enumerate().map(|(i, point)| {
+                let x = (i as f64 / last as f64 * (layout.chart_width - 1) as f64) as usize;
+                (x, point.label.clone())
+            });
+            result.push_str(&" ".repeat(layout.y_label_width + 1));
+            result.push_str(&Self::x_label_row(points, layout.chart_width));
             result.push('\n');
         }
 
@@ -969,42 +944,42 @@ impl ChartComponent {
             result.push_str(&format!("{} {}\n", y_label, row.iter().collect::<String>()));
         }
 
-        // Add X-axis labels
+        // X-axis labels under their points.
         if layout.x_label_height > 0 && !self.data.is_empty() {
-            let padding = " ".repeat(layout.y_label_width + 1);
-            result.push_str(&padding);
-
-            // Show X labels (indices or labels)
-            let step = if self.data.len() > 10 {
-                self.data.len() / 8
-            } else {
-                1
-            };
-            for (i, point) in self.data.iter().enumerate().step_by(step) {
-                let x_pos = if x_range > 0.0 {
+            let points = self.data.iter().enumerate().map(|(i, point)| {
+                let x = if x_range > 0.0 {
                     ((i as f64 - min_x) / x_range * (layout.chart_width - 1) as f64) as usize
                 } else {
                     layout.chart_width / 2
                 };
-
-                // Position label under the point
-                let spaces_before = x_pos.saturating_sub(
-                    result
-                        .lines()
-                        .last()
-                        .unwrap_or("")
-                        .len()
-                        .saturating_sub(layout.y_label_width + 1),
-                );
-                if spaces_before < layout.chart_width {
-                    result.push_str(&" ".repeat(spaces_before));
-                    result.push_str(&point.label.chars().take(4).collect::<String>());
-                }
-            }
+                (x, point.label.clone())
+            });
+            result.push_str(&" ".repeat(layout.y_label_width + 1));
+            result.push_str(&Self::x_label_row(points, layout.chart_width));
             result.push('\n');
         }
 
         result.trim_end().to_string()
+    }
+
+    /// A row of x-axis labels, each starting under its point, kept inside `width` columns and
+    /// never overlapping the previous one.
+    fn x_label_row(points: impl Iterator<Item = (usize, String)>, width: usize) -> String {
+        let mut row = vec![' '; width];
+        let mut free_from = 0;
+        for (x, label) in points {
+            let label: Vec<char> = label.chars().take(4).collect();
+            if label.is_empty() || label.len() > width {
+                continue;
+            }
+            let start = x.min(width - label.len());
+            if start < free_from {
+                continue;
+            }
+            row[start..start + label.len()].copy_from_slice(&label);
+            free_from = start + label.len() + 1;
+        }
+        row.into_iter().collect()
     }
 
     /// Center text within given width
@@ -1120,6 +1095,49 @@ mod tests {
 
         assert!(result.contains("Test Line Chart"));
         assert!(result.contains("●")); // Data points
+    }
+
+    #[test]
+    fn every_chart_line_fits_the_configured_width() {
+        let data: Vec<DataPoint> = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+            .iter()
+            .zip([10.0, 8.0, 15.0, 20.0, 28.0, 30.0])
+            .map(|(label, value)| DataPoint {
+                label: label.to_string(),
+                value,
+            })
+            .collect();
+        for chart_type in [
+            ChartType::Bar,
+            ChartType::Line,
+            ChartType::Histogram,
+            ChartType::Pie,
+            ChartType::Scatter,
+        ] {
+            for width in [3, 20, 33, 48, 80] {
+                let chart = ChartComponent::with_data_and_config(
+                    "c".into(),
+                    data.clone(),
+                    ChartConfig {
+                        chart_type,
+                        width,
+                        height: 12,
+                        show_title: false,
+                        ..ChartConfig::default()
+                    },
+                );
+                for line in chart.generate().lines() {
+                    assert!(
+                        line.chars().count() <= width,
+                        "{:?} at width {}: {:?} is {} wide",
+                        chart_type,
+                        width,
+                        line,
+                        line.chars().count()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

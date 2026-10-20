@@ -91,6 +91,22 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> Event {
     Event::Input(TermEvent::Key(KeyEvent::new(code, modifiers)))
 }
 
+/// Writes `text` to standard error and exits with status 3, in the platform's default shell.
+#[cfg(unix)]
+const FAIL_LOUDLY: &str = "['echo broken >&2', 'exit 3']";
+#[cfg(windows)]
+const FAIL_LOUDLY: &str = "['[Console]::Error.WriteLine(\"broken\")', 'exit 3']";
+
+/// Prints `started`, then waits on two child processes for 30 seconds.
+#[cfg(unix)]
+const LONG_RUNNING: &str = "['echo started', 'sleep 30 & sleep 30']";
+#[cfg(windows)]
+const LONG_RUNNING: &str = "['echo started', 'Start-Sleep 30']";
+
+fn menu() -> String {
+    MENU.replace("FAIL_LOUDLY", FAIL_LOUDLY)
+}
+
 const MENU: &str = r#"
 app:
   layouts:
@@ -105,10 +121,10 @@ app:
           choices:
             - id: greet
               content: Say hello
-              script: ['echo hello from greet']
+              script: ["echo 'hello from greet'"]
             - id: fail
               content: Fail loudly
-              script: ['echo broken >&2', 'exit 3']
+              script: FAIL_LOUDLY
         - id: log
           title: Log
           position: {x1: "40", y1: "0", x2: "79", y2: "9"}
@@ -130,7 +146,7 @@ app:
 
 #[test]
 fn clicking_a_choice_runs_its_script_and_shows_the_output() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     let at = find(&runtime, "Say hello");
     click(&mut runtime, at);
     pump_until(&mut runtime, "the choice output", |r| {
@@ -147,7 +163,7 @@ fn clicking_a_choice_runs_its_script_and_shows_the_output() {
 
 #[test]
 fn clicking_beside_a_choice_does_not_run_it() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     let (x, y) = find(&runtime, "Say hello");
     // Past the end of the label, inside the box.
     click(&mut runtime, (x + "Say hello".len() as u16 + 5, y));
@@ -162,7 +178,7 @@ fn clicking_beside_a_choice_does_not_run_it() {
 
 #[test]
 fn a_failing_choice_shows_its_error_output_in_error_colors() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     let at = find(&runtime, "Fail loudly");
     click(&mut runtime, at);
     pump_until(&mut runtime, "the error output", |r| {
@@ -174,7 +190,7 @@ fn a_failing_choice_shows_its_error_output_in_error_colors() {
 
 #[test]
 fn enter_runs_the_choice_selected_with_the_arrow_keys() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     runtime.handle(key(KeyCode::Down, KeyModifiers::NONE));
     runtime.handle(key(KeyCode::Enter, KeyModifiers::NONE));
     pump_until(&mut runtime, "the second choice's output", |r| {
@@ -184,7 +200,7 @@ fn enter_runs_the_choice_selected_with_the_arrow_keys() {
 
 #[test]
 fn the_mouse_wheel_scrolls_the_box_under_the_pointer_by_lines() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     assert!(screen_contains(&runtime, "line 1 "));
     let (x, y) = find(&runtime, "line 3");
     runtime.handle(mouse(MouseEventKind::ScrollDown, x, y));
@@ -208,7 +224,7 @@ fn the_mouse_wheel_scrolls_the_box_under_the_pointer_by_lines() {
 
 #[test]
 fn tab_moves_the_focus_in_tab_order() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     let focused = |r: &Runtime<MemoryDisplay>| {
         r.ctx
             .app
@@ -232,7 +248,7 @@ fn tab_moves_the_focus_in_tab_order() {
 
 #[test]
 fn q_quits_but_q_with_a_modifier_does_not() {
-    let mut runtime = runtime(MENU, 80, 12);
+    let mut runtime = runtime(&menu(), 80, 12);
     runtime.handle(key(KeyCode::Char('q'), KeyModifiers::CONTROL));
     runtime.handle(key(KeyCode::Char('q'), KeyModifiers::ALT));
     assert!(!runtime.quit);
@@ -353,9 +369,10 @@ app:
         - id: sleeper
           position: {x1: "0", y1: "0", x2: "39", y2: "9"}
           execution_mode: Thread
-          script: ['echo started', 'sleep 30 & sleep 30']
-"#;
-    let app = load_app_from_str(yaml, "test.yaml").unwrap();
+          script: LONG_RUNNING
+"#
+    .replace("LONG_RUNNING", LONG_RUNNING);
+    let app = load_app_from_str(&yaml, "test.yaml").unwrap();
     let ctx = AppContext::new(app, Config::new(1, false, false).unwrap());
     let (sender, events) = crossbeam_channel::unbounded();
     let mut runtime = Runtime::new(
@@ -390,6 +407,33 @@ app:
                 group
             );
             std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+#[test]
+fn every_shipped_layout_renders_at_any_screen_size() {
+    let mut paths: Vec<std::path::PathBuf> = ["layouts", "examples"]
+        .iter()
+        .flat_map(|dir| std::fs::read_dir(dir).unwrap())
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "yaml"))
+        .collect();
+    paths.sort();
+    for path in paths {
+        let app = crate::load_app_from_yaml(&path).unwrap();
+        for (cols, rows) in [(1, 1), (7, 3), (40, 12), (120, 40), (300, 90)] {
+            let ctx = AppContext::new(app.clone(), Config::new(1, false, false).unwrap());
+            let (sender, events) = crossbeam_channel::unbounded();
+            // Scripts are not started: this checks drawing only.
+            let mut runtime =
+                Runtime::new(ctx, MemoryDisplay::new(cols, rows), sender, events, None);
+            runtime.render();
+            let screen = runtime.display.rows();
+            assert_eq!(screen.len(), usize::from(rows), "{}", path.display());
+            if std::env::var("BOXMUX_SHOW_LAYOUTS").is_ok() && cols == 120 {
+                println!("=== {}\n{}", path.display(), screen.join("\n"));
+            }
         }
     }
 }
