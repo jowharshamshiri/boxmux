@@ -330,6 +330,53 @@ app:
 }
 
 #[test]
+fn a_long_running_script_does_not_hold_up_other_boxes() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: streaming
+          position: {x1: "0", y1: "0", x2: "39", y2: "4"}
+          execution_mode: Thread
+          script: ['echo slow-started', 'sleep 30']
+        - id: waiting
+          position: {x1: "0", y1: "5", x2: "39", y2: "9"}
+          execution_mode: Immediate
+          script: ['sleep 30']
+        - id: counter
+          position: {x1: "40", y1: "0", x2: "79", y2: "9"}
+          refresh_interval: 50
+          append_output: true
+          script: ['echo tick']
+"#;
+    let mut runtime = runtime(yaml, 80, 10);
+    pump_until(&mut runtime, "the other boxes to keep working", |r| {
+        let ticks = r
+            .ctx
+            .app
+            .get_muxbox_by_id("counter")
+            .unwrap()
+            .get_selected_stream()
+            .is_some_and(|s| s.content.iter().filter(|l| l.as_str() == "tick").count() >= 3);
+        ticks && screen_contains(r, "slow-started")
+    });
+    // Both slow scripts are still running while the counter refreshed and the streaming box
+    // showed its first line.
+    for box_id in ["streaming", "waiting"] {
+        let origin = crate::model::stream::RunOrigin::BoxScript {
+            box_id: box_id.into(),
+        };
+        assert!(
+            runtime.executor.run_for_origin(&origin).is_some(),
+            "box '{}' finished early",
+            box_id
+        );
+    }
+}
+
+#[test]
 fn a_box_without_refresh_interval_runs_its_script_once() {
     let yaml = r#"
 app:
@@ -463,7 +510,6 @@ app:
     let mut runtime = runtime(&yaml, 40, 10);
     pump_until(&mut runtime, "the copy", |r| r.display.clipboard.is_some());
     assert_eq!(runtime.display.clipboard.as_deref(), Some("hi"));
-    runtime.executor.kill_all();
 }
 
 #[test]
@@ -543,7 +589,6 @@ app:
     runtime.handle(Event::Input(TermEvent::Paste("hello\r".to_string())));
     pump_until(&mut runtime, "the paste", |r| screen_contains(r, "got["));
     let rows = runtime.display.rows();
-    runtime.executor.kill_all();
     rows.into_iter()
         .find(|row| row.contains("got["))
         .unwrap()

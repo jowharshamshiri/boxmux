@@ -206,7 +206,6 @@ impl<D: Display> Runtime<D> {
             }
             self.tick(Instant::now());
         }
-        self.executor.kill_all();
         Ok(())
     }
 
