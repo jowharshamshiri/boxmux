@@ -1,5 +1,5 @@
 app:
-  # F0081: Hot Key Actions - Global keyboard shortcuts to trigger choice actions
+  # Hot keys: global keyboard shortcuts to trigger choice actions
   hot_keys:
     "Ctrl+d": "deploy"
     "F2": "build"  
@@ -19,7 +19,7 @@ app:
             x2: "40%"
             y2: "100%"
           choices:
-            # F0081: These choices can be triggered by hot keys
+            # These choices can be triggered by hot keys
             - id: "deploy"
               content: "Deploy Application (Ctrl+d)"
               script: ["echo 'Starting deployment...'; sleep 1; echo 'Deploying to server...'; sleep 1; echo 'Deployment complete!'"]
@@ -64,7 +64,7 @@ app:
           content: |
             FEATURES DEMONSTRATED:
             
-            F0081 - Hot Key Actions:
+            Hot Key Actions:
             • Ctrl+d = Deploy Application
             • F2 = Build Project  
             • F3 = Run Tests

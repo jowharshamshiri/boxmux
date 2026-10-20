@@ -73,7 +73,7 @@ app:
             y2: "95%"
           border_color: "green"
           content: |
-            F0203: Multi-Stream Input Tabs Demo
+            Multi-Stream Input Tabs Demo
             
             1. Select choices in the multi-stream box to create additional input streams
             2. Each stream will appear as a separate tab in the title bar
