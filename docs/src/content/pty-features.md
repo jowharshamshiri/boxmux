@@ -258,8 +258,9 @@ See the [API Reference](/docs/api) for fields, results and errors.
 ## Windows
 
 - PTYs use the Windows pseudo-console (ConPTY), Windows 10 and later.
-- Scripts run in Windows PowerShell (`powershell -NoLogo -NoProfile -NonInteractive -Command`)
-  unless the app sets `shell: pwsh` (PowerShell 7). Write PTY scripts for that shell.
+- Scripts run in Windows PowerShell (`powershell -NoLogo -NoProfile -Command`; scripts
+  outside a PTY also get `-NonInteractive`) unless the app sets `shell: pwsh` (PowerShell 7).
+  Write PTY scripts for that shell.
 - `send_signal` is not supported; it always fails with
   `signal <n> cannot be sent on Windows; use kill_pty_process`.
 - Stopping a program ends its whole process tree with `taskkill`.

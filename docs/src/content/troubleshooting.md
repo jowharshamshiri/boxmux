@@ -198,7 +198,7 @@ The border and title turn red when the last run of the shown tab failed: a non-z
 
 ### Windows: Scripts Fail
 
-On Windows, scripts run in PowerShell (`powershell -NoLogo -NoProfile -NonInteractive -Command ...`) unless the app sets `shell`. Scripts written for bash (`ls -la`, `$(date)`, `grep`) fail there.
+On Windows, scripts run in PowerShell (`powershell -NoLogo -NoProfile -NonInteractive -Command ...`, or without `-NonInteractive` in a PTY) unless the app sets `shell`. Scripts written for bash (`ls -la`, `$(date)`, `grep`) fail there.
 
 - Write the scripts in PowerShell, or
 - set `shell: bash` when bash is on `PATH` (for example from Git for Windows), or `shell: pwsh` for PowerShell 7.

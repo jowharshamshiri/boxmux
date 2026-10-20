@@ -130,7 +130,7 @@ impl Executor {
         let run = RunId(self.next_id);
         self.next_id += 1;
         let text = self.shell.script_text(&self.libs, &spec.script);
-        let (program, args) = self.shell.invocation();
+        let (program, args) = self.shell.invocation(spec.mode == ExecutionMode::Pty);
         let process = match spec.mode {
             ExecutionMode::Pty => {
                 let size = spec
