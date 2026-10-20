@@ -104,6 +104,11 @@ impl<D: Display> Runtime<D> {
                 self.quit = true;
                 return;
             }
+            // In raw mode the terminal does not turn Ctrl+Z into a stop signal; boxmux does.
+            KeyCode::Char('z') if cfg!(unix) && key.modifiers == KeyModifiers::CONTROL => {
+                self.suspend();
+                return;
+            }
             KeyCode::Char('c')
                 if key.modifiers == KeyModifiers::CONTROL
                     || key.modifiers == KeyModifiers::SUPER =>
