@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release rebuilds BoxMux's runtime, renderer and terminal emulator. Configurations written
+for earlier versions need the changes listed under "Migrating".
+
+### Migrating
+
+- `pty: true` and `thread: true` are gone: use `execution_mode: Pty` or `execution_mode: Thread`
+  (the default is `Immediate`). The removed keys are now load errors, as is every unknown key.
+- `bounds` is gone: use `position`.
+- `tab_order` is an integer (`tab_order: 2`, not `"2"`); focus order is numeric.
+- A position without `%` is a number of cells, as before; percentages may have up to two
+  decimals. Positions beyond the parent are now clamped to it, and anything else (`10px`,
+  `abc`) is a load error instead of 0.
+- Colors are one of `default` and the 16 ANSI names (`red`, `bright_red`, ...); other names are
+  load errors. Base and bright colors are now different colors.
+- `overflow_behavior` is `scroll`, `wrap` or `truncate`; `title_position` is `left`, `center` or
+  `right`.
+- `table_config` accepts only the documented keys; `border_style: custom` is gone.
+- Plugins use a new C ABI with JSON requests (see the plugin documentation) and are listed under
+  `app.plugins`.
+- Command line: `-d/--frame-delay` (was `--frame_delay`), `--log-file` and `--log-level` have no
+  short forms, `update_box_content` is `replace_box_content` (with `--failed` instead of a
+  true/false argument), `update_box_script` is `replace_box_script`, script arguments are one
+  argument per line, `spawn_pty_process --libs` is gone (use `app.libs`), and the new `--socket`
+  option chooses the control socket.
+- The control socket speaks one JSON request and one JSON reply per connection; see the API
+  documentation. Its default location is per user (`$XDG_RUNTIME_DIR/boxmux.sock`,
+  `/tmp/boxmux-<uid>.sock`, or the `boxmux-<user>` pipe on Windows).
+
+### Added
+
+- Windows support (ConPTY terminals, PowerShell scripts by default) and the `app.shell` setting.
+- Every control command is implemented and answers with a result or an error; `send_signal`,
+  `query_pty_status` and box replacement work.
+- Keyboard input, paste and (when the program asks for it) mouse input reach PTY programs;
+  terminal queries (cursor position, device attributes) are answered.
+- Charts and tables can show the output of the box's script; tables render.
+- `min_*`/`max_*` sizes apply around the `anchor`; `next_focus_id` steers Tab.
+- `fill: false` leaves a box's background unpainted; `highlighted_*` settings apply under the
+  mouse pointer.
+- Variables: defaults may contain references (`${A:${B}}`); `$${` writes a literal `${`.
+- PTY programs can copy to the clipboard (OSC 52); 24-bit color in PTY boxes.
+- The light or dark theme follows the terminal's background color when the terminal reports it.
+- An example plugin (`examples/plugins/gauge`).
+- Release and documentation scripts (`scripts/release.sh`, `scripts/deploy-docs.sh`) and
+  cross-platform test plans for mg-test, replacing the GitHub workflows.
+
+### Fixed
+
+- Control commands no longer hang.
+- A box without `refresh_interval` runs its script once instead of restarting it in a loop, and a
+  refresh never starts while the previous run is still going.
+- Quitting, closing a tab or removing a box stops the processes it started, including their
+  children; termination signals and panics restore the terminal.
+- Moving or resizing a box no longer writes keys the configuration rejects, keeps comments and
+  units, and is not done for a click without movement or with `--lock`.
+- Text with wide characters, tabs or color sequences is measured and clipped correctly; long lines
+  wrap without panicking.
+- Clicks land on what is drawn, for nested and overlapping boxes alike.
+- The tab bar can always reach its last tab.
+- Escape sequences split between two reads of a PTY are understood; deferred line wrapping,
+  wide characters and backspace behave like a real terminal.
+- Configuration errors name the file, line and setting, and the program exits with an error.
+
+### Removed
+
+- The message-bus architecture, live YAML sync, the visual testing framework and unused UI
+  components.
+- Homebrew formula and Debian packaging leftovers; `target-cpu=native` release builds.
+
 ## [0.240.3373] - 2026-06-29
 
 ### Added

@@ -6,6 +6,8 @@ source:
   type: workspace
   root: .
   contents: tracked
+  # The documentation site is not built or tested on the guests.
+  exclude: [docs]
 plans:
   - mg-test/hosts.yaml
   - mg-test/arm64.yaml
