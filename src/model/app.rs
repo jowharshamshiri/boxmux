@@ -16,7 +16,9 @@ pub struct TemplateRoot {
     pub app: App,
 }
 
-/// A plugin library to load. A relative path is relative to the configuration file.
+/// A plugin library to load. A relative path is relative to the configuration file; a path
+/// without an extension names the library in the platform's way (`libNAME.so`,
+/// `libNAME.dylib` or `NAME.dll`).
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PluginSpec {
@@ -310,7 +312,7 @@ impl AppContext {
             .plugins
             .iter()
             .flatten()
-            .map(|spec| base.join(&spec.path))
+            .map(|spec| crate::plugin::library_path(&base.join(&spec.path)))
             .collect();
         let plugins = crate::plugin::Plugins::load(&paths)?;
         let missing: Vec<String> = self

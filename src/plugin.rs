@@ -124,6 +124,16 @@ unsafe fn take_string(text: *mut c_char, free: FreeFn) -> Result<String, String>
     copied.map_err(|_| "returned a string that is not UTF-8".to_string())
 }
 
+/// The file of the library at `path`. A path whose file name has no extension names the
+/// library: `plugins/gauge` is `plugins/libgauge.so` on Linux, `plugins/libgauge.dylib` on
+/// macOS and `plugins\gauge.dll` on Windows.
+pub fn library_path(path: &Path) -> PathBuf {
+    match (path.extension(), path.file_name()) {
+        (None, Some(name)) => path.with_file_name(libloading::library_filename(name)),
+        _ => path.to_path_buf(),
+    }
+}
+
 /// The loaded plugins and the components they draw.
 #[derive(Default)]
 pub struct Plugins {
@@ -297,6 +307,17 @@ pub extern "C" fn boxmux_plugin_free(text: *mut c_char) {
         let second = build_plugin(dir.path(), "second", CLOCK);
         let error = Plugins::load(&[first, second]).unwrap_err();
         assert!(error.contains("'clock'"), "{}", error);
+    }
+
+    #[test]
+    fn a_library_name_without_extension_gets_the_platform_file_name() {
+        let named = library_path(Path::new("plugins/gauge"));
+        assert_eq!(
+            named,
+            Path::new("plugins").join(libloading::library_filename("gauge"))
+        );
+        assert_ne!(named, Path::new("plugins/gauge"));
+        assert_eq!(library_path(Path::new("x/libg.so")), Path::new("x/libg.so"));
     }
 
     #[test]

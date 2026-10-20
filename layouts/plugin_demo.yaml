@@ -1,48 +1,39 @@
+# Plugin demo. Build the example plugin first:
+#
+#   cargo build --release --manifest-path examples/plugins/gauge/Cargo.toml
+#
+# then run `boxmux layouts/plugin_demo.yaml`.
 app:
+  plugins:
+    # No extension: the platform's library name is used (libboxmux_gauge.so,
+    # libboxmux_gauge.dylib or boxmux_gauge.dll).
+    - path: ../examples/plugins/gauge/target/release/boxmux_gauge
   layouts:
     - id: 'main'
       root: true
       title: 'Plugin System Demo'
       bg_color: 'black'
       children:
-        - id: 'custom_component'
-          title: 'Custom Plugin Component'
+        - id: 'gauges'
+          title: 'Gauges (drawn by a plugin)'
           position: {x1: 10%, y1: 10%, x2: 90%, y2: 50%}
           border_color: 'magenta'
           fg_color: 'white'
-          plugin_component: 'custom_chart'
+          plugin_component: 'gauge'
           plugin_config:
-            title: 'Network Traffic'
-            refresh_rate: 1000
-            data_source: 'metrics/network'
-            chart_style: 'realtime'
+            gauges:
+              - {label: CPU, value: 42}
+              - {label: Memory, value: 6.1, max: 16}
+              - {label: Disk, value: 380, max: 512}
 
-        - id: 'plugin_status'
-          title: 'Plugin Status'
-          position: {x1: 10%, y1: 55%, x2: 45%, y2: 90%}
+        - id: 'about'
+          title: 'How it works'
+          position: {x1: 10%, y1: 55%, x2: 90%, y2: 90%}
           border_color: 'cyan'
           fg_color: 'green'
           content: |
-            Plugin System Status:
-            ✓ Plugin Registry: Active
-            ✓ Security Manager: Enabled
-            ✓ Components Loaded: 1
-            
-            Available Components:
-            - custom_chart (v1.0.0)
-
-        - id: 'security_info'
-          title: 'Security Settings'
-          position: {x1: 50%, y1: 55%, x2: 90%, y2: 90%}
-          border_color: 'yellow'
-          fg_color: 'white'
-          content: |
-            Plugin Security:
-            - Sandboxing: Enabled
-            - Allowed Paths: /tmp, /var/log
-            - Allowed Hosts: localhost
-            - Allowed Commands: echo, date
-            
-            Permissions Required:
-            - FileSystem: /tmp access
-            - Network: localhost only
+            The box above has plugin_component: gauge.
+            boxmux loads the libraries listed under app.plugins at start
+            and asks the plugin that offers the component to draw it,
+            passing plugin_config and the size of the box as JSON.
+            See examples/plugins/gauge for the source.

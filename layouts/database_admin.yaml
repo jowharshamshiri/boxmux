@@ -381,4 +381,4 @@ app:
           border_color: 'white'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "Database Administration Console\\n\\nSelect a database connection to check status:\\n• MySQL - Check server status and connections\\n• PostgreSQL - Verify cluster status\\n• Redis - Monitor cache performance\\n• MongoDB - Document database status\\n\\nAdministration tools available:\\n• Backup status monitoring\\n• Log file analysis\\n• Database maintenance tasks\\n• User and permission management\\n\\nQuery results and command output will appear here"
+          content: "Database Administration Console\n\nSelect a database connection to check status:\n• MySQL - Check server status and connections\n• PostgreSQL - Verify cluster status\n• Redis - Monitor cache performance\n• MongoDB - Document database status\n\nAdministration tools available:\n• Backup status monitoring\n• Log file analysis\n• Database maintenance tasks\n• User and permission management\n\nQuery results and command output will appear here"

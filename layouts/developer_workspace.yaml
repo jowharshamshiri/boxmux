@@ -114,7 +114,7 @@ app:
           border_color: 'yellow'
           bg_color: 'black'
           fg_color: 'bright_white'
-          content: "Welcome to Developer Workspace\\n\\nSelect an option from Project Explorer to view details\\n\\nFeatures:\\n- Project structure analysis\\n- Git integration\\n- Dependency management\\n- Build system integration\\n- Performance monitoring"
+          content: "Welcome to Developer Workspace\n\nSelect an option from Project Explorer to view details\n\nFeatures:\n- Project structure analysis\n- Git integration\n- Dependency management\n- Build system integration\n- Performance monitoring"
 
         # Build tools
         - id: 'build_tools'
@@ -242,4 +242,4 @@ app:
           border_color: 'red'
           bg_color: 'black'
           fg_color: 'bright_yellow'
-          content: "Build output will appear here\\n\\nUse Build & Test box to:\\n- Build your project\\n- Run tests\\n- Check code quality\\n- Analyze coverage\\n\\nSupported build systems:\\n- npm/yarn (Node.js)\\n- cargo (Rust)\\n- maven/gradle (Java)\\n- make (C/C++)\\n- pip (Python)"
+          content: "Build output will appear here\n\nUse Build & Test box to:\n- Build your project\n- Run tests\n- Check code quality\n- Analyze coverage\n\nSupported build systems:\n- npm/yarn (Node.js)\n- cargo (Rust)\n- maven/gradle (Java)\n- make (C/C++)\n- pip (Python)"

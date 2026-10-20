@@ -13,26 +13,16 @@ app:
             y2: "35%"
           border_color: "blue"
           content: |
-            Socket PTY Input Demo - F0139 Implementation
+            First start a shell in the box:
+            boxmux spawn_pty_process interactive_shell 'echo Ready for commands' 'exec bash'
 
-            First, spawn a PTY process that can accept input:
-            boxmux spawn_pty_process interactive_shell '["bash", "echo Ready for commands"]'
-
-            Then send input to interact with the running process:
-            # Send simple commands
-            boxmux send_pty_input interactive_shell "ls -la"
-            boxmux send_pty_input interactive_shell "pwd"
-
-            # Send commands with newlines for execution
-            boxmux send_pty_input interactive_shell "echo Hello PTY\n"
-
-            # Send interactive input
-            boxmux send_pty_input interactive_shell "cat > test.txt\n"
-            boxmux send_pty_input interactive_shell "Hello from remote input!\n"
-            boxmux send_pty_input interactive_shell "\x04"  # Ctrl+D to end input
-
-            # Complex commands with pipes and redirects
-            boxmux send_pty_input interactive_shell "ls -la | grep test\n"
+            Then type into it. Input is sent as given; use your shell's $'...'
+            quoting for newlines and control characters:
+            boxmux send_pty_input interactive_shell $'ls -la\n'
+            boxmux send_pty_input interactive_shell $'cat > test.txt\n'
+            boxmux send_pty_input interactive_shell $'Hello from remote input!\n'
+            boxmux send_pty_input interactive_shell $'\x04'    # Ctrl+D ends cat's input
+            boxmux send_pty_input interactive_shell $'ls -la | grep test\n'
 
             Query status and control:
             boxmux query_pty_status interactive_shell
@@ -57,28 +47,14 @@ app:
             y2: "75%"
           border_color: "cyan"
           content: |
-            Common PTY Input Examples:
+            Input examples (bash $'...' quoting):
 
-            Basic Commands:
-            - "ls\n"
-            - "pwd\n" 
-            - "date\n"
-
-            Interactive Programs:
-            - "python3\n"
-            - "print('Hello')\n"
-            - "exit()\n"
-
-            Text Editors:
-            - "vim test.txt\n"
-            - "iThis is text\x1b:wq\n"
-
-            Special Characters:
-            - "\n" = Enter
-            - "\t" = Tab
-            - "\x03" = Ctrl+C
-            - "\x04" = Ctrl+D
-            - "\x1b" = Escape
+            Run a command:     $'uptime\n'
+            Python:            $'python3\n' then $'print(2 + 2)\n'
+            Interrupt:         $'\x03'   (Ctrl+C)
+            End of input:      $'\x04'   (Ctrl+D)
+            Escape:            $'\x1b'
+            Tab completion:    $'ls /us\t'
 
         - id: "status_display"
           title: "Status & Control"

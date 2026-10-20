@@ -7,10 +7,10 @@ app:
         - id: "header"
           title: "F0091 - Mouse Click Support Demo"
           position:
-            x1: "0"
-            y1: "0"
-            x2: "100"
-            y2: "15"
+            x1: "0%"
+            y1: "0%"
+            x2: "100%"
+            y2: "15%"
           content: |
             Mouse Click Support Features:
             
@@ -25,10 +25,10 @@ app:
         - id: "box_selector_left"
           title: "Click to Select - MuxBox 1"
           position:
-            x1: "0"
-            y1: "15"
-            x2: "33"
-            y2: "50"
+            x1: "0%"
+            y1: "15%"
+            x2: "33%"
+            y2: "50%"
           tab_order: 1  # Makes this box selectable
           content: |
             This box is SELECTABLE!
@@ -42,10 +42,10 @@ app:
         - id: "box_selector_middle"
           title: "Click to Select - MuxBox 2"
           position:
-            x1: "33"
-            y1: "15"
-            x2: "66"
-            y2: "50"
+            x1: "33%"
+            y1: "15%"
+            x2: "66%"
+            y2: "50%"
           tab_order: 2  # Makes this box selectable
           content: |
             This box is also SELECTABLE!
@@ -59,10 +59,10 @@ app:
         - id: "box_selector_right"
           title: "Click to Select - MuxBox 3"
           position:
-            x1: "66"
-            y1: "15"
-            x2: "100"
-            y2: "50"
+            x1: "66%"
+            y1: "15%"
+            x2: "100%"
+            y2: "50%"
           tab_order: 3  # Makes this box selectable
           content: |
             Third selectable box!
@@ -77,10 +77,10 @@ app:
         - id: "sensitive_menu"
           title: "Sensitive Menu - Click on Choices"
           position:
-            x1: "0"
-            y1: "50"
-            x2: "50"
-            y2: "100"
+            x1: "0%"
+            y1: "50%"
+            x2: "50%"
+            y2: "100%"
           tab_order: 4
           choices:
             - id: "hello_choice"
@@ -117,10 +117,10 @@ app:
         - id: "output_box"
           title: "Output (Click Results Appear Here)"
           position:
-            x1: "50"
-            y1: "50"
-            x2: "100"
-            y2: "100"
+            x1: "50%"
+            y1: "50%"
+            x2: "100%"
+            y2: "100%"
           tab_order: 5
           content: |
             Output MuxBox - Results from clicked choices appear here

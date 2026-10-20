@@ -27,3 +27,7 @@ node_modules/
 .idea/
 .DS_Store
 ._*
+
+# Build output of the example plugins
+/examples/plugins/*/target/
+/examples/plugins/*/Cargo.lock

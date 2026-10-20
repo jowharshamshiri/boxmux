@@ -278,14 +278,16 @@ impl BoxView {
         };
 
         // Every row of content, before scrolling: its characters and the choice it belongs to.
-        let mut lines: Vec<(Vec<StyledChar>, Option<usize>)> = match &spec.content {
+        // A menu entry is a marker followed by its label; wrapped labels continue under the
+        // label, not under the marker.
+        let entries: Vec<(Vec<StyledChar>, Vec<StyledChar>, Option<usize>)> = match &spec.content {
             Content::Text(lines) | Content::Terminal(lines) => lines
                 .iter()
-                .map(|line| (styled_chars(line, style.body), None))
+                .map(|line| (Vec::new(), styled_chars(line, style.body), None))
                 .collect(),
             Content::Generated(lines) => lines
                 .iter()
-                .map(|line| (styled_chars(line, style.body), None))
+                .map(|line| (Vec::new(), styled_chars(line, style.body), None))
                 .collect(),
             Content::Menu(choices) => choices
                 .iter()
@@ -300,22 +302,43 @@ impl BoxView {
                     let marker = if selected { "► " } else { "  " };
                     let label = choice.content.as_deref().unwrap_or(&choice.id);
                     let waiting = if choice.waiting { " …" } else { "" };
-                    let text = format!("{}{}{}", marker, label, waiting);
-                    (styled_chars(&text, item_style), Some(index))
+                    (
+                        styled_chars(marker, item_style),
+                        styled_chars(&format!("{}{}", label, waiting), item_style),
+                        Some(index),
+                    )
                 })
                 .collect(),
             Content::Nothing => unreachable!("handled above"),
         };
-        if overflow == Overflow::Wrap {
-            lines = lines
+        let lines: Vec<(Vec<StyledChar>, Option<usize>)> = if overflow == Overflow::Wrap {
+            entries
                 .into_iter()
-                .flat_map(|(chars, choice)| {
-                    wrap(&chars, area.width())
-                        .into_iter()
-                        .map(move |row| (row, choice))
+                .flat_map(|(prefix, body, choice)| {
+                    let indent = width_of(&prefix);
+                    let rows = wrap(&body, area.width().saturating_sub(indent).max(1));
+                    rows.into_iter().enumerate().map(move |(i, row)| {
+                        let lead = if i == 0 {
+                            prefix.clone()
+                        } else {
+                            prefix
+                                .iter()
+                                .map(|c| StyledChar {
+                                    ch: ' ',
+                                    style: c.style,
+                                })
+                                .collect()
+                        };
+                        ([lead, row].concat(), choice)
+                    })
                 })
-                .collect();
-        }
+                .collect()
+        } else {
+            entries
+                .into_iter()
+                .map(|(prefix, body, choice)| ([prefix, body].concat(), choice))
+                .collect()
+        };
 
         let content_height = lines.len();
         let content_width = lines
@@ -747,6 +770,32 @@ mod tests {
             "the marker belongs to the entry"
         );
         assert_eq!(v.hit(19, 4), Some(BoxHit::Other), "not resizable");
+    }
+
+    #[test]
+    fn wrapped_menu_entries_continue_under_their_label() {
+        let choices = vec![Choice {
+            id: "a".into(),
+            content: Some("one two three four".into()),
+            ..Choice::default()
+        }];
+        let v = BoxView::new(BoxSpec {
+            id: "m",
+            bounds: Bounds::new(0, 0, 13, 4),
+            style: style(Overflow::Wrap),
+            header: Header::None,
+            content: Content::Menu(&choices),
+            selected_choice: Some(0),
+            horizontal_scroll: 0.0,
+            vertical_scroll: 0.0,
+            resizable: false,
+        });
+        let rows = render(&v, 14, 5);
+        assert_eq!(rows[1], "│ ► one two  │");
+        assert_eq!(rows[2], "│   three    │");
+        assert_eq!(rows[3], "│   four     │");
+        // Every row of the entry is part of it.
+        assert_eq!(v.hit(4, 3), Some(BoxHit::Choice(0)));
     }
 
     #[test]
