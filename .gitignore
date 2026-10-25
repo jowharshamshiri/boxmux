@@ -16,7 +16,6 @@ node_modules/
 *.yaml.lock
 
 # Local tool state
-/.wsb/
 /.claude/settings.local.json
 /.scrap/
 /trash/

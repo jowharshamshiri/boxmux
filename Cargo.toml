@@ -1,6 +1,6 @@
 [package]
 name = "boxmux"
-version = "0.240.3373"
+version = "0.273.518"
 edition = "2021"
 authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
 description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
