@@ -17,6 +17,7 @@ pub struct PtyProcess {
     pub can_kill: bool, // Indicates if we can kill the process
     pub output_buffer: Arc<Mutex<CircularBuffer>>, // Scrollback buffer for PTY output
     pub stream_id: String, // Unique stream ID for this PTY process
+    pub terminal_mode: crate::ansi_processor::TerminalMode,
 }
 
 impl std::fmt::Debug for PtyProcess {
@@ -27,6 +28,7 @@ impl std::fmt::Debug for PtyProcess {
             .field("status", &self.status)
             .field("master_pty", &self.master_pty.is_some())
             .field("can_kill", &self.can_kill)
+            .field("terminal_mode", &self.terminal_mode)
             .field(
                 "output_buffer_size",
                 &self.output_buffer.lock().unwrap().len(),
@@ -254,6 +256,7 @@ impl PtyManager {
             can_kill: true, // Process can be killed
             output_buffer,
             stream_id: pty_stream_id.clone(),
+            terminal_mode: crate::ansi_processor::TerminalMode::default(),
         };
 
         // Store in active PTYs
@@ -322,6 +325,8 @@ impl PtyManager {
                             let mut active_ptys = active_ptys_clone.lock().unwrap();
                             if let Some(pty_proc) = active_ptys.get_mut(&muxbox_id_clone) {
                                 pty_proc.status = PtyStatus::Finished(exit_code as i32);
+                                pty_proc.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                             }
                         }
 
@@ -389,6 +394,12 @@ impl PtyManager {
 
                         // Process raw bytes through ANSI processor
                         ansi_processor.process_bytes(&buffer[..bytes_read]);
+                        {
+                            let mut active_ptys = active_ptys_clone.lock().unwrap();
+                            if let Some(pty_proc) = active_ptys.get_mut(&muxbox_id_clone) {
+                                pty_proc.terminal_mode = ansi_processor.terminal_state.mode.clone();
+                            }
+                        }
 
                         // F0316: Performance Optimization - Capture baseline for differential drawing
                         let should_replace = ansi_processor.should_replace_content();
@@ -396,9 +407,9 @@ impl PtyManager {
                             // Full-screen program detected - capture initial state for differential drawing
                             ansi_processor.capture_baseline();
                             baseline_captured = true;
-                            log::debug!("F0316: Captured baseline screen state for differential drawing (screen_mode={}, terminal_size={}x{})", 
-                                ansi_processor.use_screen_buffer, 
-                                ansi_processor.terminal_state.screen_width, 
+                            log::debug!("F0316: Captured baseline screen state for differential drawing (screen_mode={}, terminal_size={}x{})",
+                                ansi_processor.use_screen_buffer,
+                                ansi_processor.terminal_state.screen_width,
                                 ansi_processor.terminal_state.screen_height);
                         }
 
@@ -408,10 +419,10 @@ impl PtyManager {
 
                         if !content_to_send.trim().is_empty() {
                             if should_replace {
-                                log::info!("Full-screen program detected - sending terminal screen content ({} chars) to {}", 
+                                log::trace!("Full-screen program detected - sending terminal screen content ({} chars) to {}", 
                                           content_to_send.len(), output_target);
                             } else {
-                                log::info!("Line-based program - sending processed content ({} chars) to {}", 
+                                log::trace!("Line-based program - sending processed content ({} chars) to {}", 
                                           content_to_send.len(), output_target);
                             }
                         } else {
@@ -485,6 +496,8 @@ impl PtyManager {
                             let mut active_ptys = active_ptys_clone.lock().unwrap();
                             if let Some(pty_proc) = active_ptys.get_mut(&muxbox_id_clone) {
                                 pty_proc.status = PtyStatus::Error(e.to_string());
+                                pty_proc.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                             }
                         }
 
@@ -539,8 +552,17 @@ impl PtyManager {
         };
         use crossterm::event::{KeyModifiers, MouseButton as CrosstermButton, MouseEventKind};
 
-        let active_ptys = self.active_ptys.lock().unwrap();
-        let _pty_process = active_ptys.get(muxbox_id)?;
+        let terminal_mode = {
+            let active_ptys = self.active_ptys.lock().unwrap();
+            let pty_process = active_ptys.get(muxbox_id)?;
+            if !matches!(pty_process.status, PtyStatus::Running) {
+                return None;
+            }
+            if !Self::terminal_mode_has_mouse_reporting(&pty_process.terminal_mode) {
+                return None;
+            }
+            pty_process.terminal_mode.clone()
+        };
 
         // Convert crossterm event to our mouse event types
         let (event_type, button) = match kind {
@@ -578,8 +600,9 @@ impl PtyManager {
             meta: modifiers.contains(KeyModifiers::SUPER),
         };
 
-        // Generate basic mouse sequence (TODO: integrate with actual terminal state)
-        self.generate_basic_mouse_sequence(
+        let mut ansi_processor = AnsiProcessor::new();
+        ansi_processor.terminal_state.mode = terminal_mode;
+        ansi_processor.terminal_state.generate_mouse_report(
             event_type,
             column as usize,
             row as usize,
@@ -588,58 +611,22 @@ impl PtyManager {
         )
     }
 
-    /// Generate basic mouse report for initial implementation
-    fn generate_basic_mouse_sequence(
-        &self,
-        event_type: crate::ansi_processor::MouseEventType,
-        x: usize,
-        y: usize,
-        button: Option<crate::ansi_processor::MouseButton>,
-        modifiers: crate::ansi_processor::MouseModifiers,
-    ) -> Option<String> {
-        use crate::ansi_processor::{MouseButton as AnsiMouseButton, MouseEventType};
+    fn terminal_mode_has_mouse_reporting(mode: &crate::ansi_processor::TerminalMode) -> bool {
+        mode.mouse_x10_mode
+            || mode.mouse_normal_mode
+            || mode.mouse_button_event_mode
+            || mode.mouse_any_event_mode
+    }
 
-        // Only report press events and wheel for basic compatibility
-        if event_type != MouseEventType::Press && event_type != MouseEventType::Wheel {
-            return None;
-        }
-
-        let mut cb;
-
-        // Set button bits
-        match (event_type, button) {
-            (MouseEventType::Press, Some(AnsiMouseButton::Left)) => cb = 0,
-            (MouseEventType::Press, Some(AnsiMouseButton::Middle)) => cb = 1,
-            (MouseEventType::Press, Some(AnsiMouseButton::Right)) => cb = 2,
-            (MouseEventType::Wheel, Some(AnsiMouseButton::WheelUp)) => cb = 64,
-            (MouseEventType::Wheel, Some(AnsiMouseButton::WheelDown)) => cb = 65,
-            _ => return None,
-        }
-
-        // Add modifier bits
-        if modifiers.shift {
-            cb += 4;
-        }
-        if modifiers.ctrl {
-            cb += 8;
-        }
-        if modifiers.alt {
-            cb += 16;
-        }
-
-        // Add base offset
-        cb += 32;
-
-        // Coordinates are 1-based and offset by 32, clamped to valid range
-        let cx = ((x + 1).min(223)) as u8 + 32;
-        let cy = ((y + 1).min(223)) as u8 + 32;
-
-        Some(format!(
-            "\x1b[M{}{}{}",
-            char::from(cb),
-            char::from(cx),
-            char::from(cy)
-        ))
+    pub fn is_mouse_reporting_enabled(&self, muxbox_id: &str) -> bool {
+        let active_ptys = self.active_ptys.lock().unwrap();
+        active_ptys
+            .get(muxbox_id)
+            .map(|pty_process| {
+                matches!(pty_process.status, PtyStatus::Running)
+                    && Self::terminal_mode_has_mouse_reporting(&pty_process.terminal_mode)
+            })
+            .unwrap_or(false)
     }
 
     /// Send input to a PTY
@@ -786,6 +773,8 @@ impl PtyManager {
                                     pid, muxbox_id
                                 );
                                 pty_process.status = PtyStatus::Finished(-9); // SIGKILL
+                                pty_process.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                                 pty_process.can_kill = false; // Already killed
                             }
                             Err(e) => {
@@ -795,6 +784,8 @@ impl PtyManager {
                                 );
                                 pty_process.status =
                                     PtyStatus::Error(format!("Kill failed: {}", e));
+                                pty_process.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                             }
                         }
                     }
@@ -805,10 +796,12 @@ impl PtyManager {
                             muxbox_id
                         );
                         pty_process.status = PtyStatus::Error("Kill not supported".to_string());
+                        pty_process.terminal_mode = crate::ansi_processor::TerminalMode::default();
                     }
                 } else {
                     warn!("No process ID available for muxbox: {}", muxbox_id);
                     pty_process.status = PtyStatus::Error("No process ID".to_string());
+                    pty_process.terminal_mode = crate::ansi_processor::TerminalMode::default();
                 }
             } else {
                 debug!(
@@ -1138,6 +1131,7 @@ impl PtyManager {
         let mut active_ptys = self.active_ptys.lock().unwrap();
         if let Some(pty_process) = active_ptys.get_mut(muxbox_id) {
             pty_process.status = PtyStatus::Dead(reason);
+            pty_process.terminal_mode = crate::ansi_processor::TerminalMode::default();
             Ok(())
         } else {
             Err(anyhow::anyhow!("PTY not found for muxbox: {}", muxbox_id))
@@ -1167,6 +1161,8 @@ impl PtyManager {
                         Ok(output) => {
                             if output.status.success() {
                                 pty_process.status = PtyStatus::Finished(-9); // Killed signal
+                                pty_process.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                                 log::info!("Killed PTY process {} for muxbox {}", pid, muxbox_id);
                                 Ok(())
                             } else {
@@ -1175,12 +1171,16 @@ impl PtyManager {
                                     String::from_utf8_lossy(&output.stderr)
                                 );
                                 pty_process.status = PtyStatus::Error(error_msg.clone());
+                                pty_process.terminal_mode =
+                                    crate::ansi_processor::TerminalMode::default();
                                 Err(anyhow::anyhow!(error_msg))
                             }
                         }
                         Err(e) => {
                             let error_msg = format!("Failed to execute kill command: {}", e);
                             pty_process.status = PtyStatus::Error(error_msg.clone());
+                            pty_process.terminal_mode =
+                                crate::ansi_processor::TerminalMode::default();
                             Err(anyhow::anyhow!(error_msg))
                         }
                     }
@@ -1240,6 +1240,7 @@ impl PtyManager {
             can_kill: false,
             output_buffer: buffer,
             stream_id: format!("pty-test-{}", &uuid::Uuid::new_v4().to_string()[..8]),
+            terminal_mode: crate::ansi_processor::TerminalMode::default(),
         };
 
         self.active_ptys
@@ -1265,6 +1266,7 @@ impl PtyManager {
             can_kill: false,
             output_buffer: buffer,
             stream_id: format!("pty-test-{}", &uuid::Uuid::new_v4().to_string()[..8]),
+            terminal_mode: crate::ansi_processor::TerminalMode::default(),
         };
 
         self.active_ptys
@@ -1280,6 +1282,19 @@ impl PtyManager {
         if let Some(pty_process) = active_ptys.get_mut(muxbox_id) {
             pty_process.can_kill = can_kill;
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_test_pty_terminal_mode(
+        &self,
+        muxbox_id: &str,
+        terminal_mode: crate::ansi_processor::TerminalMode,
+    ) {
+        let mut active_ptys = self.active_ptys.lock().unwrap();
+        let pty_process = active_ptys
+            .get_mut(muxbox_id)
+            .expect("test PTY process must exist before setting terminal mode");
+        pty_process.terminal_mode = terminal_mode;
     }
 }
 

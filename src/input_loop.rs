@@ -11,6 +11,42 @@ use crate::thread_manager::*;
 
 use uuid::Uuid;
 
+pub(crate) fn focused_pty_mouse_target_with_bounds(
+    active_layout: &crate::model::layout::Layout,
+    pty_manager: Option<&crate::pty_manager::PtyManager>,
+    column: u16,
+    row: u16,
+    root_bounds: &crate::model::common::Bounds,
+) -> Option<String> {
+    let pty_manager = pty_manager?;
+    let focused_muxbox_id = active_layout
+        .get_selected_muxboxes()
+        .first()
+        .filter(|muxbox| should_use_pty(muxbox))
+        .map(|muxbox| muxbox.id.clone())?;
+
+    if !pty_manager.is_mouse_reporting_enabled(&focused_muxbox_id) {
+        return None;
+    }
+
+    let mouse_target_is_focused_pty = active_layout
+        .find_muxbox_at_coordinates_with_bounds(column, row, root_bounds)
+        .map(|muxbox| muxbox.id == focused_muxbox_id)
+        .unwrap_or(false);
+
+    mouse_target_is_focused_pty.then_some(focused_muxbox_id)
+}
+
+pub(crate) fn focused_pty_mouse_target(
+    active_layout: &crate::model::layout::Layout,
+    pty_manager: Option<&crate::pty_manager::PtyManager>,
+    column: u16,
+    row: u16,
+) -> Option<String> {
+    let root_bounds = crate::screen_bounds();
+    focused_pty_mouse_target_with_bounds(active_layout, pty_manager, column, row, &root_bounds)
+}
+
 /// Convert crossterm KeyEvent to appropriate PTY input string
 /// F0309: Enhanced input translation system with terminal mode awareness
 pub fn format_key_for_pty_with_modes(
@@ -790,25 +826,20 @@ create_runnable!(
                         row,
                         modifiers,
                     }) => {
-                        // F0310: Check if focused muxbox has PTY with mouse reporting enabled
-                        let selected_muxboxes = active_layout.get_selected_muxboxes();
-                        let focused_muxbox_has_pty = selected_muxboxes
-                            .first()
-                            .map(|muxbox| should_use_pty(muxbox))
-                            .unwrap_or(false);
-
-                        if focused_muxbox_has_pty {
-                            // F0310: Send mouse event to PTY for proper terminal state-aware processing
-                            if let Some(focused_muxbox) = selected_muxboxes.first() {
-                                inner.send_message(Message::PTYMouseEvent(
-                                    focused_muxbox.id.clone(),
-                                    kind,
-                                    column,
-                                    row,
-                                    modifiers,
-                                ));
-                                return (true, app_context);
-                            }
+                        if let Some(focused_muxbox_id) = focused_pty_mouse_target(
+                            &active_layout,
+                            app_context.pty_manager.as_deref(),
+                            column,
+                            row,
+                        ) {
+                            inner.send_message(Message::PTYMouseEvent(
+                                focused_muxbox_id,
+                                kind,
+                                column,
+                                row,
+                                modifiers,
+                            ));
+                            return (true, app_context);
                         }
 
                         // Fall back to BoxMux UI mouse handling
@@ -850,7 +881,6 @@ create_runnable!(
                                 inner.send_message(Message::MouseMove(column, row));
                                 format!("MouseMove({}, {})", column, row)
                             }
-                            _ => return (true, app_context), // Ignore other mouse events
                         }
                     }
                     Event::Key(KeyEvent {

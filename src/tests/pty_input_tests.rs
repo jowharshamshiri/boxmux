@@ -1,4 +1,3 @@
-use crate::model::app::AppContext;
 use crate::model::common::InputBounds;
 use crate::model::muxbox::MuxBox;
 use crate::tests::test_utils::TestDataFactory;
@@ -7,6 +6,11 @@ use crate::utils::should_use_pty;
 #[cfg(test)]
 mod pty_input_tests {
     use super::*;
+    use crate::ansi_processor::TerminalMode;
+    use crate::circular_buffer::CircularBuffer;
+    use crate::pty_manager::{PtyManager, PtyStatus};
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_should_use_pty_enabled() {
@@ -64,5 +68,57 @@ mod pty_input_tests {
         assert_eq!(muxbox.id, "pty_test");
         assert!(should_use_pty(&muxbox));
         assert_eq!(muxbox.script.as_ref().unwrap()[0], "echo 'PTY test'");
+    }
+
+    #[test]
+    fn test_pty_mouse_sequence_requires_active_mouse_reporting() {
+        let pty_manager = PtyManager::new().expect("PTY manager");
+        pty_manager.add_test_pty_process(
+            "pty_test".to_string(),
+            Arc::new(Mutex::new(CircularBuffer::new(16))),
+        );
+
+        let event = MouseEventKind::Down(MouseButton::Left);
+        assert_eq!(
+            pty_manager.generate_mouse_sequence("pty_test", event, 10, 5, KeyModifiers::empty()),
+            None,
+            "default PTY mode must not receive mouse escape sequences"
+        );
+
+        let mut terminal_mode = TerminalMode::default();
+        terminal_mode.mouse_sgr_mode = true;
+        terminal_mode.mouse_normal_mode = true;
+        pty_manager.set_test_pty_terminal_mode("pty_test", terminal_mode);
+
+        let sequence = pty_manager
+            .generate_mouse_sequence("pty_test", event, 10, 5, KeyModifiers::empty())
+            .expect("mouse sequence after explicit terminal opt-in");
+        assert!(
+            sequence.starts_with("\x1b[<"),
+            "SGR mouse reporting should generate an SGR mouse sequence"
+        );
+
+        pty_manager.add_test_pty_process_with_status(
+            "finished_pty".to_string(),
+            Arc::new(Mutex::new(CircularBuffer::new(16))),
+            PtyStatus::Finished(1),
+            123,
+        );
+        let mut finished_mode = TerminalMode::default();
+        finished_mode.mouse_sgr_mode = true;
+        finished_mode.mouse_normal_mode = true;
+        pty_manager.set_test_pty_terminal_mode("finished_pty", finished_mode);
+
+        assert_eq!(
+            pty_manager.generate_mouse_sequence(
+                "finished_pty",
+                event,
+                10,
+                5,
+                KeyModifiers::empty()
+            ),
+            None,
+            "finished PTYs must not receive stale mouse escape sequences"
+        );
     }
 }

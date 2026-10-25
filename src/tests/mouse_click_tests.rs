@@ -3,15 +3,18 @@
 
 #[cfg(test)]
 mod mouse_click_tests {
+    use crate::ansi_processor::TerminalMode;
+    use crate::circular_buffer::CircularBuffer;
+    use crate::input_loop::focused_pty_mouse_target_with_bounds;
     use crate::model::choice::Choice;
-    use crate::model::common::{Bounds, InputBounds};
-    use crate::model::layout::Layout;
-    use crate::model::muxbox::MuxBox;
+    use crate::model::common::{Bounds, ExecutionMode, InputBounds};
+    use crate::pty_manager::PtyManager;
     use crate::tests::test_utils::TestDataFactory;
     use crate::thread_manager::Message;
     use crate::{
         color_utils::get_bg_color, draw_loop::apply_calibration_cursor_overlay_at, ScreenBuffer,
     };
+    use std::sync::{Arc, Mutex};
 
     /// Test that MouseClick message can be created
     #[test]
@@ -170,6 +173,107 @@ mod mouse_click_tests {
                     assert_eq!(
                         actual, expected,
                         "coordinate ({},{}) at terminal {}x{} mapped to the wrong muxbox",
+                        x, y, width, height
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_pty_mouse_forwarding_only_targets_focused_pty_pixels() {
+        let mut left_dashboard = TestDataFactory::create_test_muxbox("left_dashboard");
+        left_dashboard.position = InputBounds {
+            x1: "0%".to_string(),
+            y1: "0%".to_string(),
+            x2: "24.5%".to_string(),
+            y2: "100%".to_string(),
+        };
+
+        let mut focused_pty = TestDataFactory::create_test_muxbox("focused_pty");
+        focused_pty.position = InputBounds {
+            x1: "25%".to_string(),
+            y1: "0%".to_string(),
+            x2: "72.5%".to_string(),
+            y2: "100%".to_string(),
+        };
+        focused_pty.execution_mode = ExecutionMode::Pty;
+        focused_pty.selected = Some(true);
+
+        let mut right_dashboard = TestDataFactory::create_test_muxbox("right_dashboard");
+        right_dashboard.position = InputBounds {
+            x1: "73%".to_string(),
+            y1: "0%".to_string(),
+            x2: "100%".to_string(),
+            y2: "100%".to_string(),
+        };
+
+        let layout = TestDataFactory::create_test_layout(
+            "pty_mouse_routing",
+            Some(vec![left_dashboard, focused_pty, right_dashboard]),
+        );
+        let pty_manager = PtyManager::new().expect("PTY manager");
+        pty_manager.add_test_pty_process(
+            "focused_pty".to_string(),
+            Arc::new(Mutex::new(CircularBuffer::new(16))),
+        );
+
+        for (width, height) in [
+            (80usize, 24usize),
+            (132, 43),
+            (192, 54),
+            (241, 67),
+            (319, 91),
+        ] {
+            let root_bounds = Bounds {
+                x1: 0,
+                y1: 0,
+                x2: width - 1,
+                y2: height - 1,
+            };
+            pty_manager.set_test_pty_terminal_mode("focused_pty", TerminalMode::default());
+
+            for y in 0..height as u16 {
+                for x in 0..width as u16 {
+                    let actual = focused_pty_mouse_target_with_bounds(
+                        &layout,
+                        Some(&pty_manager),
+                        x,
+                        y,
+                        &root_bounds,
+                    );
+
+                    assert_eq!(
+                        actual, None,
+                        "coordinate ({},{}) at terminal {}x{} was incorrectly captured by a PTY without mouse reporting",
+                        x, y, width, height
+                    );
+                }
+            }
+
+            let mut terminal_mode = TerminalMode::default();
+            terminal_mode.mouse_sgr_mode = true;
+            terminal_mode.mouse_normal_mode = true;
+            pty_manager.set_test_pty_terminal_mode("focused_pty", terminal_mode);
+
+            for y in 0..height as u16 {
+                for x in 0..width as u16 {
+                    let topmost_id = layout
+                        .find_muxbox_at_coordinates_with_bounds(x, y, &root_bounds)
+                        .map(|muxbox| muxbox.id.as_str());
+                    let expected =
+                        (topmost_id == Some("focused_pty")).then_some("focused_pty".to_string());
+                    let actual = focused_pty_mouse_target_with_bounds(
+                        &layout,
+                        Some(&pty_manager),
+                        x,
+                        y,
+                        &root_bounds,
+                    );
+
+                    assert_eq!(
+                        actual, expected,
+                        "coordinate ({},{}) at terminal {}x{} had wrong PTY mouse routing",
                         x, y, width, height
                     );
                 }

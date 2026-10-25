@@ -4,6 +4,7 @@ use jsonschema::JSONSchema;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Configuration schema validation errors
 #[derive(Debug, Clone)]
@@ -298,11 +299,23 @@ impl SchemaValidator {
         field_name: &str,
     ) -> ValidationResult {
         // Load schema file
-        let schema_content = match fs::read_to_string(schema_path) {
+        let resolved_schema_path = match resolve_schema_path(schema_path) {
+            Ok(path) => path,
+            Err(message) => {
+                self.add_error(ValidationError::SchemaStructure { message });
+                return Err(self.errors.clone());
+            }
+        };
+
+        let schema_content = match fs::read_to_string(&resolved_schema_path) {
             Ok(content) => content,
             Err(e) => {
                 self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Failed to load schema file '{}': {}", schema_path, e),
+                    message: format!(
+                        "Failed to load schema file '{}': {}",
+                        resolved_schema_path.display(),
+                        e
+                    ),
                 });
                 return Err(self.errors.clone());
             }
@@ -313,7 +326,11 @@ impl SchemaValidator {
             Ok(schema) => schema,
             Err(e) => {
                 self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Invalid JSON schema in '{}': {}", schema_path, e),
+                    message: format!(
+                        "Invalid JSON schema in '{}': {}",
+                        resolved_schema_path.display(),
+                        e
+                    ),
                 });
                 return Err(self.errors.clone());
             }
@@ -324,7 +341,11 @@ impl SchemaValidator {
             Ok(schema) => schema,
             Err(e) => {
                 self.add_error(ValidationError::SchemaStructure {
-                    message: format!("Failed to compile schema '{}': {}", schema_path, e),
+                    message: format!(
+                        "Failed to compile schema '{}': {}",
+                        resolved_schema_path.display(),
+                        e
+                    ),
                 });
                 return Err(self.errors.clone());
             }
@@ -594,6 +615,36 @@ impl SchemaValidator {
             Value::Object(_) => "object".to_string(),
         }
     }
+}
+
+fn resolve_schema_path(schema_path: &str) -> Result<PathBuf, String> {
+    let requested_path = Path::new(schema_path);
+    if requested_path.exists() {
+        return requested_path.canonicalize().map_err(|e| {
+            format!(
+                "Failed to resolve schema file '{}': {}",
+                requested_path.display(),
+                e
+            )
+        });
+    }
+
+    let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(requested_path);
+    if manifest_path.exists() {
+        return manifest_path.canonicalize().map_err(|e| {
+            format!(
+                "Failed to resolve schema file '{}': {}",
+                manifest_path.display(),
+                e
+            )
+        });
+    }
+
+    Err(format!(
+        "Failed to load schema file '{}'; also tried '{}'",
+        requested_path.display(),
+        manifest_path.display()
+    ))
 }
 
 impl Default for SchemaValidator {
@@ -959,6 +1010,22 @@ app:
         assert_eq!(errors.len(), 1);
         assert!(matches!(errors[0], ValidationError::SchemaStructure { .. }));
         assert!(errors[0].to_string().contains("Failed to load schema file"));
+    }
+
+    #[test]
+    fn test_schema_path_resolves_from_manifest_directory() {
+        let resolved = resolve_schema_path("schemas/app_schema.json")
+            .expect("source checkout schema should resolve through CARGO_MANIFEST_DIR");
+
+        assert!(
+            resolved.ends_with("schemas/app_schema.json"),
+            "resolved schema path should point at app_schema.json, got {}",
+            resolved.display()
+        );
+        assert!(
+            resolved.is_absolute(),
+            "manifest-resolved schema path should be absolute for cwd-independent startup"
+        );
     }
 
     #[test]

@@ -891,8 +891,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let yaml_path = Path::new(yaml_path);
 
     if !yaml_path.exists() {
-        log::error!("Yaml file does not exist: {}", yaml_path.display());
-        return Ok(());
+        return Err(format!("YAML file does not exist: {}", yaml_path.display()).into());
     }
 
     // Convert to absolute path to ensure YAML persistence works regardless of working directory
@@ -911,6 +910,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => {
             // The enhanced error handling is now built into load_app_from_yaml
             // so we just need to display the detailed error message
+            eprintln!("{}", e);
             log::error!("{}", e);
             std::process::exit(1);
         }

@@ -430,7 +430,7 @@ create_runnable!(
             // T311: choice_ids_now_waiting removed - no longer needed with unified threading
 
             if !messages.is_empty() {
-                log::info!("DrawLoop processing {} messages", messages.len());
+                log::trace!("DrawLoop processing {} messages", messages.len());
             }
 
             for message in &messages {
@@ -529,7 +529,7 @@ create_runnable!(
                         }
                     }
                     Message::StreamUpdateMessage(stream_update) => {
-                        log::info!("Processing StreamUpdate for stream_id: {}, target_box: {}, execution_mode: {:?}", 
+                        log::trace!("Processing StreamUpdate for stream_id: {}, target_box: {}, execution_mode: {:?}", 
                                    stream_update.stream_id, stream_update.target_box_id, stream_update.execution_mode);
 
                         // T0308 ENHANCED: StreamUpdate handler with auto-creation - find or create stream
@@ -552,14 +552,14 @@ create_runnable!(
                                                     .strip_prefix("REPLACE:")
                                                     .unwrap_or(&stream_update.content_update);
                                                 stream.content = vec![new_content.to_string()];
-                                                log::info!("Replaced content in existing stream {}: {} characters", 
+                                                log::trace!("Replaced content in existing stream {}: {} characters", 
                                                           stream_update.stream_id, new_content.len());
                                             } else {
                                                 // Normal append behavior
                                                 stream
                                                     .content
                                                     .push(stream_update.content_update.clone());
-                                                log::info!("Appended content to existing stream {}: {} characters", 
+                                                log::trace!("Appended content to existing stream {}: {} characters", 
                                                           stream_update.stream_id, stream_update.content_update.len());
                                             }
                                         }
@@ -589,7 +589,7 @@ create_runnable!(
                                 .app
                                 .get_muxbox_by_id_mut(&stream_update.target_box_id)
                             {
-                                log::info!(
+                                log::trace!(
                                     "AUTO-CREATING stream {} in target box {}",
                                     stream_update.stream_id,
                                     stream_update.target_box_id
@@ -622,14 +622,14 @@ create_runnable!(
                                                 .strip_prefix("REPLACE:")
                                                 .unwrap_or(&stream_update.content_update);
                                             stream.content = vec![new_content.to_string()];
-                                            log::info!("Set initial content in new stream {}: {} characters", 
+                                            log::trace!("Set initial content in new stream {}: {} characters", 
                                                        stream_id, new_content.len());
                                         } else {
                                             // Normal append behavior
                                             stream
                                                 .content
                                                 .push(stream_update.content_update.clone());
-                                            log::info!(
+                                            log::trace!(
                                                 "Added content to new stream {}: {} characters",
                                                 stream_id,
                                                 stream_update.content_update.len()
@@ -640,7 +640,7 @@ create_runnable!(
 
                                 // Set the newly created stream as the selected stream so it's visible
                                 target_muxbox.selected_stream_id = Some(stream_id.clone());
-                                log::info!(
+                                log::trace!(
                                     "Set stream {} as selected stream for box {}",
                                     stream_id,
                                     target_muxbox.id

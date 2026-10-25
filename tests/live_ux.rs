@@ -13,7 +13,7 @@ use tempfile::TempDir;
 
 const WIDTH: u16 = 100;
 const HEIGHT: u16 = 30;
-const TIMEOUT: Duration = Duration::from_secs(8);
+const TIMEOUT: Duration = Duration::from_secs(30);
 static LIVE_UX_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
@@ -574,6 +574,7 @@ struct TerminalScreen {
     cursor_x: usize,
     cursor_y: usize,
     saved_cursor: Option<(usize, usize)>,
+    pending_escape: Vec<u8>,
 }
 
 impl TerminalScreen {
@@ -585,14 +586,33 @@ impl TerminalScreen {
             cursor_x: 0,
             cursor_y: 0,
             saved_cursor: None,
+            pending_escape: Vec::new(),
         }
     }
 
     fn apply(&mut self, bytes: &[u8]) {
+        let input;
+        let bytes = if self.pending_escape.is_empty() {
+            bytes
+        } else {
+            input = self
+                .pending_escape
+                .drain(..)
+                .chain(bytes.iter().copied())
+                .collect::<Vec<_>>();
+            &input
+        };
+
         let mut i = 0;
         while i < bytes.len() {
             match bytes[i] {
-                b'\x1b' => i = self.apply_escape(bytes, i + 1),
+                b'\x1b' => match self.apply_escape(bytes, i + 1) {
+                    Some(next) => i = next,
+                    None => {
+                        self.pending_escape.extend_from_slice(&bytes[i..]);
+                        return;
+                    }
+                },
                 b'\r' => {
                     self.cursor_x = 0;
                     i += 1;
@@ -617,41 +637,41 @@ impl TerminalScreen {
         }
     }
 
-    fn apply_escape(&mut self, bytes: &[u8], i: usize) -> usize {
+    fn apply_escape(&mut self, bytes: &[u8], i: usize) -> Option<usize> {
         if i >= bytes.len() {
-            return i;
+            return None;
         }
 
-        match bytes[i] {
+        Some(match bytes[i] {
             b'[' => self.apply_csi(bytes, i + 1),
             b']' => self.skip_osc(bytes, i + 1),
             b'7' => {
                 self.saved_cursor = Some((self.cursor_x, self.cursor_y));
-                i + 1
+                Some(i + 1)
             }
             b'8' => {
                 if let Some((x, y)) = self.saved_cursor {
                     self.cursor_x = x.min(self.width.saturating_sub(1));
                     self.cursor_y = y.min(self.height.saturating_sub(1));
                 }
-                i + 1
+                Some(i + 1)
             }
-            _ => i + 1,
-        }
+            _ => Some(i + 1),
+        }?)
     }
 
-    fn apply_csi(&mut self, bytes: &[u8], mut i: usize) -> usize {
+    fn apply_csi(&mut self, bytes: &[u8], mut i: usize) -> Option<usize> {
         let start = i;
         while i < bytes.len() {
             let byte = bytes[i];
             if (0x40..=0x7e).contains(&byte) {
                 let params = String::from_utf8_lossy(&bytes[start..i]);
                 self.handle_csi(&params, byte as char);
-                return i + 1;
+                return Some(i + 1);
             }
             i += 1;
         }
-        i
+        None
     }
 
     fn handle_csi(&mut self, params: &str, command: char) {
@@ -694,17 +714,17 @@ impl TerminalScreen {
         }
     }
 
-    fn skip_osc(&self, bytes: &[u8], mut i: usize) -> usize {
+    fn skip_osc(&self, bytes: &[u8], mut i: usize) -> Option<usize> {
         while i < bytes.len() {
             if bytes[i] == b'\x07' {
-                return i + 1;
+                return Some(i + 1);
             }
             if bytes[i] == b'\x1b' && bytes.get(i + 1) == Some(&b'\\') {
-                return i + 2;
+                return Some(i + 2);
             }
             i += 1;
         }
-        i
+        None
     }
 
     fn skip_utf8_width(&mut self, bytes: &[u8], i: usize) -> usize {

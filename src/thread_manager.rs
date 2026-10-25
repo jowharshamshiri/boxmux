@@ -573,7 +573,7 @@ impl RunnableImpl {
         // Use UpdateStreamContent to create/update the output stream
         match execute_script.execution_mode {
             ExecutionMode::Immediate => {
-                log::info!("T0315: Immediate execution - running script synchronously");
+                log::info!("T0315: Immediate execution - dispatching script worker");
                 self.execute_immediate_script(execute_script);
             }
             ExecutionMode::Thread => {
@@ -1001,7 +1001,7 @@ impl ThreadManager {
         // Use UpdateStreamContent to create/update the output stream
         match execute_script.execution_mode {
             ExecutionMode::Immediate => {
-                log::info!("T0315: Immediate execution - running script synchronously");
+                log::info!("T0315: Immediate execution - dispatching script worker");
                 self.execute_immediate_script(execute_script);
             }
             ExecutionMode::Thread => {
@@ -1016,70 +1016,77 @@ impl ThreadManager {
     }
 
     fn execute_immediate_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
-        use std::process::Command;
+        let message_senders = self
+            .message_senders
+            .iter()
+            .map(|(uuid, sender)| (*uuid, sender.clone()))
+            .collect::<Vec<_>>();
 
-        // Run the script synchronously
-        let output = Command::new("sh")
-            .arg("-c")
-            .arg(execute_script.script.join(" "))
-            .output();
+        std::thread::Builder::new()
+            .name(format!(
+                "boxmux-immediate-script-{}",
+                execute_script.target_box_id
+            ))
+            .spawn(move || {
+                use std::process::Command;
+                let started_at = std::time::Instant::now();
 
-        let content = match output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if stderr.is_empty() {
-                    stdout.to_string()
-                } else {
-                    format!("{}\n{}", stdout, stderr)
+                let output = Command::new("sh")
+                    .arg("-c")
+                    .arg(execute_script.script.join(" "))
+                    .output();
+
+                let (content, exit_code) = match output {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        let content = if stderr.is_empty() {
+                            stdout.to_string()
+                        } else {
+                            format!("{}\n{}", stdout, stderr)
+                        };
+                        (content, output.status.code())
+                    }
+                    Err(e) => (format!("Error executing script: {}", e), None),
+                };
+
+                let stream_id = execute_script.stream_id.clone();
+                let target_box_id = execute_script
+                    .redirect_output
+                    .clone()
+                    .unwrap_or_else(|| execute_script.target_box_id.clone());
+
+                let stream_update = crate::model::common::StreamUpdate {
+                    stream_id,
+                    target_box_id,
+                    content_update: content,
+                    source_state: crate::model::common::SourceState::Batch(
+                        crate::model::common::BatchSourceState {
+                            task_id: "immediate".to_string(),
+                            queue_wait_time: std::time::Duration::from_millis(0),
+                            execution_time: started_at.elapsed(),
+                            exit_code,
+                            status: crate::model::common::BatchStatus::Completed,
+                        },
+                    ),
+                    execution_mode: execute_script.execution_mode,
+                };
+
+                let message = (
+                    uuid::Uuid::new_v4(),
+                    Message::StreamUpdateMessage(stream_update),
+                );
+                for (uuid, sender) in message_senders {
+                    if let Err(e) = sender.send(message.clone()) {
+                        log::debug!(
+                            "Immediate script result could not be sent to thread {}: {}",
+                            uuid,
+                            e
+                        );
+                    }
                 }
-            }
-            Err(e) => {
-                format!("Error executing script: {}", e)
-            }
-        };
-
-        // SOURCE OBJECT ARCHITECTURE: Use stream_id from ExecuteScript (from source object)
-        let stream_id = execute_script.stream_id.clone();
-
-        // Send result via StreamUpdate with target_box_id for auto-creation
-        // REDIRECT FIX: Use redirect destination if specified
-        let target_box_id = if let Some(ref redirect_to) = execute_script.redirect_output {
-            log::info!(
-                "THREADMANAGER REDIRECT FIX IMMEDIATE: Using redirect destination: {} (was {})",
-                redirect_to,
-                execute_script.target_box_id
-            );
-            redirect_to.clone()
-        } else {
-            log::info!(
-                "THREADMANAGER REDIRECT FIX IMMEDIATE: No redirect, using source box: {}",
-                execute_script.target_box_id
-            );
-            execute_script.target_box_id.clone()
-        };
-
-        let stream_update = crate::model::common::StreamUpdate {
-            stream_id,
-            target_box_id,
-            content_update: content,
-            source_state: crate::model::common::SourceState::Batch(
-                crate::model::common::BatchSourceState {
-                    task_id: "immediate".to_string(),
-                    queue_wait_time: std::time::Duration::from_millis(0),
-                    execution_time: std::time::Duration::from_millis(50), // Immediate scripts are very fast
-                    exit_code: Some(0),
-                    status: crate::model::common::BatchStatus::Completed,
-                },
-            ),
-            execution_mode: execute_script.execution_mode,
-        };
-
-        // Broadcast StreamUpdate to all threads for processing
-        self.send_message_to_all_threads((
-            uuid::Uuid::new_v4(),
-            Message::StreamUpdateMessage(stream_update),
-        ));
+            })
+            .expect("failed to spawn immediate script worker");
     }
 
     fn execute_threaded_script(&mut self, execute_script: crate::model::common::ExecuteScript) {
