@@ -175,7 +175,7 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 
 [[package]]
 name = "boxmux"
-version = "0.273.518"
+version = "0.274.524"
 dependencies = [
  "chrono",
  "clap",
