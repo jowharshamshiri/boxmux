@@ -321,6 +321,7 @@ impl AppContext {
     }
 }
 
+<<<<<<< Updated upstream
 /// Fails, naming each one, when boxes of `app` use plugin components no plugin offers.
 pub fn check_plugin_components(app: &App, plugins: &crate::plugin::Plugins) -> Result<(), String> {
     let missing: Vec<String> = app
@@ -339,6 +340,212 @@ pub fn check_plugin_components(app: &App, plugins: &crate::plugin::Plugins) -> R
         .collect();
     if missing.is_empty() {
         Ok(())
+=======
+impl Clone for AppContext {
+    fn clone(&self) -> Self {
+        AppContext {
+            app: self.app.clone(),
+            config: self.config.clone(),
+            plugin_registry: self.plugin_registry.clone(),
+            pty_manager: self.pty_manager.clone(),
+            yaml_file_path: self.yaml_file_path.clone(),
+            live_yaml_sync: self.live_yaml_sync.clone(),
+        }
+    }
+}
+
+impl Hash for AppContext {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.app.hash(state);
+        self.config.hash(state);
+        // Note: plugin_registry contains Mutex which doesn't implement Hash
+    }
+}
+
+impl Hash for App {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for layout in &self.layouts {
+            layout.hash(state);
+        }
+    }
+}
+
+impl Clone for AppGraph {
+    fn clone(&self) -> Self {
+        let mut new_graphs = HashMap::new();
+        let mut new_node_maps = HashMap::new();
+
+        for (key, graph) in &self.graphs {
+            let new_graph = graph.clone();
+            // Using unwrap here assumes there must always be a corresponding node_map for each graph.
+            // This will panic if that invariant is broken, which is considered a critical and unexpected error.
+            let new_node_map = self.node_maps.get(key).unwrap().clone();
+            new_graphs.insert(key.clone(), new_graph);
+            new_node_maps.insert(key.clone(), new_node_map);
+        }
+
+        AppGraph {
+            graphs: new_graphs,
+            node_maps: new_node_maps,
+        }
+    }
+}
+
+pub fn load_app_from_yaml(file_path: &str) -> Result<App, Box<dyn std::error::Error>> {
+    load_app_from_yaml_with_lock(file_path, false)
+}
+
+pub fn load_app_from_yaml_with_lock(
+    file_path: &str,
+    _locked: bool,
+) -> Result<App, Box<dyn std::error::Error>> {
+    let mut file = File::open(file_path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+
+    // First, perform JSON schema validation. Schema lookup is resolved by the validator
+    // so launching dashboards outside the boxmux source directory still validates.
+    let schema_dir = "schemas";
+    let mut validator = SchemaValidator::new();
+    if let Err(schema_errors) = validator.validate_with_json_schema(&contents, schema_dir) {
+        let error_messages: Vec<String> = schema_errors
+            .into_iter()
+            .map(|e| format!("{}", e))
+            .collect();
+        let combined_message = error_messages.join("\n");
+        return Err(format!("JSON Schema validation failed:\n{}", combined_message).into());
+    }
+
+    // Parse YAML first to extract variable definitions
+    let root_result: Result<TemplateRoot, _> = serde_yaml::from_str(&contents);
+
+    let mut app = match root_result {
+        Ok(root) => root.app,
+        Err(serde_error) => {
+            // Enhanced error handling with Rust-style line/column display
+            if let Some(location) = serde_error.location() {
+                let line_num = location.line();
+                let col_num = location.column();
+                let error_display = ErrorDisplay::with_terminal_config("yaml_parser".to_string());
+                let error_info = ErrorInfo {
+                    message: format!("{}", serde_error),
+                    file_path: file_path.to_string(),
+                    line_number: line_num,
+                    column_number: col_num,
+                    severity: ErrorSeverity::Error,
+                    help: Some("Check YAML syntax and structure".to_string()),
+                    note: None,
+                    caret_positioning: None,
+                };
+                let formatted_error = error_display.format_error(&error_info, &contents);
+                return Err(formatted_error.into());
+            }
+
+            // Fallback: try to deserialize directly into App
+            match serde_yaml::from_str::<App>(&contents) {
+                Ok(app) => app,
+                Err(app_error) => {
+                    if let Some(location) = app_error.location() {
+                        let line_num = location.line();
+                        let col_num = location.column();
+                        let error_display =
+                            ErrorDisplay::with_terminal_config("app_parser".to_string());
+                        let error_info = ErrorInfo {
+                            message: format!("{}", app_error),
+                            file_path: file_path.to_string(),
+                            line_number: line_num,
+                            column_number: col_num,
+                            severity: ErrorSeverity::Error,
+                            help: Some("Verify configuration structure".to_string()),
+                            note: None,
+                            caret_positioning: None,
+                        };
+                        let formatted_error = error_display.format_error(&error_info, &contents);
+                        return Err(formatted_error.into());
+                    }
+                    return Err(format!("YAML parsing error: {}", app_error).into());
+                }
+            }
+        }
+    };
+
+    // Apply variable substitution AFTER parsing with hierarchical context
+    apply_variable_substitution(&mut app)?;
+
+    // Validate the app configuration using SchemaValidator
+    let mut validator = SchemaValidator::new();
+    match validator.validate_app(&app) {
+        Ok(_) => {
+            // Apply the old validation logic for setting up parent relationships and defaults
+            apply_post_validation_setup(&mut app)?;
+
+            // Pre-register periodic refresh sources for unified execution architecture
+            app.register_periodic_sources();
+
+            Ok(app)
+        }
+        Err(validation_errors) => {
+            let error_messages: Vec<String> = validation_errors
+                .into_iter()
+                .map(|e| format!("{}", e))
+                .collect();
+            let combined_message = error_messages.join("; ");
+            Err(format!("Configuration validation errors: {}", combined_message).into())
+        }
+    }
+}
+
+/// Apply variable substitution to all fields in the parsed App structure
+fn apply_variable_substitution(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    // Create variable context with app-level variables
+    let context = VariableContext::new(app.variables.as_ref(), None);
+
+    // Apply substitution to all layouts
+    for layout in &mut app.layouts {
+        apply_layout_variable_substitution(layout, &context)?;
+    }
+
+    Ok(())
+}
+
+/// Apply variable substitution to a layout and all its muxboxes
+fn apply_layout_variable_substitution(
+    layout: &mut Layout,
+    context: &VariableContext,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Use the same context for layout (layout variables not yet implemented)
+    let layout_context = context;
+
+    // Apply to layout title
+    if let Some(ref mut title) = layout.title {
+        *title = layout_context
+            .substitute_in_string(title, &[])
+            .map_err(|e| format!("Error in layout '{}' title: {}", layout.id, e))?;
+    }
+
+    // Apply to all child muxboxes
+    if let Some(ref mut children) = layout.children {
+        for child in children {
+            apply_muxbox_variable_substitution(child, layout_context, &[])?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Apply variable substitution to a muxbox and its children with hierarchy context
+fn apply_muxbox_variable_substitution(
+    muxbox: &mut MuxBox,
+    context: &VariableContext,
+    parent_hierarchy: &[&MuxBox],
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Create a local variable context including this muxbox's variables
+    let local_context = if let Some(ref muxbox_vars) = muxbox.variables {
+        let mut combined_app_vars = context.app_vars.clone();
+        // Add muxbox variables to context for this muxbox and children
+        combined_app_vars.extend(muxbox_vars.clone());
+        VariableContext::new(Some(&combined_app_vars), Some(&context.layout_vars))
+>>>>>>> Stashed changes
     } else {
         Err(missing.join("\n"))
     }

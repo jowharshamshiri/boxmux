@@ -298,7 +298,52 @@ impl MuxBox {
     }
 
     pub fn get_tab_labels(&self) -> Vec<String> {
+<<<<<<< Updated upstream
         self.streams.values().map(|s| s.label.clone()).collect()
+=======
+        // F0218: Stream Tab Integration - generate tabs from streams
+        log::trace!(
+            "TAB DEBUG: get_tab_labels() called for box {}, streams count: {}",
+            self.id,
+            self.streams.len()
+        );
+        let mut labels = Vec::new();
+
+        // Use exact same ordering as switch_to_tab() - natural IndexMap insertion order
+        let stream_ids: Vec<String> = self.streams.keys().cloned().collect();
+
+        for stream_id in stream_ids {
+            let stream = &self.streams[&stream_id];
+            // Use the stream's actual label instead of hardcoded titles
+            let label = match &stream.stream_type {
+                crate::model::common::StreamType::Content
+                | crate::model::common::StreamType::Choices => stream.label.clone(),
+                crate::model::common::StreamType::RedirectedOutput(name) => format!("→{}", name),
+                crate::model::common::StreamType::PTY => "PTY".to_string(),
+                crate::model::common::StreamType::Plugin(name) => format!("Plugin:{}", name),
+                crate::model::common::StreamType::ChoiceExecution(choice_id) => {
+                    format!("Choice:{}", choice_id)
+                }
+                crate::model::common::StreamType::RedirectSource(source) => {
+                    format!("From:{}", source)
+                }
+                crate::model::common::StreamType::ExternalSocket => "Socket".to_string(),
+                crate::model::common::StreamType::PtySession(name) => format!("PTY:{}", name),
+                crate::model::common::StreamType::OwnScript => "Script".to_string(),
+            };
+            labels.push(label);
+        }
+
+        log::trace!(
+            "TAB DEBUG: get_tab_labels() returning {} labels for box {}: {:?}",
+            labels.len(),
+            self.id,
+            labels
+        );
+
+        // No default tab - empty boxes have no tabs
+        labels
+>>>>>>> Stashed changes
     }
 
     /// Whether each tab (in tab order) has a close button.

@@ -334,6 +334,7 @@ fn control(socket: &str, name: &str, args: &ArgMatches) -> Result<(), String> {
     }
 }
 
+<<<<<<< Updated upstream
 fn init_logging(matches: &ArgMatches) -> Result<(), String> {
     let Some(path) = matches.get_one::<PathBuf>("log_file") else {
         return Ok(());
@@ -365,6 +366,250 @@ fn init_logging(matches: &ArgMatches) -> Result<(), String> {
         .try_init()
         .map_err(|e| format!("cannot start logging: {}", e))
 }
+=======
+    // Handle the switch_active_layout subcommand
+    if let Some(matches) = matches.subcommand_matches("switch_active_layout") {
+        if let Some(layout_id_to_switch_to) = matches.get_one::<String>("layout_id_to_switch_to") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::SwitchActiveLayout {
+                layout_id: layout_id_to_switch_to.to_string(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Layout ID is required for switch_active_layout command".into());
+        }
+    }
+
+    // Handle the update_box_script subcommand
+    if let Some(matches) = matches.subcommand_matches("update_box_script") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(new_box_script) = matches.get_one::<String>("new_box_script") {
+                let new_box_script = serde_json::from_str::<Vec<String>>(new_box_script)?;
+
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::ReplaceBoxScript {
+                    box_id: box_id.clone(),
+                    script: new_box_script,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("New Box Script is required for update_box_script command".into());
+            }
+        } else {
+            return Err("Box ID is required for update_box_script command".into());
+        }
+    }
+
+    // Handle the update_box_content subcommand
+    if let Some(matches) = matches.subcommand_matches("update_box_content") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(new_box_content) = matches.get_one::<String>("new_box_content") {
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::ReplaceBoxContent {
+                    box_id: box_id.clone(),
+                    success: matches
+                        .get_one::<String>("success")
+                        .unwrap()
+                        .parse::<bool>()
+                        .unwrap(),
+                    content: new_box_content.clone(),
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("New Box Content is required for update_box_content command".into());
+            }
+        } else {
+            return Err("Box ID is required for update_box_content command".into());
+        }
+    }
+
+    // Handle the add_box subcommand
+    if let Some(matches) = matches.subcommand_matches("add_box") {
+        if let Some(layout_id) = matches.get_one::<String>("layout_id") {
+            if let Some(muxbox_json) = matches.get_one::<String>("muxbox_json") {
+                let submitted_muxbox = serde_json::from_str::<MuxBox>(muxbox_json)?;
+
+                // Construct the enum variant using the struct syntax
+                let socket_function = SocketFunction::AddBox {
+                    layout_id: layout_id.to_string(),
+                    muxbox: submitted_muxbox,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+
+                // Send the constructed value to the socket function
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Box JSON is required for add_box command".into());
+            }
+        } else {
+            return Err("Layout ID is required for add_box command".into());
+        }
+    }
+
+    // Handle the remove_box subcommand
+    if let Some(matches) = matches.subcommand_matches("remove_box") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            // Construct the enum variant using the struct syntax
+            let socket_function = SocketFunction::RemoveBox {
+                box_id: box_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+
+            // Send the constructed value to the socket function
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Box ID is required for remove_box command".into());
+        }
+    }
+
+    // F0137: Socket PTY Control - Handle kill_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("kill_pty_process") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            let socket_function = SocketFunction::KillPtyProcess {
+                box_id: box_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Box ID is required for kill_pty_process command".into());
+        }
+    }
+
+    // F0137: Socket PTY Control - Handle restart_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("restart_pty_process") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            let socket_function = SocketFunction::RestartPtyProcess {
+                box_id: box_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Box ID is required for restart_pty_process command".into());
+        }
+    }
+
+    // F0138: Socket PTY Query - Handle query_pty_status subcommand
+    if let Some(matches) = matches.subcommand_matches("query_pty_status") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            let socket_function = SocketFunction::QueryPtyStatus {
+                box_id: box_id.clone(),
+            };
+
+            let socket_function_json = serde_json::to_string(&socket_function)?;
+            send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+            return Ok(());
+        } else {
+            return Err("Box ID is required for query_pty_status command".into());
+        }
+    }
+
+    // F0136: Socket PTY Spawn - Handle spawn_pty_process subcommand
+    if let Some(matches) = matches.subcommand_matches("spawn_pty_process") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(script_json) = matches.get_one::<String>("script") {
+                // Parse script JSON array
+                let script: Vec<String> = serde_json::from_str(script_json)
+                    .map_err(|e| format!("Invalid script JSON: {}", e))?;
+
+                // Parse optional libs JSON array
+                let libs: Option<Vec<String>> =
+                    if let Some(libs_json) = matches.get_one::<String>("libs") {
+                        Some(
+                            serde_json::from_str(libs_json)
+                                .map_err(|e| format!("Invalid libs JSON: {}", e))?,
+                        )
+                    } else {
+                        None
+                    };
+
+                let redirect_output = matches.get_one::<String>("redirect_output").cloned();
+
+                let socket_function = SocketFunction::SpawnPtyProcess {
+                    box_id: box_id.clone(),
+                    script,
+                    libs,
+                    redirect_output,
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Script is required for spawn_pty_process command".into());
+            }
+        } else {
+            return Err("Box ID is required for spawn_pty_process command".into());
+        }
+    }
+
+    // F0139: Socket PTY Input - Handle send_pty_input subcommand
+    if let Some(matches) = matches.subcommand_matches("send_pty_input") {
+        if let Some(box_id) = matches.get_one::<String>("box_id") {
+            if let Some(input) = matches.get_one::<String>("input") {
+                let socket_function = SocketFunction::SendPtyInput {
+                    box_id: box_id.clone(),
+                    input: input.clone(),
+                };
+
+                let socket_function_json = serde_json::to_string(&socket_function)?;
+                send_json_to_socket("/tmp/boxmux.sock", &socket_function_json)?;
+
+                return Ok(());
+            } else {
+                return Err("Input is required for send_pty_input command".into());
+            }
+        } else {
+            return Err("Box ID is required for send_pty_input command".into());
+        }
+    }
+
+    let yaml_path = matches.get_one::<String>("yaml_file").unwrap();
+    let frame_delay = matches
+        .get_one::<String>("frame_delay")
+        .unwrap()
+        .parse::<u64>()
+        .unwrap_or(100);
+    let locked = matches.get_flag("lock");
+    let calibrate = matches.get_flag("calibrate");
+
+    let yaml_path = Path::new(yaml_path);
+
+    if !yaml_path.exists() {
+        return Err(format!("YAML file does not exist: {}", yaml_path.display()).into());
+    }
+>>>>>>> Stashed changes
 
 /// Shows the interface described in the configuration file until the user quits.
 fn run(matches: &ArgMatches, socket: &str) -> Result<(), String> {
@@ -385,12 +630,48 @@ fn run(matches: &ArgMatches, socket: &str) -> Result<(), String> {
             .get_one::<u64>("frame_delay")
             .expect("has a default"),
         locked,
+<<<<<<< Updated upstream
         matches.get_flag("calibrate"),
     )?;
     let app = boxmux_lib::load_app_from_yaml(&path)?;
     // Only an instance that may write the file needs to own it.
     let _config_lock = if locked {
         None
+=======
+        calibrate,
+    );
+    let app = match load_app_from_yaml_with_lock(yaml_path.to_str().unwrap(), locked) {
+        Ok(app) => app,
+        Err(e) => {
+            // The enhanced error handling is now built into load_app_from_yaml
+            // so we just need to display the detailed error message
+            eprintln!("{}", e);
+            log::error!("{}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Initialize PTY manager for this session
+    let pty_manager = match PtyManager::new() {
+        Ok(mgr) => {
+            log::info!("PTY manager initialized successfully");
+            Some(Arc::new(mgr))
+        }
+        Err(e) => {
+            log::warn!("Failed to initialize PTY manager: {}", e);
+            None
+        }
+    };
+
+    let app_context = if let Some(pty_mgr) = pty_manager.as_ref() {
+        AppContext::new_with_pty_and_yaml_and_lock(
+            app,
+            config,
+            pty_mgr.clone(),
+            yaml_path.to_str().unwrap().to_string(),
+            locked,
+        )
+>>>>>>> Stashed changes
     } else {
         Some(ConfigLock::acquire(&path)?)
     };

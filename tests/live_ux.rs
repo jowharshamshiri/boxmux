@@ -15,8 +15,13 @@ use unicode_width::UnicodeWidthChar;
 
 const WIDTH: u16 = 100;
 const HEIGHT: u16 = 30;
+<<<<<<< Updated upstream
 // PowerShell can take seconds to start on a cold Windows machine.
 const TIMEOUT: Duration = Duration::from_secs(30);
+=======
+const TIMEOUT: Duration = Duration::from_secs(30);
+static LIVE_UX_TEST_LOCK: Mutex<()> = Mutex::new(());
+>>>>>>> Stashed changes
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_boxmux")
@@ -573,10 +578,17 @@ struct Screen {
     width: usize,
     height: usize,
     cells: Vec<Vec<char>>,
+<<<<<<< Updated upstream
     x: usize,
     y: usize,
     wrap_pending: bool,
     pending: Vec<u8>,
+=======
+    cursor_x: usize,
+    cursor_y: usize,
+    saved_cursor: Option<(usize, usize)>,
+    pending_escape: Vec<u8>,
+>>>>>>> Stashed changes
 }
 
 impl Screen {
@@ -585,14 +597,22 @@ impl Screen {
             width,
             height,
             cells: vec![vec![' '; width]; height],
+<<<<<<< Updated upstream
             x: 0,
             y: 0,
             wrap_pending: false,
             pending: Vec::new(),
+=======
+            cursor_x: 0,
+            cursor_y: 0,
+            saved_cursor: None,
+            pending_escape: Vec::new(),
+>>>>>>> Stashed changes
         }
     }
 
     fn apply(&mut self, bytes: &[u8]) {
+<<<<<<< Updated upstream
         self.pending.extend_from_slice(bytes);
         let data = std::mem::take(&mut self.pending);
         let mut i = 0;
@@ -602,6 +622,27 @@ impl Screen {
                     Some(next) => i = next,
                     None => {
                         self.pending = data[i..].to_vec();
+=======
+        let input;
+        let bytes = if self.pending_escape.is_empty() {
+            bytes
+        } else {
+            input = self
+                .pending_escape
+                .drain(..)
+                .chain(bytes.iter().copied())
+                .collect::<Vec<_>>();
+            &input
+        };
+
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'\x1b' => match self.apply_escape(bytes, i + 1) {
+                    Some(next) => i = next,
+                    None => {
+                        self.pending_escape.extend_from_slice(&bytes[i..]);
+>>>>>>> Stashed changes
                         return;
                     }
                 },
@@ -638,6 +679,7 @@ impl Screen {
         }
     }
 
+<<<<<<< Updated upstream
     /// Handles the escape sequence at `i`; `None` when it is not complete yet.
     fn escape(&mut self, data: &[u8], i: usize) -> Option<usize> {
         match *data.get(i + 1)? {
@@ -699,12 +741,108 @@ impl Screen {
                         0x1b if data.get(j + 1) == Some(&b'\\') => return Some(j + 2),
                         _ => j += 1,
                     }
+=======
+    fn apply_escape(&mut self, bytes: &[u8], i: usize) -> Option<usize> {
+        if i >= bytes.len() {
+            return None;
+        }
+
+        Some(match bytes[i] {
+            b'[' => self.apply_csi(bytes, i + 1),
+            b']' => self.skip_osc(bytes, i + 1),
+            b'7' => {
+                self.saved_cursor = Some((self.cursor_x, self.cursor_y));
+                Some(i + 1)
+            }
+            b'8' => {
+                if let Some((x, y)) = self.saved_cursor {
+                    self.cursor_x = x.min(self.width.saturating_sub(1));
+                    self.cursor_y = y.min(self.height.saturating_sub(1));
+                }
+                Some(i + 1)
+            }
+            _ => Some(i + 1),
+        }?)
+    }
+
+    fn apply_csi(&mut self, bytes: &[u8], mut i: usize) -> Option<usize> {
+        let start = i;
+        while i < bytes.len() {
+            let byte = bytes[i];
+            if (0x40..=0x7e).contains(&byte) {
+                let params = String::from_utf8_lossy(&bytes[start..i]);
+                self.handle_csi(&params, byte as char);
+                return Some(i + 1);
+            }
+            i += 1;
+        }
+        None
+    }
+
+    fn handle_csi(&mut self, params: &str, command: char) {
+        let clean_params = params
+            .trim_start_matches('?')
+            .split(';')
+            .map(|part| part.parse::<usize>().unwrap_or(0))
+            .collect::<Vec<_>>();
+        let n = |index: usize, default: usize| -> usize {
+            clean_params
+                .get(index)
+                .copied()
+                .filter(|v| *v > 0)
+                .unwrap_or(default)
+        };
+
+        match command {
+            'H' | 'f' => {
+                self.cursor_y = n(0, 1).saturating_sub(1).min(self.height.saturating_sub(1));
+                self.cursor_x = n(1, 1).saturating_sub(1).min(self.width.saturating_sub(1));
+            }
+            'A' => self.cursor_y = self.cursor_y.saturating_sub(n(0, 1)),
+            'B' => self.cursor_y = (self.cursor_y + n(0, 1)).min(self.height.saturating_sub(1)),
+            'C' => self.cursor_x = (self.cursor_x + n(0, 1)).min(self.width.saturating_sub(1)),
+            'D' => self.cursor_x = self.cursor_x.saturating_sub(n(0, 1)),
+            'J' if clean_params.first().copied().unwrap_or(0) == 2 => self.clear(),
+            'K' => {
+                for x in self.cursor_x..self.width {
+                    self.cells[self.cursor_y][x] = ' ';
+>>>>>>> Stashed changes
                 }
             }
             _ => Some(i + 2),
         }
     }
 
+<<<<<<< Updated upstream
+=======
+    fn skip_osc(&self, bytes: &[u8], mut i: usize) -> Option<usize> {
+        while i < bytes.len() {
+            if bytes[i] == b'\x07' {
+                return Some(i + 1);
+            }
+            if bytes[i] == b'\x1b' && bytes.get(i + 1) == Some(&b'\\') {
+                return Some(i + 2);
+            }
+            i += 1;
+        }
+        None
+    }
+
+    fn skip_utf8_width(&mut self, bytes: &[u8], i: usize) -> usize {
+        let width = if bytes[i] & 0b1110_0000 == 0b1100_0000 {
+            2
+        } else if bytes[i] & 0b1111_0000 == 0b1110_0000 {
+            3
+        } else if bytes[i] & 0b1111_1000 == 0b1111_0000 {
+            4
+        } else {
+            1
+        };
+        self.put(' ');
+        width
+    }
+
+>>>>>>> Stashed changes
     fn put(&mut self, ch: char) {
         let width = ch.width().unwrap_or(0);
         if width == 0 {
