@@ -6,7 +6,7 @@ description: Complete BoxMux configurations for monitoring, development, server 
 
 Each example below is a complete configuration: save it to a file and run `boxmux <file>`. The scripts are written for `bash` on Linux; on macOS some commands (`free`, `ps --sort`, `ss`) differ, and on Windows scripts run in PowerShell unless the app sets `shell: bash`.
 
-The repository has more in `layouts/` (for example `showcase_menu.yaml`, `devops_control_center.yaml`, `chart_demo.yaml`, `table_demo.yaml`, `plugin_demo.yaml`) and `examples/` (`pty_states.yaml`, `ansi_colors.yaml`).
+The repository has more in `layouts/` (for example `showcase_menu.yaml`, `devops_control_center.yaml`, `chart_demo.yaml`, `table_demo.yaml`, `plugin_demo.yaml`) and `examples/` (`pty_states.yaml`, `ansi_colors.yaml`, and `live-panel/`, a panel driven by another program, described in [Drive BoxMux as a Live Control Panel](/docs/live-control-panel)).
 
 ## System Monitoring Dashboard
 

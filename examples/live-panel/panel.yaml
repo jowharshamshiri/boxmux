@@ -1,0 +1,97 @@
+# A live control panel driven by another program (driver.sh).
+# Start it with examples/live-panel/start.sh; see the "Drive BoxMux as a live control panel"
+# page of the documentation.
+#
+# The driver writes the files under $PANEL_STATE that the text boxes show, and replaces the
+# `needs` menu over the control socket. Buttons run buttons.sh, which reports presses back to
+# the driver. Paths are shell variables, resolved when the scripts run: start.sh exports
+# PANEL_DIR (this folder) and PANEL_STATE (a temporary folder for the run).
+app:
+  layouts:
+    - id: main
+      root: true
+      title: Control panel
+      children:
+        - id: status
+          title: Status
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "5"}
+          border_color: bright_cyan
+          overflow_behavior: truncate
+          script: ["cat \"$PANEL_STATE/status.txt\""]
+          refresh_interval: 1000
+        - id: needs
+          title: Needs you
+          position: {x1: "0%", y1: "5", x2: "100%", y2: "60%"}
+          border_color: bright_yellow
+          tab_order: 1
+          selected: true
+          overflow_behavior: wrap
+          choices:
+            - id: waiting
+              content: Waiting for the driver to fill this in
+        - id: detail
+          title: Details
+          position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
+          border_color: white
+          overflow_behavior: wrap
+          script: ["cat \"$PANEL_STATE/detail.txt\""]
+          refresh_interval: 500
+        - id: log
+          title: What the driver is doing
+          position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
+          border_color: green
+          overflow_behavior: wrap
+          auto_scroll_bottom: true
+          script: ["tail -n 40 \"$PANEL_STATE/log.txt\""]
+          refresh_interval: 500
+
+    - id: confirm
+      title: Confirm
+      children:
+        - id: confirm_text
+          title: Are you sure?
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "60%"}
+          border_color: bright_yellow
+          overflow_behavior: wrap
+          content: buttons.sh ask fills this in
+        - id: confirm_menu
+          title: Choose
+          position: {x1: "0%", y1: "60%", x2: "100%", y2: "100%"}
+          border_color: bright_green
+          tab_order: 1
+          selected: true
+          choices:
+            - id: cancel
+              content: "✖ Cancel"
+              script: ["\"$PANEL_DIR/buttons.sh\" back"]
+              redirect_output: quiet
+
+    - id: term
+      title: Terminal
+      children:
+        - id: term_bar
+          title: Terminal
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "3"}
+          border_color: bright_cyan
+          tab_order: 2
+          choices:
+            - id: term_back
+              content: "◀ Back to the panel"
+              script: ["\"$PANEL_DIR/buttons.sh\" back"]
+              redirect_output: quiet
+        - id: term_box
+          title: Run
+          position: {x1: "0%", y1: "3", x2: "100%", y2: "100%"}
+          border_color: bright_white
+          tab_order: 1
+          selected: true
+          content: buttons.sh run starts the step here
+
+    # Never shown. Buttons send their own output here, so pressing one opens no tab in the
+    # menu the human is reading.
+    - id: hidden
+      title: Hidden
+      children:
+        - id: quiet
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "100%"}
+          content: Output of the buttons

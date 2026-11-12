@@ -220,6 +220,9 @@ The documentation is at [boxmux.com](https://boxmux.com); its source is in
 - [Configuration Reference](https://boxmux.com/docs/configuration): every YAML setting
 - [Examples](https://boxmux.com/docs/examples)
 - [API Reference](https://boxmux.com/docs/api): the control socket and commands
+- [Drive BoxMux as a Live Control Panel](https://boxmux.com/docs/live-control-panel): another
+  program keeps the screen current and hears back from its buttons
+  ([`examples/live-panel/`](examples/live-panel))
 - [PTY Features](https://boxmux.com/docs/pty-features): interactive programs in boxes
 - [Data Visualization](https://boxmux.com/docs/data-visualization): charts and tables
 - [Plugin System](https://boxmux.com/docs/plugin-system): writing plugins

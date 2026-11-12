@@ -4,12 +4,20 @@ use crate::model::app::load_app_from_yaml;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn yaml_files(dir: &str) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("cannot read {}: {}", dir, e))
-        .map(|entry| entry.expect("directory entry").path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "yaml"))
-        .collect();
+/// The `.yaml` files in `dir` and its subdirectories, such as an example's own folder.
+fn yaml_files(dir: impl AsRef<Path>) -> Vec<PathBuf> {
+    let dir = dir.as_ref();
+    let mut files = Vec::new();
+    for entry in
+        fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {}: {}", dir.display(), e))
+    {
+        let path = entry.expect("directory entry").path();
+        if path.is_dir() {
+            files.extend(yaml_files(&path));
+        } else if path.extension().is_some_and(|ext| ext == "yaml") {
+            files.push(path);
+        }
+    }
     files.sort();
     files
 }

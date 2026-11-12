@@ -82,6 +82,11 @@ Save it as `hello.yaml` and run `boxmux hello.yaml`.
 - **[Configuration Reference](/docs/configuration)**: every YAML setting
 - **[API Reference](/docs/api)**: the control socket and the command line
 
+## How-to guides
+
+- **[Drive BoxMux as a Live Control Panel](/docs/live-control-panel)**: another program keeps
+  the screen current and hears back from its buttons
+
 ## More topics
 
 - **[Data Visualization](/docs/data-visualization)**: charts and tables
