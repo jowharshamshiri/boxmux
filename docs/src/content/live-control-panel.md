@@ -42,7 +42,7 @@ not another BoxMux instance, and with `--lock`, so that moving a box with the mo
 writes positions back into a YAML file your program owns:
 
 ```bash
-export BOXMUX_SOCKET="$STATE/boxmux.sock"
+export BOXMUX_SOCKET="$PANEL_STATE/boxmux.sock"
 boxmux --lock panel.yaml
 ```
 
@@ -290,7 +290,7 @@ A panel beside another program often gets 36 to 60 columns. Lay it out as a stac
 Give fixed rows in cells and let the rest share percentages, as `panel.yaml` does:
 
 ```yaml
-position: {x1: "0%", y1: "0", x2: "100%", y2: "5"}    # header: 5 rows
+position: {x1: "0%", y1: "0", x2: "100%", y2: "5"}    # header: rows 0 to 5
 position: {x1: "0%", y1: "5", x2: "100%", y2: "60%"}  # menu: from row 5 to 60%
 position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
 position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
