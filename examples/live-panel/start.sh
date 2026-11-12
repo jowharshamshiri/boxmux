@@ -12,8 +12,9 @@ binary=$(command -v "${BOXMUX:-boxmux}") || {
 PATH=$(cd "$(dirname "$binary")" && pwd):$PATH
 
 # Everything the run writes, and BoxMux's own control socket, so that the panel does not meet
-# another BoxMux instance.
-PANEL_STATE=$(mktemp -d "${TMPDIR:-/tmp}/boxmux-panel.XXXXXX")
+# another BoxMux instance. In /tmp rather than $TMPDIR: a socket's path must be short (about
+# 100 bytes), and $TMPDIR can be long.
+PANEL_STATE=$(mktemp -d /tmp/boxmux-panel.XXXXXX)
 BOXMUX_SOCKET=$PANEL_STATE/boxmux.sock
 export PANEL_DIR PANEL_STATE BOXMUX_SOCKET PATH
 

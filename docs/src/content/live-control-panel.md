@@ -46,6 +46,9 @@ export BOXMUX_SOCKET="$STATE/boxmux.sock"
 boxmux --lock panel.yaml
 ```
 
+On Unix a socket's path must be short, about 100 bytes; BoxMux refuses a longer one when it
+starts. Keep the folder under `/tmp` rather than a deep `$TMPDIR`.
+
 `boxmux` and its control commands read `BOXMUX_SOCKET`, and every script BoxMux runs gets it
 in its environment, so neither the driver nor the buttons need `--socket`. The driver can
 start before BoxMux; it waits for the socket file to appear before its first command:
@@ -293,8 +296,9 @@ position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
 position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
 ```
 
-Count three rows of every box for its frame: the top border, an empty first row under it,
-and the bottom border. A 5-row header has two rows for text. Keep menu entries short, and use
+Count three rows of every box for its frame: the top border, an empty row under it, and the
+bottom border, which the box below draws its own top border over. The header above, from row
+0 to row 5, has room for three lines of text, on rows 2 to 4. Keep menu entries short, and use
 `overflow_behavior: wrap` on menus and details so that nothing is cut off at the right edge.
 
 ## Things to know
