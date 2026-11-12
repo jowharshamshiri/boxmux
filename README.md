@@ -144,7 +144,8 @@ Options:
   `<commit>` is the full 40-character hash. `-dirty` means the source tree had changes git had
   not committed, untracked files included. A build from a tree without git metadata of its own,
   such as the crates.io package or a source tarball, says `unknown (built without git
-  metadata)`. Building from a git checkout needs `git`.
+  metadata)`. Building from a git checkout needs `git`. The form is stable, and scripts may rely
+  on it: the line is exactly one of the three above, with nothing else on it.
 - `--log-level` needs `--log-file`. `--dark` and `--light` cannot be combined.
 - The interface options cannot be combined with a control command.
 - Moving or resizing a box with the mouse writes the new position back into the YAML file,
