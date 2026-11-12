@@ -132,6 +132,19 @@ Options:
 ```
 
 - `boxmux <command> --help` shows the arguments of each control command.
+- `boxmux --version` prints one line naming the version and the commit the binary was built
+  from:
+
+  ```
+  boxmux <version> commit <commit>
+  boxmux <version> commit <commit>-dirty
+  boxmux <version> commit unknown (built without git metadata)
+  ```
+
+  `<commit>` is the full 40-character hash. `-dirty` means the source tree had changes git had
+  not committed, untracked files included. A build from a tree without git metadata of its own,
+  such as the crates.io package or a source tarball, says `unknown (built without git
+  metadata)`. Building from a git checkout needs `git`.
 - `--log-level` needs `--log-file`. `--dark` and `--light` cannot be combined.
 - The interface options cannot be combined with a control command.
 - Moving or resizing a box with the mouse writes the new position back into the YAML file,

@@ -16,7 +16,11 @@ fn box_id_arg() -> Arg {
 
 fn cli() -> Command {
     Command::new("boxmux")
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(concat!(
+            env!("CARGO_PKG_VERSION"),
+            " commit ",
+            env!("BOXMUX_COMMIT")
+        ))
         .about("Terminal dashboards and tools described in YAML")
         .subcommand_negates_reqs(true)
         .override_usage(

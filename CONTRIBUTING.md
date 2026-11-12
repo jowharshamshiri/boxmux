@@ -10,8 +10,9 @@ remove comments, commits or contributors that break this rule.
 
 ## Getting started
 
-You need a stable Rust toolchain (install it with [rustup](https://rustup.rs)) and, to work on the
-documentation site, Node.js 20 or newer.
+You need a stable Rust toolchain (install it with [rustup](https://rustup.rs)), `git` (the build
+reads the commit of the checkout for `boxmux --version`) and, to work on the documentation site,
+Node.js 20 or newer.
 
 ```bash
 git clone https://github.com/jowharshamshiri/boxmux.git
@@ -41,6 +42,7 @@ src/
   chart.rs, table.rs charts and tables drawn as text
   plugin.rs          loading plugins through the C ABI
   text.rs            cleaning script output for display
+build.rs, build/commit.rs  the commit `boxmux --version` names (tested by tests/version.rs)
 schemas/app_schema.json   the configuration schema (kept in sync with the model by a test)
 api-spec.json             the control protocol schema (kept in sync by a test)
 layouts/, examples/       configurations shipped as demos; every one must load

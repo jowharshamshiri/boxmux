@@ -48,6 +48,9 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Added
 
+- `boxmux --version` names the commit the binary was built from:
+  `boxmux <version> commit <commit>`, with `-dirty` after the commit when the tree had
+  uncommitted changes, or `commit unknown (built without git metadata)`.
 - Windows support (ConPTY terminals, PowerShell scripts by default) and the `app.shell` setting.
 - Every control command is implemented and answers with a result or an error; `send_signal`,
   `query_pty_status` and box replacement work.
