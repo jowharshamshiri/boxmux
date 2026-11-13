@@ -566,6 +566,7 @@ Choices can open terminals too. Each one opens in its own tab:
 | Keyboard input to the program | No | No | Yes |
 | Full-screen programs (vim, htop) | No | No | Yes |
 | Colors (SGR escape sequences) | Yes | Yes | Yes |
+| Hyperlinks (OSC 8) | Yes | Yes | Yes |
 | `refresh_interval` | Yes | Yes | No |
 
 **Learn more**: [PTY Features](/docs/pty-features).

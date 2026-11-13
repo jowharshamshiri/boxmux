@@ -146,6 +146,29 @@ impl Perform for Emulator {
                 self.terminal_state.terminal_title = Some(data());
             }
             "1" => self.terminal_state.icon_name = Some(data()),
+            "8" => {
+                // `8 ; params ; URI` starts a hyperlink, `8 ; ;` ends it. The URI may itself
+                // hold semicolons; a malformed link changes nothing.
+                let fields: Option<Vec<&str>> = params
+                    .get(1..)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|p| std::str::from_utf8(p).ok())
+                    .collect();
+                let change = match fields.as_deref() {
+                    Some([link_params, uri @ ..]) if !uri.is_empty() => {
+                        crate::link::parse_osc8(link_params, &uri.join(";"))
+                    }
+                    _ => None,
+                };
+                match change {
+                    Some(crate::link::LinkChange::Open(link)) => {
+                        self.terminal_state.hyperlink = Some(link)
+                    }
+                    Some(crate::link::LinkChange::Close) => self.terminal_state.hyperlink = None,
+                    None => log::debug!("ignored a malformed OSC 8 hyperlink"),
+                }
+            }
             "52" => {
                 // `52 ; targets ; base64` sets the clipboard. A `?` asks for its contents,
                 // which programs are not given.
@@ -355,6 +378,8 @@ impl Perform for Emulator {
             }
             // Double-width and double-height lines are shown at normal size.
             (b"#", b'3' | b'4' | b'5' | b'6') => {}
+            // ST, the end of an OSC string the parser has already handed over.
+            (b"", b'\\') => {}
             _ => log::debug!("unhandled ESC {:?} {}", intermediates, byte as char),
         }
     }

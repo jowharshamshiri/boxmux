@@ -1,5 +1,5 @@
 //! The terminal emulator behind PTY boxes: bytes a program writes go in, a screen of styled
-//! cells comes out, along with the replies the program asked for (cursor position, device
+//! cells with their hyperlinks comes out, along with the replies the program asked for (cursor position, device
 //! attributes) and clipboard writes.
 
 mod buffer;
@@ -13,7 +13,9 @@ pub use buffer::*;
 pub use cell::*;
 pub use state::*;
 
+use crate::link::Link;
 use crate::width::Glyph;
+use std::sync::Arc;
 use vte::{Params, Parser};
 
 /// A terminal emulator: bytes a program writes go in, a screen of styled cells comes out.
@@ -75,9 +77,10 @@ impl Emulator {
         std::mem::take(&mut self.terminal_state.pending_responses)
     }
 
-    /// The lines a box shows for this terminal, with SGR color sequences: the scrollback and
-    /// the screen, or only the screen while the program uses the alternate screen. The cursor,
-    /// unless the program hid it, is the cell shown in reverse video.
+    /// The lines a box shows for this terminal, with SGR color sequences and OSC 8 hyperlinks
+    /// ([`crate::link`]): the scrollback and the screen, or only the screen while the program
+    /// uses the alternate screen. The cursor, unless the program hid it, is the cell shown in
+    /// reverse video.
     pub fn display_lines(&self) -> Vec<String> {
         let state = &self.terminal_state;
         let buffer = state.get_active_buffer_ref();
@@ -156,6 +159,7 @@ impl Emulator {
         let screen_width = self.terminal_state.screen_width;
         let mut cell = self.terminal_state.current_attributes.clone();
         cell.glyph = glyph;
+        cell.link = self.terminal_state.hyperlink.clone();
         let row = &mut self.terminal_state.get_active_screen()[y];
         // Writing over half of a wide character leaves its other half blank.
         if row[x].glyph == WIDE_CONTINUATION && x > 0 {

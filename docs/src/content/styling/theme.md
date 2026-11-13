@@ -295,7 +295,7 @@ Script output keeps its SGR color and style sequences. Boxes show:
 - 256-color (`38;5;N`) and 24-bit (`38;2;R;G;B`) colors.
 - Bold, dim, italic, underline, blink, reverse, hidden and strikethrough.
 
-A reset (`ESC[0m`) returns to the box's own text and background colors. Each line starts in the box's colors; a color set on one line does not continue on the next line. Other escape sequences, such as cursor movement, are removed. A carriage return goes back to the start of the line, so progress bars show their last state.
+A reset (`ESC[0m`) returns to the box's own text and background colors. Each line starts in the box's colors; a color set on one line does not continue on the next line. OSC 8 hyperlinks are kept (see [Hyperlinks](#hyperlinks)). Other escape sequences, such as cursor movement, are removed. A carriage return goes back to the start of the line, so progress bars show their last state.
 
 ```yaml
 - id: log_viewer
@@ -310,6 +310,35 @@ A reset (`ESC[0m`) returns to the box's own text and background colors. Each lin
 `tput` prints the escape sequences for the terminal named in `TERM`. Printing the sequences directly, such as `ESC[32m` with `printf`, works the same way.
 
 Programs in a terminal box (`execution_mode: Pty`) draw with their own colors, including 256-color and 24-bit color.
+
+## Hyperlinks
+
+Text between `ESC ] 8 ; params ; URI ST` and `ESC ] 8 ; ; ST` (ST is `ESC \` or BEL) is an OSC 8 hyperlink. BoxMux keeps it in a box's `content`, in script output, in text set over the control socket, in a choice's label and in what a program prints in a terminal box, and writes it to your terminal around the text, so the terminal shows a link that opens the URI when clicked.
+
+- `params` is empty or `key=value` pairs separated by `:`; `id` is the one BoxMux uses. The URI is printable ASCII, other characters percent-encoded, as the OSC 8 specification requires.
+- The link's text is measured like any other text: a wide character takes two columns.
+- A link wrapped onto several lines, or cut by a box's edge or scrolling, is the same link on each line: BoxMux writes it with the same id each time. A link written without an id gets one made from its URI, `boxmux-` and 16 hex digits.
+- A color reset does not end a link. Each line of text and script output starts outside any link, as each starts in the box's colors; in a terminal box a link goes on until the program ends it, as in any terminal.
+- A malformed OSC 8 (a parameter that is not `key=value`, a URI with a character outside printable ASCII, or one cut off by the end of the line) is dropped: it changes no link and is never shown as text.
+
+BoxMux takes mouse clicks for itself, to focus boxes and run choices. Open a link with the click your terminal keeps for itself while a program uses the mouse: Shift-click in WezTerm and kitty.
+
+```yaml
+- id: docs
+  title: Docs
+  position: {x1: "0", y1: "0", x2: "40", y2: "8"}
+  overflow_behavior: wrap
+  content: "Read \e]8;id=guide;https://example.com/guide\e\\the guide\e]8;;\e\\ first."
+- id: menu
+  title: Menu
+  position: {x1: "41", y1: "0", x2: "70", y2: "8"}
+  choices:
+    - id: release
+      content: "Run \e]8;;https://example.com/releases\e\\the release\e]8;;\e\\"
+      script: ["echo released"]
+```
+
+In a double-quoted YAML string, `\e` is ESC and `\\` a backslash. A script prints a link with `printf '\033]8;;%s\033\\%s\033]8;;\033\\\n' "$url" "$text"`.
 
 ## Z-Index and Layering
 

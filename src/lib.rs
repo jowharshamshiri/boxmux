@@ -1,5 +1,6 @@
 pub mod base64;
 pub mod chart;
+pub mod link;
 pub mod model;
 pub mod platform;
 pub mod plugin;

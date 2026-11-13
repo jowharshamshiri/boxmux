@@ -1,6 +1,8 @@
 //! The pieces a terminal screen is made of: cells, colors, cursor, modes and mouse events.
 
+use crate::link::Link;
 use crate::width::Glyph;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventType {
@@ -74,10 +76,13 @@ impl TermColor {
 /// What the right half of a two-column cluster's cells holds.
 pub const WIDE_CONTINUATION: Glyph = Glyph::from_char('\0');
 
-/// One cell of the screen: a grapheme cluster and the attributes it is drawn with.
+/// One cell of the screen: a grapheme cluster, the attributes it is drawn with and the
+/// hyperlink it is part of.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TerminalCell {
     pub glyph: Glyph,
+    /// Both halves of a two-column cluster have it; erasing a cell takes it away.
+    pub link: Option<Arc<Link>>,
     pub fg_color: Option<TermColor>,
     pub bg_color: Option<TermColor>,
     pub bold: bool,
@@ -95,6 +100,7 @@ impl Default for TerminalCell {
     fn default() -> Self {
         TerminalCell {
             glyph: Glyph::SPACE,
+            link: None,
             fg_color: None,
             bg_color: None,
             bold: false,

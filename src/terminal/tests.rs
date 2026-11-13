@@ -548,3 +548,68 @@ fn emoji_sequences_are_one_cluster_and_a_selector_widens_its_emoji() {
     processor.process_string("ab☀\u{fe0f}c");
     assert_eq!(processor.get_processed_text(), "ab☀\nc");
 }
+
+/// The link id of each cell of row `y` of the screen.
+fn link_ids(emulator: &Emulator, y: usize) -> Vec<Option<String>> {
+    emulator.terminal_state.get_active_screen_ref()[y]
+        .iter()
+        .map(|cell| cell.link.as_ref().map(|link| link.id().to_string()))
+        .collect()
+}
+
+#[test]
+fn a_hyperlink_is_kept_in_each_cell_it_wraps_onto_and_a_color_reset_does_not_end_it() {
+    let mut emulator = Emulator::with_screen_size(6, 3);
+    emulator.process_string(
+        "go \x1b]8;id=t;https://example.com\x1b\\a\x1b[31mb\x1b[0m日cd\x1b]8;;\x1b\\e",
+    );
+    let t = Some("t".to_string());
+    assert_eq!(
+        link_ids(&emulator, 0),
+        vec![None, None, None, t.clone(), t.clone(), None]
+    );
+    // 日 does not fit in the last column: it wraps with its link, as do c and d.
+    assert_eq!(
+        link_ids(&emulator, 1),
+        vec![t.clone(), t.clone(), t.clone(), t, None, None]
+    );
+    let lines = emulator.display_lines();
+    let open = "\x1b]8;id=t;https://example.com\x1b\\";
+    assert!(
+        lines[0].contains(open) && lines[0].contains(crate::link::CLOSE),
+        "{:?}",
+        lines[0]
+    );
+    assert!(
+        lines[1].contains(open),
+        "the second line opens the same link: {:?}",
+        lines[1]
+    );
+    assert_eq!(crate::utils::display_width(&lines[1]), 6, "{:?}", lines[1]);
+}
+
+#[test]
+fn erasing_a_cell_takes_its_link_away_and_bel_ends_a_link_too() {
+    let mut emulator = Emulator::with_screen_size(4, 1);
+    emulator.process_string("\x1b]8;;https://example.com\x07abcd\x1b]8;;\x07\x1b[1;3H\x1b[K");
+    let ids = link_ids(&emulator, 0);
+    assert!(
+        ids[0]
+            .as_deref()
+            .is_some_and(|id| id.starts_with("boxmux-")),
+        "{:?}",
+        ids
+    );
+    assert_eq!(ids[1], ids[0]);
+    assert_eq!(ids[2..], [None, None]);
+}
+
+#[test]
+fn a_malformed_hyperlink_changes_nothing() {
+    let mut emulator = Emulator::with_screen_size(8, 1);
+    emulator.process_string("\x1b]8;oops;https://example.com\x1b\\ab\x1b]8;;\x1b\\");
+    emulator.process_string("\x1b]8;id=x;https://e.com\x1b\\c\x1b]8;id=y\x1b\\d");
+    assert_eq!(emulator.get_processed_text(), "abcd");
+    let x = Some("x".to_string());
+    assert_eq!(link_ids(&emulator, 0)[..4], [None, None, x.clone(), x]);
+}

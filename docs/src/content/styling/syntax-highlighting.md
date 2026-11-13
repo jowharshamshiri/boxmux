@@ -9,7 +9,7 @@ BoxMux does not highlight code itself. It shows the colors that programs write, 
 
 ## Colored Script Output
 
-A box script's output keeps its SGR color and style sequences: the 16 base colors, 256 colors, 24-bit colors, bold, italic, underline and the other text attributes. Each line starts in the box's own colors. Other escape sequences are removed. See [Script Output Colors](theme#script-output-colors).
+A box script's output keeps its SGR color and style sequences: the 16 base colors, 256 colors, 24-bit colors, bold, italic, underline and the other text attributes. Each line starts in the box's own colors. OSC 8 hyperlinks are kept too (see [Hyperlinks](theme#hyperlinks)); other escape sequences are removed. See [Script Output Colors](theme#script-output-colors).
 
 Scripts in the default `Immediate` and `Thread` modes write into a pipe, not a terminal. Many programs turn their colors off in that case, so ask for color explicitly:
 

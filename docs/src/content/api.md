@@ -157,7 +157,7 @@ at the end of the box's tabs. Each call replaces the tab's text and makes it the
 | Field | Type | Required | Default | Meaning |
 |-------|------|----------|---------|---------|
 | `box_id` | string | yes | | The box |
-| `content` | string | yes | | The text. Lines are split on newlines; SGR color sequences are kept, other control sequences are removed |
+| `content` | string | yes | | The text. Lines are split on newlines; SGR color sequences and OSC 8 hyperlinks are kept, other control sequences are removed |
 | `success` | boolean | no | `true` | `false` draws the box in its error colors while this tab is visible |
 
 ```bash

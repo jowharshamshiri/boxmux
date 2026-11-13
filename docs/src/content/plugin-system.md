@@ -135,8 +135,8 @@ The reply is one of:
 ```
 
 Exactly one of `content` and `error` must be present, and no other keys. `content` is the text
-to show; lines are separated by `\n`, and SGR color sequences (`ESC [ ... m`) are kept while
-other control sequences are removed. Content larger than `width` x `height` is not an error; the
+to show; lines are separated by `\n`, and SGR color sequences (`ESC [ ... m`) and OSC 8
+hyperlinks are kept while other control sequences are removed. Content larger than `width` x `height` is not an error; the
 box scrolls or cuts it off as configured.
 
 BoxMux calls `boxmux_plugin_render` from the thread that draws the screen, one call at a time.

@@ -93,8 +93,9 @@ impl TerminalScreenBuffer {
     }
 }
 
-/// A row as text with SGR sequences for its colors and attributes, the cell at `cursor_x` in
-/// reverse video. The right halves of wide characters are left out.
+/// A row as text with SGR sequences for its colors and attributes and OSC 8 sequences around
+/// the cells of each hyperlink, the cell at `cursor_x` in reverse video. The right halves of
+/// wide characters are left out.
 fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
     fn sgr(cell: &TerminalCell) -> String {
         let mut codes = vec!["0".to_string()];
@@ -131,9 +132,19 @@ fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
     let plain = sgr(&TerminalCell::default());
     let mut result = String::new();
     let mut current = plain.clone();
+    let mut link: Option<&Arc<Link>> = None;
     for (x, cell) in row.iter().enumerate() {
         if cell.glyph == WIDE_CONTINUATION {
             continue;
+        }
+        if link != cell.link.as_ref() {
+            if link.is_some() {
+                result.push_str(crate::link::CLOSE);
+            }
+            if let Some(opened) = &cell.link {
+                result.push_str(&opened.open_sequence());
+            }
+            link = cell.link.as_ref();
         }
         let wanted = if cursor_x == Some(x) {
             let mut shown = cell.clone();
@@ -147,6 +158,9 @@ fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
             current = wanted;
         }
         cell.glyph.push_to(&mut result);
+    }
+    if link.is_some() {
+        result.push_str(crate::link::CLOSE);
     }
     if current != plain {
         result.push_str("\x1b[0m");

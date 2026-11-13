@@ -41,6 +41,9 @@ pub struct TerminalState {
     pub saved_cursor: [Option<SavedCursor>; 2],
     /// The attributes printed characters get.
     pub current_attributes: TerminalCell,
+    /// The hyperlink printed characters are part of (OSC 8). It is not an attribute: SGR resets
+    /// and DECSC/DECRC leave it as it is.
+    pub hyperlink: Option<Arc<Link>>,
     pub mode: TerminalMode,
     pub scroll_region: ScrollRegion,
     pub tab_stops: Vec<bool>,
@@ -76,6 +79,7 @@ impl TerminalState {
             use_alternate_screen: false,
             saved_cursor: [None, None],
             current_attributes: TerminalCell::default(),
+            hyperlink: None,
             mode: TerminalMode::default(),
             scroll_region: ScrollRegion {
                 top: 0,

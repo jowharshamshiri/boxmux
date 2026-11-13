@@ -37,6 +37,8 @@ See the [Configuration Reference](/docs/configuration).
   last run failed (`error_*`). Colors are inherited from enclosing boxes and the layout.
 - A light and a dark default theme. The theme follows the terminal background (asked with
   OSC 11 on Unix, or read from `COLORFGBG`), or is forced with `--light` / `--dark`.
+- OSC 8 hyperlinks in box text, script output, choice labels and terminal boxes reach the
+  terminal as links, one link on every line they wrap onto.
 
 ## Scripts
 

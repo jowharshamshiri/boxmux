@@ -263,7 +263,7 @@ A box with one tab shows its `title` in the top border. A box with several tabs 
 
 Text that fits in the box is centered horizontally and vertically. The content area keeps a one-column margin inside the border. A terminal (`execution_mode: Pty`) fills the whole inside of the border.
 
-Script output keeps its SGR color sequences, so colored output is shown in color. Other control sequences are removed.
+Script output and `content` keep their SGR color sequences, so colored output is shown in color, and their OSC 8 hyperlinks, which your terminal shows as links (see [Hyperlinks](styling/theme#hyperlinks)). Other control sequences are removed.
 
 ## Choice Configuration
 

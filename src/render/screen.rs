@@ -1,13 +1,15 @@
 //! The frame being drawn: a grid of cells, each a grapheme cluster with its colors and
-//! attributes.
+//! attributes, and the hyperlink it is part of.
 //!
 //! Text is measured as [`crate::width`] says. A cluster that takes two columns (CJK, most emoji)
 //! occupies its cell and the next one; the next cell holds [`Cell::CONTINUATION`] so every
 //! column of the grid is one terminal column. Writing over either half of a wide cluster blanks
 //! the other half, so a frame never shows half a character.
 
+use crate::link::Link;
 use crate::width::{clusters, Glyph};
 pub use crossterm::style::Color;
+use std::sync::Arc;
 
 /// Text attributes of a cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -72,14 +74,29 @@ impl Default for Style {
 pub struct Cell {
     pub glyph: Glyph,
     pub style: Style,
+    /// The hyperlink the cell's text is part of; both halves of a two-column cluster have it.
+    pub link: Option<Arc<Link>>,
 }
 
 impl Cell {
     /// The right half of a two-column cluster.
     pub const CONTINUATION: Glyph = Glyph::from_char('\0');
 
+    /// A cell part of no link.
     pub const fn new(glyph: Glyph, style: Style) -> Cell {
-        Cell { glyph, style }
+        Cell {
+            glyph,
+            style,
+            link: None,
+        }
+    }
+
+    fn linked(glyph: Glyph, style: Style, link: Option<&Arc<Link>>) -> Cell {
+        Cell {
+            glyph,
+            style,
+            link: link.cloned(),
+        }
     }
 
     pub fn is_continuation(&self) -> bool {
@@ -112,25 +129,37 @@ impl ScreenBuffer {
         (x < self.width && y < self.height).then_some(y * self.width + x)
     }
 
-    /// Blanks the halves of a wide cluster that a write to (`x`, `y`) would split.
+    /// Blanks the halves of a wide cluster that a write to (`x`, `y`) would split. The blank is
+    /// no longer the text of a link.
     fn unsplit(&mut self, x: usize, y: usize) {
         let Some(i) = self.index(x, y) else {
             return;
         };
         if self.cells[i].is_continuation() && x > 0 {
             self.cells[i - 1].glyph = Glyph::SPACE;
+            self.cells[i - 1].link = None;
         }
         if self.cells[i].glyph.width() == 2 {
             if let Some(next) = self.index(x + 1, y) {
                 self.cells[next].glyph = Glyph::SPACE;
+                self.cells[next].link = None;
             }
         }
     }
 
-    /// Puts `glyph` at (`x`, `y`) and returns the columns it took (0 when it does not fit or
-    /// takes none). A wide cluster that would stick out past `limit` (the last usable column)
-    /// is drawn as a space instead. Positions outside the buffer are ignored.
-    pub fn put(&mut self, x: usize, y: usize, glyph: &Glyph, style: Style, limit: usize) -> usize {
+    /// Puts `glyph` at (`x`, `y`), part of `link`, and returns the columns it took (0 when it
+    /// does not fit or takes none). A wide cluster that would stick out past `limit` (the last
+    /// usable column) is drawn as a space instead, still part of `link`. Positions outside the
+    /// buffer are ignored.
+    pub fn put(
+        &mut self,
+        x: usize,
+        y: usize,
+        glyph: &Glyph,
+        style: Style,
+        link: Option<&Arc<Link>>,
+        limit: usize,
+    ) -> usize {
         let width = glyph.width();
         if width == 0 || x > limit {
             return 0;
@@ -141,15 +170,15 @@ impl ScreenBuffer {
         self.unsplit(x, y);
         if width == 2 {
             if x + 1 > limit || self.index(x + 1, y).is_none() {
-                self.cells[i] = Cell::new(Glyph::SPACE, style);
+                self.cells[i] = Cell::linked(Glyph::SPACE, style, link);
                 return 1;
             }
             self.unsplit(x + 1, y);
-            self.cells[i] = Cell::new(glyph.clone(), style);
-            self.cells[i + 1] = Cell::new(Cell::CONTINUATION, style);
+            self.cells[i] = Cell::linked(glyph.clone(), style, link);
+            self.cells[i + 1] = Cell::linked(Cell::CONTINUATION, style, link);
             return 2;
         }
-        self.cells[i] = Cell::new(glyph.clone(), style);
+        self.cells[i] = Cell::linked(glyph.clone(), style, link);
         1
     }
 
@@ -160,7 +189,7 @@ impl ScreenBuffer {
             "control character {:?} drawn to the screen",
             ch
         );
-        self.put(x, y, &Glyph::from_char(ch), style, limit)
+        self.put(x, y, &Glyph::from_char(ch), style, None, limit)
     }
 
     /// Draws `text` from (`x`, `y`) without passing column `limit`; returns the columns used.
@@ -170,7 +199,7 @@ impl ScreenBuffer {
             if column > limit {
                 break;
             }
-            column += self.put(column, y, &Glyph::new(cluster), style, limit);
+            column += self.put(column, y, &Glyph::new(cluster), style, None, limit);
         }
         column - x
     }
@@ -259,6 +288,22 @@ mod tests {
         assert!(buffer.get(3, 0).unwrap().is_continuation());
         assert_eq!(buffer.get(4, 0).unwrap().glyph, Glyph::new("👍🏽"));
         assert_eq!(buffer.text_rows(), vec!["e\u{301}x☀\u{fe0f}👍🏽  "]);
+    }
+
+    #[test]
+    fn a_linked_cluster_s_cells_have_its_link_and_a_blanked_half_loses_it() {
+        let link = Arc::new(Link::new("https://example.com", Some("x")));
+        let mut buffer = ScreenBuffer::new(4, 1, plain());
+        assert_eq!(
+            buffer.put(0, 0, &Glyph::new("日"), plain(), Some(&link), 3),
+            2
+        );
+        assert_eq!(buffer.get(0, 0).unwrap().link.as_ref(), Some(&link));
+        assert_eq!(buffer.get(1, 0).unwrap().link.as_ref(), Some(&link));
+        buffer.put_char(1, 0, '|', plain(), 3);
+        assert_eq!(buffer.text_rows(), vec![" |  "]);
+        assert_eq!(buffer.get(0, 0).unwrap().link, None);
+        assert_eq!(buffer.get(1, 0).unwrap().link, None);
     }
 
     #[test]

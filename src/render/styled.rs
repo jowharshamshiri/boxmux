@@ -1,26 +1,42 @@
-//! Text with SGR color sequences turned into styled grapheme clusters.
+//! Text with SGR color sequences and OSC 8 hyperlinks turned into styled grapheme clusters.
 //!
-//! Lines in streams keep the SGR sequences (`ESC [ ... m`) scripts print; every other escape
-//! sequence was removed when the output was stored (see [`crate::text`]). Colors apply on top of
-//! the box's own style: resetting (`0`, `39`, `49`) returns to the box colors, not to the
-//! terminal's default, so colored output never leaves holes in a box's background.
+//! Lines in streams keep the SGR sequences (`ESC [ ... m`) scripts print and their OSC 8
+//! hyperlinks (see [`crate::link`]); every other escape sequence was removed when the output was
+//! stored (see [`crate::text`]). Colors apply on top of the box's own style: resetting (`0`,
+//! `39`, `49`) returns to the box colors, not to the terminal's default, so colored output never
+//! leaves holes in a box's background. A hyperlink is kept with each cluster of its text; a
+//! color reset does not end it.
 
 use super::screen::{Attrs, Color, Style};
+use crate::link::{self, Link, LinkChange};
+use crate::text::{read_escape, Escape};
 use crate::width::{clusters, width, Glyph};
+use std::sync::Arc;
 
-/// A grapheme cluster and the style it is drawn in.
+/// A grapheme cluster, the style it is drawn in and the hyperlink it is part of.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StyledGlyph {
     pub glyph: Glyph,
     pub style: Style,
+    pub link: Option<Arc<Link>>,
 }
 
 impl StyledGlyph {
-    /// The single character `ch` in `style`.
+    /// The single character `ch` in `style`, part of no link.
     pub const fn from_char(ch: char, style: Style) -> StyledGlyph {
         StyledGlyph {
             glyph: Glyph::from_char(ch),
             style,
+            link: None,
+        }
+    }
+
+    /// The single character `ch` standing in for `self`: in its style and part of its link.
+    pub fn replaced_by(&self, ch: char) -> StyledGlyph {
+        StyledGlyph {
+            glyph: Glyph::from_char(ch),
+            style: self.style,
+            link: self.link.clone(),
         }
     }
 
@@ -29,49 +45,51 @@ impl StyledGlyph {
     }
 }
 
-/// The grapheme clusters of `line` with the style each is drawn in, starting from `base`.
+/// The grapheme clusters of `line` with the style each is drawn in, starting from `base`, and
+/// the hyperlink each is part of, starting from none.
 /// A cluster that takes no column of its own (a combining mark or selector a color change cut
 /// off from its character) joins the cluster before it; with none before it, or when it is a
-/// control character, it is dropped: the screen has no place for it.
+/// control character, it is dropped: the screen has no place for it. Every escape sequence other
+/// than SGR and a well-formed OSC 8 is dropped, and so is an OSC sequence that the end of the
+/// line or another escape cuts off before its terminator, with what it held.
 pub fn styled_glyphs(line: &str, base: Style) -> Vec<StyledGlyph> {
     let mut out = Vec::with_capacity(line.len());
     let mut style = base;
-    // The text since the last escape sequence, all in `style`.
+    let mut link: Option<Arc<Link>> = None;
+    // The text since the last escape sequence, all in `style` and `link`.
     let mut run = String::new();
     let mut chars = line.chars().peekable();
     while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            push_run(&mut out, &run, style);
-            run.clear();
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                let mut params = String::new();
-                let mut final_byte = None;
-                for next in chars.by_ref() {
-                    if ('\u{40}'..='\u{7e}').contains(&next) {
-                        final_byte = Some(next);
-                        break;
-                    }
-                    params.push(next);
-                }
-                if final_byte == Some('m') {
-                    apply_sgr(&params, &mut style, base);
-                }
-            }
+        if ch != '\x1b' {
+            run.push(ch);
             continue;
         }
-        run.push(ch);
+        push_run(&mut out, &run, style, &link);
+        run.clear();
+        match read_escape(&mut chars) {
+            Escape::Csi {
+                params,
+                final_char: 'm',
+            } => apply_sgr(&params, &mut style, base),
+            Escape::Osc(body) => match link::parse_osc(&body) {
+                Some(LinkChange::Open(opened)) => link = Some(opened),
+                Some(LinkChange::Close) => link = None,
+                None => {}
+            },
+            Escape::Csi { .. } | Escape::Other => {}
+        }
     }
-    push_run(&mut out, &run, style);
+    push_run(&mut out, &run, style, &link);
     out
 }
 
-fn push_run(out: &mut Vec<StyledGlyph>, run: &str, style: Style) {
+fn push_run(out: &mut Vec<StyledGlyph>, run: &str, style: Style, link: &Option<Arc<Link>>) {
     for cluster in clusters(run) {
         if width(cluster) > 0 {
             out.push(StyledGlyph {
                 glyph: Glyph::new(cluster),
                 style,
+                link: link.clone(),
             });
         } else if !cluster.starts_with(char::is_control) {
             if let Some(last) = out.last_mut() {
@@ -330,6 +348,81 @@ mod tests {
         assert_eq!(glyphs.len(), 3);
         assert_eq!(glyphs[1].glyph.to_string(), "☀\u{fe0f}\u{301}");
         assert_eq!(width_of(&glyphs), 4);
+    }
+
+    const DOCS: &str = "\x1b]8;id=docs;https://example.com/docs\x1b\\";
+
+    fn uris(glyphs: &[StyledGlyph]) -> Vec<Option<&str>> {
+        glyphs
+            .iter()
+            .map(|g| g.link.as_deref().map(Link::uri))
+            .collect()
+    }
+
+    #[test]
+    fn a_link_is_kept_with_each_cluster_until_it_is_closed_and_a_color_reset_does_not_end_it() {
+        let docs = Some("https://example.com/docs");
+        let glyphs = styled_glyphs(
+            &format!("a{}b\x1b[31m日\x1b[0mc{}d", DOCS, link::CLOSE),
+            BASE,
+        );
+        assert_eq!(text(&glyphs), "ab日cd");
+        assert_eq!(uris(&glyphs), vec![None, docs, docs, docs, None]);
+        assert_eq!(glyphs[1].link.as_ref().unwrap().id(), "docs");
+        assert_eq!(glyphs[2].style.fg, Color::AnsiValue(1));
+        // BEL ends an OSC as ST does.
+        let glyphs = styled_glyphs("\x1b]8;;https://example.com\x07x\x1b]8;;\x07y", BASE);
+        assert_eq!(uris(&glyphs), vec![Some("https://example.com"), None]);
+    }
+
+    #[test]
+    fn malformed_and_cut_off_osc_sequences_are_dropped_and_never_shown() {
+        // A parameter that is not key=value: no link, no text.
+        let glyphs = styled_glyphs("a\x1b]8;oops;https://example.com\x1b\\b", BASE);
+        assert_eq!(text(&glyphs), "ab");
+        assert_eq!(uris(&glyphs), vec![None, None]);
+        // A malformed sequence leaves the link that is open as it was.
+        let glyphs = styled_glyphs(&format!("{}a\x1b]8;;bad\x7f\x1b\\b", DOCS), BASE);
+        assert!(glyphs.iter().all(|g| g.link.is_some()));
+        // Cut off by the end of the line: nothing after it is text.
+        assert_eq!(
+            text(&styled_glyphs("a\x1b]8;;https://example.com b", BASE)),
+            "a"
+        );
+        // Cut off by another escape, which takes effect.
+        let glyphs = styled_glyphs("a\x1b]8;;https://example.com\x1b[31mb", BASE);
+        assert_eq!(text(&glyphs), "ab");
+        assert_eq!(glyphs[1].style.fg, Color::AnsiValue(1));
+        assert_eq!(uris(&glyphs), vec![None, None]);
+        // Other OSC commands and two-character escapes are dropped whole.
+        assert_eq!(
+            text(&styled_glyphs("a\x1b]0;title\x07b\x1b(Bc", BASE)),
+            "abc"
+        );
+    }
+
+    #[test]
+    fn a_wrapped_link_is_the_same_link_on_each_row() {
+        let rows = wrap(
+            &styled_glyphs(
+                &format!("see {}the 日本 manual{} now", DOCS, link::CLOSE),
+                BASE,
+            ),
+            10,
+        );
+        let rows_text: Vec<String> = rows.iter().map(|r| text(r)).collect();
+        assert_eq!(rows_text, vec!["see the", "日本", "manual now"]);
+        let docs = Some("https://example.com/docs");
+        assert_eq!(
+            uris(&rows[0]),
+            vec![None, None, None, None, docs, docs, docs]
+        );
+        assert_eq!(uris(&rows[1]), vec![docs, docs]);
+        assert_eq!(
+            &uris(&rows[2])[..7],
+            &[docs, docs, docs, docs, docs, docs, None]
+        );
+        assert_eq!(rows[0][4].link, rows[2][0].link);
     }
 
     #[test]

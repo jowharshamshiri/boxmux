@@ -1,9 +1,11 @@
 //! Output to the terminal: entering and leaving full-screen mode, drawing frames as the
-//! difference to the previous frame, the window title, and the clipboard.
+//! difference to the previous frame with their hyperlinks, the window title, and the clipboard.
 
+use crate::link::{Link, CLOSE};
 use crate::render::screen::{Attrs, ScreenBuffer, Style};
 use crossterm::{cursor, event, queue, terminal};
 use std::io::{self, BufWriter, Stdout, Write};
+use std::sync::Arc;
 
 /// Where the runtime draws. The terminal implementation is [`TerminalDisplay`]; tests use an
 /// in-memory one.
@@ -136,6 +138,12 @@ fn set_style(out: &mut impl Write, from: Option<Style>, to: Style) -> io::Result
 /// Writes what turns a terminal showing `previous` (`None` when unknown) into one showing
 /// `frame`: each run of changed cells, from its first cell.
 ///
+/// A cell that is part of a hyperlink is written inside that link's OSC 8 sequence
+/// ([`crate::link`]): the link is opened before the first such cell written and closed before a
+/// cell that is not part of it, and at the end of the frame, so text BoxMux writes later is never
+/// a link by mistake. Every cell of a link, on every line, is written with the same id, so the
+/// terminal takes them for one link.
+///
 /// Terminals do not all give a cluster the width [`crate::width`] does: some draw an emoji
 /// variation sequence or an emoji their Unicode tables do not know in one column. So a cell
 /// holding a two-column cluster or a cluster of several characters is blanked first, the
@@ -150,6 +158,8 @@ pub fn write_frame(
     let previous = previous.filter(|p| p.width == frame.width && p.height == frame.height);
     // The style the terminal is in; unknown at the start of each frame.
     let mut style: Option<Style> = None;
+    // The link the terminal is in; none at the start of each frame, which ends with none.
+    let mut link: Option<&Arc<Link>> = None;
     for y in 0..frame.height {
         let changed = |x: usize| previous.is_none_or(|p| p.get(x, y) != frame.get(x, y));
         let continuation = |x: usize| frame.get(x, y).is_some_and(|c| c.is_continuation());
@@ -176,6 +186,15 @@ pub fn write_frame(
                 }
                 set_style(out, style, cell.style)?;
                 style = Some(cell.style);
+                if link != cell.link.as_ref() {
+                    if link.is_some() {
+                        write!(out, "{}", CLOSE)?;
+                    }
+                    if let Some(opened) = &cell.link {
+                        write!(out, "{}", opened.open_sequence())?;
+                    }
+                    link = cell.link.as_ref();
+                }
                 let width = cell.glyph.width();
                 if width == 2 || cell.glyph.is_sequence() {
                     write!(out, "{}", " ".repeat(width))?;
@@ -189,6 +208,9 @@ pub fn write_frame(
                 x += 1;
             }
         }
+    }
+    if link.is_some() {
+        write!(out, "{}", CLOSE)?;
     }
     Ok(())
 }
@@ -314,5 +336,80 @@ impl Display for MemoryDisplay {
 
     fn resume(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::terminal::Emulator;
+    use crate::width::Glyph;
+
+    /// The link of each cell of row `y` of a terminal that was sent `bytes`.
+    fn links_shown(bytes: &[u8], width: usize, height: usize, y: usize) -> Vec<Option<String>> {
+        let mut terminal = Emulator::with_screen_size(width, height);
+        terminal.process_bytes(bytes);
+        assert_eq!(
+            terminal.terminal_state.hyperlink, None,
+            "the frame leaves the terminal in a link"
+        );
+        terminal.terminal_state.primary_buffer.content[y]
+            .iter()
+            .map(|cell| cell.link.as_ref().map(|link| link.id().to_string()))
+            .collect()
+    }
+
+    /// A 6 x 2 frame: `ab日` at the end of the first row and `cd` at the start of the second
+    /// are the link `x`, the rest is no link.
+    fn linked_frame() -> ScreenBuffer {
+        let link = Arc::new(Link::new("https://example.com", Some("x")));
+        let mut frame = ScreenBuffer::new(6, 2, Style::default());
+        frame.put_str(0, 0, "on", Style::default(), 5);
+        for (x, text) in [(2, "a"), (3, "b"), (4, "日")] {
+            frame.put(x, 0, &Glyph::new(text), Style::default(), Some(&link), 5);
+        }
+        for (x, text) in [(0, "c"), (1, "d")] {
+            frame.put(x, 1, &Glyph::new(text), Style::default(), Some(&link), 5);
+        }
+        frame.put_str(2, 1, "off", Style::default(), 5);
+        frame
+    }
+
+    #[test]
+    fn linked_cells_are_written_inside_their_link_and_the_frame_ends_outside_it() {
+        let frame = linked_frame();
+        let mut out = Vec::new();
+        write_frame(&mut out, &frame, None).unwrap();
+        let x = Some("x".to_string());
+        assert_eq!(
+            links_shown(&out, 6, 2, 0),
+            vec![None, None, x.clone(), x.clone(), x.clone(), x.clone()]
+        );
+        assert_eq!(
+            links_shown(&out, 6, 2, 1),
+            vec![x.clone(), x, None, None, None, None]
+        );
+    }
+
+    #[test]
+    fn a_redraw_writes_a_link_over_the_same_text_drawn_without_it() {
+        let frame = linked_frame();
+        let mut plain = ScreenBuffer::new(6, 2, Style::default());
+        plain.put_str(0, 0, "onab日", Style::default(), 5);
+        plain.put_str(0, 1, "cdoff", Style::default(), 5);
+        let mut out = Vec::new();
+        write_frame(&mut out, &plain, None).unwrap();
+        write_frame(&mut out, &frame, Some(&plain)).unwrap();
+        // Only the cells that became a link are written, the last of them `d`: the frame still
+        // ends outside the link (`links_shown` checks).
+        let x = Some("x".to_string());
+        assert_eq!(
+            links_shown(&out, 6, 2, 0)[2..],
+            [x.clone(), x.clone(), x.clone(), x.clone()]
+        );
+        assert_eq!(links_shown(&out, 6, 2, 1)[..3], [x.clone(), x, None]);
+        // And taken away again by redrawing the plain frame.
+        write_frame(&mut out, &plain, Some(&frame)).unwrap();
+        assert!(links_shown(&out, 6, 2, 0).iter().all(Option::is_none));
     }
 }

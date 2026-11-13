@@ -192,7 +192,8 @@ boxmux contains its own terminal emulator. It handles:
   queries (DECRQM, `CSI ? n $ p`), the screen size (`CSI 18 t`, `CSI 14 t`). Requests for
   settings (DECRQSS) and termcap entries (XTGETTCAP) are answered as not available, so
   programs go on with their defaults. Replies are written back to the program.
-- **OSC**: window title (OSC 0 and 2) and clipboard writes (OSC 52), described below.
+- **OSC**: window title (OSC 0 and 2), hyperlinks (OSC 8) and clipboard writes (OSC 52),
+  described below.
 
 Not implemented: cursor shapes, double-width and double-height lines (`ESC # 3` to `6`; such
 lines are shown at normal size), left and right margins, sixel images, and combining
@@ -203,6 +204,15 @@ characters (they are dropped). Programs that rely on these may draw incorrectly.
 When the program sets a title with OSC 0 or OSC 2 (`ESC ] 2 ; title BEL`), the title becomes
 the label of its tab. A box showing a single tab displays its own `title` when it has one,
 so the program's title is visible when the box has no `title` or shows several tabs.
+
+### Hyperlinks (OSC 8)
+
+Text a program prints between `ESC ] 8 ; params ; URI ST` and `ESC ] 8 ; ; ST` is a link in
+each cell it goes in, as `ls --hyperlink`, `gcc` and `systemd` print them. BoxMux writes the
+link to your terminal around those cells, so a line the program's text wrapped onto is the
+same link, with the same id. A color reset does not end a link; erasing a cell takes its link
+away. A malformed link (a parameter that is not `key=value`, a URI with a character outside
+printable ASCII) changes nothing. See [Hyperlinks](styling/theme#hyperlinks).
 
 ### Clipboard (OSC 52)
 

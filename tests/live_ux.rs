@@ -238,8 +238,9 @@ impl LiveBoxMux {
     fn report(&mut self) -> String {
         let tail = &self.raw[self.raw.len().saturating_sub(1500)..];
         format!(
-            "screen:\n{}\nlast output ({} bytes in all): {}\nexited: {:?}\nlog:\n{}",
+            "screen:\n{}\nlinks:\n{}\nlast output ({} bytes in all): {}\nexited: {:?}\nlog:\n{}",
             self.screen.text(),
+            self.screen.link_runs(),
             self.raw.len(),
             String::from_utf8_lossy(tail).escape_debug(),
             self.child.try_wait().ok().flatten(),
@@ -599,6 +600,13 @@ fn an_invalid_configuration_is_reported_and_exits_with_failure() {
     assert!(stderr.contains("border_color"), "{}", stderr);
 }
 
+/// An OSC 8 hyperlink as a terminal holds it: its URI, and its `id` parameter when it has one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Link {
+    id: Option<String>,
+    uri: String,
+}
+
 /// Enough of a terminal to read what boxmux draws: cursor movement, erasing and UTF-8 text.
 ///
 /// It keeps text the way current terminals (WezTerm, kitty, foot) do: each cell holds one
@@ -608,11 +616,20 @@ fn an_invalid_configuration_is_reported_and_exits_with_failure() {
 /// East Asian ambiguous characters one column wide. How it draws emoji variation sequences and
 /// which characters it draws narrower than Unicode says are the terminal's own choices, as they
 /// are a real terminal's: see [`Screen::new`] and [`Screen::narrow`].
+///
+/// It keeps OSC 8 hyperlinks as a terminal does: text printed while one is open is that link in
+/// each cell it goes in, until `ESC ] 8 ; ; ST` closes it; erasing a cell takes its link away.
 struct Screen {
     width: usize,
     height: usize,
     /// Each cell's cluster; the empty string is the right half of a two-column cluster.
     cells: Vec<Vec<String>>,
+    /// The hyperlink of each cell.
+    links: Vec<Vec<Option<Link>>>,
+    /// The hyperlink text printed now goes in.
+    link: Option<Link>,
+    /// Every OSC 8 sequence boxmux wrote that is not a well-formed opening or closing one.
+    malformed_links: Vec<String>,
     x: usize,
     y: usize,
     wrap_pending: bool,
@@ -633,6 +650,9 @@ impl Screen {
             width,
             height,
             cells: vec![vec![" ".to_string(); width]; height],
+            links: vec![vec![None; width]; height],
+            link: None,
+            malformed_links: Vec::new(),
             x: 0,
             y: 0,
             wrap_pending: false,
@@ -755,6 +775,9 @@ impl Screen {
                             for row in &mut self.cells {
                                 row.fill(" ".to_string());
                             }
+                            for row in &mut self.links {
+                                row.fill(None);
+                            }
                         }
                         b'K' => {
                             let (from, to) = match params.first() {
@@ -772,15 +795,54 @@ impl Screen {
             }
             b']' => {
                 let mut j = i + 2;
-                loop {
+                let (end, next) = loop {
                     match *data.get(j)? {
-                        0x07 => return Some(j + 1),
-                        0x1b if data.get(j + 1) == Some(&b'\\') => return Some(j + 2),
+                        0x07 => break (j, j + 1),
+                        0x1b if *data.get(j + 1)? == b'\\' => break (j, j + 2),
                         _ => j += 1,
                     }
-                }
+                };
+                self.osc(&String::from_utf8_lossy(&data[i + 2..end]));
+                Some(next)
             }
             _ => Some(i + 2),
+        }
+    }
+
+    /// Handles the text of an OSC sequence, between `ESC ]` and its terminator. `8 ; params ;
+    /// URI` opens a hyperlink and `8 ; ; ` closes it, as the OSC 8 specification has them:
+    /// params are `key=value` pairs separated by `:`, and the URI is printable ASCII. Any other
+    /// OSC 8 is recorded as malformed and changes nothing.
+    fn osc(&mut self, text: &str) {
+        let Some(rest) = text.strip_prefix("8;") else {
+            return;
+        };
+        let Some((params, uri)) = rest.split_once(';') else {
+            self.malformed_links.push(text.to_string());
+            return;
+        };
+        if params.is_empty() && uri.is_empty() {
+            self.link = None;
+            return;
+        }
+        let pairs: Option<Vec<(&str, &str)>> = if params.is_empty() {
+            Some(Vec::new())
+        } else {
+            params.split(':').map(|pair| pair.split_once('=')).collect()
+        };
+        let printable = |s: &str| s.bytes().all(|b| (0x20..=0x7e).contains(&b));
+        match pairs {
+            Some(pairs) if !uri.is_empty() && printable(uri) => {
+                let id = pairs
+                    .iter()
+                    .find(|(key, _)| *key == "id")
+                    .map(|(_, value)| value.to_string());
+                self.link = Some(Link {
+                    id,
+                    uri: uri.to_string(),
+                });
+            }
+            _ => self.malformed_links.push(text.to_string()),
         }
     }
 
@@ -790,6 +852,7 @@ impl Screen {
         for x in from..to.min(self.width) {
             self.unsplit(x, self.y);
             self.cells[self.y][x] = " ".to_string();
+            self.links[self.y][x] = None;
         }
     }
 
@@ -832,11 +895,13 @@ impl Screen {
         let (x, y) = (self.x, self.y);
         self.unsplit(x, y);
         self.cells[y][x] = ch.to_string();
+        self.links[y][x] = self.link.clone();
         if width == 2 && x + 1 < self.width {
             if x + 2 < self.width && self.cells[y][x + 2].is_empty() {
                 self.cells[y][x + 2] = " ".to_string();
             }
             self.cells[y][x + 1] = String::new();
+            self.links[y][x + 1] = self.link.clone();
         }
         self.last = Some((x, y));
         self.advance(x, width);
@@ -884,6 +949,39 @@ impl Screen {
             .map(|y| self.row(y))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// The screen's text followed by its links, as [`Screen::link_runs`] lists them.
+    #[cfg(unix)]
+    fn with_links(&self) -> String {
+        format!("{}\nlinks:\n{}", self.text(), self.link_runs())
+    }
+
+    /// Each run of cells of one hyperlink, a line each: its row, its columns, its id and URI,
+    /// and the malformed OSC 8 sequences received.
+    fn link_runs(&self) -> String {
+        let mut out = Vec::new();
+        for (y, row) in self.links.iter().enumerate() {
+            let mut x = 0;
+            while x < row.len() {
+                let Some(link) = &row[x] else {
+                    x += 1;
+                    continue;
+                };
+                let end = (x..row.len())
+                    .find(|&e| row[e].as_ref() != Some(link))
+                    .unwrap_or(row.len());
+                out.push(format!(
+                    "row {} columns {}..{}: id {:?} {}",
+                    y, x, end, link.id, link.uri
+                ));
+                x = end;
+            }
+        }
+        for sequence in &self.malformed_links {
+            out.push(format!("malformed: {:?}", sequence));
+        }
+        out.join("\n")
     }
 }
 #[test]
@@ -1350,5 +1448,164 @@ app:
             drawn_narrow,
         );
         replace_widths(&fixture, &mut app, drawn_narrow);
+    }
+}
+
+/// OSC 8 hyperlinks in a box's text, a menu entry and a terminal box, read through the test
+/// terminal. Unix only, for the reason [`display_width`] gives: on Windows the test would read
+/// ConPTY's rendering rather than boxmux's.
+#[cfg(unix)]
+mod hyperlinks {
+    use super::*;
+
+    /// A box of text, a menu and a terminal box, each with a link whose text holds a wide
+    /// word (日本) and wraps onto a second line. The text's link has an id, the menu entry's has
+    /// none, and the text ends with a malformed OSC 8 (a parameter that is not `key=value`).
+    const LINKS: &str = r#"
+app:
+  layouts:
+    - id: main
+      title: Links
+      root: true
+      children:
+        - id: doc
+          title: Doc
+          position: {x1: "0", y1: "0", x2: "21", y2: "6"}
+          overflow_behavior: wrap
+          content: "see \e]8;id=manual;https://example.com/manual\e\\the 日本 manual pages\e]8;;\e\\ now\e]8;broken;https://example.com/x\e\\!"
+        - id: menu
+          title: Menu
+          position: {x1: "30", y1: "0", x2: "51", y2: "8"}
+          overflow_behavior: wrap
+          choices:
+            - id: guide
+              content: "open \e]8;;https://example.com/guide\e\\our 日本 guide pages\e]8;;\e\\"
+        - id: term
+          title: Term
+          position: {x1: "0", y1: "10", x2: "21", y2: "16"}
+          execution_mode: Pty
+          script: ['printf "go \033]8;id=term;https://example.com/term\033\\\\to 日本 terminals link text\033]8;;\033\\\\ end\n"; sleep 30']
+"#;
+
+    /// The link of each column `text` takes where it is on the screen, and of the column on
+    /// each side of it.
+    fn links_around(
+        screen: &Screen,
+        text: &str,
+    ) -> (Option<Link>, Vec<Option<Link>>, Option<Link>) {
+        let (x, y) = screen
+            .find(text)
+            .unwrap_or_else(|| panic!("{:?} is not shown\n{}", text, screen.with_links()));
+        let columns: usize = text
+            .graphemes(true)
+            .map(|cluster| screen.cluster_width(cluster))
+            .sum();
+        let at = |x: usize| screen.links[y].get(x).cloned().flatten();
+        (
+            x.checked_sub(1).and_then(at),
+            (x..x + columns).map(at).collect(),
+            at(x + columns),
+        )
+    }
+
+    /// Checks that every column of `text` is a link to `uri`, the columns beside it are not, and
+    /// returns the link.
+    fn assert_linked(screen: &Screen, text: &str, uri: &str) -> Link {
+        let (before, cells, after) = links_around(screen, text);
+        let link = cells[0]
+            .clone()
+            .unwrap_or_else(|| panic!("{:?} is not a link\n{}", text, screen.with_links()));
+        assert_eq!(link.uri, uri, "the link of {:?}", text);
+        assert!(
+            cells.iter().all(|cell| cell.as_ref() == Some(&link)),
+            "not every column of {:?} is the link: {:?}",
+            text,
+            cells
+        );
+        assert_ne!(
+            before.as_ref(),
+            Some(&link),
+            "the link starts before {:?}",
+            text
+        );
+        assert_ne!(
+            after.as_ref(),
+            Some(&link),
+            "the link goes on after {:?}",
+            text
+        );
+        link
+    }
+
+    /// Checks that no escape sequence of a link was drawn as text and every OSC 8 boxmux wrote
+    /// was well formed.
+    fn assert_no_raw_links(app: &mut LiveBoxMux) {
+        let text = app.screen.text();
+        assert!(
+            !text.contains("8;") && !text.contains("]8") && !text.contains('\\'),
+            "a link's escape sequence is drawn as text\n{}",
+            app.report()
+        );
+        assert!(
+            app.screen.malformed_links.is_empty(),
+            "boxmux wrote malformed OSC 8 sequences: {:?}",
+            app.screen.malformed_links
+        );
+    }
+
+    /// Runs boxmux on [`LINKS`] until `shown` is on the screen.
+    fn start(shown: &str) -> (Fixture, LiveBoxMux) {
+        let fixture = Fixture::new();
+        let config = fixture.write_config(LINKS);
+        let mut app = LiveBoxMux::spawn(&fixture, &config);
+        app.wait_for_text(shown);
+        // Let the last frames arrive.
+        app.pump(Duration::from_millis(300));
+        (fixture, app)
+    }
+
+    #[test]
+    fn a_link_in_a_box_s_text_reaches_the_terminal_on_each_line_it_wraps_onto() {
+        let (_fixture, mut app) = start("manual pages now!");
+        let first = assert_linked(&app.screen, "the 日本", "https://example.com/manual");
+        let second = assert_linked(&app.screen, "manual pages", "https://example.com/manual");
+        assert_eq!(first.id.as_deref(), Some("manual"), "the link keeps its id");
+        assert_eq!(first, second, "both lines are the same link");
+        assert!(links_around(&app.screen, "see ")
+            .1
+            .iter()
+            .all(Option::is_none));
+        // The malformed OSC 8 is dropped: nothing of it is drawn, and `!` is no link.
+        let (_, cells, _) = links_around(&app.screen, " now!");
+        assert!(cells.iter().all(Option::is_none), "{:?}", cells);
+        assert_no_raw_links(&mut app);
+    }
+
+    #[test]
+    fn a_link_in_a_menu_entry_reaches_the_terminal_on_each_line_it_wraps_onto() {
+        let (_fixture, mut app) = start("guide pages");
+        let first = assert_linked(&app.screen, "our 日本", "https://example.com/guide");
+        let second = assert_linked(&app.screen, "guide pages", "https://example.com/guide");
+        assert!(
+            first.id.as_deref().is_some_and(|id| !id.is_empty()),
+            "a link given no id is written with one, so its lines are one link: {:?}",
+            first
+        );
+        assert_eq!(first, second, "both lines are the same link");
+        assert_no_raw_links(&mut app);
+    }
+
+    #[test]
+    fn a_link_a_program_prints_in_a_terminal_box_reaches_the_terminal_on_each_line() {
+        let (_fixture, mut app) = start("link text end");
+        let first = assert_linked(&app.screen, "to 日本 terminals", "https://example.com/term");
+        let second = assert_linked(&app.screen, " link text", "https://example.com/term");
+        assert_eq!(first.id.as_deref(), Some("term"), "the link keeps its id");
+        assert_eq!(first, second, "both lines are the same link");
+        assert!(links_around(&app.screen, "go ")
+            .1
+            .iter()
+            .all(Option::is_none));
+        assert_no_raw_links(&mut app);
     }
 }

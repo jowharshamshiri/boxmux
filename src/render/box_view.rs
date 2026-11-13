@@ -13,7 +13,8 @@ use crate::model::choice::Choice;
 
 /// What a box's content area shows.
 pub enum Content<'a> {
-    /// Text lines that may contain SGR color sequences. Lines that fit are centered.
+    /// Text lines that may contain SGR color sequences and OSC 8 hyperlinks. Lines that fit are
+    /// centered.
     Text(&'a [String]),
     /// Generated text (charts, tables, plugin output) laid out from the top-left.
     Generated(Vec<String>),
@@ -164,8 +165,8 @@ fn truncate(chars: &[StyledGlyph], width: usize) -> Vec<StyledGlyph> {
         out.push(c.clone());
     }
     if width > 0 {
-        let style = chars.get(out.len()).map_or(chars[0].style, |c| c.style);
-        out.push(StyledGlyph::from_char('…', style));
+        // The ellipsis stands for what was cut: in its style, and part of its link.
+        out.push(chars.get(out.len()).unwrap_or(&chars[0]).replaced_by('…'));
     }
     out
 }
@@ -186,8 +187,8 @@ fn window(chars: &[StyledGlyph], skip: usize, width: usize) -> Vec<StyledGlyph> 
             break;
         }
         if column < skip || end > skip + width {
-            // Straddles an edge: show the visible half as a space.
-            out.push(StyledGlyph::from_char(' ', c.style));
+            // Straddles an edge: show the visible half as a space, still part of its link.
+            out.push(c.replaced_by(' '));
         } else {
             out.push(c.clone());
         }
@@ -499,7 +500,14 @@ impl BoxView {
                 let hovered = matches!(hover, Some(BoxHit::Choice(c)) if Some(c) == row.choice);
                 for c in &row.chars {
                     let char_style = if hovered { style.menu_hovered } else { c.style };
-                    x += buffer.put(x, row.y, &c.glyph, char_style, body.area.right());
+                    x += buffer.put(
+                        x,
+                        row.y,
+                        &c.glyph,
+                        char_style,
+                        c.link.as_ref(),
+                        body.area.right(),
+                    );
                 }
             }
         }
@@ -631,6 +639,54 @@ mod tests {
         assert_eq!(rows[0], "┌─── Box ────┐");
         assert_eq!(rows[1], "│ 0123456789 │");
         assert_eq!(rows[2], "└────────────⋱");
+    }
+
+    /// The link URI of each cell of row `y` from column `from` to `to`.
+    fn link_uris(
+        view: &BoxView,
+        size: (usize, usize),
+        y: usize,
+        from: usize,
+        to: usize,
+    ) -> Vec<Option<String>> {
+        let mut buffer = ScreenBuffer::new(size.0, size.1, Style::default());
+        view.draw(&mut buffer, None);
+        (from..=to)
+            .map(|x| {
+                let cell = buffer.get(x, y).unwrap();
+                cell.link.as_ref().map(|link| link.uri().to_string())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_link_cut_at_the_box_s_edge_keeps_its_cut_part_in_the_link() {
+        let content = lines(&["ab\x1b]8;;https://e.com\x1b\\日本xy\x1b]8;;\x1b\\cd"]);
+        let e = Some("https://e.com".to_string());
+        // Truncated: the ellipsis stands for linked text, so it is part of the link.
+        let v = view(
+            Bounds::new(0, 0, 9, 2),
+            Overflow::Truncate,
+            Content::Text(&content),
+            (0.0, 0.0),
+        );
+        assert_eq!(render(&v, 10, 3)[1], "│ ab日…  │");
+        assert_eq!(
+            link_uris(&v, (10, 3), 1, 2, 7),
+            vec![None, None, e.clone(), e.clone(), e.clone(), None]
+        );
+        // Scrolled so that 日 straddles the left edge: its visible half is a linked blank.
+        let v = view(
+            Bounds::new(0, 0, 9, 2),
+            Overflow::Scroll,
+            Content::Text(&content),
+            (75.0, 0.0),
+        );
+        assert_eq!(render(&v, 10, 3)[1], "│  本xyc │");
+        assert_eq!(
+            link_uris(&v, (10, 3), 1, 2, 7),
+            vec![e.clone(), e.clone(), e.clone(), e.clone(), e, None]
+        );
     }
 
     #[test]

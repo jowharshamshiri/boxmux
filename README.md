@@ -196,6 +196,13 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
 - **Keyboard**: Tab and Shift+Tab move the focus along `tab_order` (or `next_focus_id`), arrows
   and Page Up/Down scroll, Ctrl+C copies the focused box's visible text to the clipboard
   (through the terminal, with OSC 52).
+- **Hyperlinks**: OSC 8 links (`ESC ] 8 ; id=<id> ; <URI> ST`, the text, `ESC ] 8 ; ; ST`) in a
+  box's text or script output, in a choice's label and in what a program prints in a terminal
+  box reach your terminal as links. A link wrapped or cut across lines is the same link, with
+  the same id, on each line; a link written without an id gets one made from its URI. A
+  malformed OSC 8 is dropped, never shown as text. BoxMux takes mouse clicks for itself, so
+  open a link with the click your terminal keeps for itself while a program uses the mouse
+  (Shift-click in WezTerm and kitty).
 - **Colors**: 16 ANSI color names for borders, text, titles and menus, with separate colors for
   the focused box, the box under the pointer and failed runs. The light or dark default theme
   follows the terminal background, or is set with `--light` / `--dark`.
