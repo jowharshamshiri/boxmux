@@ -5,7 +5,7 @@
 #   run <id>             run the item's command in a terminal, for a step only the human can take
 #   show <id>            show the item's details
 #   back                 go back to the panel
-# Its output goes to the hidden `quiet` box, so failures are written to the log instead.
+# It prints nothing, so a press opens no tab over the menu; its failures are written to the log.
 set -eu
 . "$PANEL_DIR/common.sh"
 
@@ -35,12 +35,12 @@ case ${1:-} in
         options=$(item "$2" 5)
         menu=
         for option in $(printf '%s' "$options" | tr ';' '\n' | cut -d= -f1); do
-            menu=$menu$(printf '{"id":"%s","content":"%s","script":["\\"$PANEL_DIR/buttons.sh\\" press %s %s"],"redirect_output":"quiet"},' \
+            menu=$menu$(printf '{"id":"%s","content":"%s","script":["\\"$PANEL_DIR/buttons.sh\\" press %s %s"]},' \
                 "$option" "$(json "$(option_label "$2" "$option")")" "$2" "$option")
         done
         bm replace_box confirm_text "$(printf '{"id":"confirm_text","title":"Are you sure?","position":{"x1":"0%%","y1":"0","x2":"100%%","y2":"60%%"},"border_color":"bright_yellow","overflow_behavior":"wrap","content":"%s\\n\\n%s"}' \
             "$(json "$label")" "$(json "$detail")")"
-        bm replace_box confirm_menu "$(printf '{"id":"confirm_menu","title":"Choose","position":{"x1":"0%%","y1":"60%%","x2":"100%%","y2":"100%%"},"border_color":"bright_green","tab_order":1,"selected":true,"choices":[%s{"id":"cancel","content":"✖ Cancel","script":["\\"$PANEL_DIR/buttons.sh\\" back"],"redirect_output":"quiet"}]}' \
+        bm replace_box confirm_menu "$(printf '{"id":"confirm_menu","title":"Choose","position":{"x1":"0%%","y1":"60%%","x2":"100%%","y2":"100%%"},"border_color":"bright_green","tab_order":1,"selected":true,"choices":[%s{"id":"cancel","content":"✖ Cancel","script":["\\"$PANEL_DIR/buttons.sh\\" back"]}]}' \
             "$menu")"
         bm switch_active_layout confirm
         ;;

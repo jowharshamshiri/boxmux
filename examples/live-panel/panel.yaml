@@ -64,7 +64,6 @@ app:
             - id: cancel
               content: "✖ Cancel"
               script: ["\"$PANEL_DIR/buttons.sh\" back"]
-              redirect_output: quiet
 
     - id: term
       title: Terminal
@@ -78,7 +77,6 @@ app:
             - id: term_back
               content: "◀ Back to the panel"
               script: ["\"$PANEL_DIR/buttons.sh\" back"]
-              redirect_output: quiet
         - id: term_box
           title: Run
           position: {x1: "0%", y1: "3", x2: "100%", y2: "100%"}
@@ -86,12 +84,3 @@ app:
           tab_order: 1
           selected: true
           content: buttons.sh run starts the step here
-
-    # Never shown. Buttons send their own output here, so pressing one opens no tab in the
-    # menu the human is reading.
-    - id: hidden
-      title: Hidden
-      children:
-        - id: quiet
-          position: {x1: "0%", y1: "0", x2: "100%", y2: "100%"}
-          content: Output of the buttons

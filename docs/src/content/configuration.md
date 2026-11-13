@@ -258,7 +258,7 @@ A box shows one tab for each source of content it has, in this order:
 - **Choices**: the `choices` menu.
 - **Output**: the output of the box's `script`.
 
-A box with one tab shows its `title` in the top border. A box with several tabs shows them in the top border instead; click a tab to switch to it. Runs started later get their own tab, which can be closed with its `×`. These include choice runs, box key handler runs, output redirected from other boxes, and processes started through the control socket. Closing such a tab stops its process. When the tabs do not fit, `◀` and `▶` arrows scroll the tab bar.
+A box with one tab shows its `title` in the top border. A box with several tabs shows them in the top border instead; click a tab to switch to it. Runs started later get their own tab when they print something (a terminal run: when it starts), which can be closed with its `×`. These include choice runs, box key handler runs, output redirected from other boxes, and processes started through the control socket. Closing such a tab stops its process. When the tabs do not fit, `◀` and `▶` arrows scroll the tab bar.
 
 Text that fits in the box is centered horizontally and vertically. The content area keeps a one-column margin inside the border. A terminal (`execution_mode: Pty`) fills the whole inside of the border.
 
@@ -279,7 +279,12 @@ Choices make a menu inside a box.
 | `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
 | `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
 
-Up and Down move the selection (marked with `►`) and wrap around. Enter, or a click on a label, runs the selected choice. The output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box. While the script runs, the label ends with ` …`. Activating a choice that is still running shows its tab instead of starting it again.
+Up and Down move the selection (marked with `►`) and wrap around. Enter, or a click on a label, runs the selected choice. While the script runs, the label ends with ` …`. Activating a choice that is still running does not start it again.
+
+What a choice's run shows depends on its `execution_mode`:
+
+- `Immediate` and `Thread`: the output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box, when the script first prints something (an `Immediate` script prints when it ends). The tab opens beside the others and does not take the box's view: click it to see the output. A script that prints nothing opens no tab, and the box keeps showing what it showed; if it fails, a notice at the bottom of the screen says so.
+- `Pty`: the choice's terminal opens in its own tab when the choice starts and is shown at once, since it takes the keyboard. Activating the choice while its program runs shows the terminal again.
 
 ### Choice Example
 
@@ -395,7 +400,7 @@ A box script runs once when its layout is first shown. With a `refresh_interval`
 - A title the program sets becomes the tab label.
 - When the program ends with status 0, or is stopped, the border turns yellow. A failure shows the error colors.
 
-A choice can also use `execution_mode: Pty`; its terminal opens in a tab of the box or of its `redirect_output` box.
+A choice can also use `execution_mode: Pty`; its terminal opens, and is shown, in a tab of the box or of its `redirect_output` box when the choice starts.
 
 ```yaml
 choices:

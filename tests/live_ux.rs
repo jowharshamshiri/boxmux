@@ -378,11 +378,16 @@ fn clicking_beside_a_choice_label_runs_nothing() {
 }
 
 #[test]
-fn redirected_output_opens_a_tab_that_its_close_button_closes() {
+fn redirected_output_opens_a_tab_shown_when_clicked_that_its_close_button_closes() {
     let fixture = Fixture::new();
     let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.click_text("Show Output");
+    // The output's tab opens beside the box's content, which stays in view.
+    let tab = app.wait_for_text("Show Output ×");
+    assert!(app.screen.find("READY").is_some());
+    assert!(app.screen.find("REDIRECTED_PAYLOAD").is_none());
+    app.click(tab.0, tab.1);
     app.wait_for_text("REDIRECTED_PAYLOAD");
     let (x, y) = app.wait_for_text("×");
     app.click(x, y);

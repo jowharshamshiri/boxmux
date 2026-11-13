@@ -14,7 +14,7 @@ Every stream has a kind:
 |------|-------|---------|
 | Content | The box's static `content` | At load, when `content` is not empty |
 | Choices | The box's `choices` menu | At load, when `choices` is not empty |
-| Run | The output of one *origin* (see below): text lines, or a terminal screen for PTY runs | The box's own script tab at load (when the box has a `script`); every other one the first time its origin runs |
+| Run | The output of one *origin* (see below): text lines, or a terminal screen for PTY runs | The box's own script tab at load (when the box has a `script`); every other one the first time a run of its origin prints something, or, for a `Pty` run, when it starts |
 | Socket | Text sent with the `replace_box_content` control command | The first time that command targets the box |
 
 Tabs appear in this order: Content, Choices, the box's own script output, then every
@@ -33,6 +33,12 @@ A Run stream belongs to one **origin**, the thing that started the run:
 
 App- and layout-level `on_keypress` handlers have no stream: their output is not shown, and a
 failure appears as a notice at the bottom of the screen.
+
+A run that prints nothing opens no tab, and leaves the box showing what it showed. An
+`Immediate` run prints only when it ends, so its tab opens then; a `Thread` run's tab opens
+with its first line. A `Pty` run is a terminal to type into, so its tab opens when it starts.
+When a run that opened no tab fails (a non-zero exit, a signal, or a failure to run), a notice
+at the bottom of the screen names it and how it ended.
 
 Running the same origin again writes to the same tab instead of opening a new one. Runs of
 different origins never share a tab, even when they write into the same box: two boxes whose
@@ -66,11 +72,18 @@ visible, the first tab becomes visible. The next run of the same origin creates 
 
 ### Which tab is visible
 
-At start each box shows its first tab. A run started by the user (activating a choice,
-pressing a handled key, `replace_box_script`, `spawn_pty_process`, `restart_pty_process`)
-makes its tab visible and scrolls the tab bar to it. A box script started when its layout is
-shown, or by its `refresh_interval`, does not switch tabs. `replace_box_content` makes the
-socket tab visible.
+At start each box shows its first tab. What a run does to the visible tab:
+
+| Run | The visible tab |
+|-----|-----------------|
+| A choice in `Immediate` or `Thread` mode | Stays as it was: the choice's tab opens beside it when output arrives, and is shown when clicked |
+| A choice in `Pty` mode | Becomes the choice's terminal when the choice starts, and again when the choice is activated while it runs |
+| A box key handler, `replace_box_script`, `restart_pty_process` | Becomes the run's tab: at once when the tab is already open, otherwise when the tab opens with the run's first output |
+| `spawn_pty_process` | Becomes its terminal when it starts |
+| A box script started when its layout is shown, or by its `refresh_interval` | Stays as it was |
+
+A tab that becomes visible is scrolled into view in the tab bar. `replace_box_content` makes
+the socket tab visible.
 
 ### Status
 

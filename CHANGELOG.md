@@ -74,6 +74,11 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Fixed
 
+- A choice whose script prints nothing opens no tab and leaves its box as it was; a failure of
+  such a run is shown as a notice. A choice's output opens its tab when it first arrives, beside
+  the menu, without taking the box's view. A `Pty` choice still opens and shows its terminal
+  when it starts. Box key handlers and redirected box scripts likewise open their tab with their
+  first output.
 - Control commands no longer hang.
 - A box without `refresh_interval` runs its script once instead of restarting it in a loop, and a
   refresh never starts while the previous run is still going.

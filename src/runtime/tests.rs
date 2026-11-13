@@ -145,21 +145,42 @@ app:
             line 12
 "#;
 
+/// The text of the tab `stream_id` of `box_id`, once it exists.
+fn tab_content(runtime: &Runtime<MemoryDisplay>, box_id: &str, stream_id: &str) -> Vec<String> {
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id(box_id)
+        .and_then(|b| b.streams.get(stream_id))
+        .map(|s| s.content.clone())
+        .unwrap_or_default()
+}
+
 #[test]
-fn clicking_a_choice_runs_its_script_and_shows_the_output() {
+fn clicking_a_choice_runs_its_script_into_a_tab_shown_when_clicked() {
     let mut runtime = runtime(&menu(), 80, 12);
     let at = find(&runtime, "Say hello");
     click(&mut runtime, at);
-    pump_until(&mut runtime, "the choice output", |r| {
-        screen_contains(r, "hello from greet")
+    pump_until(&mut runtime, "the choice to finish", |r| {
+        let menu = r.ctx.app.get_muxbox_by_id("menu").unwrap();
+        !menu.choices_stream().unwrap().choices.as_ref().unwrap()[0].waiting
     });
+    assert_eq!(
+        tab_content(&runtime, "menu", "menu/choice:menu:greet"),
+        vec!["hello from greet".to_string()]
+    );
     let menu = runtime.ctx.app.get_muxbox_by_id("menu").unwrap();
     let choices = menu.choices_stream().unwrap().choices.as_ref().unwrap();
     assert!(choices[0].selected);
     assert!(
-        !choices[0].waiting,
-        "the spinner stops once the run finished"
+        screen_contains(&runtime, "Fail loudly"),
+        "the menu stays in view"
     );
+
+    // The output's tab, in the tab bar, shows it.
+    let at = find(&runtime, "Say hello ×");
+    click(&mut runtime, at);
+    assert!(screen_contains(&runtime, "hello from greet"));
 }
 
 #[test]
@@ -182,11 +203,234 @@ fn a_failing_choice_shows_its_error_output_in_error_colors() {
     let mut runtime = runtime(&menu(), 80, 12);
     let at = find(&runtime, "Fail loudly");
     click(&mut runtime, at);
-    pump_until(&mut runtime, "the error output", |r| {
-        screen_contains(r, "broken")
+    pump_until(&mut runtime, "the error output's tab", |r| {
+        r.ctx
+            .app
+            .get_muxbox_by_id("menu")
+            .and_then(|b| b.streams.get("menu/choice:menu:fail"))
+            .is_some_and(|s| s.status.is_error())
     });
+    let at = find(&runtime, "Fail loudly ×");
+    click(&mut runtime, at);
+    assert!(screen_contains(&runtime, "broken"));
     let menu = runtime.ctx.app.get_muxbox_by_id("menu").unwrap();
     assert!(menu.in_error_state(), "exit code 3 is shown as an error");
+}
+
+/// Prints nothing and exits with status 0.
+#[cfg(unix)]
+const SILENT: &str = "[':']";
+#[cfg(windows)]
+const SILENT: &str = "['$null = 0']";
+
+/// Prints nothing and exits with status 4.
+const SILENT_FAILURE: &str = "['exit 4']";
+
+/// Waits a second, then prints `late output`.
+#[cfg(unix)]
+const LATE: &str = "['sleep 1', 'echo late output']";
+#[cfg(windows)]
+const LATE: &str = "['Start-Sleep 1', 'echo \"late output\"']";
+
+/// A menu box whose first choice runs `script` in `mode`.
+fn quiet_menu(script: &str, mode: &str) -> String {
+    format!(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: menu
+          title: Menu
+          position: {{x1: "0", y1: "0", x2: "39", y2: "9"}}
+          tab_order: 1
+          choices:
+            - id: quiet
+              content: Write a file
+              execution_mode: {mode}
+              script: {script}
+            - id: other
+              content: Something else
+"#
+    )
+}
+
+/// The menu box's tabs and visible tab, with the screen as drawn.
+fn menu_view(runtime: &Runtime<MemoryDisplay>) -> (Vec<String>, Option<String>, Vec<String>) {
+    let menu = runtime.ctx.app.get_muxbox_by_id("menu").unwrap();
+    (
+        menu.get_tab_stream_ids(),
+        menu.get_selected_stream().map(|s| s.id.clone()),
+        runtime.display.rows(),
+    )
+}
+
+fn choice_waiting(runtime: &Runtime<MemoryDisplay>) -> bool {
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("menu")
+        .and_then(|b| b.choices_stream())
+        .and_then(|s| s.choices.as_ref())
+        .is_some_and(|choices| choices[0].waiting)
+}
+
+#[test]
+fn a_choice_that_prints_nothing_opens_no_tab_and_leaves_the_view_as_it_was() {
+    for mode in ["Immediate", "Thread"] {
+        let mut runtime = runtime(&quiet_menu(SILENT, mode), 80, 12);
+        let before = menu_view(&runtime);
+        let at = find(&runtime, "Write a file");
+        click(&mut runtime, at);
+        assert!(choice_waiting(&runtime), "{mode}: the choice started");
+        pump_until(&mut runtime, "the silent run to finish", |r| {
+            !choice_waiting(r) && r.executor.runs().next().is_none()
+        });
+        assert_eq!(
+            menu_view(&runtime),
+            before,
+            "{mode}: the box keeps its tabs, its visible tab and its screen"
+        );
+        assert!(
+            runtime.notice.is_none(),
+            "{mode}: a clean exit says nothing"
+        );
+    }
+}
+
+#[test]
+fn a_choice_that_fails_silently_says_so_in_a_notice_and_opens_no_tab() {
+    let mut runtime = runtime(&quiet_menu(SILENT_FAILURE, "Immediate"), 80, 12);
+    let before = menu_view(&runtime);
+    let at = find(&runtime, "Write a file");
+    click(&mut runtime, at);
+    pump_until(&mut runtime, "the failure notice", |r| {
+        r.notice.as_ref().is_some_and(|n| n.is_error)
+    });
+    let notice = runtime.notice.as_ref().unwrap().text.clone();
+    assert!(
+        notice.contains("quiet") && notice.contains('4'),
+        "the notice names the choice and its exit code: {notice}"
+    );
+    let (tabs, visible, _) = menu_view(&runtime);
+    assert_eq!((tabs, visible), (before.0, before.1));
+}
+
+#[test]
+fn a_choice_that_prints_late_opens_its_tab_then_without_taking_focus() {
+    for mode in ["Immediate", "Thread"] {
+        let mut runtime = runtime(&quiet_menu(LATE, mode), 80, 12);
+        let before = menu_view(&runtime);
+        let at = find(&runtime, "Write a file");
+        click(&mut runtime, at);
+        // While the script waits it has printed nothing, and no tab is open.
+        let quiet_until = Instant::now() + Duration::from_millis(300);
+        pump_until(&mut runtime, "a moment of the run", |_| {
+            Instant::now() >= quiet_until
+        });
+        assert!(choice_waiting(&runtime), "{mode}: still running");
+        let (tabs, visible, _) = menu_view(&runtime);
+        assert_eq!(
+            (tabs, visible),
+            (before.0.clone(), before.1.clone()),
+            "{mode}: no tab before output"
+        );
+        assert!(
+            screen_contains(&runtime, "Write a file …"),
+            "{mode}: the menu stays in view, marking the running choice"
+        );
+
+        pump_until(&mut runtime, "the late output's tab", |r| {
+            menu_view(r).0.len() > before.0.len()
+        });
+        let (tabs, visible, _) = menu_view(&runtime);
+        let output_tab = tabs.last().unwrap().clone();
+        assert_eq!(output_tab, "menu/choice:menu:quiet");
+        assert_eq!(visible, before.1, "{mode}: the new tab does not take focus");
+        assert!(
+            screen_contains(&runtime, "Something else"),
+            "{mode}: the menu stays in view"
+        );
+        pump_until(&mut runtime, "the run to finish", |r| !choice_waiting(r));
+        let menu = runtime.ctx.app.get_muxbox_by_id("menu").unwrap();
+        assert_eq!(
+            menu.streams[&output_tab].content,
+            vec!["late output".to_string()],
+            "{mode}: the tab holds the output"
+        );
+        assert_eq!(menu.get_selected_stream().map(|s| s.id.clone()), before.1);
+    }
+}
+
+/// Prints `term up`, then waits.
+#[cfg(unix)]
+const TERMINAL_UP: &str = "['echo term up', 'sleep 5']";
+#[cfg(windows)]
+const TERMINAL_UP: &str = "['echo \"term up\"', 'Start-Sleep 5']";
+
+#[test]
+fn a_terminal_choice_opens_and_shows_its_terminal_when_started() {
+    let mut runtime = runtime(&quiet_menu(TERMINAL_UP, "Pty"), 80, 12);
+    let at = find(&runtime, "Write a file");
+    click(&mut runtime, at);
+    // A terminal is a session to type into: its tab is open and shown before it draws.
+    let (tabs, visible, _) = menu_view(&runtime);
+    assert_eq!(tabs, vec!["menu/choices", "menu/choice:menu:quiet"]);
+    assert_eq!(visible.as_deref(), Some("menu/choice:menu:quiet"));
+    pump_until(&mut runtime, "the terminal's output", |r| {
+        screen_contains(r, "term up")
+    });
+}
+
+/// Prints `pressed` when it gets the `p` key and nothing for `s`.
+#[cfg(unix)]
+const KEY_HANDLERS: &str = "{p: ['echo pressed'], s: [':']}";
+#[cfg(windows)]
+const KEY_HANDLERS: &str = "{p: ['echo pressed'], s: ['$null = 0']}";
+
+#[test]
+fn a_key_handler_opens_its_tab_only_when_it_prints_and_shows_it_then() {
+    let yaml = format!(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: notes
+          title: Notes
+          position: {{x1: "0", y1: "0", x2: "39", y2: "9"}}
+          tab_order: 1
+          content: some notes
+          on_keypress: {KEY_HANDLERS}
+"#
+    );
+    let mut runtime = runtime(&yaml, 80, 12);
+    runtime.handle(key(KeyCode::Tab, KeyModifiers::NONE));
+    let tabs = |r: &Runtime<MemoryDisplay>| {
+        r.ctx
+            .app
+            .get_muxbox_by_id("notes")
+            .unwrap()
+            .get_tab_stream_ids()
+    };
+    runtime.handle(key(KeyCode::Char('s'), KeyModifiers::NONE));
+    pump_until(&mut runtime, "the silent handler to finish", |r| {
+        r.executor.runs().next().is_none()
+    });
+    assert_eq!(
+        tabs(&runtime),
+        vec!["notes/content"],
+        "nothing printed, no tab"
+    );
+    assert!(screen_contains(&runtime, "some notes"));
+
+    runtime.handle(key(KeyCode::Char('p'), KeyModifiers::NONE));
+    pump_until(&mut runtime, "the handler's output", |r| {
+        screen_contains(r, "pressed")
+    });
+    assert_eq!(tabs(&runtime), vec!["notes/content", "notes/key:notes:p"]);
 }
 
 #[test]
@@ -195,7 +439,7 @@ fn enter_runs_the_choice_selected_with_the_arrow_keys() {
     runtime.handle(key(KeyCode::Down, KeyModifiers::NONE));
     runtime.handle(key(KeyCode::Enter, KeyModifiers::NONE));
     pump_until(&mut runtime, "the second choice's output", |r| {
-        screen_contains(r, "broken")
+        tab_content(r, "menu", "menu/choice:menu:fail") == vec!["broken".to_string()]
     });
 }
 

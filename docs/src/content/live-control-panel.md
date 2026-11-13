@@ -15,7 +15,7 @@ The repository's `examples/live-panel/` holds a panel built this way:
 
 | File | What it is |
 |------|------------|
-| `panel.yaml` | The layouts: the panel, a confirmation, a terminal, and a hidden box |
+| `panel.yaml` | The layouts: the panel, a confirmation and a terminal |
 | `driver.sh` | The driver: writes the text files, builds the menu, acts on presses |
 | `buttons.sh` | What the menu entries run: confirm, report a press, start a terminal step |
 | `common.sh` | Shell functions both scripts use |
@@ -100,9 +100,9 @@ boxmux replace_box needs '{"id":"needs","title":"Needs you: 2",
   "tab_order":1,"selected":true,
   "choices":[
     {"id":"restart-web","content":"✔ Restart the web service",
-     "script":["\"$PANEL_DIR/buttons.sh\" ask restart-web"],"redirect_output":"quiet"},
+     "script":["\"$PANEL_DIR/buttons.sh\" ask restart-web"]},
     {"id":"about","content":"ℹ About this panel",
-     "script":["\"$PANEL_DIR/buttons.sh\" show about"],"redirect_output":"quiet"}]}'
+     "script":["\"$PANEL_DIR/buttons.sh\" show about"]}]}'
 ```
 
 The new box takes the old one's place and focus. It replaces everything: repeat the
@@ -163,26 +163,15 @@ not running; opened for reading and writing, its line is simply dropped then.
 The log is what the driver trusts; the pipe only wakes it. A driver that restarts reads the
 presses it missed from the log, starting from the count it kept.
 
-## Keep a button's output out of the menu
+## Keep a button silent
 
-Every run of a choice's script opens a tab, labelled with the choice, in the box the choice
-belongs to, and shows it, even when the script prints nothing. In a menu, the person then
-sees an empty tab where the menu was, and may think something happened that did not.
+A choice's run opens a tab only when its script prints something, and that tab does not take
+the box's view: the menu stays in front of the person. A button that prints nothing opens no
+tab at all; if it exits with a failure, a notice at the bottom of the screen says so.
 
-Send buttons' output to a box nobody sees: a box in a layout that is never shown.
-
-```yaml
-- id: hidden
-  title: Hidden
-  children:
-    - id: quiet
-      position: {x1: "0%", y1: "0", x2: "100%", y2: "100%"}
-      content: Output of the buttons
-```
-
-and give each choice `redirect_output: quiet`. The tabs then open in `quiet`, out of sight.
-Errors go there too, so a button must write its own failures where the person sees them; the
-example's `bm` function writes a refused control command to the log box:
+So a button writes what it has to say where the person reads it, and prints nothing. The
+example's buttons write to the log box, and its `bm` function writes a refused control command
+there too:
 
 ```sh
 bm() {
@@ -217,7 +206,6 @@ layout is shown.
         - id: cancel
           content: "✖ Cancel"
           script: ["\"$PANEL_DIR/buttons.sh\" back"]
-          redirect_output: quiet
 ```
 
 The menu entry for an item runs `buttons.sh ask <id>`, which:
@@ -249,7 +237,6 @@ layout with a terminal box and a way back:
         - id: term_back
           content: "◀ Back to the panel"
           script: ["\"$PANEL_DIR/buttons.sh\" back"]
-          redirect_output: quiet
     - id: term_box
       title: Run
       position: {x1: "0%", y1: "3", x2: "100%", y2: "100%"}
@@ -306,7 +293,7 @@ bottom border, which the box below draws its own top border over. The header abo
 | What happens | What to do |
 |--------------|------------|
 | The socket sends no events: a press reaches the driver only if the button's script reports it | Report through a log and a pipe, as above |
-| Every run of a choice opens a tab in its box and shows it | `redirect_output` to a box in a layout that is never shown, and write errors to the log |
+| A choice whose script prints opens a tab in its box for that output | Print nothing from a button; write what it has to say to the log |
 | Replacing a menu with `replace_box` moves the selection back to the first entry | Replace the menu only when its entries change |
 | `replace_box_content` adds a `Socket` tab instead of replacing the box's text | Show files with a refreshing script, or replace the box with new `content` |
 | A box showing a file rereads it every `refresh_interval`, and lags behind changes by up to one interval | Keep the interval short (500 to 2000 ms) |

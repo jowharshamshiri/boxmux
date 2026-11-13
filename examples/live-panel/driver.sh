@@ -33,7 +33,7 @@ render() {
             info) mark='ℹ' action=show ;;
             *) say "Item '$id' has the unknown kind '$kind'"; return 1 ;;
         esac
-        choice=$(printf '{"id":"%s","content":"%s %s","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"],"redirect_output":"quiet"}' \
+        choice=$(printf '{"id":"%s","content":"%s %s","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"]}' \
             "$id" "$mark" "$(json "$label")" "$action" "$id")
         choices=$choices${choices:+,}$choice
     done < "$ITEMS"

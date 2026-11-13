@@ -179,7 +179,7 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
   (`redirect_output`), be appended (`append_output`), follow the newest line
   (`auto_scroll_bottom`) and be saved to a file (`save_in_file`). Shared shell functions can be
   sourced from `libs`.
-- **Menus**: `choices` run their scripts with Enter or a click; each run opens its own tab.
+- **Menus**: `choices` run their scripts with Enter or a click; a choice's output opens in a tab of its own, beside the menu.
   `hot_keys` bind keys to choices, and `on_keypress` binds keys to scripts at app, layout or
   box level.
 - **Tabs**: a box with several outputs (its content, its script output, menu runs, socket

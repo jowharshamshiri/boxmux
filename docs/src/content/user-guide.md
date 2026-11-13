@@ -227,8 +227,9 @@ When a run fails (non-zero exit status), the box shows it with its error colors:
 ```
 
 - Enter runs the selected entry; clicking an entry's label runs it.
-- While a choice runs, its entry shows ` …`. Selecting it again while it runs does not start a second copy; it shows the running tab.
-- The output opens in a tab named after the choice: in the box named by `redirect_output`, or in the menu's own box. In the menu's own box the output tab replaces the menu on screen; click the menu's tab to return to it. Redirecting to a separate output box avoids that.
+- While a choice runs, its entry shows ` …`. Selecting it again while it runs does not start a second copy.
+- When the script prints something, the output opens in a tab named after the choice: in the box named by `redirect_output`, or in the menu's own box. The tab does not take the box's view, so the menu stays on screen; click the tab to see the output. A script that prints nothing opens no tab; if it fails, a notice says so at the bottom of the screen.
+- A choice with `execution_mode: Pty` is a terminal: its tab opens and is shown as soon as it starts, and selecting it again while it runs shows it.
 - `append_output: true` on a choice appends each run to its tab.
 
 ### 6. Variables
@@ -293,8 +294,8 @@ Everything a box can show is a **stream**, and a box with more than one stream s
 | Content | The box's `content` | No |
 | Choices | The box's `choices` | No |
 | Output | The box's own `script` | No |
-| One per choice | A choice whose output goes to this box | Yes |
-| One per key | A box `on_keypress` handler | Yes |
+| One per choice | A choice whose output goes to this box, once it prints something (a terminal choice: once it starts) | Yes |
+| One per key | A box `on_keypress` handler, once it prints something | Yes |
 | Source box title | Another box's script redirected here with `redirect_output` | Yes |
 | Socket | Text sent with `replace_box_content` | Yes |
 | Terminal | A process started with `spawn_pty_process` | Yes |
@@ -337,7 +338,7 @@ app:
           content: 'Results appear here'
 ```
 
-The `results` box starts with its content. Running Build adds a "Build" tab, running Test adds a "Test" tab next to it, and so on. Each tab is reused when its choice runs again.
+The `results` box starts with its content. Running Build adds a "Build" tab once the build prints something, running Test adds a "Test" tab next to it, and so on; the box keeps showing what it showed until you click a tab. Each tab is reused when its choice runs again.
 
 **Learn more**: [Stream Architecture](/docs/stream-architecture).
 

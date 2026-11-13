@@ -1,16 +1,20 @@
 //! Starting runs for boxes, choices and key handlers, and applying their output to streams.
 
 use super::event::{RunEvent, RunOutcome};
-use super::executor::RunSpec;
+use super::executor::{ActiveRun, RunSpec};
 use super::{terminal_size, Runtime};
 use crate::model::common::ExecutionMode;
-use crate::model::stream::{RunId, RunOrigin, StreamStatus};
+use crate::model::stream::{RunId, RunOrigin, Stream, StreamStatus};
 use crate::runtime::display::Display;
 
 impl<D: Display> Runtime<D> {
     /// Starts a run whose output goes to the stream for `spec.origin` in `spec.target_box`.
-    /// `reveal` makes that stream the visible tab (for runs the user started). Fails when the
-    /// target box does not exist or a run for the same origin is still active.
+    ///
+    /// A terminal (`Pty`) run, or a run whose tab is already open, writes to its tab from the
+    /// start. Any other run opens its tab only when its first output arrives, so a run that
+    /// prints nothing leaves the box as it was. `reveal` makes the tab the visible one: at once
+    /// when it is open from the start, otherwise when it opens. Fails when the target box does
+    /// not exist or a run for the same origin is still active.
     pub(super) fn start_run(
         &mut self,
         mut spec: RunSpec,
@@ -37,34 +41,25 @@ impl<D: Display> Runtime<D> {
         let target = self
             .ctx
             .app
-            .get_muxbox_by_id_mut(&spec.target_box)
+            .get_muxbox_by_id(&spec.target_box)
             .ok_or_else(|| format!("there is no box '{}'", spec.target_box))?;
-        let stream_id = target
-            .stream_for_origin(&spec.origin, label, terminal)
-            .id
-            .clone();
+        let stream_id = spec.origin.stream_id(&spec.target_box);
+        let tab_open = terminal || target.streams.contains_key(&stream_id);
         let run = self.executor.start(spec.clone(), stream_id.clone())?;
 
-        let target = self
-            .ctx
-            .app
-            .get_muxbox_by_id_mut(&spec.target_box)
-            .expect("the target box was found above");
-        let stream = target
-            .streams
-            .get_mut(&stream_id)
-            .expect("the stream was created above");
-        stream.run = Some(run);
-        stream.status = StreamStatus::Running;
-        stream.terminal = terminal;
-        if spec.mode == ExecutionMode::Thread && !append || terminal {
-            stream.content.clear();
-        }
-        if reveal {
-            target.selected_stream_id = Some(stream_id.clone());
-            // Scroll the tab bar so the revealed tab is the first one shown; the renderer keeps
-            // the offset within the bar's range.
-            target.tab_scroll_offset = target.get_active_tab_index();
+        let pending = PendingTab {
+            label: label.to_string(),
+            reveal,
+        };
+        if tab_open {
+            let active = self.executor.get(run).expect("the run was just started");
+            let stream = open_run_tab(&mut self.ctx.app, run, active, &pending)
+                .expect("the target box was found above");
+            if spec.mode == ExecutionMode::Thread && !append || terminal {
+                stream.content.clear();
+            }
+        } else {
+            self.untabbed.insert(run, pending);
         }
         if let RunOrigin::Choice { box_id, choice_id } = &spec.origin {
             if let Some(choice) = self
@@ -130,7 +125,8 @@ impl<D: Display> Runtime<D> {
 
     /// Activates a choice of `box_id`: selects it and runs its script, if it has one. A choice
     /// whose previous run is still active is not started again; a PTY choice brings its session
-    /// into view instead.
+    /// into view instead. The tab of a text run opens when output arrives and is not shown; a
+    /// PTY choice's terminal opens and is shown at once.
     pub(super) fn activate_choice(&mut self, box_id: &str, choice_id: &str) {
         let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(box_id) else {
             return;
@@ -158,11 +154,15 @@ impl<D: Display> Runtime<D> {
             .redirect_output
             .clone()
             .unwrap_or_else(|| box_id.to_string());
+        let terminal = choice.execution_mode.is_pty();
         if let Some(run) = self.executor.run_for_origin(&origin) {
-            // Already running: show it rather than starting a second copy.
-            let stream_id = origin.stream_id(&target_box);
-            if let Some(target) = self.ctx.app.get_muxbox_by_id_mut(&target_box) {
-                target.switch_to_stream(&stream_id);
+            // Already running: not started a second time. A terminal is a session to type
+            // into, so it is brought into view.
+            if terminal {
+                let stream_id = origin.stream_id(&target_box);
+                if let Some(target) = self.ctx.app.get_muxbox_by_id_mut(&target_box) {
+                    target.switch_to_stream(&stream_id);
+                }
             }
             log::debug!("choice '{}' is still running as {}", choice_id, run);
             return;
@@ -177,7 +177,8 @@ impl<D: Display> Runtime<D> {
                 terminal_size: None,
             },
             &label,
-            true,
+            // A choice's output never takes the box's view; its terminal does.
+            terminal,
             choice.append_output.unwrap_or(false),
         );
         if let Err(e) = result {
@@ -243,6 +244,11 @@ impl<D: Display> Runtime<D> {
                 let Some((box_id, stream_id)) = self.run_target(run) else {
                     return;
                 };
+                if let Some(tab) = self.untabbed.remove(&run) {
+                    if let Some(active) = self.executor.get(run) {
+                        open_run_tab(&mut self.ctx.app, run, active, &tab);
+                    }
+                }
                 let lines = crate::text::sanitize_output(&text);
                 if let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(&box_id) {
                     if let Some(stream) = muxbox.streams.get_mut(&stream_id) {
@@ -339,8 +345,37 @@ impl<D: Display> Runtime<D> {
         }
 
         let append = self.append_mode(&active.origin);
+        // A run that has printed nothing has no tab: output at its end opens one, and a
+        // failure with nothing printed is told in a notice instead.
+        let mut has_tab = true;
         let mut saved_content = None;
-        if let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(&active.target_box) {
+        if let Some(tab) = self.untabbed.remove(&run) {
+            if output.as_ref().is_some_and(|output| !output.is_empty()) {
+                open_run_tab(&mut self.ctx.app, run, &active, &tab);
+            } else {
+                has_tab = false;
+                if matches!(active.origin, RunOrigin::BoxScript { .. }) {
+                    // `save_in_file` holds what the run printed: nothing.
+                    saved_content = Some(String::new());
+                }
+                if status.is_error() {
+                    self.notify(
+                        format!(
+                            "{} printed nothing and {}",
+                            describe_origin(&active.origin),
+                            describe_failure(&status)
+                        ),
+                        true,
+                    );
+                }
+            }
+        }
+        if let Some(muxbox) = self
+            .ctx
+            .app
+            .get_muxbox_by_id_mut(&active.target_box)
+            .filter(|_| has_tab)
+        {
             if let Some(stream) = muxbox.streams.get_mut(&active.stream_id) {
                 if let Some(output) = output {
                     let lines = crate::text::sanitize_output(&output);
@@ -443,6 +478,66 @@ impl<D: Display> Runtime<D> {
             .collect();
         for run in runs {
             self.executor.stop(run);
+        }
+    }
+}
+
+/// The tab a text run opens when its first output arrives.
+pub(super) struct PendingTab {
+    pub label: String,
+    /// Whether the tab becomes the box's visible tab when it opens.
+    pub reveal: bool,
+}
+
+/// Opens the tab of run `run`, or takes over the one its origin already has, and marks it
+/// running; with `tab.reveal` it becomes the visible tab. `None` when the run's box is gone.
+fn open_run_tab<'a>(
+    app: &'a mut crate::model::app::App,
+    run: RunId,
+    active: &ActiveRun,
+    tab: &PendingTab,
+) -> Option<&'a mut Stream> {
+    let terminal = active.mode == ExecutionMode::Pty;
+    let target = app.get_muxbox_by_id_mut(&active.target_box)?;
+    target.stream_for_origin(&active.origin, &tab.label, terminal);
+    if tab.reveal {
+        target.selected_stream_id = Some(active.stream_id.clone());
+        // Scroll the tab bar so the revealed tab is the first one shown; the renderer keeps
+        // the offset within the bar's range.
+        target.tab_scroll_offset = target.get_active_tab_index();
+    }
+    let stream = target
+        .streams
+        .get_mut(&active.stream_id)
+        .expect("the stream was created above");
+    stream.run = Some(run);
+    stream.status = StreamStatus::Running;
+    stream.terminal = terminal;
+    Some(stream)
+}
+
+/// What started a run, as a notice names it.
+fn describe_origin(origin: &RunOrigin) -> String {
+    match origin {
+        RunOrigin::BoxScript { box_id } => format!("the script of box '{}'", box_id),
+        RunOrigin::Choice { box_id, choice_id } => {
+            format!("choice '{}' of box '{}'", choice_id, box_id)
+        }
+        RunOrigin::Keypress { box_id, key } => {
+            format!("the {} handler of box '{}'", key, box_id)
+        }
+        RunOrigin::SocketSpawn { box_id } => format!("the process spawned in box '{}'", box_id),
+        RunOrigin::GlobalKeypress { key, .. } => format!("the {} handler", key),
+    }
+}
+
+/// How a failed run ended, as a notice says it.
+fn describe_failure(status: &StreamStatus) -> String {
+    match status {
+        StreamStatus::Exited(code) => format!("exited with code {}", code),
+        StreamStatus::Failed(reason) => format!("failed: {}", reason),
+        StreamStatus::Idle | StreamStatus::Running | StreamStatus::Killed => {
+            unreachable!("only a failed status is described, not {:?}", status)
         }
     }
 }

@@ -103,7 +103,7 @@ A box that has more than one stream (its content, its menu, its script output, o
 - Click a tab to show it. Hidden tabs keep receiving output.
 - Tabs with a `×` can be closed: output of choices, key handlers, redirected scripts, socket content and spawned terminals. Closing a tab stops the process that feeds it. The box's own content, menu and script output cannot be closed.
 - When the tabs do not fit, `◀` and `▶` appear at the ends of the bar; click them to scroll the bar. The last tab can always be scrolled into view.
-- When a choice or key handler starts, its tab becomes the shown tab.
+- A choice or key handler that prints nothing opens no tab. A choice's output tab opens beside the others without being shown; a key handler's tab is shown, once it is open. A terminal (`Pty`) choice's tab opens and is shown when it starts.
 
 See [Stream Architecture](/docs/stream-architecture) for how tabs are created and labelled.
 
@@ -227,7 +227,7 @@ Programs running in terminal boxes can copy text the same way; BoxMux passes the
 
 ## Notices
 
-Short messages appear on the bottom row of the screen for 5 seconds: confirmations such as "copied 12 lines" and errors (in red) such as a failed save, a handler that failed, or a hot key whose choice is not in the shown layout.
+Short messages appear on the bottom row of the screen for 5 seconds: confirmations such as "copied 12 lines" and errors (in red) such as a failed save, a handler that failed, a choice that failed without printing anything, or a hot key whose choice is not in the shown layout.
 
 ## Practical Example
 

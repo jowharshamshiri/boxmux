@@ -16,12 +16,13 @@ mod tests;
 
 use crate::model::bounds::{Bounds, InputBounds};
 use crate::model::common::ExecutionMode;
-use crate::model::stream::RunOrigin;
+use crate::model::stream::{RunId, RunOrigin};
 use crate::platform::ProcessSignal;
 use crate::render::screen::ScreenBuffer;
 use crate::runtime::display::Display;
 use crate::runtime::event::Event;
 use crate::runtime::executor::{Executor, RunSpec};
+use crate::runtime::runs::PendingTab;
 use crate::AppContext;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
@@ -97,6 +98,9 @@ pub struct Runtime<D: Display> {
     restart_after_stop: HashMap<String, RunSpec>,
     /// The last spec started for each stream, so `restart_pty_process` can run it again.
     last_spec: HashMap<String, RunSpec>,
+    /// Text runs that have printed nothing yet and so have no tab: the tab each opens when its
+    /// first output arrives.
+    untabbed: HashMap<RunId, PendingTab>,
     pointer: Option<(u16, u16)>,
     button_down: bool,
     drag: Option<Drag>,
@@ -151,6 +155,7 @@ impl<D: Display> Runtime<D> {
             refresh: HashMap::new(),
             restart_after_stop: HashMap::new(),
             last_spec: HashMap::new(),
+            untabbed: HashMap::new(),
             pointer: None,
             button_down: false,
             drag: None,
