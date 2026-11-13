@@ -191,6 +191,18 @@
         "script": {
           "$ref": "#/definitions/script"
         },
+        "copy": {
+          "oneOf": [
+            {
+              "const": true
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "description": "Activating the choice copies text to the clipboard (OSC 52) instead of running a script: true copies the label as shown, a string copies that string exactly"
+        },
         "execution_mode": {
           "$ref": "#/definitions/execution_mode",
           "description": "Execution mode for choice script"

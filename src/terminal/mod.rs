@@ -67,8 +67,9 @@ impl Emulator {
         self.process_bytes(text.as_bytes());
     }
 
-    /// Takes the text the program put on the clipboard since the last call.
-    pub fn take_clipboard_writes(&mut self) -> Vec<String> {
+    /// Takes the program's clipboard writes since the last call: the text it put on the
+    /// clipboard, or why a write cannot be copied.
+    pub fn take_clipboard_writes(&mut self) -> Vec<Result<String, String>> {
         std::mem::take(&mut self.terminal_state.clipboard_writes)
     }
 

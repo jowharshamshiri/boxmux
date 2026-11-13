@@ -511,6 +511,7 @@ mod tests {
             id: "deploy".into(),
             content: Some("Deploy".into()),
             script: None,
+            copy: None,
             redirect_output: None,
             append_output: None,
             execution_mode: Default::default(),

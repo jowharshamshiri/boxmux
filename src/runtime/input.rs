@@ -351,7 +351,10 @@ impl<D: Display> Runtime<D> {
             return;
         };
         match self.display.copy_to_clipboard(&text) {
-            Ok(()) => self.notify(format!("copied {} lines", text.lines().count()), false),
+            Ok(()) => self.notify(
+                format!("copied {}", super::runs::what_was_copied(&text)),
+                false,
+            ),
             Err(e) => self.notify(format!("cannot copy to the clipboard: {}", e), true),
         }
     }

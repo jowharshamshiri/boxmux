@@ -266,7 +266,7 @@ BoxMux gives every character the columns described in [Text Width](configuration
 
 ### Copy to Clipboard Does Nothing
 
-Ctrl+C sends the text to the terminal with the OSC 52 escape sequence and shows "copied N lines"; the terminal puts it on the system clipboard. BoxMux cannot tell whether the terminal did.
+Ctrl+C and copy choices send the text to the terminal with the OSC 52 escape sequence and show a "copied" notice; the terminal puts it on the system clipboard. BoxMux cannot tell whether the terminal did.
 
 - Some terminals support OSC 52 only after it is enabled in their settings, and some do not support it at all. Check your terminal's documentation for "OSC 52" or "clipboard access".
 - Inside `tmux`, enable `set -g set-clipboard on`. Inside GNU `screen`, OSC 52 is usually not passed through.

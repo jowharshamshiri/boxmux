@@ -123,10 +123,11 @@ impl<D: Display> Runtime<D> {
         )
     }
 
-    /// Activates a choice of `box_id`: selects it and runs its script, if it has one. A choice
-    /// whose previous run is still active is not started again; a PTY choice brings its session
-    /// into view instead. The tab of a text run opens when output arrives and is not shown; a
-    /// PTY choice's terminal opens and is shown at once.
+    /// Activates a choice of `box_id`: selects it and copies its text, if it is a copy choice,
+    /// or runs its script, if it has one. A choice whose previous run is still active is not
+    /// started again; a PTY choice brings its session into view instead. The tab of a text run
+    /// opens when output arrives and is not shown; a PTY choice's terminal opens and is shown at
+    /// once.
     pub(super) fn activate_choice(&mut self, box_id: &str, choice_id: &str) {
         let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(box_id) else {
             return;
@@ -143,6 +144,10 @@ impl<D: Display> Runtime<D> {
         let Some(choice) = muxbox.choice_mut(choice_id).map(|c| c.clone()) else {
             return;
         };
+        if let Some(text) = choice.copied_text() {
+            self.copy_choice_text(&text);
+            return;
+        }
         let Some(script) = choice.script.clone() else {
             return;
         };
@@ -167,7 +172,7 @@ impl<D: Display> Runtime<D> {
             log::debug!("choice '{}' is still running as {}", choice_id, run);
             return;
         }
-        let label = choice.content.clone().unwrap_or_else(|| choice.id.clone());
+        let label = choice.label().to_string();
         let result = self.start_run(
             RunSpec {
                 origin,
@@ -183,6 +188,14 @@ impl<D: Display> Runtime<D> {
         );
         if let Err(e) = result {
             self.notify(format!("choice '{}': {}", choice_id, e), true);
+        }
+    }
+
+    /// Puts a copy choice's text on the clipboard and says what was copied, or why it was not.
+    fn copy_choice_text(&mut self, text: &str) {
+        match self.display.copy_to_clipboard(text) {
+            Ok(()) => self.notify(format!("copied {}", what_was_copied(text)), false),
+            Err(e) => self.notify(format!("cannot copy to the clipboard: {}", e), true),
         }
     }
 
@@ -295,13 +308,22 @@ impl<D: Display> Runtime<D> {
             }
             follow_output(muxbox, &stream_id);
         }
-        for text in snapshot.clipboard {
-            match self.display.copy_to_clipboard(&text) {
-                Ok(()) => self.notify(
-                    format!("{} copied {} lines", box_id, text.lines().count()),
+        for write in snapshot.clipboard {
+            let copied = write.and_then(|text| {
+                self.display
+                    .copy_to_clipboard(&text)
+                    .map(|()| text)
+                    .map_err(|e| e.to_string())
+            });
+            match copied {
+                Ok(text) => self.notify(
+                    format!("{} copied {}", box_id, what_was_copied(&text)),
                     false,
                 ),
-                Err(e) => self.notify(format!("cannot copy to the clipboard: {}", e), true),
+                Err(why) => self.notify(
+                    format!("{} cannot copy to the clipboard: {}", box_id, why),
+                    true,
+                ),
             }
         }
         self.dirty = true;
@@ -551,5 +573,14 @@ fn follow_output(muxbox: &mut crate::MuxBox, stream_id: &str) {
     let terminal = muxbox.streams.get(stream_id).is_some_and(|s| s.terminal);
     if visible && (muxbox.auto_scroll_bottom == Some(true) || terminal) {
         muxbox.vertical_scroll = Some(100.0);
+    }
+}
+
+/// What a notice says was copied: the text itself, quoted, when it is one line; how many lines
+/// otherwise.
+pub(super) fn what_was_copied(text: &str) -> String {
+    match text.lines().count() {
+        0 | 1 => format!("\"{}\"", text),
+        lines => format!("{} lines", lines),
     }
 }

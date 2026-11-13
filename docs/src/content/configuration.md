@@ -276,6 +276,7 @@ Choices make a menu inside a box.
 | `id` | `string` | Yes | - | Choice id, unique across the whole file. |
 | `content` | `string` | No | the id | The label shown in the menu. |
 | `script` | `string` or `array[string]` | No | - | Script run when the choice is activated. |
+| `copy` | `true` or `string` | No | - | Activating the choice copies text to the clipboard instead of running a script: `true` copies the label as the menu shows it, without its colors or links; a string copies that string. See [Copy Choices](#copy-choices). |
 | `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
 | `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
 | `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
@@ -286,6 +287,24 @@ What a choice's run shows depends on its `execution_mode`:
 
 - `Immediate` and `Thread`: the output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box, when the script first prints something (an `Immediate` script prints when it ends). The tab opens beside the others and does not take the box's view: click it to see the output. A script that prints nothing opens no tab, and the box keeps showing what it showed; if it fails, a notice at the bottom of the screen says so.
 - `Pty`: the choice's terminal opens in its own tab when the choice starts and is shown at once, since it takes the keyboard. Activating the choice while its program runs shows the terminal again.
+
+### Copy Choices
+
+A choice with `copy` puts text on the clipboard when it is activated, so a command shown in a menu is one press away from being pasted elsewhere:
+
+```yaml
+choices:
+  - id: run-tests
+    content: 'cargo test --workspace'
+    copy: true                       # copies "cargo test --workspace"
+  - id: show-log
+    content: 'Copy the log command'
+    copy: 'journalctl -u myapp -n 50' # copies this text
+```
+
+BoxMux writes the text to the terminal as `ESC ] 52 ; c ; <base64> ST`, the text encoded as UTF-8 exactly as written, with no newline added, and shows a notice such as `copied "cargo test --workspace"`; text of several lines is shown as `copied 3 lines`. The terminal puts it on the system clipboard (see [Troubleshooting](/docs/troubleshooting#copy-to-clipboard-does-nothing)). A copy that cannot be written is shown as an error notice.
+
+A copy choice runs nothing: `copy` together with `script` is a configuration error, as are `copy: false` and an empty `copy`, or `copy: true` on a choice whose label shows nothing.
 
 ### Choice Example
 

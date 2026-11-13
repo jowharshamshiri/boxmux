@@ -67,10 +67,28 @@ fn erasing_to_the_cursor_clears_the_start_of_the_screen() {
 #[test]
 fn programs_can_write_the_clipboard_but_not_read_it() {
     let mut processor = Emulator::with_screen_size(10, 2);
-    processor.process_string("\x1b]52;c;aGVsbG8gd29ybGQ=\x07\x1b]52;c;?\x07");
-    assert_eq!(processor.take_clipboard_writes(), vec!["hello world"]);
+    processor
+        .process_string("\x1b]52;c;aGVsbG8gd29ybGQ=\x07\x1b]52;c;?\x07\x1b]52;c;5pel5pys\x1b\\");
+    assert_eq!(
+        processor.take_clipboard_writes(),
+        vec![Ok("hello world".to_string()), Ok("日本".to_string())]
+    );
     assert!(processor.take_responses().is_empty(), "nothing is revealed");
     assert!(processor.take_clipboard_writes().is_empty());
+}
+
+#[test]
+fn a_clipboard_write_that_cannot_be_copied_is_kept_with_the_reason() {
+    let mut processor = Emulator::with_screen_size(10, 2);
+    // Not base64, then base64 of the byte 0xFF, which is not UTF-8.
+    processor.process_string("\x1b]52;c;not*base64\x07\x1b]52;c;/w==\x07");
+    assert_eq!(
+        processor.take_clipboard_writes(),
+        vec![
+            Err("its text is not base64".to_string()),
+            Err("its text is not UTF-8".to_string())
+        ]
+    );
 }
 
 #[test]

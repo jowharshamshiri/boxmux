@@ -180,12 +180,17 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
   (`auto_scroll_bottom`) and be saved to a file (`save_in_file`). Shared shell functions can be
   sourced from `libs`.
 - **Menus**: `choices` run their scripts with Enter or a click; a choice's output opens in a tab of its own, beside the menu.
+  A choice with `copy` copies text to the clipboard instead: `copy: true` copies its label as
+  shown, `copy: <text>` copies that text. Pressing it writes `ESC ] 52 ; c ; <base64> ST` to
+  your terminal, the text as UTF-8 exactly as written with no newline added, and a notice says
+  what was copied, or why it could not be.
   `hot_keys` bind keys to choices, and `on_keypress` binds keys to scripts at app, layout or
   box level.
 - **Tabs**: a box with several outputs (its content, its script output, menu runs, socket
   updates) shows them as tabs in its top border; extra tabs can be closed.
 - **Embedded terminal**: `execution_mode: Pty` runs programs such as `htop`, `vim` or a shell in
-  the box, with 256 and 24-bit color, the alternate screen, mouse reporting and scrollback.
+  the box, with 256 and 24-bit color, the alternate screen, mouse reporting and scrollback. A
+  program's OSC 52 clipboard copy is passed on to your terminal.
 - **Charts and tables**: bar, line, histogram, pie and scatter charts; tables from CSV or JSON
   with sorting, filtering and paging. Data can be inline or come from a script.
 - **Plugins**: shared libraries with a small C interface can draw box content.

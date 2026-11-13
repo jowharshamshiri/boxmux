@@ -1609,3 +1609,120 @@ app:
         assert_no_raw_links(&mut app);
     }
 }
+
+/// Copying to the clipboard through the terminal, with OSC 52 (`ESC ] 52 ; c ; <base64> ST`),
+/// read from the bytes BoxMux writes to it. Unix only, for the reason [`hyperlinks`] gives: on
+/// Windows the test would read ConPTY's output rather than boxmux's.
+#[cfg(unix)]
+mod clipboard {
+    use super::*;
+
+    /// A menu of two copy choices, one copying its label, the other a declared command holding
+    /// multi-byte text, and a terminal box whose program copies text once it is told to.
+    const COPIES: &str = r#"
+app:
+  layouts:
+    - id: main
+      title: Copies
+      root: true
+      children:
+        - id: menu
+          title: Menu
+          position: {x1: "0", y1: "0", x2: "48", y2: "8"}
+          tab_order: 1
+          choices:
+            - id: label
+              content: "cargo test --workspace"
+              copy: true
+            - id: command
+              content: Copy the count
+              copy: 'echo "日本語 ✓" | wc -c'
+        - id: term
+          title: Term
+          position: {x1: "50", y1: "0", x2: "98", y2: "8"}
+          execution_mode: Pty
+          script: ['printf "ready\n"; while [ ! -e markers/go ]; do sleep 0.05; done; printf "\033]52;c;ZnJvbSBhIHByb2dyYW06IGjDqWxsbyDml6XmnKw=\007done\n"; sleep 30']
+"#;
+
+    /// How often `needle` occurs in what boxmux wrote from byte `from` on.
+    fn count(app: &LiveBoxMux, from: usize, needle: &[u8]) -> usize {
+        app.raw[from..]
+            .windows(needle.len())
+            .filter(|window| *window == needle)
+            .count()
+    }
+
+    /// Waits until boxmux has written `sequence` once since byte `from`, and checks it wrote no
+    /// other OSC 52.
+    fn wait_for_copy(app: &mut LiveBoxMux, from: usize, sequence: &str) {
+        let start = Instant::now();
+        while count(app, from, sequence.as_bytes()) == 0 {
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "{:?} was not written\n{}",
+                sequence,
+                app.report()
+            );
+            app.pump(Duration::from_millis(30));
+        }
+        app.pump(Duration::from_millis(200));
+        assert_eq!(count(app, from, sequence.as_bytes()), 1, "{}", app.report());
+        assert_eq!(
+            count(app, from, b"\x1b]52;"),
+            1,
+            "only that copy is written\n{}",
+            app.report()
+        );
+    }
+
+    fn start(fixture: &Fixture) -> LiveBoxMux {
+        let config = fixture.write_config(COPIES);
+        let mut app = LiveBoxMux::spawn(fixture, &config);
+        app.wait_for_text("Copy the count");
+        app.wait_for_text("ready");
+        app.pump(Duration::from_millis(300));
+        assert_eq!(count(&app, 0, b"\x1b]52;"), 0, "nothing is copied unasked");
+        app
+    }
+
+    #[test]
+    fn pressing_a_copy_choice_writes_its_text_to_the_terminal_s_clipboard_exactly() {
+        let fixture = Fixture::new();
+        let mut app = start(&fixture);
+
+        // Enter on the first choice copies its label, without a newline.
+        let before = app.raw.len();
+        app.send("\r");
+        wait_for_copy(
+            &mut app,
+            before,
+            "\x1b]52;c;Y2FyZ28gdGVzdCAtLXdvcmtzcGFjZQ==\x1b\\",
+        );
+        app.wait_for_text("copied \"cargo test --workspace\"");
+
+        // A click on the second copies its declared text, its multi-byte characters as UTF-8.
+        let before = app.raw.len();
+        app.click_text("Copy the count");
+        wait_for_copy(
+            &mut app,
+            before,
+            "\x1b]52;c;ZWNobyAi5pel5pys6KqeIOKckyIgfCB3YyAtYw==\x1b\\",
+        );
+        app.wait_for_text("copied \"echo \"日本語 ✓\" | wc -c\"");
+    }
+
+    #[test]
+    fn a_copy_by_a_program_in_a_terminal_box_reaches_the_terminal() {
+        let fixture = Fixture::new();
+        let mut app = start(&fixture);
+        let before = app.raw.len();
+        fs::write(fixture.marker("go"), "go").unwrap();
+        app.wait_for_text("done");
+        wait_for_copy(
+            &mut app,
+            before,
+            "\x1b]52;c;ZnJvbSBhIHByb2dyYW06IGjDqWxsbyDml6XmnKw=\x1b\\",
+        );
+        app.wait_for_text("term copied \"from a program: héllo 日本\"");
+    }
+}

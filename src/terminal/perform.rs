@@ -179,12 +179,13 @@ impl Perform for Emulator {
                     log::debug!("refused a clipboard read request");
                     return;
                 }
-                match crate::base64::decode(&payload)
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-                {
-                    Some(copied) => self.terminal_state.clipboard_writes.push(copied),
-                    None => log::debug!("ignored a clipboard write that is not base64 UTF-8 text"),
-                }
+                let write = match crate::base64::decode(&payload) {
+                    None => Err("its text is not base64".to_string()),
+                    Some(bytes) => {
+                        String::from_utf8(bytes).map_err(|_| "its text is not UTF-8".to_string())
+                    }
+                };
+                self.terminal_state.clipboard_writes.push(write);
             }
             other => log::debug!("unhandled OSC {}", other),
         }

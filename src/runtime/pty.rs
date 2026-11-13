@@ -266,8 +266,9 @@ impl PtySession {
 /// What the runtime needs from a PTY session's terminal state at one point in time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSnapshot {
-    /// Text the program put on the clipboard (OSC 52) since the last snapshot.
-    pub clipboard: Vec<String>,
+    /// The program's clipboard writes (OSC 52) since the last snapshot: the text, or why a
+    /// write cannot be copied.
+    pub clipboard: Vec<Result<String, String>>,
     pub lines: Vec<String>,
     pub title: Option<String>,
     pub mouse_reporting: bool,

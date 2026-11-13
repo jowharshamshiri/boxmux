@@ -238,10 +238,12 @@ impl Display for TerminalDisplay {
         self.out.flush()
     }
 
+    /// Writes `ESC ] 52 ; c ; <base64 of the UTF-8 text> ST`, ended with ST as OSC 8 links
+    /// are ([`crate::link`]).
     fn copy_to_clipboard(&mut self, text: &str) -> io::Result<()> {
         write!(
             self.out,
-            "\x1b]52;c;{}\x07",
+            "\x1b]52;c;{}\x1b\\",
             crate::base64::encode(text.as_bytes())
         )?;
         self.out.flush()

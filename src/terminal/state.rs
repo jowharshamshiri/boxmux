@@ -64,8 +64,9 @@ pub struct TerminalState {
     pub pending_responses: Vec<String>,
     /// A character was written to the last column; the next one goes to the next line.
     pub wrap_pending: bool,
-    /// Text the program put on the clipboard (OSC 52), waiting to be copied.
-    pub clipboard_writes: Vec<String>,
+    /// The program's clipboard writes (OSC 52), waiting to be copied: the text, or why the
+    /// write cannot be copied.
+    pub clipboard_writes: Vec<Result<String, String>>,
 }
 
 impl TerminalState {

@@ -343,6 +343,7 @@ mod tests {
             id: id.to_string(),
             content: Some(format!("Choice {}", id)),
             script: Some(vec![format!("echo {}", id)]),
+            copy: None,
             redirect_output: None,
             append_output: None,
             execution_mode: ExecutionMode::default(),

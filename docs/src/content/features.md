@@ -63,6 +63,8 @@ See the [Configuration Reference](/docs/configuration).
 - `choices` are menu entries. Enter or a click on the label runs the selected entry; its
   output opens a tab in the box (or in the `redirect_output` box), and the entry shows ` …`
   while it runs.
+- A choice with `copy` copies its label (`copy: true`) or a declared text to the clipboard
+  through the terminal (OSC 52) instead of running a script, and a notice says what it copied.
 - `hot_keys` bind key names to choice ids; `on_keypress` binds key names to scripts in the
   app, a layout or a box.
 - A box with several outputs shows them as tabs in its top border. Tabs opened by runs can be

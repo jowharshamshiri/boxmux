@@ -216,11 +216,12 @@ printable ASCII) changes nothing. See [Hyperlinks](styling/theme#hyperlinks).
 
 ### Clipboard (OSC 52)
 
-A program can copy text to the clipboard with OSC 52 (`ESC ] 52 ; c ; <base64> BEL`), as
-`tmux` and `vim` with OSC 52 support do. boxmux passes the text on to your terminal with its
-own OSC 52 sequence, so your terminal must support OSC 52 for it to reach the system
-clipboard, and shows a notice such as `shell copied 3 lines`. Text that is not valid base64
-UTF-8 is ignored.
+A program can copy text to the clipboard with OSC 52 (`ESC ] 52 ; c ; <base64> ST`, or ended
+with BEL), as `tmux` and `vim` with OSC 52 support do. boxmux passes the text on to your
+terminal with its own OSC 52 sequence, so your terminal must support OSC 52 for it to reach the
+system clipboard, and shows a notice such as `shell copied "make test"` or `shell copied 3
+lines`. A copy whose text is not base64, or not UTF-8 once decoded, is not passed on: an error
+notice such as `shell cannot copy to the clipboard: its text is not base64` says so.
 
 Requests to read the clipboard (`ESC ] 52 ; c ; ? BEL`) are refused: programs never get the
 clipboard's contents.

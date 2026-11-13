@@ -757,6 +757,86 @@ app:
 }
 
 #[test]
+fn a_copy_choice_copies_its_label_or_its_text_and_says_so() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: menu
+          position: {x1: "0", y1: "0", x2: "59", y2: "9"}
+          tab_order: 1
+          choices:
+            - id: label
+              content: "\e[1mcargo test --workspace\e[0m"
+              copy: true
+            - id: text
+              content: Copy the greeting
+              copy: "echo 日本 ; ok"
+"#;
+    let mut runtime = runtime(yaml, 60, 12);
+    let tabs = |r: &Runtime<MemoryDisplay>| {
+        r.ctx
+            .app
+            .get_muxbox_by_id("menu")
+            .unwrap()
+            .get_tab_stream_ids()
+    };
+    let before = tabs(&runtime);
+    runtime.handle(key(KeyCode::Enter, KeyModifiers::NONE));
+    runtime.render();
+    assert_eq!(
+        runtime.display.clipboard.as_deref(),
+        Some("cargo test --workspace")
+    );
+    assert!(
+        screen_contains(&runtime, "copied \"cargo test --workspace\""),
+        "{}",
+        runtime.display.rows().join("\n")
+    );
+    let greeting = find(&runtime, "Copy the greeting");
+    click(&mut runtime, greeting);
+    assert_eq!(runtime.display.clipboard.as_deref(), Some("echo 日本 ; ok"));
+    assert!(screen_contains(&runtime, "copied \"echo 日本 ; ok\""));
+    assert!(
+        runtime.executor.runs().next().is_none(),
+        "a copy choice runs nothing"
+    );
+    assert_eq!(tabs(&runtime), before, "and opens no tab");
+}
+
+#[test]
+fn a_terminal_program_s_clipboard_write_that_cannot_be_copied_is_reported() {
+    let script = if cfg!(windows) {
+        r#"["Write-Host -NoNewline \"$([char]27)]52;c;not*base64$([char]7)wrote\"", "Start-Sleep 5"]"#
+    } else {
+        r#"["printf '\\033]52;c;not*base64\\007wrote'", "sleep 5"]"#
+    };
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: term
+          position: {x1: "0", y1: "0", x2: "59", y2: "9"}
+          execution_mode: Pty
+          script: SCRIPT
+"#
+    .replace("SCRIPT", script);
+    let mut runtime = runtime(&yaml, 60, 12);
+    pump_until(&mut runtime, "the failure notice", |r| {
+        r.notice.as_ref().is_some_and(|n| n.is_error)
+    });
+    assert_eq!(
+        runtime.notice.as_ref().unwrap().text,
+        "term cannot copy to the clipboard: its text is not base64"
+    );
+    assert_eq!(runtime.display.clipboard, None);
+}
+
+#[test]
 fn a_script_that_cannot_start_is_reported() {
     for mode in ["Immediate", "Thread", "Pty"] {
         // A NUL byte cannot be passed to a process.

@@ -223,11 +223,13 @@ A box whose shown tab is a running terminal program (`execution_mode: Pty`, or a
 
 Ctrl+C copies the text of the focused box's shown tab to the clipboard, without color codes; for a menu, it copies the entry labels. BoxMux sends the text to the terminal with the OSC 52 escape sequence and shows "copied N lines". Whether the text reaches the system clipboard depends on the terminal: some need the feature enabled, and some ignore it (see [Troubleshooting](/docs/troubleshooting#copy-to-clipboard-does-nothing)).
 
-Programs running in terminal boxes can copy text the same way; BoxMux passes their OSC 52 requests on to your terminal. Requests to read the clipboard are refused.
+A choice with `copy` copies its label or a text it declares when it is activated, and shows what it copied, such as `copied "cargo test --workspace"` (see [Copy Choices](/docs/configuration#copy-choices)).
+
+Programs running in terminal boxes can copy text the same way; BoxMux passes their OSC 52 requests on to your terminal, and says so in a notice when one cannot be passed on. Requests to read the clipboard are refused.
 
 ## Notices
 
-Short messages appear on the bottom row of the screen for 5 seconds: confirmations such as "copied 12 lines" and errors (in red) such as a failed save, a handler that failed, a choice that failed without printing anything, or a hot key whose choice is not in the shown layout.
+Short messages appear on the bottom row of the screen for 5 seconds: confirmations such as "copied 12 lines" or `copied "cargo test --workspace"` and errors (in red) such as a failed save, a handler that failed, a choice that failed without printing anything, or a hot key whose choice is not in the shown layout.
 
 ## Practical Example
 

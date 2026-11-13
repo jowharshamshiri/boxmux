@@ -261,6 +261,18 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                     "redirect_output needs a script whose output it redirects".into(),
                 );
             }
+            if choice.copy.is_some() && choice.script.is_some() {
+                error(
+                    format!("{}.choices[{}].copy", location, i),
+                    "a choice either copies text or runs a script, not both".into(),
+                );
+            }
+            if choice.copied_text().is_some_and(|text| text.is_empty()) {
+                error(
+                    format!("{}.choices[{}].copy", location, i),
+                    "copy: true copies the label, which is empty".into(),
+                );
+            }
         }
         if muxbox.execution_mode == ExecutionMode::Pty && muxbox.refresh_interval.is_some() {
             error(
@@ -495,6 +507,37 @@ app:
             "app.on_keypress.q: q always quits",
             "app.layouts[0] ('main').on_keypress.Shift+a: Shift is part of the character",
             "('menu').on_keypress.Hyper+x: 'Hyper' is not a modifier",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.contains(expected)),
+                "{}: {:#?}",
+                expected,
+                errors
+            );
+        }
+    }
+
+    #[test]
+    fn a_copy_choice_runs_no_script_and_copies_no_empty_label() {
+        let errors = semantic_errors(
+            r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: menu
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          choices:
+            - {id: both, content: Both, copy: true, script: ["echo"]}
+            - {id: blank, content: "\e[1m\e[0m", copy: true}
+            - {id: fine, content: Fine, copy: true}
+            - {id: text, copy: "echo hi"}
+"#,
+        );
+        assert_eq!(errors.len(), 2, "{:#?}", errors);
+        for expected in [
+            "choices[0].copy: a choice either copies text or runs a script, not both",
+            "choices[1].copy: copy: true copies the label, which is empty",
         ] {
             assert!(
                 errors.iter().any(|e| e.contains(expected)),
