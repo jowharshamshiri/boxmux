@@ -4,7 +4,7 @@
 
 use super::screen::{ScreenBuffer, Style};
 use super::scrollbar::{Scrollbar, ScrollbarHit};
-use super::styled::{styled_chars, width_of, wrap, StyledChar};
+use super::styled::{styled_glyphs, width_of, wrap, StyledGlyph};
 use super::tab_bar::{TabBar, TabHit, TabSpec, TabStyles};
 use super::theme::BoxStyle;
 use crate::model::appearance::{Overflow, TitlePosition};
@@ -69,7 +69,7 @@ enum Kind {
 struct Row {
     y: usize,
     x: usize,
-    chars: Vec<StyledChar>,
+    chars: Vec<StyledGlyph>,
     choice: Option<usize>,
 }
 
@@ -150,7 +150,7 @@ pub struct BoxSpec<'a> {
 }
 
 /// `chars` cut to `width` columns, the last one replaced by `…` when anything was cut.
-fn truncate(chars: &[StyledChar], width: usize) -> Vec<StyledChar> {
+fn truncate(chars: &[StyledGlyph], width: usize) -> Vec<StyledGlyph> {
     if width_of(chars) <= width {
         return chars.to_vec();
     }
@@ -161,18 +161,18 @@ fn truncate(chars: &[StyledChar], width: usize) -> Vec<StyledChar> {
             break;
         }
         used += c.width();
-        out.push(*c);
+        out.push(c.clone());
     }
     if width > 0 {
         let style = chars.get(out.len()).map_or(chars[0].style, |c| c.style);
-        out.push(StyledChar { ch: '…', style });
+        out.push(StyledGlyph::from_char('…', style));
     }
     out
 }
 
 /// The part of `chars` from column `skip` that fits in `width` columns. A wide character cut
 /// by either edge is replaced by a space so columns stay aligned.
-fn window(chars: &[StyledChar], skip: usize, width: usize) -> Vec<StyledChar> {
+fn window(chars: &[StyledGlyph], skip: usize, width: usize) -> Vec<StyledGlyph> {
     let mut out = Vec::new();
     let mut column = 0;
     for c in chars {
@@ -187,12 +187,9 @@ fn window(chars: &[StyledChar], skip: usize, width: usize) -> Vec<StyledChar> {
         }
         if column < skip || end > skip + width {
             // Straddles an edge: show the visible half as a space.
-            out.push(StyledChar {
-                ch: ' ',
-                style: c.style,
-            });
+            out.push(StyledGlyph::from_char(' ', c.style));
         } else {
-            out.push(*c);
+            out.push(c.clone());
         }
         column = end;
     }
@@ -247,8 +244,14 @@ impl BoxView {
         if title.trim().is_empty() || room < 3 {
             return Top::Border;
         }
-        let chars = truncate(&styled_chars(title, Style::default()), room - 2);
-        let text: String = format!(" {} ", chars.iter().map(|c| c.ch).collect::<String>());
+        let chars = truncate(&styled_glyphs(title, Style::default()), room - 2);
+        let text: String = format!(
+            " {} ",
+            chars
+                .iter()
+                .map(|c| c.glyph.to_string())
+                .collect::<String>()
+        );
         let width = width_of(&chars) + 2;
         let first = outer.left() + 2;
         let last = outer.right() - 2;
@@ -280,14 +283,15 @@ impl BoxView {
         // Every row of content, before scrolling: its characters and the choice it belongs to.
         // A menu entry is a marker followed by its label; wrapped labels continue under the
         // label, not under the marker.
-        let entries: Vec<(Vec<StyledChar>, Vec<StyledChar>, Option<usize>)> = match &spec.content {
+        let entries: Vec<(Vec<StyledGlyph>, Vec<StyledGlyph>, Option<usize>)> = match &spec.content
+        {
             Content::Text(lines) | Content::Terminal(lines) => lines
                 .iter()
-                .map(|line| (Vec::new(), styled_chars(line, style.body), None))
+                .map(|line| (Vec::new(), styled_glyphs(line, style.body), None))
                 .collect(),
             Content::Generated(lines) => lines
                 .iter()
-                .map(|line| (Vec::new(), styled_chars(line, style.body), None))
+                .map(|line| (Vec::new(), styled_glyphs(line, style.body), None))
                 .collect(),
             Content::Menu(choices) => choices
                 .iter()
@@ -303,15 +307,15 @@ impl BoxView {
                     let label = choice.content.as_deref().unwrap_or(&choice.id);
                     let waiting = if choice.waiting { " …" } else { "" };
                     (
-                        styled_chars(marker, item_style),
-                        styled_chars(&format!("{}{}", label, waiting), item_style),
+                        styled_glyphs(marker, item_style),
+                        styled_glyphs(&format!("{}{}", label, waiting), item_style),
                         Some(index),
                     )
                 })
                 .collect(),
             Content::Nothing => unreachable!("handled above"),
         };
-        let lines: Vec<(Vec<StyledChar>, Option<usize>)> = if overflow == Overflow::Wrap {
+        let lines: Vec<(Vec<StyledGlyph>, Option<usize>)> = if overflow == Overflow::Wrap {
             entries
                 .into_iter()
                 .flat_map(|(prefix, body, choice)| {
@@ -323,10 +327,7 @@ impl BoxView {
                         } else {
                             prefix
                                 .iter()
-                                .map(|c| StyledChar {
-                                    ch: ' ',
-                                    style: c.style,
-                                })
+                                .map(|c| StyledGlyph::from_char(' ', c.style))
                                 .collect()
                         };
                         ([lead, row].concat(), choice)
@@ -498,7 +499,7 @@ impl BoxView {
                 let hovered = matches!(hover, Some(BoxHit::Choice(c)) if Some(c) == row.choice);
                 for c in &row.chars {
                     let char_style = if hovered { style.menu_hovered } else { c.style };
-                    x += buffer.put(x, row.y, c.ch, char_style, body.area.right());
+                    x += buffer.put(x, row.y, &c.glyph, char_style, body.area.right());
                 }
             }
         }
@@ -534,7 +535,7 @@ impl BoxView {
                 } else {
                     ('│', style.scrollbar_track)
                 };
-                buffer.put(o.right(), bar.start + i, ch, cell_style, limit);
+                buffer.put_char(o.right(), bar.start + i, ch, cell_style, limit);
             }
         }
         if let Some(bar) = &self.horizontal_scrollbar {
@@ -546,7 +547,7 @@ impl BoxView {
                 } else {
                     ('─', style.scrollbar_track)
                 };
-                buffer.put(bar.start + i, o.bottom(), ch, cell_style, limit);
+                buffer.put_char(bar.start + i, o.bottom(), ch, cell_style, limit);
             }
         }
     }
@@ -556,18 +557,18 @@ impl BoxView {
         let border = self.style.border;
         let limit = o.right();
         for x in o.left() + 1..o.right() {
-            buffer.put(x, o.top(), '─', border, limit);
-            buffer.put(x, o.bottom(), '─', border, limit);
+            buffer.put_char(x, o.top(), '─', border, limit);
+            buffer.put_char(x, o.bottom(), '─', border, limit);
         }
         for y in o.top() + 1..o.bottom() {
-            buffer.put(o.left(), y, '│', border, limit);
-            buffer.put(o.right(), y, '│', border, limit);
+            buffer.put_char(o.left(), y, '│', border, limit);
+            buffer.put_char(o.right(), y, '│', border, limit);
         }
-        buffer.put(o.left(), o.top(), '┌', border, limit);
-        buffer.put(o.right(), o.top(), '┐', border, limit);
-        buffer.put(o.left(), o.bottom(), '└', border, limit);
+        buffer.put_char(o.left(), o.top(), '┌', border, limit);
+        buffer.put_char(o.right(), o.top(), '┐', border, limit);
+        buffer.put_char(o.left(), o.bottom(), '└', border, limit);
         let corner = if self.resizable { '⋱' } else { '┘' };
-        buffer.put(o.right(), o.bottom(), corner, border, limit);
+        buffer.put_char(o.right(), o.bottom(), corner, border, limit);
     }
 }
 

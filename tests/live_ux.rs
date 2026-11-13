@@ -11,6 +11,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthChar;
 
 const WIDTH: u16 = 100;
@@ -137,6 +138,16 @@ impl LiveBoxMux {
     }
 
     fn spawn_with(fixture: &Fixture, config: &Path, extra: &[&str]) -> LiveBoxMux {
+        Self::spawn_in(
+            fixture,
+            config,
+            extra,
+            Screen::new(WIDTH as usize, HEIGHT as usize),
+        )
+    }
+
+    /// Starts boxmux in a terminal that draws like `screen`.
+    fn spawn_in(fixture: &Fixture, config: &Path, extra: &[&str], screen: Screen) -> LiveBoxMux {
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: HEIGHT,
@@ -183,7 +194,7 @@ impl LiveBoxMux {
             writer,
             output: rx,
             raw: Vec::new(),
-            screen: Screen::new(WIDTH as usize, HEIGHT as usize),
+            screen,
             log: fixture.path("boxmux.log"),
             _reader: reader_thread,
         }
@@ -245,6 +256,20 @@ impl LiveBoxMux {
             }
             if start.elapsed() >= TIMEOUT {
                 panic!("{:?} did not appear\n{}", needle, self.report());
+            }
+        }
+    }
+
+    /// Waits until `done` holds for the screen; `what` names it in the failure.
+    fn wait_until(&mut self, what: &str, done: impl Fn(&Screen) -> bool) {
+        let start = Instant::now();
+        loop {
+            self.pump(Duration::from_millis(30));
+            if done(&self.screen) {
+                return;
+            }
+            if start.elapsed() >= TIMEOUT {
+                panic!("{} did not happen\n{}", what, self.report());
             }
         }
     }
@@ -569,27 +594,72 @@ fn an_invalid_configuration_is_reported_and_exits_with_failure() {
 }
 
 /// Enough of a terminal to read what boxmux draws: cursor movement, erasing and UTF-8 text.
+///
+/// It keeps text the way current terminals (WezTerm, kitty, foot) do: each cell holds one
+/// grapheme cluster, and a character printed right after another joins its cell when the two
+/// are one cluster (a combining mark, a variation selector, a skin tone, a zero-width joiner and
+/// what it joins). A cluster's width is the sum of its characters' widths, at most two, with
+/// East Asian ambiguous characters one column wide. How it draws emoji variation sequences and
+/// which characters it draws narrower than Unicode says are the terminal's own choices, as they
+/// are a real terminal's: see [`Screen::new`] and [`Screen::narrow`].
 struct Screen {
     width: usize,
     height: usize,
-    cells: Vec<Vec<char>>,
+    /// Each cell's cluster; the empty string is the right half of a two-column cluster.
+    cells: Vec<Vec<String>>,
     x: usize,
     y: usize,
     wrap_pending: bool,
     pending: Vec<u8>,
+    /// The cell the last character was printed into, while nothing has happened since.
+    last: Option<(usize, usize)>,
+    /// Whether an emoji variation selector (U+FE0F) makes its cluster two columns wide.
+    emoji_sequences_wide: bool,
+    /// Characters this terminal draws one column wide whatever Unicode says.
+    narrow_chars: Vec<char>,
 }
 
 impl Screen {
+    /// A terminal that draws an emoji variation sequence two columns wide, as kitty, foot and
+    /// WezTerm with `unicode_version = 14` do.
     fn new(width: usize, height: usize) -> Screen {
         Screen {
             width,
             height,
-            cells: vec![vec![' '; width]; height],
+            cells: vec![vec![" ".to_string(); width]; height],
             x: 0,
             y: 0,
             wrap_pending: false,
             pending: Vec::new(),
+            last: None,
+            emoji_sequences_wide: true,
+            narrow_chars: Vec::new(),
         }
+    }
+
+    /// A terminal whose widths are narrower than Unicode's: emoji variation sequences take the
+    /// width of their base character, as in WezTerm's default `unicode_version = 9`, and each of
+    /// `chars` takes one column, as emoji do in terminals that use Unicode 6 tables.
+    fn narrow(width: usize, height: usize, chars: &[char]) -> Screen {
+        Screen {
+            emoji_sequences_wide: false,
+            narrow_chars: chars.to_vec(),
+            ..Screen::new(width, height)
+        }
+    }
+
+    fn cluster_width(&self, cluster: &str) -> usize {
+        if cluster.chars().any(|c| self.narrow_chars.contains(&c)) {
+            return 1;
+        }
+        if self.emoji_sequences_wide && cluster.contains('\u{fe0f}') {
+            return 2;
+        }
+        cluster
+            .chars()
+            .map(|c| c.width().unwrap_or(0))
+            .sum::<usize>()
+            .min(2)
     }
 
     fn apply(&mut self, bytes: &[u8]) {
@@ -599,7 +669,10 @@ impl Screen {
         while i < data.len() {
             match data[i] {
                 0x1b => match self.escape(&data, i) {
-                    Some(next) => i = next,
+                    Some(next) => {
+                        self.last = None;
+                        i = next;
+                    }
                     None => {
                         self.pending = data[i..].to_vec();
                         return;
@@ -608,14 +681,19 @@ impl Screen {
                 b'\r' => {
                     self.x = 0;
                     self.wrap_pending = false;
+                    self.last = None;
                     i += 1;
                 }
                 b'\n' => {
                     self.y = (self.y + 1).min(self.height - 1);
                     self.wrap_pending = false;
+                    self.last = None;
                     i += 1;
                 }
-                byte if byte < 0x20 => i += 1,
+                byte if byte < 0x20 => {
+                    self.last = None;
+                    i += 1;
+                }
                 _ => {
                     let len = match data[i] {
                         b if b < 0x80 => 1,
@@ -668,7 +746,7 @@ impl Screen {
                         b'd' => self.y = (n(0) - 1).min(self.height - 1),
                         b'J' if params.first() == Some(&2) => {
                             for row in &mut self.cells {
-                                row.fill(' ');
+                                row.fill(" ".to_string());
                             }
                         }
                         b'K' => {
@@ -677,15 +755,9 @@ impl Screen {
                                 Some(2) => (0, self.width),
                                 _ => (self.x, self.width),
                             };
-                            for x in from..to.min(self.width) {
-                                self.cells[self.y][x] = ' ';
-                            }
+                            self.erase(from, to);
                         }
-                        b'X' => {
-                            for x in self.x..(self.x + n(0)).min(self.width) {
-                                self.cells[self.y][x] = ' ';
-                            }
-                        }
+                        b'X' => self.erase(self.x, self.x + n(0)),
                         _ => {}
                     }
                 }
@@ -705,8 +777,42 @@ impl Screen {
         }
     }
 
+    /// Blanks the cells `from..to` of the cursor's row, and the halves of two-column clusters
+    /// the range cuts.
+    fn erase(&mut self, from: usize, to: usize) {
+        for x in from..to.min(self.width) {
+            self.unsplit(x, self.y);
+            self.cells[self.y][x] = " ".to_string();
+        }
+    }
+
+    /// Blanks the other half of a two-column cluster that writing at (`x`, `y`) cuts, as a
+    /// terminal does.
+    fn unsplit(&mut self, x: usize, y: usize) {
+        if self.cells[y][x].is_empty() && x > 0 {
+            self.cells[y][x - 1] = " ".to_string();
+        }
+        if x + 1 < self.width && self.cells[y][x + 1].is_empty() {
+            self.cells[y][x + 1] = " ".to_string();
+        }
+    }
+
     fn put(&mut self, ch: char) {
-        let width = ch.width().unwrap_or(0);
+        if let Some((x, y)) = self.last {
+            let joined = format!("{}{}", self.cells[y][x], ch);
+            if joined.graphemes(true).count() == 1 {
+                let before = self.cluster_width(&self.cells[y][x]);
+                let after = self.cluster_width(&joined);
+                self.cells[y][x] = joined;
+                if after > before && x + 1 < self.width {
+                    self.unsplit(x + 1, y);
+                    self.cells[y][x + 1] = String::new();
+                    self.advance(x, after);
+                }
+                return;
+            }
+        }
+        let width = self.cluster_width(&ch.to_string());
         if width == 0 {
             return;
         }
@@ -716,28 +822,51 @@ impl Screen {
             self.y = (self.y + 1).min(self.height - 1);
             self.wrap_pending = false;
         }
-        self.cells[self.y][self.x] = ch;
-        if width == 2 && self.x + 1 < self.width {
-            self.cells[self.y][self.x + 1] = '\0';
+        let (x, y) = (self.x, self.y);
+        self.unsplit(x, y);
+        self.cells[y][x] = ch.to_string();
+        if width == 2 && x + 1 < self.width {
+            if x + 2 < self.width && self.cells[y][x + 2].is_empty() {
+                self.cells[y][x + 2] = " ".to_string();
+            }
+            self.cells[y][x + 1] = String::new();
         }
-        if self.x + width >= self.width {
+        self.last = Some((x, y));
+        self.advance(x, width);
+    }
+
+    /// Moves the cursor past a cluster of `width` columns at column `x`.
+    fn advance(&mut self, x: usize, width: usize) {
+        if x + width >= self.width {
             self.x = self.width - 1;
             self.wrap_pending = true;
         } else {
-            self.x += width;
+            self.x = x + width;
         }
     }
 
+    /// The cluster in cell (`x`, `y`): empty for the right half of a two-column one.
+    fn cell(&self, x: usize, y: usize) -> &str {
+        &self.cells[y][x]
+    }
+
     fn row(&self, y: usize) -> String {
-        self.cells[y].iter().filter(|c| **c != '\0').collect()
+        self.cells[y].concat()
+    }
+
+    /// The text of cells `from..=to` of row `y`.
+    fn span(&self, y: usize, from: usize, to: usize) -> String {
+        self.cells[y][from..=to].concat()
     }
 
     /// The cell where `needle` starts.
     fn find(&self, needle: &str) -> Option<(usize, usize)> {
         (0..self.height).find_map(|y| {
-            let row = self.row(y);
-            let byte = row.find(needle)?;
-            Some((row[..byte].chars().map(|c| c.width().unwrap_or(0)).sum(), y))
+            (0..self.width)
+                .find(|&x| {
+                    !self.cells[y][x].is_empty() && self.cells[y][x..].concat().starts_with(needle)
+                })
+                .map(|x| (x, y))
         })
     }
 
@@ -748,7 +877,6 @@ impl Screen {
             .join("\n")
     }
 }
-
 #[test]
 fn the_socket_option_goes_before_or_after_a_control_command_but_interface_options_do_not() {
     let fixture = Fixture::new();
@@ -948,4 +1076,261 @@ fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
         app.pump(Duration::from_millis(20));
     }
     app.wait_for_text("READY");
+}
+
+/// Boxes whose titles, tab labels, menu entries and text hold wide characters (CJK, emoji, an
+/// emoji with a variation selector, an emoji with a skin tone), ambiguous ones (→, ·) and a
+/// combining mark (e + U+0301), at widths that make them wrap and be cut off.
+const WIDTHS: &str = r#"
+app:
+  layouts:
+    - id: main
+      title: Widths
+      root: true
+      children:
+        - id: dawn
+          title: "🌅 Dawn → dusk · 日本 ☀️ éclair 👍🏽 and more"
+          title_position: left
+          position: {x1: "0", y1: "0", x2: "29", y2: "6"}
+          overflow_behavior: truncate
+          content: "日本語のテキストですね、長い行です\n🌅 sun → moon · star ☀️ été 👍🏽 end of line\nplain ascii line that is long enough"
+        - id: wrap
+          title: Wrap
+          position: {x1: "30", y1: "0", x2: "49", y2: "9"}
+          overflow_behavior: wrap
+          content: "🌅 dawn → 日本語のテキスト · ☀️ éclair 👍🏽 a b c 日本"
+        - id: tabs
+          title: Tabs
+          position: {x1: "50", y1: "0", x2: "99", y2: "9"}
+          content: TAB_HOME
+        - id: sunrise
+          title: "🌅 Sunrise → east"
+          position: {x1: "0", y1: "10", x2: "29", y2: "14"}
+          script: ["echo FEED_ONE"]
+          redirect_output: tabs
+        - id: nihon
+          title: "日本 · ☀️ é"
+          position: {x1: "30", y1: "10", x2: "49", y2: "14"}
+          script: ["echo FEED_TWO"]
+          redirect_output: tabs
+        - id: menu
+          title: "Menu → 🌅"
+          position: {x1: "50", y1: "10", x2: "69", y2: "19"}
+          overflow_behavior: wrap
+          choices:
+            - id: one
+              content: "🌅 Rise → shine 日本語"
+            - id: two
+              content: "éclair · ☀️ 👍🏽 ok"
+"#;
+
+/// The cells a box covers: `(x1, y1, x2, y2)`.
+type Cells = (usize, usize, usize, usize);
+
+/// The boxes of [`WIDTHS`]: id and the cells it covers.
+const WIDTH_BOXES: [(&str, Cells); 6] = [
+    ("dawn", (0, 0, 29, 6)),
+    ("wrap", (30, 0, 49, 9)),
+    ("tabs", (50, 0, 99, 9)),
+    ("sunrise", (0, 10, 29, 14)),
+    ("nihon", (30, 10, 49, 14)),
+    ("menu", (50, 10, 69, 19)),
+];
+
+/// Every edge of the box covering `(x1, y1, x2, y2)` is in its own column and row.
+fn assert_edges(screen: &Screen, id: &str, (x1, y1, x2, y2): Cells) {
+    let fail = |what: &str| -> ! { panic!("box {}: {}\nscreen:\n{}", id, what, screen.text()) };
+    let at = |x: usize, y: usize| screen.cell(x, y);
+    if (at(x1, y1), at(x2, y1), at(x1, y2)) != ("┌", "┐", "└") || !["┘", "⋱"].contains(&at(x2, y2))
+    {
+        fail("a corner is not where the box's corners are");
+    }
+    for y in y1 + 1..y2 {
+        if at(x1, y) != "│" || !["│", "█"].contains(&at(x2, y)) {
+            fail(&format!("row {} is not closed by its borders", y));
+        }
+    }
+    for x in x1 + 1..x2 {
+        if !["─", "■"].contains(&at(x, y2)) {
+            fail(&format!(
+                "column {} of the bottom border is {:?}",
+                x,
+                at(x, y2)
+            ));
+        }
+    }
+    if at(x1 + 1, y1) != "─" || at(x2 - 1, y1) != "─" {
+        fail("the title or tabs reach the corners");
+    }
+}
+
+/// The cells inside the box's border, row by row.
+fn interior(screen: &Screen, (x1, y1, x2, y2): Cells) -> Vec<String> {
+    (y1 + 1..y2)
+        .map(|y| screen.span(y, x1 + 1, x2 - 1))
+        .collect()
+}
+
+/// Rows of [`WIDTHS`] as drawn, `(y, x1, x2, cells x1..=x2)`, in a terminal that gives every
+/// cluster the width BoxMux does. Titles are cut at 24 columns (dawn) and centered; text is cut
+/// with `…` at 26 columns (dawn) and wrapped at 16 (wrap) and at 14 after a menu marker.
+const WIDTH_ROWS: [(usize, usize, usize, &str); 15] = [
+    (0, 0, 29, "┌─ 🌅 Dawn → dusk · 日本 … ──┐"),
+    (2, 0, 29, "│ 日本語のテキストですね、…  │"),
+    (3, 0, 29, "│ 🌅 sun → moon · star ☀\u{fe0f} e\u{301}… │"),
+    (4, 0, 29, "│ plain ascii line that is … │"),
+    (3, 30, 49, "│ 🌅 dawn →        │"),
+    (4, 30, 49, "│ 日本語のテキスト │"),
+    (5, 30, 49, "│ · ☀\u{fe0f} e\u{301}clair 👍🏽 a │"),
+    (6, 30, 49, "│ b c 日本         │"),
+    (10, 0, 29, "┌──── 🌅 Sunrise → east ─────┐"),
+    (10, 30, 49, "┌── 日本 · ☀\u{fe0f} e\u{301} ───┐"),
+    (10, 50, 69, "┌─── Menu → 🌅 ────┐"),
+    (11, 50, 69, "│ ► 🌅 Rise →      │"),
+    (12, 50, 69, "│   shine 日本語   │"),
+    (13, 50, 69, "│   e\u{301}clair · ☀\u{fe0f} 👍🏽 │"),
+    (14, 50, 69, "│   ok             │"),
+];
+
+/// The tabs of `tabs` in its top border; the two scripts' tabs come in the order they ended.
+const WIDTH_TABS: [&str; 2] = [" 日本 · ☀\u{fe0f} e\u{301} × ", " 🌅 Sunrise → ea… × "];
+
+/// What a row of [`WIDTH_ROWS`] reads in a terminal that draws 🌅 and ☀️ one column wide: each
+/// followed by the blank BoxMux put in its second column.
+fn drawn_narrow(row: &str) -> String {
+    row.replace('🌅', "🌅 ").replace("☀\u{fe0f}", "☀\u{fe0f} ")
+}
+
+/// Checks the rows of [`WIDTH_ROWS`] and the tabs; `drawn` maps a row to what the terminal
+/// shows for it.
+fn assert_width_rows(screen: &Screen, drawn: fn(&str) -> String) {
+    for (y, x1, x2, row) in WIDTH_ROWS {
+        assert_eq!(
+            screen.span(y, x1, x2),
+            drawn(row),
+            "row {} from column {}\n{}",
+            y,
+            x1,
+            screen.text()
+        );
+    }
+    let [a, b] = WIDTH_TABS;
+    let tabs = screen.span(0, 50, 99);
+    assert!(
+        [a, b]
+            .iter()
+            .zip([b, a])
+            .any(|(first, second)| tabs == drawn(&format!("┌── Tabs ─{}─{}───┐", first, second))),
+        "the tabs are {:?}\n{}",
+        tabs,
+        screen.text()
+    );
+}
+
+/// Runs boxmux on [`WIDTHS`] in `screen`, and checks that every box's edges stay in their
+/// columns and its rows read as `drawn` makes [`WIDTH_ROWS`]. Returns the running app.
+fn draw_widths(screen: Screen, drawn: fn(&str) -> String) -> (Fixture, LiveBoxMux) {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(WIDTHS);
+    let mut app = LiveBoxMux::spawn_in(&fixture, &config, &[], screen);
+    // Both scripts ran: their output opened a tab each in `tabs`, after its own.
+    app.wait_until("both tabs", |screen| {
+        let top = screen.row(0);
+        top.contains("Sunrise") && top.contains("日本 ·")
+    });
+    app.wait_for_text("Rise");
+    // Let the last frames arrive.
+    app.pump(Duration::from_millis(300));
+    for (id, cells) in WIDTH_BOXES {
+        assert_edges(&app.screen, id, cells);
+    }
+    assert_width_rows(&app.screen, drawn);
+    (fixture, app)
+}
+
+/// Replaces the text of `wrap` and `dawn` over the control socket.
+fn replace_widths_text(fixture: &Fixture, wrap: &str, dawn: &str) {
+    for (id, text) in [("wrap", wrap), ("dawn", dawn)] {
+        let output = fixture.control(&["replace_box_content", id, text]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// Checks that every box keeps its edges, and that inside its border `wrap` shows only `wrap`
+/// on its fourth row and `dawn` only `dawn` on its third: the cells of what they showed
+/// before are blank. `wrap` and `dawn` are the rows as a terminal giving every cluster the
+/// width BoxMux does reads them; `drawn` maps them to what this terminal shows.
+fn assert_replaced(app: &LiveBoxMux, drawn: fn(&str) -> String, wrap: &str, dawn: &str) {
+    for (id, cells) in WIDTH_BOXES {
+        assert_edges(&app.screen, id, cells);
+    }
+    // wrap: 18 cells inside the border, 8 rows; dawn: 28 cells, 5 rows.
+    for ((cells, rows, at, row), id) in [
+        ((WIDTH_BOXES[1].1), 8, 3, wrap),
+        ((WIDTH_BOXES[0].1), 5, 2, dawn),
+    ]
+    .into_iter()
+    .zip(["wrap", "dawn"])
+    {
+        let mut expected = vec![drawn(&" ".repeat(cells.2 - cells.0 - 1)); rows];
+        expected[at] = drawn(row);
+        assert_eq!(
+            interior(&app.screen, cells),
+            expected,
+            "inside {}\n{}",
+            id,
+            app.screen.text()
+        );
+    }
+}
+
+/// Replaces the text of `wrap` and `dawn` twice and checks that nothing of what they showed
+/// before is left: first wide, ambiguous and combining text with plain text, then plain text
+/// with wide text over the same cells. Each box shows its new line, centered, and blanks.
+fn replace_widths(fixture: &Fixture, app: &mut LiveBoxMux, drawn: fn(&str) -> String) {
+    replace_widths_text(fixture, "short", "ok");
+    app.wait_until_gone("dawn →");
+    app.wait_until_gone("sun →");
+    app.pump(Duration::from_millis(300));
+    // Centered in the 16 columns of wrap's content area and the 26 of dawn's, each one column
+    // in from the border.
+    assert_replaced(
+        app,
+        drawn,
+        &format!("{}short{}", " ".repeat(6), " ".repeat(7)),
+        &format!("{}ok{}", " ".repeat(13), " ".repeat(13)),
+    );
+
+    replace_widths_text(fixture, "🌅🌅🌅", "→ 日本 ☀\u{fe0f}");
+    app.wait_until_gone("short");
+    app.wait_for_text("→ 日本 ☀");
+    app.pump(Duration::from_millis(300));
+    assert_replaced(
+        app,
+        drawn,
+        &format!("{}🌅🌅🌅{}", " ".repeat(6), " ".repeat(6)),
+        &format!("{}→ 日本 ☀\u{fe0f}{}", " ".repeat(9), " ".repeat(10)),
+    );
+}
+
+#[test]
+fn wide_ambiguous_and_combining_characters_keep_every_box_in_its_columns() {
+    let (fixture, mut app) =
+        draw_widths(Screen::new(WIDTH as usize, HEIGHT as usize), str::to_string);
+    replace_widths(&fixture, &mut app, str::to_string);
+}
+
+#[test]
+fn a_terminal_that_draws_wide_characters_narrower_still_shows_every_box_in_its_columns() {
+    // Like a terminal with Unicode 6 tables, where 🌅 takes one column, and WezTerm's default,
+    // where ☀️ takes one.
+    let (fixture, mut app) = draw_widths(
+        Screen::narrow(WIDTH as usize, HEIGHT as usize, &['🌅']),
+        drawn_narrow,
+    );
+    replace_widths(&fixture, &mut app, drawn_narrow);
 }

@@ -2,62 +2,159 @@
 //!
 //! Script output is a stream of bytes meant for a terminal. A box shows it as lines, so each
 //! line is reduced to what a terminal would leave on screen for that line: carriage returns go
-//! back to the start of the line and later characters overwrite earlier ones (progress bars),
-//! backspace steps back, tabs advance to the next 8-column stop, SGR color sequences are kept,
-//! and every other control character or escape sequence is dropped.
+//! back to the start of the line and later text overwrites earlier text (progress bars),
+//! backspace steps back one column, tabs advance to the next 8-column stop, SGR color sequences
+//! are kept, and every other control character or escape sequence is dropped. Columns are
+//! counted as [`crate::width`] says: a wide cluster takes two, a combining mark joins the
+//! cluster before it.
 
-use unicode_width::UnicodeWidthChar;
+use crate::width::{clusters, width, Glyph};
 
-/// One cell of a line being rebuilt: the SGR sequences that precede it, then its character.
+/// One column of a line being rebuilt: the SGR sequences that precede it, then what it shows;
+/// `None` for the right half of a two-column cluster.
 #[derive(Clone)]
-struct Cell {
+struct Column {
     styles: String,
-    ch: char,
+    glyph: Option<Glyph>,
+}
+
+impl Column {
+    fn blank() -> Column {
+        Column {
+            styles: String::new(),
+            glyph: Some(Glyph::SPACE),
+        }
+    }
+}
+
+/// A line being rebuilt, with its cursor.
+#[derive(Default)]
+struct Line {
+    columns: Vec<Column>,
+    cursor: usize,
+    /// SGR sequences not yet attached to a column.
+    pending_styles: String,
+    /// The column of the cluster written last, while the cursor has not been moved since: a
+    /// combining mark or selector that follows belongs to it.
+    last: Option<usize>,
+}
+
+impl Line {
+    /// Blanks the other half of a two-column cluster that writing column `x` cuts.
+    fn unsplit(&mut self, x: usize) {
+        let Some(column) = self.columns.get(x) else {
+            return;
+        };
+        match &column.glyph {
+            None if x > 0 => self.columns[x - 1].glyph = Some(Glyph::SPACE),
+            Some(glyph) if glyph.width() == 2 => {
+                if let Some(next) = self.columns.get_mut(x + 1) {
+                    next.glyph = Some(Glyph::SPACE);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Makes column `x` the right half of the cluster before it.
+    fn continue_into(&mut self, x: usize) {
+        while self.columns.len() <= x {
+            self.columns.push(Column::blank());
+        }
+        self.unsplit(x);
+        self.columns[x].glyph = None;
+    }
+
+    fn put(&mut self, cluster: &str) {
+        let w = width(cluster);
+        if w == 0 {
+            if let Some(at) = self.last {
+                let before = self.columns[at]
+                    .glyph
+                    .clone()
+                    .expect("a cluster was written there");
+                let joined = before.joined(cluster);
+                if joined.width() > before.width() {
+                    self.continue_into(at + 1);
+                    self.cursor = at + 2;
+                } else if joined.width() < before.width() {
+                    self.columns[at + 1].glyph = Some(Glyph::SPACE);
+                }
+                self.columns[at].glyph = Some(joined);
+            }
+            return;
+        }
+        while self.columns.len() < self.cursor {
+            self.columns.push(Column::blank());
+        }
+        let at = self.cursor;
+        let styles = std::mem::take(&mut self.pending_styles);
+        let column = Column {
+            styles,
+            glyph: Some(Glyph::new(cluster)),
+        };
+        if at < self.columns.len() {
+            self.unsplit(at);
+            // Overwriting keeps styles attached to the old column so earlier color changes
+            // still take effect.
+            let previous = std::mem::replace(&mut self.columns[at], column);
+            self.columns[at].styles.insert_str(0, &previous.styles);
+        } else {
+            self.columns.push(column);
+        }
+        if w == 2 {
+            self.continue_into(at + 1);
+        }
+        self.last = Some(at);
+        self.cursor = at + w;
+    }
+
+    /// Writes each cluster of `run`, text without control characters.
+    fn put_run(&mut self, run: &mut String) {
+        for cluster in clusters(run) {
+            self.put(cluster);
+        }
+        run.clear();
+    }
+
+    fn move_to(&mut self, column: usize) {
+        self.cursor = column;
+        self.last = None;
+    }
+
+    fn into_text(self, capacity: usize) -> String {
+        let mut out = String::with_capacity(capacity);
+        for column in &self.columns {
+            out.push_str(&column.styles);
+            if let Some(glyph) = &column.glyph {
+                glyph.push_to(&mut out);
+            }
+        }
+        out.push_str(&self.pending_styles);
+        out
+    }
 }
 
 /// Reduces one line of terminal output (without its newline) to displayable text.
-pub fn sanitize_line(line: &str) -> String {
-    let mut cells: Vec<Cell> = Vec::new();
-    let mut cursor = 0usize;
-    let mut pending_styles = String::new();
-    let mut chars = line.chars().peekable();
-
-    let put = |cells: &mut Vec<Cell>, cursor: &mut usize, styles: &mut String, ch: char| {
-        let cell = Cell {
-            styles: std::mem::take(styles),
-            ch,
-        };
-        if *cursor < cells.len() {
-            // Overwriting keeps styles attached to the old cell so earlier color changes still
-            // take effect.
-            let previous = std::mem::replace(&mut cells[*cursor], cell);
-            cells[*cursor].styles.insert_str(0, &previous.styles);
-        } else {
-            while cells.len() < *cursor {
-                cells.push(Cell {
-                    styles: String::new(),
-                    ch: ' ',
-                });
-            }
-            cells.push(cell);
-        }
-        *cursor += 1;
-    };
-
+pub fn sanitize_line(text: &str) -> String {
+    let mut line = Line::default();
+    // Text since the last control character or escape sequence.
+    let mut run = String::new();
+    let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
+        if !ch.is_control() {
+            run.push(ch);
+            continue;
+        }
+        line.put_run(&mut run);
         match ch {
-            '\r' => cursor = 0,
-            '\u{8}' => cursor = cursor.saturating_sub(1),
+            '\r' => line.move_to(0),
+            '\u{8}' => line.move_to(line.cursor.saturating_sub(1)),
             '\t' => {
-                let column: usize = cells
-                    .iter()
-                    .take(cursor)
-                    .map(|cell| cell.ch.width().unwrap_or(0))
-                    .sum();
-                let spaces = 8 - column % 8;
-                for _ in 0..spaces {
-                    put(&mut cells, &mut cursor, &mut pending_styles, ' ');
+                for _ in 0..8 - line.cursor % 8 {
+                    line.put(" ");
                 }
+                line.last = None;
             }
             '\u{1b}' => match chars.peek() {
                 Some('[') => {
@@ -72,7 +169,7 @@ pub fn sanitize_line(line: &str) -> String {
                         }
                     }
                     if terminated && sequence.ends_with('m') {
-                        pending_styles.push_str(&sequence);
+                        line.pending_styles.push_str(&sequence);
                     }
                 }
                 Some(']') => {
@@ -94,18 +191,11 @@ pub fn sanitize_line(line: &str) -> String {
                 }
                 None => {}
             },
-            c if c.is_control() => {}
-            c => put(&mut cells, &mut cursor, &mut pending_styles, c),
+            _ => {}
         }
     }
-
-    let mut out = String::with_capacity(line.len());
-    for cell in &cells {
-        out.push_str(&cell.styles);
-        out.push(cell.ch);
-    }
-    out.push_str(&pending_styles);
-    out
+    line.put_run(&mut run);
+    line.into_text(text.len())
 }
 
 /// Splits output into lines and sanitizes each. A trailing newline does not produce an empty
@@ -156,5 +246,24 @@ mod tests {
     #[test]
     fn crlf_output_loses_the_carriage_return() {
         assert_eq!(sanitize_output("one\r\ntwo\r\n"), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn overwriting_counts_columns_and_never_leaves_half_a_wide_character() {
+        // `a` cuts 日 in half; `b` goes in its right half's column.
+        assert_eq!(sanitize_line("日本\rab"), "ab本");
+        assert_eq!(sanitize_line("日本\rabc"), "abc ");
+        assert_eq!(sanitize_line("ab\u{8}日"), "a日");
+    }
+
+    #[test]
+    fn combining_marks_and_selectors_stay_with_their_character() {
+        assert_eq!(sanitize_line("e\u{301}t\u{8}\u{8}E"), "Et");
+        assert_eq!(sanitize_line("☀\u{fe0f}\tx"), "☀\u{fe0f}      x");
+        // A color change between a letter and its accent does not part them.
+        assert_eq!(
+            sanitize_line("\u{1b}[31me\u{1b}[0m\u{301}x"),
+            "\u{1b}[31me\u{301}\u{1b}[0mx"
+        );
     }
 }

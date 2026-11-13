@@ -1,13 +1,12 @@
 use regex::Regex;
 
-/// Display width of `text` in terminal cells: SGR/CSI escape sequences take no space, wide
-/// characters (CJK, most emoji) take two cells and combining characters none.
+/// Columns `text` takes in a terminal, as [`crate::width`] measures them: CSI escape sequences
+/// (colors, cursor movement) take none.
 pub fn display_width(text: &str) -> usize {
-    use unicode_width::UnicodeWidthStr;
     if text.contains('\x1b') {
-        UnicodeWidthStr::width(strip_ansi_codes(text).as_str())
+        crate::width::text_width(&strip_ansi_codes(text))
     } else {
-        UnicodeWidthStr::width(text)
+        crate::width::text_width(text)
     }
 }
 

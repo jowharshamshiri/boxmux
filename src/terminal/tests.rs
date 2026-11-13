@@ -166,7 +166,8 @@ fn a_full_scrollback_lets_go_of_its_oldest_line() {
     emulator.process_string(&lines);
     let scrollback = &emulator.terminal_state.primary_buffer.scrollback;
     assert_eq!(scrollback.len(), MAX_SCROLLBACK);
-    let text = |row: &Vec<TerminalCell>| row.iter().map(|c| c.character).collect::<String>();
+    let text =
+        |row: &Vec<TerminalCell>| row.iter().map(|c| c.glyph.to_string()).collect::<String>();
     assert_eq!(text(&scrollback[0]).trim_end(), "2");
     assert_eq!(
         text(&scrollback[MAX_SCROLLBACK - 1]).trim_end(),
@@ -391,7 +392,7 @@ fn attributes_turn_on_and_off() {
     assert!(a.bold && a.dim && a.italic && a.underline && a.blink);
     assert!(a.reverse && a.hidden && a.strikethrough);
     let b = TerminalCell {
-        character: 'b',
+        glyph: crate::width::Glyph::from_char('b'),
         ..TerminalCell::default()
     };
     assert_eq!(row[1], b);
@@ -519,4 +520,31 @@ fn resizing_keeps_the_bottom_lines_and_the_cursor_on_them() {
 #[test]
 fn screen_alignment_fills_the_screen() {
     assert_eq!(text(3, 2, "\x1b#8"), "EEE\nEEE");
+}
+
+#[test]
+fn a_combining_mark_goes_into_the_cell_of_the_character_before_it() {
+    let mut processor = Emulator::with_screen_size(6, 2);
+    processor.process_string("e\u{301}x");
+    assert_eq!(processor.get_processed_text(), "e\u{301}x");
+    assert_eq!(processor.get_cursor_x(), 2);
+    // After the cursor moved, a mark has no character to join and takes no cell.
+    let mut processor = Emulator::with_screen_size(6, 2);
+    processor.process_string("e\x1b[1;3H\u{301}y");
+    assert_eq!(processor.get_processed_text(), "e y");
+}
+
+#[test]
+fn emoji_sequences_are_one_cluster_and_a_selector_widens_its_emoji() {
+    let mut processor = Emulator::with_screen_size(10, 2);
+    processor.process_string("☀\u{fe0f}a👍🏽b");
+    assert_eq!(processor.get_processed_text(), "☀\u{fe0f}a👍🏽b");
+    // ☀️ and 👍🏽 take two columns each.
+    assert_eq!(processor.get_cursor_x(), 6);
+    let lines = processor.display_lines();
+    assert_eq!(crate::utils::display_width(&lines[0]), 10, "{:?}", lines[0]);
+    // At the last column the selector has no room to widen its emoji: it stays one column.
+    let mut processor = Emulator::with_screen_size(3, 2);
+    processor.process_string("ab☀\u{fe0f}c");
+    assert_eq!(processor.get_processed_text(), "ab☀\nc");
 }

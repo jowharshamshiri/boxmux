@@ -13,6 +13,7 @@ pub use buffer::*;
 pub use cell::*;
 pub use state::*;
 
+use crate::width::Glyph;
 use vte::{Params, Parser};
 
 /// A terminal emulator: bytes a program writes go in, a screen of styled cells comes out.
@@ -87,11 +88,10 @@ impl Emulator {
     pub fn get_processed_text(&self) -> String {
         let mut content = String::new();
         for row in self.terminal_state.get_active_screen_ref() {
-            let line: String = row
-                .iter()
-                .map(|cell| cell.character)
-                .filter(|c| *c != WIDE_CONTINUATION)
-                .collect();
+            let mut line = String::new();
+            for cell in row.iter().filter(|cell| cell.glyph != WIDE_CONTINUATION) {
+                cell.glyph.push_to(&mut line);
+            }
             content.push_str(line.trim_end());
             content.push('\n');
         }
@@ -103,25 +103,71 @@ impl Emulator {
         self.terminal_state.terminal_title.clone()
     }
 
-    /// Writes `c` at the cursor with the current attributes. A wide character also takes the
+    /// Puts `more` into the cell of the cluster printed last when it continues that cluster,
+    /// and returns whether it did. A cluster that grows to two columns (an emoji variation
+    /// selector after a one-column emoji) takes the cell after it, and the cursor moves past
+    /// that cell; at the last column it cannot grow, so `more` is dropped and it shows in its
+    /// one-column form. A cluster that shrinks to one column leaves its right half blank.
+    fn join_printed(&mut self, more: &Glyph) -> bool {
+        let state = &mut self.terminal_state;
+        let Some((x, y)) = state.joinable else {
+            return false;
+        };
+        let screen_width = state.screen_width;
+        let more = more.to_string();
+        let before = state.get_active_screen()[y][x].glyph.clone();
+        if !before.continues_with(&more) {
+            return false;
+        }
+        let joined = before.joined(&more);
+        let grows = joined.width() > before.width();
+        if grows && x + 1 >= screen_width {
+            return true;
+        }
+        let row = &mut state.get_active_screen()[y];
+        if grows {
+            if row[x + 1].glyph.width() == 2 {
+                if let Some(right) = row.get_mut(x + 2) {
+                    right.glyph = Glyph::SPACE;
+                }
+            }
+            let mut continuation = row[x].clone();
+            continuation.glyph = WIDE_CONTINUATION;
+            row[x + 1] = continuation;
+        } else if joined.width() < before.width() {
+            row[x + 1].glyph = Glyph::SPACE;
+        }
+        row[x].glyph = joined;
+        if grows {
+            if x + 2 >= screen_width {
+                state.get_cursor_mut().x = screen_width - 1;
+                state.wrap_pending = state.mode.auto_wrap_mode;
+            } else {
+                state.get_cursor_mut().x = x + 2;
+            }
+        }
+        true
+    }
+
+    /// Writes `glyph` at the cursor with the current attributes. A wide cluster also takes the
     /// next cell.
-    fn put_char_at_cursor(&mut self, c: char, width: usize) {
+    fn put_glyph_at_cursor(&mut self, glyph: Glyph, width: usize) {
         let CursorState { x, y, .. } = *self.terminal_state.get_cursor();
         let screen_width = self.terminal_state.screen_width;
         let mut cell = self.terminal_state.current_attributes.clone();
-        cell.character = c;
+        cell.glyph = glyph;
         let row = &mut self.terminal_state.get_active_screen()[y];
         // Writing over half of a wide character leaves its other half blank.
-        if row[x].character == WIDE_CONTINUATION && x > 0 {
-            row[x - 1].character = ' ';
+        if row[x].glyph == WIDE_CONTINUATION && x > 0 {
+            row[x - 1].glyph = Glyph::SPACE;
         }
         let end = x + width;
-        if end < screen_width && row[end].character == WIDE_CONTINUATION {
-            row[end].character = ' ';
+        if end < screen_width && row[end].glyph == WIDE_CONTINUATION {
+            row[end].glyph = Glyph::SPACE;
         }
         if width == 2 && x + 1 < screen_width {
             let mut continuation = cell.clone();
-            continuation.character = WIDE_CONTINUATION;
+            continuation.glyph = WIDE_CONTINUATION;
             row[x + 1] = continuation;
         }
         row[x] = cell;

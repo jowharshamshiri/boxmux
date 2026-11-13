@@ -1,5 +1,7 @@
 //! The pieces a terminal screen is made of: cells, colors, cursor, modes and mouse events.
 
+use crate::width::Glyph;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEventType {
     Press,
@@ -69,13 +71,13 @@ impl TermColor {
     }
 }
 
-/// The character in the right half of a two-column character's cells.
-pub const WIDE_CONTINUATION: char = '\0';
+/// What the right half of a two-column cluster's cells holds.
+pub const WIDE_CONTINUATION: Glyph = Glyph::from_char('\0');
 
-/// One cell of the screen: a character and the attributes it is drawn with.
+/// One cell of the screen: a grapheme cluster and the attributes it is drawn with.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TerminalCell {
-    pub character: char,
+    pub glyph: Glyph,
     pub fg_color: Option<TermColor>,
     pub bg_color: Option<TermColor>,
     pub bold: bool,
@@ -92,7 +94,7 @@ pub struct TerminalCell {
 impl Default for TerminalCell {
     fn default() -> Self {
         TerminalCell {
-            character: ' ',
+            glyph: Glyph::SPACE,
             fg_color: None,
             bg_color: None,
             bold: false,

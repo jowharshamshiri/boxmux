@@ -57,8 +57,8 @@ impl TerminalScreenBuffer {
             row.resize(new_width, TerminalCell::default());
             // A wide character cut in half at the new edge cannot be shown.
             if let Some(last) = row.last_mut() {
-                if unicode_width::UnicodeWidthChar::width(last.character) == Some(2) {
-                    last.character = ' ';
+                if last.glyph.width() == 2 {
+                    last.glyph = Glyph::SPACE;
                 }
             }
         }
@@ -122,7 +122,7 @@ fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
     }
     // The cursor on the right half of a wide character is shown on its left half.
     let cursor_x = cursor_x.map(|x| {
-        if x > 0 && row.get(x).is_some_and(|c| c.character == WIDE_CONTINUATION) {
+        if x > 0 && row.get(x).is_some_and(|c| c.glyph == WIDE_CONTINUATION) {
             x - 1
         } else {
             x
@@ -132,7 +132,7 @@ fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
     let mut result = String::new();
     let mut current = plain.clone();
     for (x, cell) in row.iter().enumerate() {
-        if cell.character == WIDE_CONTINUATION {
+        if cell.glyph == WIDE_CONTINUATION {
             continue;
         }
         let wanted = if cursor_x == Some(x) {
@@ -146,7 +146,7 @@ fn row_to_string(row: &[TerminalCell], cursor_x: Option<usize>) -> String {
             result.push_str(&wanted);
             current = wanted;
         }
-        result.push(cell.character);
+        cell.glyph.push_to(&mut result);
     }
     if current != plain {
         result.push_str("\x1b[0m");

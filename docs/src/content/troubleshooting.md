@@ -244,6 +244,13 @@ Colors in the configuration are the 16 ANSI colors, so their exact shade comes f
 - Charts need an area of at least 20 columns by 5 rows inside the border; smaller ones show "too small".
 - A terminal box needs room inside its border; in a box that is too small, starting the program fails with "box '...' is too small to show a terminal".
 
+### Lines Shift or Leave Stray Characters Around Emoji or Arrows
+
+BoxMux gives every character the columns described in [Text Width](configuration.md#text-width). A terminal that draws a character wider than that shifts the rest of its line:
+
+- Arrows, `·`, `×`, `…` and box-drawing characters are East Asian *ambiguous*: BoxMux draws them one column wide. Set the terminal to draw them narrow (in WezTerm, `treat_east_asian_ambiguous_width_as_wide = false`, the default; outside a CJK locale in most others).
+- A terminal that draws an emoji narrower than BoxMux does shows it followed by a blank, with everything else in place.
+
 ### The Mouse Does Not Work or Clicks Land in the Wrong Place
 
 - Use a terminal that reports mouse events (most do). Inside `tmux`, enable `set -g mouse on`.

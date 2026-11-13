@@ -11,10 +11,16 @@ const SECONDARY_DEVICE_ATTRIBUTES: &str = "\x1b[>0;0;0c";
 impl Perform for Emulator {
     fn print(&mut self, c: char) {
         let c = self.terminal_state.charsets[self.terminal_state.active_charset].translate(c);
-        let Some(width) = unicode_width::UnicodeWidthChar::width(c).filter(|&w| w > 0) else {
-            // Combining marks and other zero-width characters have no cell of their own.
+        let glyph = Glyph::from_char(c);
+        if self.join_printed(&glyph) {
             return;
-        };
+        }
+        self.terminal_state.joinable = None;
+        let width = glyph.width();
+        if width == 0 {
+            // A combining mark or selector with no cluster before it has no cell to go in.
+            return;
+        }
         self.terminal_state.last_printed = Some(c);
         let state = &mut self.terminal_state;
         let screen_width = state.screen_width;
@@ -37,9 +43,11 @@ impl Perform for Emulator {
         if state.mode.insert_mode {
             state.insert_blank_characters(width);
         }
-        self.put_char_at_cursor(c, width);
+        self.put_glyph_at_cursor(glyph, width);
         let state = &mut self.terminal_state;
-        let next = state.get_cursor().x + width;
+        let CursorState { x, y, .. } = *state.get_cursor();
+        state.joinable = Some((x, y));
+        let next = x + width;
         if next >= screen_width {
             // The cursor stays on the last column until the next character arrives.
             state.get_cursor_mut().x = screen_width - 1;
@@ -50,6 +58,7 @@ impl Perform for Emulator {
     }
 
     fn execute(&mut self, byte: u8) {
+        self.terminal_state.joinable = None;
         let state = &mut self.terminal_state;
         if matches!(byte, b'\n' | 0x0B | 0x0C | b'\r' | b'\t' | 0x08) {
             state.wrap_pending = false;
@@ -76,6 +85,7 @@ impl Perform for Emulator {
     }
 
     fn hook(&mut self, _params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+        self.terminal_state.joinable = None;
         let request = match (intermediates, c) {
             (b"$", 'q') => DcsRequest::StatusString,
             (b"+", 'q') => DcsRequest::Termcap,
@@ -86,6 +96,7 @@ impl Perform for Emulator {
     }
 
     fn put(&mut self, byte: u8) {
+        self.terminal_state.joinable = None;
         // Queries are short; anything longer (sixel images and the like) is not kept.
         if self.terminal_state.dcs_data.len() < 1024 {
             self.terminal_state.dcs_data.push(byte);
@@ -93,6 +104,7 @@ impl Perform for Emulator {
     }
 
     fn unhook(&mut self) {
+        self.terminal_state.joinable = None;
         let state = &mut self.terminal_state;
         let data = String::from_utf8_lossy(&state.dcs_data).into_owned();
         state.dcs_data.clear();
@@ -110,6 +122,7 @@ impl Perform for Emulator {
     }
 
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        self.terminal_state.joinable = None;
         let text = |i: usize| {
             params
                 .get(i)
@@ -155,6 +168,7 @@ impl Perform for Emulator {
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+        self.terminal_state.joinable = None;
         let count = |i: usize| usize::from(Self::param_or(params, i, 1));
         let private = intermediates.first() == Some(&b'?');
         if intermediates.is_empty()
@@ -286,6 +300,7 @@ impl Perform for Emulator {
     }
 
     fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        self.terminal_state.joinable = None;
         let state = &mut self.terminal_state;
         if intermediates.is_empty() && matches!(byte, b'D' | b'E' | b'M') {
             state.wrap_pending = false;
@@ -326,7 +341,7 @@ impl Perform for Emulator {
             (b"#", b'8') => {
                 // DECALN: fills the screen with E, for aligning the display.
                 let filled = TerminalCell {
-                    character: 'E',
+                    glyph: Glyph::from_char('E'),
                     ..TerminalCell::default()
                 };
                 for row in state.get_active_screen() {

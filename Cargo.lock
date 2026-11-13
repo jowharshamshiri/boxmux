@@ -175,7 +175,7 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 
 [[package]]
 name = "boxmux"
-version = "0.280.579"
+version = "0.281.586"
 dependencies = [
  "chrono",
  "clap",
@@ -196,6 +196,7 @@ dependencies = [
  "serde_json",
  "signal-hook 0.4.5",
  "tempfile",
+ "unicode-segmentation",
  "unicode-width",
  "vte",
 ]
