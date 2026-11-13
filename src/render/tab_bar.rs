@@ -2,7 +2,8 @@
 //! same layout is used for drawing and for finding what the mouse is on.
 
 use super::screen::{ScreenBuffer, Style};
-use super::styled::{styled_chars, width_of};
+use super::styled::styled_glyphs;
+use crate::width::{ellipsize, text_width};
 
 /// Columns of a tab label before it is cut off with `…`.
 const MAX_LABEL_WIDTH: usize = 16;
@@ -49,33 +50,19 @@ pub struct TabBar {
     pub max_offset: usize,
 }
 
+/// What a tab shows: ` label ` or ` label × `, its label without colors and cut to
+/// [`MAX_LABEL_WIDTH`] columns.
 fn tab_text(spec: &TabSpec) -> String {
-    let label: String = if width_of(&styled_chars(&spec.label, Style::default())) > MAX_LABEL_WIDTH
-    {
-        let mut cut = String::new();
-        let mut width = 0;
-        for ch in spec.label.chars() {
-            let w = super::screen::char_width(ch);
-            if width + w > MAX_LABEL_WIDTH - 1 {
-                break;
-            }
-            cut.push(ch);
-            width += w;
-        }
-        cut.push('…');
-        cut
-    } else {
-        spec.label.clone()
-    };
+    let plain: String = styled_glyphs(&spec.label, Style::default())
+        .iter()
+        .map(|g| g.glyph.to_string())
+        .collect();
+    let label = ellipsize(&plain, MAX_LABEL_WIDTH);
     if spec.closeable {
         format!(" {} {} ", label, CLOSE)
     } else {
         format!(" {} ", label)
     }
-}
-
-fn text_width(text: &str) -> usize {
-    width_of(&styled_chars(text, Style::default()))
 }
 
 impl TabBar {
@@ -217,7 +204,7 @@ impl TabBar {
                 } else {
                     styles.inactive
                 };
-                buffer.put(x, self.y, arrow, style, limit);
+                buffer.put_char(x, self.y, arrow, style, limit);
             }
         }
     }

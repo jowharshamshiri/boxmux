@@ -18,6 +18,7 @@ description: Complete reference for BoxMux YAML configuration files - file struc
 - [Keyboard Configuration](#keyboard-configuration)
 - [Focus and Navigation](#focus-and-navigation)
 - [Overflow and Scrolling](#overflow-and-scrolling)
+- [Text Width](#text-width)
 - [Color Reference](#color-reference)
 - [Chart Configuration](#chart-configuration)
 - [Table Configuration](#table-configuration)
@@ -496,6 +497,26 @@ Tab moves the focus to the next box in `tab_order`, wrapping around. Shift+Tab m
   content: |
     This long line breaks at the box edge instead of needing horizontal scrolling.
 ```
+
+## Text Width
+
+BoxMux measures text in terminal columns, the same way everywhere: wrapping, cutting with `…`, centering, titles, tabs, menu entries, tables, charts, terminal boxes and redrawing.
+
+Text is laid out in grapheme clusters, what a reader takes for one character: a letter with its accents, an emoji with its variation selector or skin tone, emoji joined into one, a flag. A cluster takes the columns Unicode's East Asian Width and emoji presentation give it:
+
+| Text | Columns | Examples |
+|------|---------|----------|
+| CJK and other wide or fullwidth characters | 2 | `日本`, `한`, `Ａ` |
+| Emoji shown as emoji, with or without a variation selector | 2 | `🌅`, `☀️`, `👍🏽`, `🇩🇪` |
+| East Asian *ambiguous* characters | 1 | `→`, `·`, `×`, `…`, `►`, `─` |
+| Combining marks, variation selectors, joiners | 0, part of the cluster before them | the accent of `é` written as `e` + U+0301 |
+| Everything else | 1 | `a`, `é`, `☀` |
+
+A cluster never takes more than two columns.
+
+Ambiguous characters take one column, as they do in Western terminal setups. A terminal set to draw them two columns wide (a CJK locale, WezTerm's `treat_east_asian_ambiguous_width_as_wide = true`) shows lines holding them shifted; set it to draw them narrow.
+
+Terminals do not all agree on emoji widths: some draw `☀️` in one column (WezTerm's default `unicode_version = 9`), and terminals with old Unicode tables draw some emoji in one column. BoxMux blanks both columns of a two-column cluster before drawing it and places the cursor after it itself, so in such a terminal the emoji is followed by a blank and nothing after it moves.
 
 ## Color Reference
 

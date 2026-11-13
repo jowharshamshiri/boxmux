@@ -161,9 +161,11 @@ When the program ends, its last screen stays in the tab.
 
 boxmux contains its own terminal emulator. It handles:
 
-- **Text**: UTF-8, wide (two-column) characters, line wrapping with auto-wrap on or off
-  (DECAWM), insert mode (IRM), linefeed/newline mode (LNM), tab stops (HTS, TBC, CHT, CBT,
-  default stops every 8 columns), repeat of the last character (`b`).
+- **Text**: UTF-8 in grapheme clusters: a combining mark, variation selector, skin tone or
+  joined emoji goes into the cell of the character before it, and each cell takes the columns
+  [Text Width](configuration.md#text-width) gives it (wide characters and emoji two); line
+  wrapping with auto-wrap on or off (DECAWM), insert mode (IRM), linefeed/newline mode
+  (LNM), tab stops (HTS, TBC, CHT, CBT, default stops every 8 columns), repeat of the last character (`b`).
 - **Character sets**: G0 and G1 with shift in and shift out; the DEC special graphics set
   (`ESC ( 0`), whose letters become line-drawing characters (`lqqk` is `┌──┐`), and the UK
   set (`#` is `£`).

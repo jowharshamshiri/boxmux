@@ -1,9 +1,9 @@
 //! Tables drawn as text from CSV or JSON data, filtered, sorted and paged as a box's
 //! `table_config` says.
 
+use crate::width::{ellipsize, pad, text_width};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use unicode_width::UnicodeWidthChar;
 
 /// A table: column headers and rows of cells.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,30 +112,9 @@ pub fn parse_table_data_from_json(content: &str) -> Result<TableData, String> {
     Ok(TableData { headers, rows })
 }
 
-fn text_width(text: &str) -> usize {
-    text.chars().map(|c| c.width().unwrap_or(0)).sum()
-}
-
 /// `text` padded with spaces to `width` columns, or cut to `width` columns ending in `…`.
 fn fit(text: &str, width: usize) -> String {
-    let full = text_width(text);
-    if full <= width {
-        return format!("{}{}", text, " ".repeat(width - full));
-    }
-    let mut out = String::new();
-    let mut used = 0;
-    for ch in text.chars() {
-        let w = ch.width().unwrap_or(0);
-        if used + w > width.saturating_sub(1) {
-            break;
-        }
-        out.push(ch);
-        used += w;
-    }
-    out.push('…');
-    used += 1;
-    out.push_str(&" ".repeat(width.saturating_sub(used)));
-    out
+    pad(&ellipsize(text, width), width)
 }
 
 /// Characters of one border style: the left end, joint and right end of the top, separator

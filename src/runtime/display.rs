@@ -133,6 +133,66 @@ fn set_style(out: &mut impl Write, from: Option<Style>, to: Style) -> io::Result
     Ok(())
 }
 
+/// Writes what turns a terminal showing `previous` (`None` when unknown) into one showing
+/// `frame`: each run of changed cells, from its first cell.
+///
+/// Terminals do not all give a cluster the width [`crate::width`] does: some draw an emoji
+/// variation sequence or an emoji their Unicode tables do not know in one column. So a cell
+/// holding a two-column cluster or a cluster of several characters is blanked first, the
+/// cluster written over the blanks, and the cursor placed after it by position: a terminal
+/// that draws it narrower shows a blank where the rest of it would be, and every cell after it
+/// stays in its column.
+pub fn write_frame(
+    out: &mut impl Write,
+    frame: &ScreenBuffer,
+    previous: Option<&ScreenBuffer>,
+) -> io::Result<()> {
+    let previous = previous.filter(|p| p.width == frame.width && p.height == frame.height);
+    // The style the terminal is in; unknown at the start of each frame.
+    let mut style: Option<Style> = None;
+    for y in 0..frame.height {
+        let changed = |x: usize| previous.is_none_or(|p| p.get(x, y) != frame.get(x, y));
+        let continuation = |x: usize| frame.get(x, y).is_some_and(|c| c.is_continuation());
+        // The terminal's cursor column on this row, when it is known.
+        let mut cursor: Option<usize> = None;
+        let mut x = 0;
+        while x < frame.width {
+            if !changed(x) {
+                x += 1;
+                continue;
+            }
+            // A changed right half of a wide cluster is redrawn with its left half.
+            if continuation(x) && x > 0 {
+                x -= 1;
+            }
+            while x < frame.width && (changed(x) || continuation(x)) {
+                let cell = frame.get(x, y).expect("x and y are inside the frame");
+                if cell.is_continuation() {
+                    x += 1;
+                    continue;
+                }
+                if cursor != Some(x) {
+                    queue!(out, cursor::MoveTo(x as u16, y as u16))?;
+                }
+                set_style(out, style, cell.style)?;
+                style = Some(cell.style);
+                let width = cell.glyph.width();
+                if width == 2 || cell.glyph.is_sequence() {
+                    write!(out, "{}", " ".repeat(width))?;
+                    queue!(out, cursor::MoveTo(x as u16, y as u16))?;
+                    write!(out, "{}", cell.glyph)?;
+                    cursor = None;
+                } else {
+                    write!(out, "{}", cell.glyph)?;
+                    cursor = Some(x + 1);
+                }
+                x += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Display for TerminalDisplay {
     fn size(&self) -> (u16, u16) {
         self.size
@@ -143,35 +203,7 @@ impl Display for TerminalDisplay {
     }
 
     fn present(&mut self, frame: &ScreenBuffer, previous: Option<&ScreenBuffer>) -> io::Result<()> {
-        let previous = previous.filter(|p| p.width == frame.width && p.height == frame.height);
-        // The style the terminal is in; unknown at the start of each frame.
-        let mut style: Option<Style> = None;
-        for y in 0..frame.height {
-            let changed = |x: usize| previous.is_none_or(|p| p.get(x, y) != frame.get(x, y));
-            let mut x = 0;
-            while x < frame.width {
-                if !changed(x) {
-                    x += 1;
-                    continue;
-                }
-                // A changed right half of a wide character is redrawn with its left half.
-                if frame.get(x, y).is_some_and(|c| c.is_continuation()) && x > 0 {
-                    x -= 1;
-                }
-                queue!(self.out, cursor::MoveTo(x as u16, y as u16))?;
-                while x < frame.width
-                    && (changed(x) || frame.get(x, y).is_some_and(|c| c.is_continuation()))
-                {
-                    let cell = frame.get(x, y).expect("x and y are inside the frame");
-                    if !cell.is_continuation() {
-                        set_style(&mut self.out, style, cell.style)?;
-                        style = Some(cell.style);
-                        write!(self.out, "{}", cell.ch)?;
-                    }
-                    x += 1;
-                }
-            }
-        }
+        write_frame(&mut self.out, frame, previous)?;
         queue!(
             self.out,
             crossterm::style::SetAttribute(crossterm::style::Attribute::Reset)

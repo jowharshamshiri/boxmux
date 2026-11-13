@@ -1,7 +1,7 @@
 //! Text charts drawn from `label,value` data: bar, line, histogram, pie and scatter.
 
+use crate::width::{pad, text_width};
 use serde::{Deserialize, Serialize};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// The smallest area, in columns and rows, a chart is drawn in.
 pub const MIN_WIDTH: usize = 20;
@@ -95,33 +95,17 @@ fn number(value: f64) -> String {
     }
 }
 
-/// `text` cut or padded to exactly `width` columns.
-fn pad(text: &str, width: usize) -> String {
-    let mut out = String::new();
-    let mut used = 0;
-    for ch in text.chars() {
-        let w = ch.width().unwrap_or(0);
-        if used + w > width {
-            break;
-        }
-        out.push(ch);
-        used += w;
-    }
-    out.push_str(&" ".repeat(width - used));
-    out
-}
-
 fn bar_chart(data: &[DataPoint], width: usize, height: usize) -> Vec<String> {
     let shown = &data[..data.len().min(height)];
     let label_width = shown
         .iter()
-        .map(|p| p.label.width())
+        .map(|p| text_width(&p.label))
         .max()
         .unwrap_or(0)
         .min(width / 3);
     let value_width = shown
         .iter()
-        .map(|p| number(p.value).width())
+        .map(|p| text_width(&number(p.value)))
         .max()
         .unwrap_or(0)
         .min(width / 3);
@@ -196,9 +180,8 @@ fn point_chart(
 ) -> Vec<String> {
     let (min_y, max_y) = range(points.iter().map(|p| p.1));
     let (min_x, max_x) = range(points.iter().map(|p| p.0));
-    let axis_width = number(min_y)
-        .width()
-        .max(number(max_y).width())
+    let axis_width = text_width(&number(min_y))
+        .max(text_width(&number(max_y)))
         .min(width / 3);
     // axis labels, " ┤", plot
     let plot_width = width - axis_width - 2;
@@ -254,8 +237,8 @@ fn point_chart(
     let mut axis = String::new();
     let mut used = 0;
     for (&(x, _), point) in points.iter().zip(data) {
-        let label = pad(&point.label, point.label.width().min(6));
-        let label_width = label.width();
+        let label = pad(&point.label, text_width(&point.label).min(6));
+        let label_width = text_width(&label);
         if label_width == 0 || label_width > plot_width {
             continue;
         }
@@ -376,7 +359,7 @@ fn pie_chart(data: &[DataPoint], width: usize, height: usize) -> Vec<String> {
             format!(
                 "{} {}{}",
                 SLICE_GLYPHS[i],
-                pad(&point.label, point.label.width().min(label_width)),
+                pad(&point.label, text_width(&point.label).min(label_width)),
                 percent
             )
         })
@@ -453,13 +436,13 @@ mod tests {
                 );
                 for line in lines {
                     assert!(
-                        line.width() <= width,
+                        text_width(line) <= width,
                         "{:?} {}x{}: {:?} is {} wide",
                         kind,
                         width,
                         height,
                         line,
-                        line.width()
+                        text_width(line)
                     );
                 }
             }

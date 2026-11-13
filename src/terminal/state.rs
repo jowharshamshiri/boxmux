@@ -49,6 +49,10 @@ pub struct TerminalState {
     pub active_charset: usize,
     /// The last character printed, for REP.
     pub last_printed: Option<char>,
+    /// The cell (column, row) holding the cluster printed last, while nothing but printing has
+    /// happened since: a character that continues that cluster (a combining mark, a variation
+    /// selector, a skin tone, a joiner and what it joins) goes into that cell.
+    pub joinable: Option<(usize, usize)>,
     pub terminal_title: Option<String>,
     pub icon_name: Option<String>,
     pub dcs_request: Option<DcsRequest>,
@@ -81,6 +85,7 @@ impl TerminalState {
             charsets: [Charset::Ascii; 2],
             active_charset: 0,
             last_printed: None,
+            joinable: None,
             terminal_title: None,
             icon_name: None,
             dcs_request: None,
@@ -397,6 +402,7 @@ impl TerminalState {
     }
 
     pub fn resize(&mut self, new_width: usize, new_height: usize) {
+        self.joinable = None;
         let (new_width, new_height) = (new_width.max(1), new_height.max(1));
         self.screen_width = new_width;
         self.screen_height = new_height;
@@ -504,14 +510,13 @@ fn default_tab_stops(width: usize) -> Vec<bool> {
 /// right half whose character is gone, becomes a blank.
 fn repair_wide_characters(row: &mut [TerminalCell]) {
     for x in 0..row.len() {
-        let wide = unicode_width::UnicodeWidthChar::width(row[x].character) == Some(2);
-        if wide && row.get(x + 1).map(|c| c.character) != Some(WIDE_CONTINUATION) {
-            row[x].character = ' ';
+        let wide = row[x].glyph.width() == 2;
+        if wide && row.get(x + 1).map(|c| &c.glyph) != Some(&WIDE_CONTINUATION) {
+            row[x].glyph = Glyph::SPACE;
         }
-        let orphan = row[x].character == WIDE_CONTINUATION
-            && (x == 0 || unicode_width::UnicodeWidthChar::width(row[x - 1].character) != Some(2));
+        let orphan = row[x].glyph == WIDE_CONTINUATION && (x == 0 || row[x - 1].glyph.width() != 2);
         if orphan {
-            row[x].character = ' ';
+            row[x].glyph = Glyph::SPACE;
         }
     }
 }
