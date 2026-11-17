@@ -12,6 +12,9 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Migrating
 
+- Bindings name Ctrl+4 to Ctrl+7 by the keys terminals send them as, `Ctrl+\`, `Ctrl+]`,
+  `Ctrl+^` and `Ctrl+_`; a binding of `Ctrl+4` to `Ctrl+7` is a load error that names the key to
+  write.
 - `pty: true` and `thread: true` are gone: use `execution_mode: Pty` or `execution_mode: Thread`
   (the default is `Immediate`). The removed keys are now load errors, as is every unknown key.
 - `bounds` is gone: use `position`.
@@ -48,6 +51,12 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Added
 
+- A focused terminal receives every key, Tab and Shift+Tab included, so shell completion and
+  other programs' Tab work in it. Ctrl+] takes the focus out of the terminal, to the next box
+  in tab order or to none, with its program still running, and then runs what `hot_keys` and the
+  app's and layout's `on_keypress` bind to `Ctrl+]`, such as switching the layout. Before, Tab
+  and Shift+Tab always moved the focus and never reached the program, and a layout whose only
+  box was a terminal could not be left except by ending the program.
 - `boxmux --version` names the commit the binary was built from:
   `boxmux <version> commit <commit>`, with `-dirty` after the commit when the tree had
   uncommitted changes, or `commit unknown (built without git metadata)`.

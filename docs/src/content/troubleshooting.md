@@ -192,7 +192,7 @@ The border and title turn red when the last run of the shown tab failed: a non-z
 
 - `q` always quits; a binding for `q` never runs.
 - A box's `on_keypress` handlers run only while that box has the focus and its shown tab is not a menu.
-- When the focused box shows a running terminal program, all keys except Tab and Shift+Tab go to the program, and no bindings run.
+- When the focused box shows a running terminal program, every key except Ctrl+] goes to the program, Tab included, and no bindings run. Ctrl+] takes the focus out of the terminal and runs what is bound to it; see [Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 - Some terminals do not send certain combinations (for example Ctrl+Shift+letter, or F-keys taken by the terminal or desktop). Try another key.
 - App and layout handlers run in the background and show no output; a failure appears as a red notice on the bottom row.
 

@@ -483,6 +483,127 @@ app:
     app.wait_for_text("got:abc q");
 }
 
+/// A terminal program that writes its process id to `markers/term`, then reads lines and echoes
+/// each as `got[<line>]`, tabs and control characters shown as `^I`, `^[`.
+#[cfg(unix)]
+const LINE_ECHO: &str = r#"'echo $$ > markers/term; echo ready; while IFS= read -r line; do printf "got[%s]\n" "$line" | cat -t; done'"#;
+
+#[test]
+#[cfg(unix)]
+fn tab_and_shift_tab_typed_into_a_focused_terminal_reach_the_program() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        &r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: shell
+          title: Terminal
+          position: {x1: "0", y1: "0", x2: "60", y2: "12"}
+          tab_order: 1
+          execution_mode: Pty
+          script: [SCRIPT]
+        - id: notes
+          title: Notes
+          position: {x1: "62", y1: "0", x2: "98", y2: "12"}
+          tab_order: 2
+          content: notes
+"#
+        .replace("SCRIPT", LINE_ECHO),
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("ready");
+    // Tab and Shift+Tab as a terminal sends them, then Enter.
+    app.send("a\tb\x1b[Z\r");
+    app.wait_for_text("got[a^Ib^[[Z]");
+}
+
+/// The escape chord Ctrl+], as terminals send it: the control character GS.
+#[cfg(unix)]
+const ESCAPE_CHORD: &str = "\x1d";
+
+#[test]
+#[cfg(unix)]
+fn the_escape_chord_leaves_a_focused_terminal_running_and_its_bindings_switch_the_layout() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        &r#"
+app:
+  hot_keys:
+    "Ctrl+]": needs_you
+  layouts:
+    - id: main
+      root: true
+      on_keypress:
+        "Ctrl+]": [WRITE_LEFT]
+      children:
+        - id: shell
+          title: Terminal
+          position: {x1: "0", y1: "0", x2: "60", y2: "12"}
+          tab_order: 1
+          execution_mode: Pty
+          script: [SCRIPT]
+        - id: actions
+          title: Actions
+          position: {x1: "62", y1: "0", x2: "98", y2: "6"}
+          choices:
+            - id: needs_you
+              content: Back to Needs you
+              script: ["'BOXMUX' switch_active_layout queue"]
+    - id: queue
+      children:
+        - id: waiting
+          title: Needs you
+          position: {x1: "0", y1: "0", x2: "60", y2: "12"}
+          content: QUEUE_SHOWN
+"#
+        .replace("SCRIPT", LINE_ECHO)
+        .replace("WRITE_LEFT", &write_marker("left", "left"))
+        .replace("BOXMUX", binary()),
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("ready");
+    let program: i32 = fixture.wait_for_marker("term").trim().parse().unwrap();
+    // The terminal, the only box with a tab_order, starts with the focus.
+    app.send("one\r");
+    app.wait_for_text("got[one]");
+
+    // The chord leaves the terminal and runs what is bound to it: the hot key shows the other
+    // layout, and the layout's handler runs.
+    app.send(ESCAPE_CHORD);
+    app.wait_for_text("QUEUE_SHOWN");
+    assert_eq!(fixture.wait_for_marker("left"), "left");
+    assert_eq!(
+        unsafe { libc::kill(program, 0) },
+        0,
+        "the terminal's program still runs"
+    );
+
+    // Back on the terminal's layout, the focus is out of the terminal: typing reaches no program.
+    let output = fixture.control(&["switch_active_layout", "main"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    app.wait_for_text("got[one]");
+    app.send("two\r");
+    thread::sleep(Duration::from_millis(500));
+    app.pump(Duration::from_millis(30));
+    assert!(
+        app.screen.find("got[two]").is_none(),
+        "the terminal kept the focus\n{}",
+        app.report()
+    );
+
+    // Tab takes the focus back into the terminal, whose program reads on.
+    app.send("\t");
+    app.send("three\r");
+    app.wait_for_text("got[three]");
+}
+
 #[test]
 #[cfg(unix)]
 fn quitting_leaves_no_process_behind() {

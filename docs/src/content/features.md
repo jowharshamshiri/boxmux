@@ -73,8 +73,9 @@ See [Interactive UI](/docs/interactive-ui) and [Stream Architecture](/docs/strea
 ## Embedded terminals
 
 - `execution_mode: Pty` runs a program in a pseudo-terminal sized to the inside of the box.
-- The focused terminal receives every key except Tab and Shift+Tab, and pasted text. Mouse
-  events reach the program when it asks for mouse reporting.
+- The focused terminal receives every key, Tab and Shift+Tab included, and pasted text. Ctrl+]
+  takes the focus out of it, and `hot_keys` and `on_keypress` can bind Ctrl+] to act as it
+  leaves. Mouse events reach the program when it asks for mouse reporting.
 - The emulator handles 256 and 24-bit color, the alternate screen, scroll regions, line drawing
   characters, wide characters, mouse modes and window titles (shown as the tab label), and
   keeps scrollback.
@@ -103,6 +104,7 @@ See [Data Visualization](/docs/data-visualization) and [Plugin System](/docs/plu
 - Click a scrollbar track to jump, drag its knob to scroll; the wheel scrolls the box under the
   pointer.
 - Tab and Shift+Tab move the focus along `tab_order`; `next_focus_id` overrides the next box.
+  In a focused terminal they go to the program, and Ctrl+] moves the focus on.
 - Up and Down move the menu selection or scroll; Left and Right scroll sideways; Page Up and
   Page Down scroll a page (with Shift, sideways); Home and End go to the start and end of the
   lines; Ctrl+Home and Ctrl+End go to the top and bottom.

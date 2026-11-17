@@ -193,7 +193,7 @@ Notes:
 
 - Scripts run in the directory BoxMux was started from, so start it in the project directory.
 - `execution_mode: Thread` shows build and test output line by line. A failing build (non-zero exit status) turns the output box's border red.
-- `hot_keys` maps F5 and F6 to the choices `build` and `test`; they work whichever box has the focus, unless that box is showing a running terminal (which receives the keys).
+- `hot_keys` maps F5 and F6 to the choices `build` and `test`; they work whichever box has the focus, unless that box is showing a running terminal (which receives the keys until Ctrl+] takes the focus out of it).
 
 ## Server Management Interface
 
@@ -276,7 +276,7 @@ app:
 Notes:
 
 - `terminal_area` starts with a shell. The tools started from the menu open as further tabs in it; each tab is labelled with the choice (or with the title the program sets).
-- Tab moves the focus between the menu and the terminal; inside the terminal every other key, including `q`, goes to the program.
+- Tab moves the focus from the menu to the terminal, and Ctrl+] back out of it; inside the terminal every other key, Tab and `q` included, goes to the program.
 
 ## Docker Container Manager
 

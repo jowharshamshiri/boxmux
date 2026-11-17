@@ -78,16 +78,18 @@ error.
 ### Keyboard
 
 When the focused box's visible tab is a terminal whose program is running, **every key goes
-to the program except Tab and Shift+Tab**, which always move the focus so you can leave the
-terminal. That includes `q`, Ctrl+C, Enter and the arrow keys; boxmux's own bindings for them
-do not apply while the terminal has the focus.
+to the program except Ctrl+]**, which takes the focus out of the terminal (see
+[Leaving a terminal](#leaving-a-terminal)). That includes Tab and Shift+Tab, `q`, Ctrl+C, Enter
+and the arrow keys; boxmux's own bindings for them do not apply while the terminal has the
+focus.
 
 Keys are sent as an xterm would send them:
 
 | Key | Bytes |
 |-----|-------|
 | Characters | UTF-8 |
-| Ctrl+letter, Ctrl+`@` `[` `\` `]` `^` `_` `?` (and Ctrl+2..8) | The control character (Ctrl+C is `0x03`) |
+| Tab, Shift+Tab | `\t`, `ESC [ Z` |
+| Ctrl+letter, Ctrl+`@` `[` `\` `^` `_` `?` (and Ctrl+2, 3, 4, 6, 7, 8) | The control character (Ctrl+C is `0x03`) |
 | Alt+key | `ESC` followed by the key |
 | Enter, Backspace, Esc | `\r`, `0x7f` (Ctrl+Backspace `0x08`, Alt+Backspace `ESC 0x7f`), `ESC` |
 | Arrows, Home, End | `ESC [ A`... or, after the program enabled application cursor keys (DECCKM), `ESC O A`... |
@@ -96,10 +98,56 @@ Keys are sent as an xterm would send them:
 | F1-F4 | `ESC O P`..`ESC O S` (`ESC [ 1 ; <mod> P`.. when modified) |
 | F5-F12 | `ESC [ 15 ~` .. `ESC [ 24 ~` |
 
-Keys with no encoding here (for example F13 and up) are not sent. To send a Tab to the
-program, use the socket: `boxmux send_pty_input <box> $'\t'`.
+Keys with no encoding here (for example F13 and up) are not sent.
 
 When the program ends, the keyboard goes back to boxmux.
+
+### Leaving a terminal
+
+Ctrl+] takes the focus out of the terminal, as Ctrl+` does in VS Code:
+
+- The focus moves to the next box in tab order (or the terminal box's `next_focus_id`). When
+  there is no other box to move to, no box has the focus.
+- The program keeps running. Tab, or a click on the box, takes the focus back into it.
+- Then what is bound to `Ctrl+]` runs: `hot_keys` and the app's and the shown layout's
+  `on_keypress` handlers. A box's own `on_keypress` handlers do not run for it: the terminal's
+  box has just lost the focus, and the box that gained it was not where the key was pressed.
+
+So a layout whose only box is a terminal can bind the chord to leave the layout. Here Ctrl+]
+shows the layout `queue` (the key is quoted, since `]` ends a list in YAML's inline style), and the program in `shell` keeps running while `queue` is shown:
+
+```yaml
+app:
+  layouts:
+    - id: main
+      root: true
+      on_keypress:
+        "Ctrl+]": ['boxmux switch_active_layout queue']
+      children:
+        - id: shell
+          title: Terminal (Ctrl+] to leave)
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          tab_order: 1
+          execution_mode: Pty
+          script: ['bash']
+    - id: queue
+      children:
+        - id: waiting
+          position: {x1: 0%, y1: 0%, x2: 100%, y2: 100%}
+          content: Nothing is waiting.
+```
+
+`hot_keys` binds it the same way, to a choice in the shown layout: `hot_keys: {"Ctrl+]": back}`
+runs the choice `back` as if it had been selected.
+
+When no terminal has the focus, Ctrl+] is an ordinary key: its bindings run, with the focused
+box's own handlers among them.
+
+Ctrl+] is the key because terminals, WezTerm and xterm among them, send it as a control
+character of its own, GS (`0x1d`), which only Ctrl+5 shares; boxmux reads both as Ctrl+].
+Ctrl+` is sent as NUL, the same character as Ctrl+Space and Ctrl+@, which shells and editors
+use, so it could not be told apart from them. To send Ctrl+] itself to the program (Vim's
+jump to tag, telnet's escape), use the socket: `boxmux send_pty_input <box> $'\x1d'`.
 
 ### Paste
 
@@ -110,7 +158,7 @@ program can tell it from typing, and as plain text otherwise. A pasted Tab goes 
 it does not move the focus. When no terminal has the focus, a paste does nothing.
 
 On Windows the console has no bracketed paste: pasted text arrives as key presses and is
-sent to the focused terminal key by key, like typing, so a pasted Tab moves the focus.
+sent to the focused terminal key by key, like typing.
 
 ### Mouse
 

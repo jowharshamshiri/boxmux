@@ -45,7 +45,8 @@ One box at a time has the focus. Its border uses the focus color (the theme's bl
 | Key | Action |
 |-----|--------|
 | `q` | Quit (without modifiers; a focused terminal box receives it instead) |
-| Tab / Shift+Tab | Next / previous box |
+| Tab / Shift+Tab | Next / previous box (a focused terminal box receives them instead) |
+| Ctrl+] | Leave a focused terminal box for the next box |
 | Up / Down | Move the menu selection; in other boxes, scroll one line |
 | Enter | Run the selected menu entry |
 | Left / Right | Scroll one column |
@@ -215,7 +216,7 @@ Clicks, hover and the mouse wheel act on the box that is visible at the pointer.
 
 A box whose shown tab is a running terminal program (`execution_mode: Pty`, or a terminal started through the socket) behaves differently while it has the focus:
 
-- Every key except Tab and Shift+Tab goes to the program, including `q`, Ctrl+C and the arrow keys.
+- Every key except Ctrl+] goes to the program, including Tab, Shift+Tab, `q`, Ctrl+C and the arrow keys. Ctrl+] moves the focus to the next box (or to none, when there is no other) with the program still running, then runs what `hot_keys` and the app's and layout's `on_keypress` bind to it; see [Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 - If the program has turned on mouse reporting (as `htop`, `vim` with `mouse=a`, or `mc` do), mouse clicks, drags and wheel events inside the terminal area go to the program, with coordinates relative to the box. A drag that starts in the program stays with it until the button is released. Otherwise the mouse acts on BoxMux as usual, and the wheel scrolls the terminal's scrollback.
 - The top border and the resize corner still belong to BoxMux, so the box can be moved and resized. The program is told the new size.
 

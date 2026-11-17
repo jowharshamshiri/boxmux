@@ -193,7 +193,8 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
   environment.
 - **Mouse**: click to focus, run menu entries and switch tabs; drag the top border to move a
   box and the bottom-right corner to resize it; scrollbars and the wheel scroll.
-- **Keyboard**: Tab and Shift+Tab move the focus along `tab_order` (or `next_focus_id`), arrows
+- **Keyboard**: Tab and Shift+Tab move the focus along `tab_order` (or `next_focus_id`); in a
+  focused terminal every key goes to the program, Tab included, and Ctrl+] leaves it; arrows
   and Page Up/Down scroll, Ctrl+C copies the focused box's visible text to the clipboard
   (through the terminal, with OSC 52).
 - **Hyperlinks**: OSC 8 links (`ESC ] 8 ; id=<id> ; <URI> ST`, the text, `ESC ] 8 ; ; ST`) in a

@@ -3,6 +3,49 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+/// The key that takes the focus out of a focused terminal: Ctrl+]. Terminals send it as the
+/// control character GS (`0x1d`), a byte of its own that WezTerm, xterm and the common
+/// terminals pass through. Ctrl+`, VS Code's terminal key, is sent as NUL, the same byte as
+/// Ctrl+Space, so it could not be told from a key the program needs. Bindings name it `Ctrl+]`.
+pub const TERMINAL_ESCAPE: &str = "Ctrl+]";
+
+/// Whether `event` is [`TERMINAL_ESCAPE`]. `event` is canonical (see [`canonical_key`]).
+pub fn is_terminal_escape(event: &KeyEvent) -> bool {
+    event.code == KeyCode::Char(']') && event.modifiers == KeyModifiers::CONTROL
+}
+
+/// The punctuation key that, with Ctrl, sends the same control character as Ctrl+`digit`.
+/// Terminals send Ctrl+4 to Ctrl+7 and Ctrl+\\, Ctrl+], Ctrl+^ and Ctrl+_ as the same four
+/// characters (`0x1c` to `0x1f`).
+fn control_digit_punctuation(digit: char) -> Option<char> {
+    match digit {
+        '4' => Some('\\'),
+        '5' => Some(']'),
+        '6' => Some('^'),
+        '7' => Some('_'),
+        _ => None,
+    }
+}
+
+/// The key press as boxmux names it. The terminal input reader reports the control characters
+/// `0x1c` to `0x1f` as Ctrl+4 to Ctrl+7; each is named after its punctuation key instead, on
+/// every platform, so a binding means the same key everywhere.
+pub fn canonical_key(event: KeyEvent) -> KeyEvent {
+    let punctuation = match event.code {
+        KeyCode::Char(digit) if event.modifiers.contains(KeyModifiers::CONTROL) => {
+            control_digit_punctuation(digit)
+        }
+        _ => None,
+    };
+    match punctuation {
+        Some(punctuation) => KeyEvent {
+            code: KeyCode::Char(punctuation),
+            ..event
+        },
+        None => event,
+    }
+}
+
 /// The name of a key press as written in `hot_keys` and `on_keypress`: `a`, `A`, `Enter`, `Tab`,
 /// `Up`, `F5`, `Ctrl+r`, `Alt+x`, `Space`... `None` for keys that have no name.
 pub fn key_name(event: &KeyEvent) -> Option<String> {
@@ -148,6 +191,16 @@ pub fn check_key_name(configured: &str) -> Result<(), String> {
         return Err(format!(
             "Shift is part of the character: write the shifted character itself (for example A, not Shift+a), not Shift+{}",
             base
+        ));
+    }
+    let digit = base.chars().next().filter(|_| character);
+    if let Some(punctuation) = digit
+        .filter(|_| seen.contains(&"ctrl".to_string()))
+        .and_then(control_digit_punctuation)
+    {
+        return Err(format!(
+            "terminals send Ctrl+{} as Ctrl+{}: write {}+{}",
+            base, punctuation, modifiers, punctuation
         ));
     }
     if seen.is_empty() && base == "q" {
@@ -352,6 +405,54 @@ mod tests {
             key_name(&key(KeyCode::F(5), KeyModifiers::NONE)).unwrap(),
             "F5"
         );
+    }
+
+    #[test]
+    fn the_control_characters_ctrl_4_to_7_are_named_after_their_punctuation_keys() {
+        // What the terminal input reader reports for 0x1c..0x1f, and what Windows reports for
+        // Ctrl+], name the same keys.
+        for (digit, punctuation) in [('4', "\\"), ('5', "]"), ('6', "^"), ('7', "_")] {
+            for modifiers in [
+                KeyModifiers::CONTROL,
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            ] {
+                let reported = canonical_key(key(KeyCode::Char(digit), modifiers));
+                let named = canonical_key(key(
+                    KeyCode::Char(punctuation.chars().next().unwrap()),
+                    modifiers,
+                ));
+                assert_eq!(reported, named);
+                let name = key_name(&reported).unwrap();
+                assert!(name.ends_with(&format!("+{}", punctuation)), "{}", name);
+                assert_eq!(check_key_name(&name), Ok(()), "{}", name);
+            }
+        }
+        // Without Ctrl a digit is a digit.
+        assert_eq!(
+            canonical_key(key(KeyCode::Char('5'), KeyModifiers::ALT)).code,
+            KeyCode::Char('5')
+        );
+        let escape = canonical_key(key(KeyCode::Char('5'), KeyModifiers::CONTROL));
+        assert!(is_terminal_escape(&escape));
+        assert_eq!(key_name(&escape).unwrap(), TERMINAL_ESCAPE);
+        assert!(!is_terminal_escape(&key(
+            KeyCode::Char(']'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT
+        )));
+    }
+
+    #[test]
+    fn a_binding_of_ctrl_4_to_7_is_refused_with_the_name_it_reaches_boxmux_as() {
+        assert_eq!(
+            check_key_name("Ctrl+5"),
+            Err("terminals send Ctrl+5 as Ctrl+]: write Ctrl+]".to_string())
+        );
+        assert_eq!(
+            check_key_name("alt+ctrl+4"),
+            Err("terminals send Ctrl+4 as Ctrl+\\: write alt+ctrl+\\".to_string())
+        );
+        assert_eq!(check_key_name("Alt+5"), Ok(()));
+        assert_eq!(check_key_name("Ctrl+8"), Ok(()));
     }
 
     #[test]

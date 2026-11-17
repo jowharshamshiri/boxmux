@@ -347,6 +347,7 @@ The `results` box starts with its content. Running Build adds a "Build" tab once
 | Action | How |
 |--------|-----|
 | Focus a box | Click it, or Tab / Shift+Tab through boxes with a `tab_order` |
+| Leave a focused terminal | Ctrl+] |
 | Move the menu selection | Up / Down |
 | Run the selected choice | Enter, or click the entry's label |
 | Scroll | Mouse wheel over any box (3 lines per step), arrow keys, PageUp / PageDown, Home / End, Ctrl+Home / Ctrl+End |
@@ -357,7 +358,7 @@ The `results` box starts with its content. Running Build adds a "Build" tab once
 
 Moved and resized boxes are saved to the YAML file. Start BoxMux with `--lock` to turn moving and resizing off and never write the file.
 
-When a box shows a running terminal program and has the focus, every key except Tab and Shift+Tab goes to that program, including `q` and Ctrl+C.
+When a box shows a running terminal program and has the focus, every key except Ctrl+] goes to that program, including Tab, `q` and Ctrl+C. Ctrl+] moves the focus out of the terminal, and the program keeps running; see [Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 
 **Learn more**: [Interactive UI](/docs/interactive-ui).
 
@@ -556,7 +557,7 @@ Choices can open terminals too. Each one opens in its own tab:
 ```
 
 - The terminal fills the inside of the box border and is resized with the box. Programs see `TERM=xterm-256color`.
-- Focus the box (click it or Tab to it) to type into the program. Tab and Shift+Tab still move the focus.
+- Focus the box (click it or Tab to it) to type into the program. Tab and Shift+Tab then go to the program too; Ctrl+] moves the focus out, and can be bound with `hot_keys` or `on_keypress` (for example to switch the layout).
 - A PTY box runs its script once; `refresh_interval` is not allowed on it.
 - When the program ends, its last screen stays. The border turns yellow if it exited normally or was stopped, and red if it failed. Closing its tab stops it.
 
@@ -944,7 +945,7 @@ app:
 
 - A box's handlers run while it has the focus and its shown tab is not a menu; their output opens in a tab named after the key.
 - App and layout handlers run in the background; their output is not shown, and a failure appears as a notice at the bottom of the screen.
-- Key names: single characters (`r`, `R`), `Enter`, `Esc`, `Tab`, `Shift+Tab`, `Backspace`, `Delete`, `Insert`, `Space`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1` to `F12`, with `Ctrl+`, `Alt+` and `Shift+` prefixes (for example `Ctrl+r`, `Alt+x`, `Shift+Up`). Modifier and key names are not case-sensitive; single characters are.
+- Key names: single characters (`r`, `R`), `Enter`, `Esc`, `Tab`, `Shift+Tab`, `Backspace`, `Delete`, `Insert`, `Space`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1` to `F12`, with `Ctrl+`, `Alt+` and `Shift+` prefixes (for example `Ctrl+r`, `Alt+x`, `Shift+Up`, `Ctrl+]`). Modifier and key names are not case-sensitive; single characters are.
 - `q` always quits, so a binding for `q` never runs.
 - `hot_keys` maps a key to a choice id and runs that choice, as if it were selected, when the choice is in the shown layout.
 

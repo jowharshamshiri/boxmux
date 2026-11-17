@@ -257,9 +257,9 @@ boxmux spawn_pty_process term_box "$command; status=\$?; echo; echo \"Finished w
 
 Switch the layout first: a terminal takes its size from its box, so the box must be in the
 shown layout. Replacing `term_box` before each step removes the previous step's terminal tab.
-While the terminal has the focus every key goes to the program except Tab and Shift+Tab,
-which move the focus to the Back entry; a click on it works too. See
-[PTY Features](/docs/pty-features).
+While the terminal has the focus every key goes to the program, Tab included, except Ctrl+],
+which moves the focus to the Back entry; a click on it works too. See
+[Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 
 Keep this for steps that need the person. A command whose result is only text should not be
 a terminal step: have the driver run it and write what the result means into the log or the

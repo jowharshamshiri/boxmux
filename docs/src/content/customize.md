@@ -199,7 +199,7 @@ Up and Down move the selection, and Enter or a click runs the selected choice. E
   script: ['bash']
 ```
 
-The terminal fills the inside of the border and resizes with the box. While the box has focus, all keys except Tab and Shift+Tab go to the program. When the program ends, the border turns yellow (or shows the error colors if it failed).
+The terminal fills the inside of the border and resizes with the box. While the box has focus, every key except Ctrl+] goes to the program, Tab included; Ctrl+] takes the focus out of the terminal (see [Leaving a terminal](/docs/pty-features#leaving-a-terminal)). When the program ends, the border turns yellow (or shows the error colors if it failed).
 
 ## Layout Management
 

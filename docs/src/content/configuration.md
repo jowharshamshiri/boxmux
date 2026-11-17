@@ -396,7 +396,7 @@ A box script runs once when its layout is first shown. With a `refresh_interval`
 ```
 
 - The terminal is the inside of the border and follows the box's size.
-- While the box has focus, every key except Tab and Shift+Tab goes to the program. This includes `q`.
+- While the box has focus, every key except Ctrl+] goes to the program. This includes Tab, Shift+Tab and `q`. Ctrl+] takes the focus out of the terminal and runs what `hot_keys` and `on_keypress` bind to `Ctrl+]`; see [Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 - Mouse events go to the program only when it turned on mouse reporting.
 - A title the program sets becomes the tab label.
 - When the program ends with status 0, or is stopped, the border turns yellow. A failure shows the error colors.

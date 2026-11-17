@@ -48,7 +48,7 @@ With `execution_mode: Pty`, the script runs in a terminal inside the box. Progra
   script: ['vim README.md']
 ```
 
-While the box has focus, all keys except Tab and Shift+Tab go to the program.
+While the box has focus, every key except Ctrl+] goes to the program, Tab included; Ctrl+] takes the focus out of the terminal.
 
 ## Writing Scripts in YAML
 

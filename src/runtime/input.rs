@@ -1,6 +1,8 @@
 //! Keyboard and mouse handling.
 
-use super::keys::{key_matches, key_name, pty_key_bytes};
+use super::keys::{
+    canonical_key, is_terminal_escape, key_matches, key_name, pty_key_bytes, TERMINAL_ESCAPE,
+};
 use super::{Drag, Runtime};
 use crate::model::bounds::{Bounds, InputBounds};
 use crate::model::stream::RunId;
@@ -84,22 +86,30 @@ impl<D: Display> Runtime<D> {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
-        let focus_keys = matches!(key.code, KeyCode::Tab | KeyCode::BackTab);
-        // A focused terminal receives every key except the focus keys, which always reach
-        // boxmux so focus can leave the terminal.
-        if !focus_keys {
-            if let Some(run) = self.focused_terminal_run() {
-                let application_keys = self
-                    .executor
-                    .get(run)
-                    .and_then(|r| r.pty())
-                    .is_some_and(|s| s.application_cursor_keys());
-                let bytes = pty_key_bytes(&key, application_keys);
-                if !bytes.is_empty() {
-                    self.write_to_terminal(run, &bytes);
-                }
+        let key = canonical_key(key);
+        // A focused terminal receives every key, Tab and Shift+Tab included, except the escape
+        // chord, which takes the focus out of it and then runs what is bound to the chord.
+        let terminal = self
+            .focused_box_id()
+            .and_then(|box_id| Some((self.terminal_run_of(&box_id)?, box_id)));
+        if let Some((run, box_id)) = terminal {
+            if is_terminal_escape(&key) {
+                self.leave_box(&box_id);
+                // The chord left the terminal's box, so that box's own handlers do not run, nor
+                // those of the box the focus moved to.
+                self.run_key_bindings(TERMINAL_ESCAPE, None);
                 return;
             }
+            let application_keys = self
+                .executor
+                .get(run)
+                .and_then(|r| r.pty())
+                .is_some_and(|s| s.application_cursor_keys());
+            let bytes = pty_key_bytes(&key, application_keys);
+            if !bytes.is_empty() {
+                self.write_to_terminal(run, &bytes);
+            }
+            return;
         }
 
         let Some(name) = key_name(&key) else {
@@ -240,6 +250,22 @@ impl<D: Display> Runtime<D> {
             for script in handlers {
                 self.start_box_keypress(box_id, name, script);
             }
+        }
+    }
+
+    /// Moves the focus out of the focused box `box_id`: to the next box in tab order, or to no
+    /// box when there is no other to move to.
+    fn leave_box(&mut self, box_id: &str) {
+        if let Some(layout) = self.ctx.app.get_active_layout_mut() {
+            layout.select_next_muxbox();
+            let still = layout
+                .get_selected_muxboxes()
+                .first()
+                .is_some_and(|muxbox| muxbox.id == box_id);
+            if still {
+                layout.deselect_all_muxboxes();
+            }
+            self.dirty = true;
         }
     }
 

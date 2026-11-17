@@ -491,6 +491,60 @@ fn tab_moves_the_focus_in_tab_order() {
     assert_eq!(focused(&runtime), vec!["menu"]);
 }
 
+fn focused(runtime: &Runtime<MemoryDisplay>) -> Vec<String> {
+    runtime
+        .ctx
+        .app
+        .get_active_layout()
+        .unwrap()
+        .get_selected_muxboxes()
+        .iter()
+        .map(|b| b.id.clone())
+        .collect()
+}
+
+#[test]
+fn the_escape_chord_moves_the_focus_from_a_terminal_to_the_next_box_and_tab_comes_back_to_stay() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: term
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          tab_order: 1
+          execution_mode: Pty
+          script: [LONG_TERMINAL]
+        - id: notes
+          position: {x1: "40", y1: "0", x2: "79", y2: "9"}
+          tab_order: 2
+          content: notes
+"#
+    .replace("LONG_TERMINAL", LONG_TERMINAL);
+    let mut runtime = runtime(&yaml, 80, 10);
+    pump_until(&mut runtime, "the terminal to start", |r| {
+        r.executor.runs().any(|(_, run)| run.pty().is_some())
+    });
+    assert_eq!(focused(&runtime), vec!["term"]);
+    // Ctrl+], as the terminal input reader reports the GS character a terminal sends for it.
+    runtime.handle(key(KeyCode::Char('5'), KeyModifiers::CONTROL));
+    assert_eq!(focused(&runtime), vec!["notes"]);
+    assert!(
+        runtime
+            .executor
+            .runs()
+            .any(|(_, run)| run.pty().is_some() && !run.stop_requested),
+        "the terminal's program runs on"
+    );
+    runtime.handle(key(KeyCode::Tab, KeyModifiers::NONE));
+    assert_eq!(focused(&runtime), vec!["term"]);
+    // In the terminal, Tab and Shift+Tab are the program's.
+    runtime.handle(key(KeyCode::Tab, KeyModifiers::NONE));
+    runtime.handle(key(KeyCode::BackTab, KeyModifiers::SHIFT));
+    assert_eq!(focused(&runtime), vec!["term"]);
+}
+
 #[test]
 fn q_quits_but_q_with_a_modifier_does_not() {
     let mut runtime = runtime(&menu(), 80, 12);

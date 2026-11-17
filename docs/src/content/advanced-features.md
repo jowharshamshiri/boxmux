@@ -228,15 +228,19 @@ Modifier and special key names are matched ignoring case (`ctrl+r` = `Ctrl+r`, `
 Key names in `hot_keys` and every `on_keypress` are checked when the file is loaded, and a
 name that could never match a key press is an error naming it: an unknown key or modifier
 (`Ctrl+Enterr`, `Hyper+x`), a modifier named twice, or `Shift+` with a character (write the
-shifted character, `A`, instead of `Shift+a`).
+shifted character, `A`, instead of `Shift+a`), or Ctrl with 4 to 7, which terminals send as
+the same characters as `Ctrl+\`, `Ctrl+]`, `Ctrl+^` and `Ctrl+_`: write those names. A name
+with `[`, `]`, `{`, `}` or `,` is quoted in YAML's inline style (`{"Ctrl+]": back}`).
 
 Things to know:
 
 - A plain `q` always quits, and on Unix `Ctrl+z` suspends BoxMux; binding either is an error.
 - Keys that BoxMux uses (Tab, arrows, Enter, Page Up/Down, Home/End, Ctrl+C) do their usual job
   and then also run any binding for them.
-- When the focused box shows a running terminal, every key except Tab and Shift+Tab goes to the
-  program, and no bindings run.
+- When the focused box shows a running terminal, every key except Ctrl+] goes to the program,
+  Tab and Shift+Tab included, and no bindings run. Ctrl+] takes the focus out of the terminal
+  and then runs `hot_keys` and the app's and layout's `on_keypress` bound to `Ctrl+]`; see
+  [Leaving a terminal](/docs/pty-features#leaving-a-terminal).
 - Which keys reach BoxMux depends on the terminal; some combinations (for example many `Cmd+`
   keys on macOS) are taken by the terminal application.
 
@@ -386,8 +390,9 @@ directly. See the [API Reference](/docs/api) for every command.
 
 `execution_mode: Pty` runs a box's script (or a choice's) in a pseudo-terminal shown in the box,
 for programs like `htop`, `vim`, `less` or an interactive shell. The terminal is sized to the
-inside of the border and follows resizes. When the box has the focus, keys (except Tab and
-Shift+Tab) and pasted text go to the program. A Pty box cannot have `refresh_interval`.
+inside of the border and follows resizes. When the box has the focus, keys (Tab included) and
+pasted text go to the program; Ctrl+] takes the focus out of it. A Pty box cannot have
+`refresh_interval`.
 Terminals can also be started, stopped, restarted, queried and typed into through the control
 socket (`spawn_pty_process`, `kill_pty_process`, `restart_pty_process`, `query_pty_status`,
 `send_pty_input`, `send_signal`).
