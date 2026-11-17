@@ -198,8 +198,11 @@ already has keeps its interval and its pause; a box that had no script refreshes
 like a box configured with one: with its own `refresh_interval`, or the one it inherits from
 an enclosing box or its layout.
 
-Errors: `the script is empty`; a box in `Pty` mode whose layout is not shown cannot start
-(`box '<id>' is not in the shown layout, so it has no size for a terminal`).
+A box in `Pty` mode starts its terminal whether its layout is shown or not, at the size the
+box has in its layout.
+
+Errors: `the script is empty`; `box '<id>' is too small to show a terminal` for a box in
+`Pty` mode with no room inside its border.
 
 ### stop_box_refresh and start_box_refresh
 
@@ -353,11 +356,14 @@ Reply:
 
 `run` identifies the run within this boxmux instance.
 
-The box that shows the terminal must be in the shown layout, since the terminal size comes
-from its size. Only one process started this way for a given `box_id` runs at a time; spawn
-again after it has ended, or use `restart_pty_process`.
+The box that shows the terminal may be in any layout of the app, shown or hidden. The
+terminal takes the size of the inside of the box in the box's own layout at the screen's
+current size, and keeps it as the screen is resized, so a program started in a hidden
+layout's box already has the box's size when that layout is shown. Only one process started
+this way for a given `box_id` runs at a time; spawn again after it has ended, or use
+`restart_pty_process`.
 
-Errors: `box '<id>' is not in the shown layout, so it has no size for a terminal`,
+Errors: `there is no box '<id>'` when no layout has `box_id` or the `redirect_output` box,
 `box '<id>' is too small to show a terminal`, `run-<n> is still running`, and errors starting
 the process.
 

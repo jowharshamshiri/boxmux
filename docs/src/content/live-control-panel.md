@@ -255,8 +255,9 @@ boxmux replace_box term_box '{"id":"term_box","title":"Run",
 boxmux spawn_pty_process term_box "$command; status=\$?; echo; echo \"Finished with exit status \$status. Choose Back above.\""
 ```
 
-Switch the layout first: a terminal takes its size from its box, so the box must be in the
-shown layout. Replacing `term_box` before each step removes the previous step's terminal tab.
+Switching the layout shows the terminal; the terminal takes the size of `term_box` in its
+layout whether the layout is shown before or after the spawn. Replacing `term_box` before each
+step removes the previous step's terminal tab.
 While the terminal has the focus every key goes to the program, Tab included, except Ctrl+],
 which moves the focus to the Back entry; a click on it works too. See
 [Leaving a terminal](/docs/pty-features#leaving-a-terminal).

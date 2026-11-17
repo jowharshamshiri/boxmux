@@ -325,9 +325,9 @@ impl<D: Display> Runtime<D> {
         self.dirty = true;
     }
 
-    /// Matches every PTY's size to the content area of the box it is shown in.
+    /// Matches every PTY's size to the content area of the box it is shown in, in that box's own
+    /// layout, shown or not: a terminal in a hidden layout is the size it will be shown at.
     fn resize_terminals(&mut self) {
-        let bounds = self.ctx.app.active_bounds();
         let runs: Vec<_> = self
             .executor
             .runs()
@@ -335,7 +335,13 @@ impl<D: Display> Runtime<D> {
             .map(|(id, run)| (*id, run.target_box.clone()))
             .collect();
         for (run, box_id) in runs {
-            let Some(size) = bounds.get(&box_id).and_then(terminal_size) else {
+            let Some(size) = self
+                .ctx
+                .app
+                .box_bounds(&box_id)
+                .as_ref()
+                .and_then(terminal_size)
+            else {
                 continue;
             };
             if let Some(session) = self.executor.get_mut(run).and_then(|r| r.pty_mut()) {

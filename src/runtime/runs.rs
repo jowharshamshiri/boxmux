@@ -13,8 +13,9 @@ impl<D: Display> Runtime<D> {
     /// A terminal (`Pty`) run, or a run whose tab is already open, writes to its tab from the
     /// start. Any other run opens its tab only when its first output arrives, so a run that
     /// prints nothing leaves the box as it was. `reveal` makes the tab the visible one: at once
-    /// when it is open from the start, otherwise when it opens. Fails when the target box does
-    /// not exist or a run for the same origin is still active.
+    /// when it is open from the start, otherwise when it opens. A terminal takes the size of its
+    /// box in the box's own layout, shown or not, at the screen's current size. Fails when the
+    /// target box is in no layout or a run for the same origin is still active.
     pub(super) fn start_run(
         &mut self,
         mut spec: RunSpec,
@@ -25,16 +26,15 @@ impl<D: Display> Runtime<D> {
         if let Some(active) = self.executor.run_for_origin(&spec.origin) {
             return Err(format!("{} is still running", active));
         }
+        let no_box = || format!("there is no box '{}'", spec.target_box);
         let terminal = spec.mode == ExecutionMode::Pty;
-        if terminal && spec.terminal_size.is_none() {
-            let bounds = self.ctx.app.active_bounds();
-            let box_bounds = bounds.get(&spec.target_box).ok_or_else(|| {
-                format!(
-                    "box '{}' is not in the shown layout, so it has no size for a terminal",
-                    spec.target_box
-                )
-            })?;
-            spec.terminal_size = Some(terminal_size(box_bounds).ok_or_else(|| {
+        if terminal {
+            let box_bounds = self
+                .ctx
+                .app
+                .box_bounds(&spec.target_box)
+                .ok_or_else(no_box)?;
+            spec.terminal_size = Some(terminal_size(&box_bounds).ok_or_else(|| {
                 format!("box '{}' is too small to show a terminal", spec.target_box)
             })?);
         }
@@ -42,7 +42,7 @@ impl<D: Display> Runtime<D> {
             .ctx
             .app
             .get_muxbox_by_id(&spec.target_box)
-            .ok_or_else(|| format!("there is no box '{}'", spec.target_box))?;
+            .ok_or_else(no_box)?;
         let stream_id = spec.origin.stream_id(&spec.target_box);
         let tab_open = terminal || target.streams.contains_key(&stream_id);
         let run = self.executor.start(spec.clone(), stream_id.clone())?;

@@ -203,6 +203,16 @@ impl App {
             .unwrap_or_default()
     }
 
+    /// The bounds of the box `box_id` in its own layout, shown or not, at the screen's current
+    /// size. `None` when no layout of the app has the box.
+    pub fn box_bounds(&mut self, box_id: &str) -> Option<Bounds> {
+        let layout_id = self.layout_of_box(box_id)?.id.clone();
+        self.get_adjusted_bounds(None)
+            .get(&layout_id)?
+            .get(box_id)
+            .copied()
+    }
+
     /// How often the script of `box_id` runs: its own `refresh_interval`, else the nearest
     /// enclosing box's, else its layout's. `None` runs it once.
     pub fn refresh_interval(&self, box_id: &str) -> Option<u64> {

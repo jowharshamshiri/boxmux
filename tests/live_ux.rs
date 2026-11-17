@@ -2011,3 +2011,115 @@ fn a_terminal_resized_as_boxmux_starts_and_back_and_forth_is_drawn_at_each_size_
         app.wait_for_handlebar(NEEDS);
     }
 }
+
+/// Two layouts: `main`, shown, with a box saying HOME at its right, and `runs`, hidden, whose
+/// box `run1_box` takes a share of the screen at its top left.
+#[cfg(unix)]
+const HIDDEN_RUNS: &str = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: home
+          title: Home
+          position: {x1: "70%", y1: "0%", x2: "100%", y2: "100%"}
+          content: HOME
+    - id: runs
+      children:
+        - id: run1_box
+          title: Run one
+          position: {x1: "0%", y1: "0%", x2: "60%", y2: "50%"}
+          content: idle
+"#;
+
+/// A terminal program that writes the size it has, as `stty size` says it, to `markers/size` when
+/// it starts and each time its terminal is resized, then runs until it is stopped.
+#[cfg(unix)]
+const SIZE_REPORTER: &str = "report() { stty size > markers/size.new && mv markers/size.new markers/size; }; trap report WINCH; report; while :; do sleep 0.05; done";
+
+#[cfg(unix)]
+impl Fixture {
+    /// Waits until `markers/<name>` holds something other than `not`, and returns it.
+    fn wait_for_marker_other_than(&self, name: &str, not: &str) -> String {
+        let start = Instant::now();
+        loop {
+            let text = fs::read_to_string(self.marker(name)).unwrap_or_default();
+            if !text.is_empty() && text != not {
+                return text;
+            }
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "marker {} still holds {:?}\nlog:\n{}",
+                name,
+                not,
+                self.log()
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+/// The size, as `stty size` writes it, of the inside of the box whose top left corner is the
+/// screen's: from its top right and bottom left corners.
+#[cfg(unix)]
+fn top_left_box_inside(screen: &Screen) -> String {
+    let right = (1..screen.width)
+        .find(|&x| screen.cell(x, 0) == "┐")
+        .expect("the box has a top right corner");
+    let bottom = (1..screen.height)
+        .find(|&y| screen.cell(0, y) == "└")
+        .expect("the box has a bottom left corner");
+    format!("{} {}\n", bottom - 1, right - 1)
+}
+
+#[cfg(unix)]
+fn control_ok(fixture: &Fixture, args: &[&str]) {
+    let output = fixture.control(args);
+    assert!(
+        output.status.success(),
+        "`boxmux {}` failed: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn a_terminal_started_in_a_hidden_layout_s_box_has_its_size_there_and_follows_the_screen() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(HIDDEN_RUNS);
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("HOME");
+
+    // Started over the socket while its layout is hidden, the program has a size at once.
+    control_ok(&fixture, &["spawn_pty_process", "run1_box", SIZE_REPORTER]);
+    let hidden = fixture.wait_for_marker("size");
+    assert!(app.screen.find("HOME").is_some(), "{}", app.report());
+
+    // Shown, the box is the size the program was given.
+    control_ok(&fixture, &["switch_active_layout", "runs"]);
+    app.wait_until("the run's box to be shown", |screen| {
+        screen.find("Run one").is_some() && screen.cell(0, 0) == "┌"
+    });
+    assert_eq!(top_left_box_inside(&app.screen), hidden, "{}", app.report());
+    thread::sleep(Duration::from_millis(300));
+    assert_eq!(fs::read_to_string(fixture.marker("size")).unwrap(), hidden);
+
+    // The screen resized while the layout is hidden reaches the program, at the size its box has
+    // when shown again.
+    control_ok(&fixture, &["switch_active_layout", "main"]);
+    app.wait_for_text("HOME");
+    app.resize(80, 24);
+    let resized = fixture.wait_for_marker_other_than("size", &hidden);
+    control_ok(&fixture, &["switch_active_layout", "runs"]);
+    app.wait_until("the run's box to be shown at the new size", |screen| {
+        screen.find("Run one").is_some() && screen.cell(0, 0) == "┌"
+    });
+    assert_eq!(
+        top_left_box_inside(&app.screen),
+        resized,
+        "{}",
+        app.report()
+    );
+}

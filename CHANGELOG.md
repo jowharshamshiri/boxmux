@@ -88,6 +88,12 @@ for earlier versions need the changes listed under "Migrating".
   multiplexer sizes right after opening it while BoxMux asked for its background color, was never
   reported: BoxMux went on drawing at its start size, so a wider frame wrapped its rows onto the
   next and scrolled the screen, and boxes laid out to the bottom lost their bottom border.
+- A terminal starts in a box of a layout that is not shown, from a choice, a box script or
+  `spawn_pty_process`, where it was refused for having no size: it takes the size the box has in
+  its own layout at the screen's size, follows the screen as it is resized while the layout is
+  hidden, and has the box's size when the layout is shown. A box that no layout has is refused,
+  naming it. A restarted terminal starts at the size its box has then, not the size it first
+  started at.
 - `replace_box` keeps what the box's choices and key handlers started: a choice pressed just
   before a program redraws its menu runs to its end, its tab and its output in the new box of the
   same id, its choice shown running until it ends. Only what the box's definition runs, its own

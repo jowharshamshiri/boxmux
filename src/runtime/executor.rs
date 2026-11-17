@@ -27,7 +27,8 @@ pub struct RunSpec {
     pub target_box: String,
     pub script: Vec<String>,
     pub mode: ExecutionMode,
-    /// The terminal size for `Pty` runs.
+    /// The terminal size for `Pty` runs. The runtime sets it from the target box each time it
+    /// starts the run, a restart included.
     pub terminal_size: Option<TerminalSize>,
 }
 

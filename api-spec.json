@@ -185,7 +185,7 @@
     },
     "spawn_pty_process": {
       "type": "object",
-      "description": "Runs a script in a pseudo-terminal shown in a closeable tab labelled \"Terminal\", which becomes the visible tab. The target box must be in the shown layout. Only one process started this way per box_id can run at a time. The reply's result is {\"run\": <integer id of the run>}.",
+      "description": "Runs a script in a pseudo-terminal shown in a closeable tab labelled \"Terminal\", which becomes the visible tab. The target box may be in any layout, shown or hidden; the terminal has the size of the inside of the box in its own layout at the screen's current size, and follows it as the screen is resized. Only one process started this way per box_id can run at a time. The reply's result is {\"run\": <integer id of the run>}.",
       "properties": {
         "command": { "const": "spawn_pty_process" },
         "box_id": { "$ref": "#/definitions/box_id" },

@@ -1385,3 +1385,80 @@ app:
 const LONG_TERMINAL: &str = "sleep 30";
 #[cfg(windows)]
 const LONG_TERMINAL: &str = "Start-Sleep 30";
+
+#[test]
+fn a_terminal_for_a_box_in_no_layout_is_refused_naming_the_box() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: shown
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          content: here
+    - id: other
+      children:
+        - id: hidden
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          content: there
+"#;
+    let mut runtime = runtime(yaml, 40, 10);
+    for (box_id, redirect_output) in [("nowhere", None), ("hidden", Some("nowhere".to_string()))] {
+        let reply = runtime.handle_socket(SocketFunction::SpawnPtyProcess {
+            box_id: box_id.into(),
+            script: vec![LONG_TERMINAL.into()],
+            redirect_output,
+        });
+        assert!(!reply.ok, "a terminal for box 'nowhere' was started");
+        assert_eq!(reply.error.as_deref(), Some("there is no box 'nowhere'"));
+    }
+    assert_eq!(runtime.executor.runs().count(), 0);
+}
+
+#[test]
+fn a_restarted_terminal_takes_its_box_s_size_as_it_is_then() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: term
+          position: {x1: "0%", y1: "0%", x2: "50%", y2: "100%"}
+          content: idle
+"#;
+    let mut runtime = runtime(yaml, 40, 10);
+    let origin = crate::model::stream::RunOrigin::SocketSpawn {
+        box_id: "term".into(),
+    };
+    let size_of = |runtime: &Runtime<MemoryDisplay>, run| {
+        runtime.executor.get(run).unwrap().pty().unwrap().size()
+    };
+    let reply = runtime.handle_socket(SocketFunction::SpawnPtyProcess {
+        box_id: "term".into(),
+        script: vec![LONG_TERMINAL.into()],
+        redirect_output: None,
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    let first = runtime.executor.run_for_origin(&origin).unwrap();
+    let started = size_of(&runtime, first);
+
+    runtime.display.set_size(100, 30);
+    runtime.handle(Event::Input(TermEvent::Resize(100, 30)));
+    runtime.render();
+    let resized = size_of(&runtime, first);
+    assert_ne!(resized, started, "the terminal follows its box");
+
+    let reply = runtime.handle_socket(SocketFunction::RestartPtyProcess {
+        box_id: "term".into(),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    pump_until(&mut runtime, "the terminal to start again", |r| {
+        r.executor
+            .run_for_origin(&origin)
+            .is_some_and(|run| run != first)
+    });
+    let second = runtime.executor.run_for_origin(&origin).unwrap();
+    assert_eq!(size_of(&runtime, second), resized);
+}

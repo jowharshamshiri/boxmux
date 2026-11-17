@@ -53,11 +53,11 @@ error.
 - A `Pty` box cannot have a `refresh_interval`. Loading fails with
   `a PTY box runs its script once as an interactive session; refresh_interval does not apply`.
   A `refresh_interval` inherited from an enclosing box or the layout is ignored for it.
-- The box that shows the terminal must be in the shown layout when the program starts,
-  because the terminal size comes from the box. A choice or `spawn_pty_process` that targets a
-  box of another layout fails with
-  `box '<id>' is not in the shown layout, so it has no size for a terminal`. A box with no
-  room inside its border fails with `box '<id>' is too small to show a terminal`.
+- A terminal may start in a box of any layout of the app, shown or hidden: a choice or
+  `spawn_pty_process` that targets a box of a hidden layout starts the program there, at the
+  size the box has in its own layout at the screen's current size. A target box that no layout
+  has fails with `there is no box '<id>'`, and a box with no room inside its border fails with
+  `box '<id>' is too small to show a terminal`.
 - One run per origin: activating a PTY choice while its program still runs does not start a
   second copy; it brings the existing tab into view.
 - Programs keep running when you switch to another layout.
@@ -69,9 +69,11 @@ error.
   `BOXMUX_SOCKET` and `BOXMUX_BOX` (see [API Reference](/docs/api#environment-of-scripts)).
 - The terminal size is the inside of the box's border: the whole area within the border,
   without the one-column margin that text boxes have.
-- When the box changes size (terminal window resized, box moved or resized with the mouse,
-  layout switched), the PTY is resized and the program is told (on Unix it receives
-  `SIGWINCH`).
+- When the box changes size (terminal window resized, box moved or resized with the mouse),
+  the PTY is resized and the program is told (on Unix it receives `SIGWINCH`). This holds for
+  a box of a hidden layout too: its terminal is always the size the box has in its layout, so
+  when the layout is shown the program already has the box's size.
+- A restarted program (`restart_pty_process`) starts at the size its box has then.
 
 ## Input
 
