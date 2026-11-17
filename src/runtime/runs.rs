@@ -468,7 +468,7 @@ impl<D: Display> Runtime<D> {
         }
     }
 
-    /// Stops every run that targets or was started by `box_id`.
+    /// Stops every run that targets or was started by `box_id`: the box is gone.
     pub(super) fn stop_runs_of_box(&mut self, box_id: &str) {
         let runs: Vec<RunId> = self
             .executor
@@ -480,6 +480,39 @@ impl<D: Display> Runtime<D> {
             self.executor.stop(run);
         }
     }
+
+    /// Stops the runs that belong to `box_id`'s definition, as a box replaced by a new one of the same id: its own
+    /// script's runs, and every terminal shown in it, whose screen is sized to the box. The runs its choices and key
+    /// handlers started are the user's acts and go on (`runs_kept_by_replacing`).
+    pub(super) fn stop_definition_runs_of_box(&mut self, box_id: &str) {
+        let runs: Vec<RunId> = self
+            .executor
+            .runs()
+            .filter(|(_, run)| belongs_to_definition(run, box_id))
+            .map(|(id, _)| *id)
+            .collect();
+        for run in runs {
+            self.executor.stop(run);
+        }
+    }
+
+    /// The runs that go on when `box_id` is replaced by a new box of the same id, each with its origin and the stream
+    /// it writes to: every run that targets or was started by the box but its definition's
+    /// (`stop_definition_runs_of_box`) — a choice pressed, a key handled —, whose output reaches the replacement.
+    pub(super) fn runs_kept_by_replacing(&self, box_id: &str) -> Vec<(RunId, RunOrigin, String, String)> {
+        self.executor
+            .runs()
+            .filter(|(_, run)| run.target_box == box_id || run.origin.source_box() == Some(box_id))
+            .filter(|(_, run)| !belongs_to_definition(run, box_id))
+            .map(|(id, run)| (*id, run.origin.clone(), run.target_box.clone(), run.stream_id.clone()))
+            .collect()
+    }
+}
+
+/// Whether `run` belongs to the definition of box `box_id`: the box's own script, or a terminal shown in it.
+fn belongs_to_definition(run: &ActiveRun, box_id: &str) -> bool {
+    matches!(&run.origin, RunOrigin::BoxScript { box_id: source } if source == box_id)
+        || (run.mode == ExecutionMode::Pty && run.target_box == box_id)
 }
 
 /// The tab a text run opens when its first output arrives.

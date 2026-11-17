@@ -246,9 +246,14 @@ boxmux replace_box status '{"id":"status","title":"Status","position":{"x1":"0%"
 ```
 
 The new box takes the old one's place in the layout (same parent, same focus state). Its
-`children` replace the old box's children. Everything running for the old box or its
-children is stopped and their tabs are gone. If the box's layout is shown, the new box's
-script starts.
+`children` replace the old box's children. For the old box and each of its children that the
+new box still has, by id, what its definition runs is stopped: its own script, and a terminal
+shown in it. What its choices and key handlers started goes on, since a press is the user's
+act and not the box's definition: its tab is kept in the new box of the same id, the rest of
+its output reaches that tab, and its choice is shown running until it ends. A program can so
+redraw a menu while a choice pressed in it is still under way. A child the new box no longer
+has is gone, with everything running for it, as with `remove_box`. If the box's layout is
+shown, the new box's script starts.
 
 Errors: `the new box has id '<a>' but replaces '<b>'; ids must match`, and validation errors
 (see [Box objects](#box-objects)).

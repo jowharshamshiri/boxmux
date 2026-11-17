@@ -74,6 +74,10 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Fixed
 
+- `replace_box` keeps what the box's choices and key handlers started: a choice pressed just
+  before a program redraws its menu runs to its end, its tab and its output in the new box of the
+  same id, its choice shown running until it ends. Only what the box's definition runs, its own
+  script and a terminal shown in it, is stopped; a child the new box drops is stopped whole.
 - A choice whose script prints nothing opens no tab and leaves its box as it was; a failure of
   such a run is shown as a notice. A choice's output opens its tab when it first arrives, beside
   the menu, without taking the box's view. A `Pty` choice still opens and shows its terminal

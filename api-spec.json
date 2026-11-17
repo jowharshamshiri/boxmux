@@ -135,7 +135,7 @@
     },
     "replace_box": {
       "type": "object",
-      "description": "Replaces a box's configuration. The new box keeps the old one's place in the layout tree. Everything running for the old box (and its children) is stopped, and the new box's script starts if its layout is shown.",
+      "description": "Replaces a box's configuration. The new box keeps the old one's place in the layout tree. For the old box and each child the new box still has, by id, its own script and a terminal shown in it are stopped; what its choices and key handlers started goes on, its tab and output in the new box of the same id. A child the new box no longer has is stopped whole. The new box's script starts if its layout is shown.",
       "properties": {
         "command": { "const": "replace_box" },
         "box_id": { "$ref": "#/definitions/box_id" },

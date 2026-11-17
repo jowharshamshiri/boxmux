@@ -218,11 +218,49 @@ impl<D: Display> Runtime<D> {
         new_box.parent_layout_id = old.parent_layout_id.clone();
         new_box.selected = old.selected;
         prepare_new_box(&mut new_box);
+        // Every box the old one holds, itself included: each the replacement still has, by id, keeps the runs its
+        // choices and key handlers started — the user's acts —, with the tabs they opened and a choice still running
+        // shown so; only what its definition runs stops. A child the replacement no longer has is gone, with everything
+        // running for it.
+        let mut old_ids = Vec::new();
+        collect_ids(old, &mut old_ids);
+        let mut kept_ids = Vec::new();
+        for id in &old_ids {
+            let Some(replacement) = find_box_mut(&mut new_box, id) else {
+                continue;
+            };
+            let previous = self
+                .ctx
+                .app
+                .get_muxbox_by_id(id)
+                .expect("a box of the old one's tree");
+            for (_, origin, target_box, stream_id) in self.runs_kept_by_replacing(id) {
+                if &target_box == id {
+                    if let Some(stream) = previous.streams.get(&stream_id) {
+                        replacement.streams.entry(stream_id).or_insert_with(|| stream.clone());
+                    }
+                }
+                if let RunOrigin::Choice { box_id: source, choice_id } = &origin {
+                    if source == id {
+                        if let Some(choice) = replacement.choice_mut(choice_id) {
+                            choice.waiting = true;
+                        }
+                    }
+                }
+            }
+            kept_ids.push(id.clone());
+        }
         self.change_structure(|app| {
             app.replace_muxbox(new_box);
             Ok(())
         })?;
-        self.stop_runs_of_box(box_id);
+        for id in &old_ids {
+            if kept_ids.contains(id) {
+                self.stop_definition_runs_of_box(id);
+            } else {
+                self.stop_runs_of_box(id);
+            }
+        }
         self.refresh.remove(box_id);
         self.ctx.app.invalidate_layout_cache();
         self.activate_layout_runs();
@@ -454,6 +492,26 @@ fn without_nulls(value: serde_json::Value) -> serde_json::Value {
 }
 
 /// Builds the tabs of a box (and its children) added or replaced at runtime.
+/// The ids of `muxbox` and of every box it holds, itself first.
+fn collect_ids(muxbox: &MuxBox, ids: &mut Vec<String>) {
+    ids.push(muxbox.id.clone());
+    for child in muxbox.children.iter().flatten() {
+        collect_ids(child, ids);
+    }
+}
+
+/// The box of id `id` in the tree of `muxbox`, itself included.
+fn find_box_mut<'a>(muxbox: &'a mut MuxBox, id: &str) -> Option<&'a mut MuxBox> {
+    if muxbox.id == id {
+        return Some(muxbox);
+    }
+    muxbox
+        .children
+        .iter_mut()
+        .flatten()
+        .find_map(|child| find_box_mut(child, id))
+}
+
 fn prepare_new_box(muxbox: &mut MuxBox) {
     muxbox.initialize_streams();
     let parent_layout = muxbox.parent_layout_id.clone();

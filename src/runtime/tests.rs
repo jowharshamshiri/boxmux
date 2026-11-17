@@ -1071,3 +1071,165 @@ app:
     assert!(reply.error.unwrap().contains("plugin component 'gauge'"));
     assert!(runtime.ctx.app.get_muxbox_by_id("g").is_none());
 }
+
+/// A choice that prints, takes a moment — long enough for a program to replace its box meanwhile —, then prints again.
+#[cfg(unix)]
+const SLOW_CHOICE: &str = r#"["echo 'started'", "sleep 1", "echo 'done after the replace'"]"#;
+#[cfg(windows)]
+const SLOW_CHOICE: &str =
+    r#"["Write-Output 'started'", "Start-Sleep 1", "Write-Output 'done after the replace'"]"#;
+
+/// A box with the slow choice, as a program draws it and draws it again with `replace_box`.
+fn slow_menu(title: &str) -> String {
+    format!(
+        r#"{{"id": "menu", "title": "{}", "position": {{"x1": "0", "y1": "0", "x2": "39", "y2": "9"}},
+            "tab_order": 1, "choices": [{{"id": "slow", "content": "Take a moment", "execution_mode": "Thread", "script": {}}},
+            {{"id": "other", "content": "Another", "script": ["echo other"]}}]}}"#,
+        title, SLOW_CHOICE
+    )
+}
+
+fn slow_waiting(runtime: &Runtime<MemoryDisplay>) -> bool {
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("menu")
+        .and_then(|b| b.choices_stream())
+        .and_then(|s| s.choices.as_ref())
+        .and_then(|choices| choices.iter().find(|c| c.id == "slow"))
+        .is_some_and(|c| c.waiting)
+}
+
+#[test]
+fn replacing_a_box_keeps_the_runs_its_choices_started_and_their_output_reaches_the_replacement() {
+    // A program redraws a menu — its title, its choices — while a choice the user pressed is under way: the
+    // press is the user's act, not the box's definition, so it goes on, its tab and its waiting mark carried into
+    // the replacement, and the rest of its output reaches it there.
+    let yaml = format!(
+        "app:\n  layouts:\n    - id: main\n      root: true\n      children:\n        - {}\n",
+        slow_menu("Menu")
+    );
+    let mut runtime = runtime(&yaml, 40, 10);
+    let at = find(&runtime, "Take a moment");
+    click(&mut runtime, at);
+    pump_until(&mut runtime, "the choice's first output", |r| {
+        tab_content(r, "menu", "menu/choice:menu:slow") == vec!["started".to_string()]
+    });
+    assert!(slow_waiting(&runtime));
+
+    let reply = runtime.handle_socket(SocketFunction::ReplaceBox {
+        box_id: "menu".into(),
+        new_box: slow_menu("Menu, redrawn").parse().unwrap(),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    assert_eq!(
+        runtime.ctx.app.get_muxbox_by_id("menu").unwrap().title.as_deref(),
+        Some("Menu, redrawn")
+    );
+    assert!(slow_waiting(&runtime), "the replacement shows the choice still running");
+    assert_eq!(
+        tab_content(&runtime, "menu", "menu/choice:menu:slow"),
+        vec!["started".to_string()],
+        "the choice's tab is carried into the replacement"
+    );
+
+    pump_until(&mut runtime, "the choice to finish into the replacement", |r| {
+        !slow_waiting(r)
+    });
+    assert_eq!(
+        tab_content(&runtime, "menu", "menu/choice:menu:slow"),
+        vec!["started".to_string(), "done after the replace".to_string()]
+    );
+    let stream = runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("menu")
+        .unwrap()
+        .streams
+        .get("menu/choice:menu:slow")
+        .unwrap();
+    assert_eq!(stream.status, crate::model::stream::StreamStatus::Exited(0));
+}
+
+#[test]
+fn replacing_a_box_stops_its_own_script_the_terminal_shown_in_it_and_what_runs_in_a_child_it_drops() {
+    // What the box's definition runs — its own script, and a terminal shown in it — ends with the definition; and a
+    // child the replacement no longer has is gone, with everything running for it.
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: sleeper
+          position: {x1: "0", y1: "0", x2: "39", y2: "4"}
+          execution_mode: Thread
+          script: LONG_RUNNING
+        - id: term
+          position: {x1: "0", y1: "5", x2: "39", y2: "9"}
+          content: idle
+        - id: outer
+          position: {x1: "40", y1: "0", x2: "79", y2: "9"}
+          children:
+            - id: inner
+              position: {x1: "0", y1: "0", x2: "100%", y2: "100%"}
+              execution_mode: Thread
+              script: LONG_RUNNING
+"#
+    .replace("LONG_RUNNING", LONG_RUNNING);
+    let mut runtime = runtime(&yaml, 80, 10);
+    pump_until(&mut runtime, "both scripts to start", |r| {
+        tab_content(r, "sleeper", "sleeper/script") == vec!["started".to_string()]
+            && tab_content(r, "inner", "inner/script") == vec!["started".to_string()]
+    });
+    let reply = runtime.handle_socket(SocketFunction::SpawnPtyProcess {
+        box_id: "term".into(),
+        script: vec![LONG_TERMINAL.into()],
+        redirect_output: None,
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    let pids: Vec<u32> = runtime.executor.runs().map(|(_, run)| run.pid()).collect();
+    assert_eq!(pids.len(), 3, "the two boxes' scripts and the terminal run");
+
+    for (id, rest) in [
+        ("sleeper", r#""position": {"x1": "0", "y1": "0", "x2": "39", "y2": "4"}, "content": "replaced""#),
+        ("term", r#""position": {"x1": "0", "y1": "5", "x2": "39", "y2": "9"}, "content": "replaced""#),
+        ("outer", r#""position": {"x1": "40", "y1": "0", "x2": "79", "y2": "9"}, "content": "no child now""#),
+    ] {
+        let reply = runtime.handle_socket(SocketFunction::ReplaceBox {
+            box_id: id.into(),
+            new_box: format!(r#"{{"id": "{}", {}}}"#, id, rest).parse().unwrap(),
+        });
+        assert!(reply.ok, "{:?}", reply.error);
+    }
+    let not_stopped: Vec<_> = runtime
+        .executor
+        .runs()
+        .filter(|(_, run)| !run.stop_requested)
+        .map(|(_, run)| run.origin.clone())
+        .collect();
+    assert!(not_stopped.is_empty(), "runs not stopped by replacing their boxes: {:?}", not_stopped);
+    // Stopped, they end at once, well within their sleep.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while runtime.executor.runs().count() > 0 {
+        assert!(Instant::now() < deadline, "runs still under way 5 s after their boxes were replaced");
+        while let Ok(event) = runtime.events.recv_timeout(Duration::from_millis(5)) {
+            runtime.handle(event);
+        }
+    }
+    #[cfg(unix)]
+    for pid in pids {
+        // Nothing is left in either run's process group.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while unsafe { libc::kill(-(pid as i32), 0) } == 0 {
+            assert!(Instant::now() < deadline, "process group {} survived its box's replacement", pid);
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+/// A terminal program that runs until it is stopped.
+#[cfg(unix)]
+const LONG_TERMINAL: &str = "sleep 30";
+#[cfg(windows)]
+const LONG_TERMINAL: &str = "Start-Sleep 30";
