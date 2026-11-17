@@ -123,6 +123,9 @@ impl Fixture {
 /// A running boxmux in a pseudo-terminal.
 struct LiveBoxMux {
     child: Box<dyn portable_pty::Child + Send + Sync>,
+    /// The terminal's side of the PTY, kept open for as long as the reader runs and to resize
+    /// the terminal.
+    master: Box<dyn portable_pty::MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     output: Receiver<Vec<u8>>,
     /// Every byte boxmux wrote to the terminal.
@@ -146,12 +149,31 @@ impl LiveBoxMux {
         )
     }
 
-    /// Starts boxmux in a terminal that draws like `screen`.
+    /// Starts boxmux in a terminal that draws like `screen`, with a fixed theme: boxmux does not
+    /// ask the terminal for its colors, which this test terminal would not answer.
     fn spawn_in(fixture: &Fixture, config: &Path, extra: &[&str], screen: Screen) -> LiveBoxMux {
+        Self::start(fixture, config, extra, screen, true)
+    }
+
+    /// Starts boxmux in a terminal that draws like `screen`, with no theme given: boxmux asks the
+    /// terminal for its background color, as the handlebar's BoxMux does, and waits up to a
+    /// second for an answer this test terminal gives only when the test does.
+    #[cfg(unix)]
+    fn spawn_asking_background(fixture: &Fixture, config: &Path, screen: Screen) -> LiveBoxMux {
+        Self::start(fixture, config, &[], screen, false)
+    }
+
+    fn start(
+        fixture: &Fixture,
+        config: &Path,
+        extra: &[&str],
+        screen: Screen,
+        fixed_theme: bool,
+    ) -> LiveBoxMux {
         let pair = native_pty_system()
             .openpty(PtySize {
-                rows: HEIGHT,
-                cols: WIDTH,
+                rows: screen.height as u16,
+                cols: screen.width as u16,
                 pixel_width: 0,
                 pixel_height: 0,
             })
@@ -159,16 +181,10 @@ impl LiveBoxMux {
         let mut command = CommandBuilder::new(binary());
         command.arg(config);
         command.args(extra);
-        // A fixed theme: boxmux does not ask the terminal for its colors, which this test
-        // terminal would not answer.
-        command.args([
-            "--dark",
-            "--frame-delay",
-            "10",
-            "--log-level",
-            "debug",
-            "--log-file",
-        ]);
+        if fixed_theme {
+            command.arg("--dark");
+        }
+        command.args(["--frame-delay", "10", "--log-level", "debug", "--log-file"]);
         command.arg(fixture.path("boxmux.log"));
         command.arg("--socket");
         command.arg(fixture.socket());
@@ -187,10 +203,9 @@ impl LiveBoxMux {
                 }
             }
         });
-        // Keep the master open for as long as the reader runs.
-        std::mem::forget(pair.master);
         LiveBoxMux {
             child,
+            master: pair.master,
             writer,
             output: rx,
             raw: Vec::new(),
@@ -198,6 +213,24 @@ impl LiveBoxMux {
             log: fixture.path("boxmux.log"),
             _reader: reader_thread,
         }
+    }
+
+    /// Gives the terminal `cols` x `rows` cells, as a terminal window or pane resized by its
+    /// user does: the PTY reports the new size to boxmux, and the screen keeps what it shows as
+    /// a terminal does (see [`Screen::resize`]).
+    #[cfg(unix)]
+    fn resize(&mut self, cols: u16, rows: u16) {
+        // What boxmux wrote before the resize is drawn at the old size.
+        self.pump(Duration::from_millis(30));
+        self.master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("the PTY resizes");
+        self.screen.resize(usize::from(cols), usize::from(rows));
     }
 
     #[cfg(unix)]
@@ -754,6 +787,9 @@ struct Screen {
     x: usize,
     y: usize,
     wrap_pending: bool,
+    /// How many times the screen scrolled up: a line feed or a character wrapped past the last
+    /// column on the last row moves every row up one and blanks the last, as a terminal does.
+    scrolled: usize,
     pending: Vec<u8>,
     /// The cell the last character was printed into, while nothing has happened since.
     last: Option<(usize, usize)>,
@@ -777,6 +813,7 @@ impl Screen {
             x: 0,
             y: 0,
             wrap_pending: false,
+            scrolled: 0,
             pending: Vec::new(),
             last: None,
             emoji_sequences_wide: true,
@@ -833,7 +870,7 @@ impl Screen {
                     i += 1;
                 }
                 b'\n' => {
-                    self.y = (self.y + 1).min(self.height - 1);
+                    self.line_feed();
                     self.wrap_pending = false;
                     self.last = None;
                     i += 1;
@@ -1007,10 +1044,11 @@ impl Screen {
         if width == 0 {
             return;
         }
-        // Like a real terminal, a character after the last column goes to the next line.
+        // Like a real terminal, a character after the last column goes to the next line, and
+        // on the last row scrolls the screen up.
         if self.wrap_pending || self.x + width > self.width {
             self.x = 0;
-            self.y = (self.y + 1).min(self.height - 1);
+            self.line_feed();
             self.wrap_pending = false;
         }
         let (x, y) = (self.x, self.y);
@@ -1036,6 +1074,58 @@ impl Screen {
         } else {
             self.x = x + width;
         }
+    }
+
+    /// Moves the cursor down a row; on the last row, scrolls every row up one instead, the top
+    /// row leaving the screen and a blank row coming in at the bottom.
+    fn line_feed(&mut self) {
+        if self.y + 1 < self.height {
+            self.y += 1;
+            return;
+        }
+        self.cells.remove(0);
+        self.cells.push(vec![" ".to_string(); self.width]);
+        self.links.remove(0);
+        self.links.push(vec![None; self.width]);
+        self.scrolled += 1;
+    }
+
+    /// Gives the screen `width` x `height` cells, as WezTerm does to its alternate screen:
+    /// rows are cut or padded with blanks on the right; a shorter screen loses the blank rows
+    /// below the cursor first, then its top rows, so the cursor's row stays in view; a taller
+    /// one gains blank rows at the bottom. A wide cluster the new right edge cuts is blanked.
+    fn resize(&mut self, width: usize, height: usize) {
+        for y in 0..self.cells.len() {
+            let cut = width < self.width && self.cells[y][width].is_empty();
+            self.cells[y].resize(width, " ".to_string());
+            self.links[y].resize(width, None);
+            if cut {
+                self.cells[y][width - 1] = " ".to_string();
+                self.links[y][width - 1] = None;
+            }
+        }
+        while self.cells.len() > height
+            && self.cells.len() > self.y + 1
+            && self.cells.last().unwrap().iter().all(|c| c == " ")
+        {
+            self.cells.pop();
+            self.links.pop();
+        }
+        while self.cells.len() > height {
+            self.cells.remove(0);
+            self.links.remove(0);
+            self.y = self.y.saturating_sub(1);
+        }
+        while self.cells.len() < height {
+            self.cells.push(vec![" ".to_string(); width]);
+            self.links.push(vec![None; width]);
+        }
+        self.width = width;
+        self.height = height;
+        self.x = self.x.min(width - 1);
+        self.y = self.y.min(height - 1);
+        self.wrap_pending = false;
+        self.last = None;
     }
 
     /// The cluster in cell (`x`, `y`): empty for the right half of a two-column one.
@@ -1728,5 +1818,196 @@ app:
             .iter()
             .all(Option::is_none));
         assert_no_raw_links(&mut app);
+    }
+}
+
+/// The rows Needs you takes in the handlebar the musher saw: its borders and fourteen rows of
+/// buttons, the most wsb-gangline gives it.
+const NEEDS: usize = 16;
+
+/// The last line of the swing's log; it is the log box's last row once the log is scrolled to
+/// its end.
+const LAST_LOG_LINE: &str = "LAST LOG LINE";
+
+/// The handlebar's arrangement as wsb-gangline lays it out: Needs you at the top, `needs` rows
+/// tall, counted from the top, with its buttons; the swing's log in every row below it to the
+/// screen's bottom, wrapped and scrolled to its last line.
+fn handlebar(needs: usize) -> String {
+    let log_script = if cfg!(windows) {
+        "Get-Content log.txt"
+    } else {
+        "cat log.txt"
+    };
+    r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      title: swing
+      children:
+        - id: needs
+          title: "Needs you: 5 (click to act)"
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "NEEDS_LAST"}
+          border_color: bright_yellow
+          tab_order: 1
+          selected: true
+          overflow_behavior: wrap
+          choices:
+            - id: refresh
+              content: "⟳ Refresh"
+              script: ["echo refresh"]
+            - id: plan
+              content: "? capdag plan: 4 design questions before building the save-as caps (answer tomorrow)"
+              script: ["echo plan"]
+            - id: fix
+              content: "▸ Before the process-fix lands: bring pve2 to today's sdx 1.863 / sdx-mf 0.91.601 (pve is done)"
+              script: ["echo fix"]
+            - id: rerun
+              content: "● Mac: rerun the fixed monitor proof of the process-stop fix (asks for sudo once) — running: its terminal"
+              script: ["echo rerun"]
+            - id: question
+              content: "⚑ Question (product): lungo 1.120.164 is on the way"
+              script: ["echo question"]
+        - id: log
+          title: What the swing is doing
+          position: {x1: "0%", y1: "LOG_FIRST", x2: "100%", y2: "100%"}
+          border_color: green
+          overflow_behavior: wrap
+          auto_scroll_bottom: true
+          script: ["LOG_SCRIPT"]
+"#
+    .replace("NEEDS_LAST", &(needs - 1).to_string())
+    .replace("LOG_FIRST", &needs.to_string())
+    .replace("LOG_SCRIPT", log_script)
+}
+
+/// A fixture holding the handlebar's configuration and the swing's log it shows.
+fn handlebar_fixture() -> (Fixture, PathBuf) {
+    let fixture = Fixture::new();
+    let mut log: Vec<String> = (1..=30)
+        .map(|n| {
+            format!(
+                "11:{:02}:04 worker {} moved to a fresh worktree from main and runs QuickRust on a guest",
+                n, n
+            )
+        })
+        .collect();
+    log.push(LAST_LOG_LINE.to_string());
+    fs::write(fixture.path("log.txt"), log.join("\n") + "\n").unwrap();
+    let config = fixture.write_config(&handlebar(NEEDS));
+    (fixture, config)
+}
+
+/// What is wrong with the handlebar `screen` shows, Needs you `needs` rows tall: each box's
+/// border must run down its sides and end on its own last row, Needs you's top border alone on
+/// row 0, the log's bottom border on the screen's last row with the log's last line just above
+/// it, and the screen never scrolled.
+fn handlebar_problems(screen: &Screen, needs: usize) -> Vec<String> {
+    let last = screen.height - 1;
+    let mut problems = Vec::new();
+    if screen.scrolled > 0 {
+        problems.push(format!(
+            "the screen scrolled {} times: something was written past its last row or column",
+            screen.scrolled
+        ));
+    }
+    let mut expect = |y: usize, left: char, right: &[char], holds: &str, what: &str| {
+        let row = screen.row(y);
+        let (first, end) = (row.chars().next(), row.chars().last());
+        if first != Some(left) || !end.is_some_and(|c| right.contains(&c)) || !row.contains(holds) {
+            problems.push(format!("row {} is not {}: {:?}", y, what, row));
+        }
+    };
+    let side = ['│', '█'];
+    let corner = ['┘', '⋱'];
+    expect(0, '┌', &['┐'], "Needs you", "Needs you's top border");
+    for y in 1..needs - 1 {
+        expect(y, '│', &side, "", "inside Needs you");
+    }
+    expect(needs - 1, '└', &corner, "", "Needs you's bottom border");
+    expect(
+        needs,
+        '┌',
+        &['┐'],
+        "What the swing is doing",
+        "the log's top border",
+    );
+    for y in needs + 1..last {
+        expect(y, '│', &side, "", "inside the log");
+    }
+    expect(last - 1, '│', &side, LAST_LOG_LINE, "the log's last line");
+    expect(last, '└', &corner, "", "the log's bottom border");
+    problems
+}
+
+impl LiveBoxMux {
+    /// Waits until the screen shows the handlebar laid out for the terminal's size, Needs you
+    /// `needs` rows tall (see [`handlebar_problems`]).
+    fn wait_for_handlebar(&mut self, needs: usize) {
+        let start = Instant::now();
+        loop {
+            self.pump(Duration::from_millis(30));
+            let problems = handlebar_problems(&self.screen, needs);
+            if problems.is_empty() {
+                return;
+            }
+            if start.elapsed() >= TIMEOUT {
+                let size = (self.screen.width, self.screen.height);
+                panic!(
+                    "the handlebar is not laid out for {}x{}:\n{}\n{}",
+                    size.0,
+                    size.1,
+                    problems.join("\n"),
+                    self.report()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn every_box_of_the_handlebar_ends_on_its_own_last_row_at_every_height() {
+    // 55x26 is the pane the musher saw the log's bottom border on row 0 in; 19 rows leave the
+    // log one row between its borders.
+    for (cols, rows) in [(55, 26), (55, 19), (55, 33), (48, 50), (60, 26)] {
+        let (fixture, config) = handlebar_fixture();
+        let mut app = LiveBoxMux::spawn_in(&fixture, &config, &[], Screen::new(cols, rows));
+        app.wait_for_handlebar(NEEDS);
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn a_terminal_resized_as_boxmux_starts_and_back_and_forth_is_drawn_at_each_size_it_has() {
+    // The handlebar opens 60 columns wide and its pane is sized after: here while boxmux asks the
+    // terminal for its background color, which it does after reading the terminal's size and
+    // before it draws anything.
+    for (from, to) in [
+        ((60, 30), (55, 26)),
+        ((55, 20), (55, 26)),
+        ((55, 26), (48, 33)),
+    ] {
+        let (fixture, config) = handlebar_fixture();
+        let mut app =
+            LiveBoxMux::spawn_asking_background(&fixture, &config, Screen::new(from.0, from.1));
+        let start = Instant::now();
+        while !String::from_utf8_lossy(&app.raw).contains("\x1b]11;?") {
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "boxmux never asked for the background color\n{}",
+                app.report()
+            );
+            app.pump(Duration::from_millis(10));
+        }
+        app.resize(to.0, to.1);
+        // The device attributes end the question: the terminal does not say its background.
+        app.send("\x1b[?62;22c");
+        app.wait_for_handlebar(NEEDS);
+        // A shrink and a grow back before boxmux draws, then a size of its own.
+        app.resize(to.0, to.1 - 1);
+        app.resize(to.0, to.1);
+        app.wait_for_handlebar(NEEDS);
+        app.resize(to.0 + 7, to.1 + 4);
+        app.wait_for_handlebar(NEEDS);
     }
 }

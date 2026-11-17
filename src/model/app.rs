@@ -96,18 +96,20 @@ impl App {
         self.screen
     }
 
-    /// Records the size of the screen. Every computed bounds is recomputed for the new size.
-    /// A screen without cells cannot show anything and is rejected.
-    pub fn set_screen_size(&mut self, cols: u16, rows: u16) -> Result<(), String> {
+    /// Records the size of the screen, and whether it differs from the size recorded before.
+    /// Every computed bounds is recomputed for a new size. A screen without cells cannot show
+    /// anything and is rejected.
+    pub fn set_screen_size(&mut self, cols: u16, rows: u16) -> Result<bool, String> {
         if cols == 0 || rows == 0 {
             return Err(format!("the screen has no cells ({}x{})", cols, rows));
         }
         let screen = Bounds::new(0, 0, usize::from(cols) - 1, usize::from(rows) - 1);
-        if screen != self.screen {
-            self.screen = screen;
-            self.adjusted_bounds = None;
+        if screen == self.screen {
+            return Ok(false);
         }
-        Ok(())
+        self.screen = screen;
+        self.adjusted_bounds = None;
+        Ok(true)
     }
 
     /// Forgets the cached box graph and computed bounds. Call after boxes are added, removed or

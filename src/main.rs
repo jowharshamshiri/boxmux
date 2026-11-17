@@ -409,6 +409,12 @@ fn run(matches: &ArgMatches, socket: &str) -> Result<(), String> {
     platform::listen_for_signals(move |signal| signal_sender.send(Event::Signal(signal)).is_ok())
         .map_err(|e| format!("cannot listen for signals: {}", e))?;
 
+    // The terminal's event source is started before anything reads the terminal's size or asks
+    // it a question, so a resize from now on is caught (SIGWINCH on Unix) and kept for the input
+    // thread: a pane resized as boxmux starts, as a terminal multiplexer sizes a new pane, is
+    // reported like any other resize.
+    crossterm::event::poll(std::time::Duration::ZERO)
+        .map_err(|e| format!("cannot read the terminal's events: {}", e))?;
     let display =
         TerminalDisplay::enter().map_err(|e| format!("cannot use the terminal: {}", e))?;
     // Asked before the input thread starts, so the answer is not taken for typed keys.

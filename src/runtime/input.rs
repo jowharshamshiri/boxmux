@@ -29,10 +29,9 @@ impl<D: Display> Runtime<D> {
             TermEvent::Key(key) if key.kind != KeyEventKind::Release => self.handle_key(key),
             TermEvent::Key(_) => {}
             TermEvent::Mouse(mouse) => self.handle_mouse(mouse),
-            TermEvent::Resize(cols, rows) => {
-                self.display.set_size(cols, rows);
-                self.screen_resized();
-            }
+            // The size it reports may already be stale; each frame asks the terminal for its
+            // size as it is drawn.
+            TermEvent::Resize(..) => self.redraw_whole(),
             // Pasted text goes to the focused terminal; nothing else takes text.
             TermEvent::Paste(text) => {
                 if let Some(run) = self.focused_terminal_run() {

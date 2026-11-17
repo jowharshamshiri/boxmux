@@ -370,7 +370,8 @@ impl<D: Display> Runtime<D> {
 
     fn switch_layout(&mut self, layout_id: &str) -> Result<Reply, String> {
         self.ctx.app.set_active_layout(layout_id)?;
-        self.screen_resized();
+        self.redraw_whole();
+        self.resize_terminals();
         self.activate_layout_runs();
         Ok(Reply::ok())
     }

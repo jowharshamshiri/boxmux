@@ -166,18 +166,33 @@ impl<D: Display> Runtime<D> {
             title: None,
             quit: false,
         };
-        runtime.sync_screen_size();
+        // Laid out before anything runs, so each terminal box's program starts at its size. A
+        // terminal that cannot say its size fails the first frame, which asks again.
+        if let Err(e) = runtime.fit_screen() {
+            log::warn!("cannot read the terminal's size: {}", e);
+        }
         runtime
     }
 
-    /// Lays the app out for the size the display currently has.
-    fn sync_screen_size(&mut self) {
-        let (cols, rows) = self.display.size();
-        if let Err(e) = self.ctx.app.set_screen_size(cols, rows) {
-            // Nothing can be drawn until the terminal has cells again; the next resize event
-            // brings the layout back.
-            log::warn!("{}", e);
+    /// Lays the app out for the size the terminal has now, asked of the terminal itself. When
+    /// that size differs from the one the app was laid out for, the boxes are placed anew, each
+    /// terminal box's program is given its box's new size, and the next frame is drawn whole.
+    /// Whether the terminal has cells to draw on.
+    fn fit_screen(&mut self) -> std::io::Result<bool> {
+        let (cols, rows) = self.display.size()?;
+        if cols == 0 || rows == 0 {
+            return Ok(false);
         }
+        let resized = self
+            .ctx
+            .app
+            .set_screen_size(cols, rows)
+            .map_err(std::io::Error::other)?;
+        if resized {
+            self.frame = None;
+            self.resize_terminals();
+        }
+        Ok(true)
     }
 
     pub fn context(&self) -> &AppContext {
@@ -286,7 +301,7 @@ impl<D: Display> Runtime<D> {
             self.quit = true;
             return;
         }
-        self.screen_resized();
+        self.redraw_whole();
     }
 
     pub fn notify(&mut self, text: impl Into<String>, is_error: bool) {
@@ -302,12 +317,12 @@ impl<D: Display> Runtime<D> {
         self.dirty = true;
     }
 
-    /// Recomputes everything that depends on the screen size and redraws completely.
-    fn screen_resized(&mut self) {
-        self.sync_screen_size();
+    /// Draws the next frame whole, every cell of it. After the terminal is resized, even back to
+    /// the size of the last frame, or given back by another program, what it shows is not that
+    /// frame: a terminal may move, keep or blank rows as it resizes.
+    fn redraw_whole(&mut self) {
         self.frame = None;
         self.dirty = true;
-        self.resize_terminals();
     }
 
     /// Matches every PTY's size to the content area of the box it is shown in.
@@ -343,10 +358,17 @@ impl<D: Display> Runtime<D> {
 
     /// Draws a frame if anything changed since the last one.
     fn render(&mut self) {
-        let (cols, rows) = self.display.size();
-        if cols == 0 || rows == 0 {
-            return;
+        match self.fit_screen() {
+            Ok(true) => {}
+            // Nothing can be drawn until the terminal has cells again.
+            Ok(false) => return,
+            Err(e) => {
+                log::error!("cannot read the terminal's size: {}", e);
+                self.quit = true;
+                return;
+            }
         }
+        let screen = self.ctx.app.screen();
         if let Err(e) = self.display.reassert_modes() {
             log::warn!("cannot re-establish terminal modes: {}", e);
         }
@@ -356,13 +378,8 @@ impl<D: Display> Runtime<D> {
             let view = crate::render::view_at(&views, x, y)?;
             Some((view.id.as_str(), view.hit(x, y)?))
         });
-        let mut buffer = crate::render::draw(
-            &self.ctx,
-            &views,
-            usize::from(cols),
-            usize::from(rows),
-            hover,
-        );
+        let mut buffer =
+            crate::render::draw(&self.ctx, &views, screen.width(), screen.height(), hover);
         if self.ctx.config.calibrate {
             if let Some((x, y)) = self.pointer {
                 if let Some(cell) = buffer.get(usize::from(x), usize::from(y)) {

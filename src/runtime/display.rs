@@ -10,10 +10,9 @@ use std::sync::Arc;
 /// Where the runtime draws. The terminal implementation is [`TerminalDisplay`]; tests use an
 /// in-memory one.
 pub trait Display {
-    /// Columns and rows.
-    fn size(&self) -> (u16, u16);
-    /// Records a new terminal size reported by a resize event.
-    fn set_size(&mut self, cols: u16, rows: u16);
+    /// The columns and rows the terminal has now, asked of the terminal each time. A size read
+    /// earlier can be stale: a terminal can be resized before the program hears of it.
+    fn size(&mut self) -> io::Result<(u16, u16)>;
     /// Shows `frame`. `previous` is what is currently on screen, or `None` when the screen must
     /// be redrawn completely.
     fn present(&mut self, frame: &ScreenBuffer, previous: Option<&ScreenBuffer>) -> io::Result<()>;
@@ -30,7 +29,6 @@ pub trait Display {
 
 pub struct TerminalDisplay {
     out: BufWriter<Stdout>,
-    size: (u16, u16),
 }
 
 impl TerminalDisplay {
@@ -38,10 +36,8 @@ impl TerminalDisplay {
     /// is restored when the display is dropped, and by the panic hook installed here.
     pub fn enter() -> io::Result<TerminalDisplay> {
         install_panic_hook();
-        let size = terminal::size()?;
         let mut display = TerminalDisplay {
             out: BufWriter::with_capacity(1 << 16, io::stdout()),
-            size,
         };
         display.enter_full_screen()?;
         Ok(display)
@@ -216,12 +212,8 @@ pub fn write_frame(
 }
 
 impl Display for TerminalDisplay {
-    fn size(&self) -> (u16, u16) {
-        self.size
-    }
-
-    fn set_size(&mut self, cols: u16, rows: u16) {
-        self.size = (cols, rows);
+    fn size(&mut self) -> io::Result<(u16, u16)> {
+        terminal::size()
     }
 
     fn present(&mut self, frame: &ScreenBuffer, previous: Option<&ScreenBuffer>) -> io::Result<()> {
@@ -261,7 +253,6 @@ impl Display for TerminalDisplay {
     }
 
     fn resume(&mut self) -> io::Result<()> {
-        self.size = terminal::size()?;
         self.enter_full_screen()
     }
 }
@@ -288,6 +279,12 @@ impl MemoryDisplay {
         }
     }
 
+    /// Gives the terminal `cols` x `rows` cells, telling nobody: the runtime finds the new size
+    /// when it next draws, as it does a real terminal's.
+    pub fn set_size(&mut self, cols: u16, rows: u16) {
+        self.size = (cols, rows);
+    }
+
     /// The text of each row of the last frame, without colors.
     pub fn rows(&self) -> Vec<String> {
         self.frame
@@ -298,12 +295,8 @@ impl MemoryDisplay {
 }
 
 impl Display for MemoryDisplay {
-    fn size(&self) -> (u16, u16) {
-        self.size
-    }
-
-    fn set_size(&mut self, cols: u16, rows: u16) {
-        self.size = (cols, rows);
+    fn size(&mut self) -> io::Result<(u16, u16)> {
+        Ok(self.size)
     }
 
     fn present(

@@ -83,6 +83,11 @@ for earlier versions need the changes listed under "Migrating".
 
 ### Fixed
 
+- Every frame is drawn at the size the terminal has as it is drawn, and drawn whole after any
+  resize, even one back to the same size. A terminal resized as BoxMux started, such as a pane a
+  multiplexer sizes right after opening it while BoxMux asked for its background color, was never
+  reported: BoxMux went on drawing at its start size, so a wider frame wrapped its rows onto the
+  next and scrolled the screen, and boxes laid out to the bottom lost their bottom border.
 - `replace_box` keeps what the box's choices and key handlers started: a choice pressed just
   before a program redraws its menu runs to its end, its tab and its output in the new box of the
   same id, its choice shown running until it ends. Only what the box's definition runs, its own

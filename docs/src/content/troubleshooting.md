@@ -223,7 +223,7 @@ Running a `.ps1` file from a script can be blocked by the PowerShell execution p
 
 ### Corrupted Display
 
-If a program run by BoxMux resets the terminal modes, BoxMux restores raw mode and mouse capture on the next frame. Resizing the terminal window redraws the whole screen.
+If a program run by BoxMux resets the terminal modes, BoxMux restores raw mode and mouse capture on the next frame. BoxMux reads the terminal's size before every frame, so it is always laid out for the size the terminal has, and a resize, even one back to the same size, redraws the whole screen.
 
 If BoxMux was killed (for example with `kill -9`) and your shell is left echoing mouse escape codes or not showing typed text, run `reset`.
 

@@ -571,10 +571,76 @@ app:
     // The box covers the right half; its text is centered in it.
     let mut runtime = runtime(yaml, 40, 10);
     assert_eq!(find(&runtime, "here"), (28, 4));
+    runtime.display.set_size(100, 20);
     runtime.handle(Event::Input(TermEvent::Resize(100, 20)));
     runtime.render();
     assert_eq!(runtime.display.rows().len(), 20);
     assert_eq!(find(&runtime, "here"), (73, 9));
+}
+
+/// The handlebar's arrangement: a box at the top, `needs` rows counted from the top, then one in
+/// every row below it to the screen's bottom.
+const HANDLEBAR: &str = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: needs
+          title: Needs you
+          position: {x1: "0%", y1: "0", x2: "100%", y2: "5"}
+          content: "⟳ Refresh"
+        - id: log
+          title: Log
+          position: {x1: "0%", y1: "6", x2: "100%", y2: "100%"}
+          content: "11:40:04 a worker moved to a fresh worktree"
+"#;
+
+/// What is wrong with the handlebar on screen, Needs you six rows tall: row 0 holds Needs you's
+/// top border and nothing else, and each box's bottom border is on its own last row, the log's
+/// on the screen's last row.
+fn handlebar_problems(rows: &[String]) -> Vec<String> {
+    let last = rows.len() - 1;
+    let edges = |y: usize| (rows[y].chars().next(), rows[y].chars().last());
+    let mut problems = Vec::new();
+    let mut expect = |y: usize, first: char, end: char, holds: &str| {
+        if edges(y) != (Some(first), Some(end)) || !rows[y].contains(holds) {
+            problems.push(format!("row {}: {:?}", y, rows[y]));
+        }
+    };
+    expect(0, '┌', '┐', "Needs you");
+    (1..5).for_each(|y| expect(y, '│', '│', ""));
+    expect(5, '└', '⋱', "");
+    expect(6, '┌', '┐', "Log");
+    (7..last).for_each(|y| expect(y, '│', '│', ""));
+    expect(last, '└', '⋱', "");
+    problems
+}
+
+#[test]
+fn each_frame_is_drawn_for_the_size_the_terminal_has_when_it_is_drawn() {
+    // A terminal can change size without the runtime being told: one resized before boxmux
+    // listens for resizes never says so. Each frame is still laid out for the terminal as it
+    // is, every box's bottom border on its own last row.
+    let mut runtime = runtime(HANDLEBAR, 55, 30);
+    assert_eq!(
+        handlebar_problems(&runtime.display.rows()),
+        Vec::<String>::new()
+    );
+    for (cols, rows) in [(55, 26), (55, 20), (55, 33), (60, 26), (48, 9), (55, 26)] {
+        runtime.display.set_size(cols, rows);
+        runtime.render();
+        let shown = runtime.display.rows();
+        assert_eq!(shown.len(), usize::from(rows));
+        assert_eq!(
+            handlebar_problems(&shown),
+            Vec::<String>::new(),
+            "at {}x{}:\n{}",
+            cols,
+            rows,
+            shown.join("\n")
+        );
+    }
 }
 
 #[test]
