@@ -1123,19 +1123,30 @@ fn replacing_a_box_keeps_the_runs_its_choices_started_and_their_output_reaches_t
     });
     assert!(reply.ok, "{:?}", reply.error);
     assert_eq!(
-        runtime.ctx.app.get_muxbox_by_id("menu").unwrap().title.as_deref(),
+        runtime
+            .ctx
+            .app
+            .get_muxbox_by_id("menu")
+            .unwrap()
+            .title
+            .as_deref(),
         Some("Menu, redrawn")
     );
-    assert!(slow_waiting(&runtime), "the replacement shows the choice still running");
+    assert!(
+        slow_waiting(&runtime),
+        "the replacement shows the choice still running"
+    );
     assert_eq!(
         tab_content(&runtime, "menu", "menu/choice:menu:slow"),
         vec!["started".to_string()],
         "the choice's tab is carried into the replacement"
     );
 
-    pump_until(&mut runtime, "the choice to finish into the replacement", |r| {
-        !slow_waiting(r)
-    });
+    pump_until(
+        &mut runtime,
+        "the choice to finish into the replacement",
+        |r| !slow_waiting(r),
+    );
     assert_eq!(
         tab_content(&runtime, "menu", "menu/choice:menu:slow"),
         vec!["started".to_string(), "done after the replace".to_string()]
@@ -1152,7 +1163,8 @@ fn replacing_a_box_keeps_the_runs_its_choices_started_and_their_output_reaches_t
 }
 
 #[test]
-fn replacing_a_box_stops_its_own_script_the_terminal_shown_in_it_and_what_runs_in_a_child_it_drops() {
+fn replacing_a_box_stops_its_own_script_the_terminal_shown_in_it_and_what_runs_in_a_child_it_drops()
+{
     // What the box's definition runs — its own script, and a terminal shown in it — ends with the definition; and a
     // child the replacement no longer has is gone, with everything running for it.
     let yaml = r#"
@@ -1192,9 +1204,18 @@ app:
     assert_eq!(pids.len(), 3, "the two boxes' scripts and the terminal run");
 
     for (id, rest) in [
-        ("sleeper", r#""position": {"x1": "0", "y1": "0", "x2": "39", "y2": "4"}, "content": "replaced""#),
-        ("term", r#""position": {"x1": "0", "y1": "5", "x2": "39", "y2": "9"}, "content": "replaced""#),
-        ("outer", r#""position": {"x1": "40", "y1": "0", "x2": "79", "y2": "9"}, "content": "no child now""#),
+        (
+            "sleeper",
+            r#""position": {"x1": "0", "y1": "0", "x2": "39", "y2": "4"}, "content": "replaced""#,
+        ),
+        (
+            "term",
+            r#""position": {"x1": "0", "y1": "5", "x2": "39", "y2": "9"}, "content": "replaced""#,
+        ),
+        (
+            "outer",
+            r#""position": {"x1": "40", "y1": "0", "x2": "79", "y2": "9"}, "content": "no child now""#,
+        ),
     ] {
         let reply = runtime.handle_socket(SocketFunction::ReplaceBox {
             box_id: id.into(),
@@ -1208,11 +1229,18 @@ app:
         .filter(|(_, run)| !run.stop_requested)
         .map(|(_, run)| run.origin.clone())
         .collect();
-    assert!(not_stopped.is_empty(), "runs not stopped by replacing their boxes: {:?}", not_stopped);
+    assert!(
+        not_stopped.is_empty(),
+        "runs not stopped by replacing their boxes: {:?}",
+        not_stopped
+    );
     // Stopped, they end at once, well within their sleep.
     let deadline = Instant::now() + Duration::from_secs(5);
     while runtime.executor.runs().count() > 0 {
-        assert!(Instant::now() < deadline, "runs still under way 5 s after their boxes were replaced");
+        assert!(
+            Instant::now() < deadline,
+            "runs still under way 5 s after their boxes were replaced"
+        );
         while let Ok(event) = runtime.events.recv_timeout(Duration::from_millis(5)) {
             runtime.handle(event);
         }
@@ -1222,7 +1250,11 @@ app:
         // Nothing is left in either run's process group.
         let deadline = Instant::now() + Duration::from_secs(2);
         while unsafe { libc::kill(-(pid as i32), 0) } == 0 {
-            assert!(Instant::now() < deadline, "process group {} survived its box's replacement", pid);
+            assert!(
+                Instant::now() < deadline,
+                "process group {} survived its box's replacement",
+                pid
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }

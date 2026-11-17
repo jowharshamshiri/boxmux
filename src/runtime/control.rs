@@ -237,10 +237,17 @@ impl<D: Display> Runtime<D> {
             for (_, origin, target_box, stream_id) in self.runs_kept_by_replacing(id) {
                 if &target_box == id {
                     if let Some(stream) = previous.streams.get(&stream_id) {
-                        replacement.streams.entry(stream_id).or_insert_with(|| stream.clone());
+                        replacement
+                            .streams
+                            .entry(stream_id)
+                            .or_insert_with(|| stream.clone());
                     }
                 }
-                if let RunOrigin::Choice { box_id: source, choice_id } = &origin {
+                if let RunOrigin::Choice {
+                    box_id: source,
+                    choice_id,
+                } = &origin
+                {
                     if source == id {
                         if let Some(choice) = replacement.choice_mut(choice_id) {
                             choice.waiting = true;

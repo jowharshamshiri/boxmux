@@ -499,12 +499,22 @@ impl<D: Display> Runtime<D> {
     /// The runs that go on when `box_id` is replaced by a new box of the same id, each with its origin and the stream
     /// it writes to: every run that targets or was started by the box but its definition's
     /// (`stop_definition_runs_of_box`) — a choice pressed, a key handled —, whose output reaches the replacement.
-    pub(super) fn runs_kept_by_replacing(&self, box_id: &str) -> Vec<(RunId, RunOrigin, String, String)> {
+    pub(super) fn runs_kept_by_replacing(
+        &self,
+        box_id: &str,
+    ) -> Vec<(RunId, RunOrigin, String, String)> {
         self.executor
             .runs()
             .filter(|(_, run)| run.target_box == box_id || run.origin.source_box() == Some(box_id))
             .filter(|(_, run)| !belongs_to_definition(run, box_id))
-            .map(|(id, run)| (*id, run.origin.clone(), run.target_box.clone(), run.stream_id.clone()))
+            .map(|(id, run)| {
+                (
+                    *id,
+                    run.origin.clone(),
+                    run.target_box.clone(),
+                    run.stream_id.clone(),
+                )
+            })
             .collect()
     }
 }
