@@ -7,14 +7,10 @@
 	import { docsNavigation } from '$lib/components/doc-navigation.svelte';
 	import { page } from '$app/state';
 	import SocialMedia from './social-media.svelte';
-	import { latestVersion, fetchLatestVersion } from '$lib/stores/version';
-	import { onMount } from 'svelte';
-	
+
 	const path = $derived(page.url.pathname);
-	
-	onMount(() => {
-		fetchLatestVersion();
-	});
+	// Read from the release manifest when the site was built (routes/+layout.ts).
+	const version = $derived(page.data.release?.version ?? 'No release yet');
 </script>
 
 <Sidebar.Root bind:ref {...restProps}>
@@ -31,7 +27,7 @@
 							</div>
 							<div class="flex flex-col gap-0.5 leading-none">
 								<span class="font-semibold"> {siteConfig.title} </span>
-								<span class="">{$latestVersion}</span>
+								<span class="">{version}</span>
 							</div>
 						</a>
 					{/snippet}

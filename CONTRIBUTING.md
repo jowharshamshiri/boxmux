@@ -1,7 +1,7 @@
 # Contributing to BoxMux
 
 Thanks for helping. This guide covers how the code is organized, how to build and test it, and
-how changes are released.
+how a release is built.
 
 ## Code of conduct
 
@@ -42,14 +42,17 @@ src/
   chart.rs, table.rs charts and tables drawn as text
   plugin.rs          loading plugins through the C ABI
   text.rs            cleaning script output for display
+  upgrade/           `boxmux upgrade`: finding, verifying and installing the newest release
 build.rs, build/commit.rs  the commit `boxmux --version` names (tested by tests/version.rs)
+build/release_line.rs     the release line a release build bakes in (tested by tests/release_line.rs)
+tools/boxmux-dist         builds a release archive of the platform it runs on
 schemas/app_schema.json   the configuration schema (kept in sync with the model by a test)
 api-spec.json             the control protocol schema (kept in sync by a test)
 layouts/, examples/       configurations shipped as demos; every one must load
 examples/plugins/gauge    an example plugin
 tests/live_ux.rs          end-to-end tests of the real binary in a pseudo-terminal
 mg-test.yaml, mg-test/    cross-platform test plans and runners
-scripts/                  release and documentation deployment
+scripts/                  documentation deployment
 docs/                     the documentation site (SvelteKit)
 ```
 
@@ -103,7 +106,6 @@ copies the tracked files of the working tree into them and runs the plans in `mg
 | `hosts` | Ubuntu x86-64, Windows 11 x86-64 | formatting (Linux), clippy, all tests |
 | `arm64` | Ubuntu arm64 | clippy, all tests |
 | `freebsd` | FreeBSD x86-64 | clippy, all tests |
-| `release` | Ubuntu x86-64 and arm64, Windows 11 | release builds and packages |
 
 ```bash
 mg-test validate mg-test.yaml
@@ -134,9 +136,26 @@ boxmux.com.
 
 ## Releasing
 
-1. Set the version in `Cargo.toml` and add its section to `CHANGELOG.md`.
-2. Commit and push to `main`.
-3. Run `scripts/release.sh --dry-run` to run the checks and build the packages on mg-test
-   (`mg-test/release.yaml`) into `dist/`.
-4. Run `scripts/release.sh` to do the same, then, after you confirm, tag `vX.Y.Z`, publish the
-   crate and create the GitHub release with the packages and their checksums.
+BoxMux is released from bahramj.com's release line, as the other apps published there are: a
+release builds the archive of each platform on a machine of that platform, signs the manifest
+that lists them, makes the apt, rpm and Homebrew packages from those archives, and publishes the
+crate to crates.io. The release's notes are written there too; this repository keeps no
+changelog. What a release needs from this repository is `tools/boxmux-dist`:
+
+```bash
+cargo run --locked -p boxmux-dist -- release --platform linux-x86_64 --out-dir out/dist
+```
+
+It builds `boxmux` for the platform it runs on (`linux-x86_64`, `linux-arm64`, `darwin-arm64`;
+`windows-x86_64` once its release build is set up) with the release line in its environment,
+the five variables `build/release_line.rs` names, and writes
+`boxmux-<version>-<platform>.tar.gz` (a `.zip` for Windows), whose one directory `boxmux/` holds
+the program, `LICENSE`, `README.md` and the demo configurations (`layouts/*.yaml`,
+`examples/*.yaml` and `examples/*.sh`), and nothing else: an AppleDouble `._` file among them
+stops the release, naming it. It stops, saying why, unless
+`version.txt` and `Cargo.toml` agree, the release line is given whole and the program carries
+it, the program carries no path of the machine it was built on, and `boxmux --version` names the
+version. The same files make the same archive, byte for byte.
+
+A build given no release line, `cargo build` and `cargo install` included, is a build from
+source: `boxmux upgrade` says it has no release line to follow.

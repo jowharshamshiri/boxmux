@@ -1,0 +1,28 @@
+# Builds BoxMux's release archives: the boxmux program of one platform, built on that platform
+# with its release line baked in, with its licence and README, in one deterministic archive.
+# A tool of the repository's, never published.
+[package]
+name = "boxmux-dist"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Builds BoxMux's release archives"
+
+[[bin]]
+name = "boxmux-dist"
+path = "src/main.rs"
+
+[dependencies]
+# The updater, whose platforms, archive names and unpacking the archives are made for: what
+# boxmux-dist packs is what `boxmux upgrade` installs.
+boxmux = { path = "../.." }
+flate2 = "1"
+# The release line's variables are read and checked as BoxMux's own build reads them
+# (build/release_line.rs), which checks each root key with mg-srel.
+mg-srel = "0.8.18"
+serde_json = "1.0"
+tar = { version = "0.4", default-features = false }
+zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
+
+[dev-dependencies]
+tempfile = "3.2"

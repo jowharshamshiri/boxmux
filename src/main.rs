@@ -198,7 +198,15 @@ fn cli() -> Command {
                         .value_parser(value_parser!(i32).range(1..)),
                 ),
         )
+        .subcommand(Command::new(UPGRADE).about(
+            "Install the newest release of the channel this boxmux was published on, \
+             in place of this one",
+        ))
 }
+
+/// The one command that is not a control command: it upgrades this boxmux, and reaches no
+/// running instance.
+const UPGRADE: &str = "upgrade";
 
 /// The options that only apply when showing an interface, not to control commands.
 const INTERFACE_OPTIONS: [&str; 8] = [
@@ -214,19 +222,37 @@ const INTERFACE_OPTIONS: [&str; 8] = [
 
 fn main() -> ExitCode {
     let matches = cli().get_matches();
-    if let Some((name, _)) = matches.subcommand() {
-        let misplaced: Vec<String> = INTERFACE_OPTIONS
+    if let Some((name, args)) = matches.subcommand() {
+        let on_command_line = |given: Option<clap::parser::ValueSource>| {
+            given == Some(clap::parser::ValueSource::CommandLine)
+        };
+        let mut misplaced: Vec<&str> = INTERFACE_OPTIONS
             .iter()
-            .filter(|id| matches.value_source(id) == Some(clap::parser::ValueSource::CommandLine))
-            .map(|id| id.replace('_', "-"))
+            .copied()
+            .filter(|id| on_command_line(matches.value_source(id)))
             .collect();
+        // The socket names the instance a control command reaches; an upgrade reaches none. It
+        // is a global option, so it may be given before the command or after it.
+        if name == UPGRADE
+            && (on_command_line(matches.value_source("socket"))
+                || on_command_line(args.value_source("socket")))
+        {
+            misplaced.push("socket");
+        }
         if !misplaced.is_empty() {
+            let options: Vec<String> = misplaced.iter().map(|id| id.replace('_', "-")).collect();
+            let kind = if name == UPGRADE {
+                "the command"
+            } else {
+                "the control command"
+            };
             cli()
                 .error(
                     clap::error::ErrorKind::ArgumentConflict,
                     format!(
-                        "{} cannot be used with the control command '{}'",
-                        misplaced.join(", "),
+                        "{} cannot be used with {} '{}'",
+                        options.join(", "),
+                        kind,
                         name
                     ),
                 )
@@ -235,6 +261,7 @@ fn main() -> ExitCode {
     }
     let socket = platform::socket_name(matches.get_one::<String>("socket").map(String::as_str));
     let result = match matches.subcommand() {
+        Some((UPGRADE, _)) => boxmux_lib::upgrade::upgrade().map(|outcome| println!("{}", outcome)),
         Some((name, args)) => control(&socket, name, args),
         None => run(&matches, &socket),
     };

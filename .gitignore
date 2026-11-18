@@ -1,10 +1,7 @@
 # Rust build output
 /target/
 
-# Release artefacts produced by scripts/release.sh
-/dist/
-
-# mg-test task outputs
+# mg-test task outputs, and release archives boxmux-dist writes there
 /out/
 
 # Docs site (SvelteKit) build output and dependencies

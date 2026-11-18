@@ -12,7 +12,6 @@ plans:
   - mg-test/hosts.yaml
   - mg-test/arm64.yaml
   - mg-test/freebsd.yaml
-  - mg-test/release.yaml
 defaults:
   allocationTimeout: 45m
   taskTimeout: 2h

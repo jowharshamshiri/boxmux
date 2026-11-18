@@ -14,6 +14,20 @@ programs through a local socket.
 
 ## Installation
 
+BoxMux is released from [bahramj.com](https://bahramj.com/products/) as a signed archive for
+Linux on x86_64 and arm64 and for macOS on Apple silicon, and as apt, rpm and Homebrew packages
+(`brew install jowharshamshiri/tap/boxmux`). Unpack the archive anywhere and run
+`boxmux/boxmux`. A released BoxMux upgrades itself to the newest release of its channel:
+
+```bash
+boxmux upgrade
+```
+
+It verifies the release against the signed manifest before it replaces anything, and leaves a
+package manager's install to that manager, naming its command.
+
+From crates.io:
+
 ```bash
 cargo install boxmux
 ```

@@ -5,9 +5,9 @@
 	import { ChevronRight, Clipboard, Check } from 'lucide-svelte';
 	import { siteConfig } from '$lib/config';
 	import { toast } from 'svelte-sonner';
-	import { latestVersion } from '$lib/stores/version';
+	import type { Release } from '$lib/release';
 
-	export let data: { latestVersion: string; releaseUrl: string };
+	export let release: Release;
 
 	let isCopied = false;
 	const cargoCommand = `cargo install ${siteConfig.npm}`;
@@ -32,16 +32,24 @@
 	<div class="relative mx-auto max-w-[85rem] px-4 pb-10 pt-24 sm:px-6 lg:px-8">
 		<!-- Version badge -->
 		<div class="flex justify-center">
-			<a
-				href={data.releaseUrl}
-				class="inline-flex items-center gap-x-2 rounded-full border border-gray-200 bg-white p-1 ps-3 text-sm text-gray-800 transition hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
-			>
-				Version {$latestVersion} - Latest Release
-				<Badge variant="secondary" class="gap-x-2 rounded-full">
-					<span class="hidden sm:inline">View on GitHub</span>
-					<ChevronRight class="size-4" />
-				</Badge>
-			</a>
+			{#if release.version && release.notesUrl}
+				<a
+					href={release.notesUrl}
+					class="inline-flex items-center gap-x-2 rounded-full border border-gray-200 bg-white p-1 ps-3 text-sm text-gray-800 transition hover:border-gray-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+				>
+					Version {release.version} - Latest Release
+					<Badge variant="secondary" class="gap-x-2 rounded-full">
+						<span class="hidden sm:inline">Release notes</span>
+						<ChevronRight class="size-4" />
+					</Badge>
+				</a>
+			{:else}
+				<span
+					class="inline-flex items-center gap-x-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-sm text-gray-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+				>
+					No release is published yet
+				</span>
+			{/if}
 		</div>
 
 		<!-- Title -->

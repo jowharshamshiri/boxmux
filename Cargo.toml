@@ -1,6 +1,6 @@
 [package]
 name = "boxmux"
-version = "0.288.748"
+version = "0.289.769"
 edition = "2021"
 authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
 description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
@@ -23,9 +23,12 @@ include = [
     "/examples/plugins/*/Cargo.toml",
     "/examples/plugins/*/src/**/*.rs",
     "/README.md",
-    "/CHANGELOG.md",
     "/LICENSE",
 ]
+
+# boxmux-dist builds the release archives; it is the repository's tool, never published.
+[workspace]
+members = ["tools/boxmux-dist"]
 
 [lib]
 name = "boxmux_lib"
@@ -46,19 +49,32 @@ clap = "4.0"
 crossbeam-channel = "0.5"
 crossterm = "0.29"
 env_logger = "0.11"
+# `boxmux upgrade`: the release archive is a .tar.gz, or a .zip on Windows, checked against the
+# SHA-256 its signed manifest gives.
+flate2 = "1"
 indexmap = "2.0"
 interprocess = "2.4"
 jsonschema = { version = "0.59", default-features = false }
 libloading = "0.9"
 log = "0.4"
+# The release manifest and the registry's charter are signed by a release key that two of the
+# build's root keys certify; the chain is mg-srel's, the words BoxMux reads it by are in
+# src/upgrade/release.rs.
+mg-srel = "0.8.18"
 portable-pty = "0.9"
 regex = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde-saphyr = "1.3"
 serde_json = { version = "1.0", features = ["preserve_order"] }
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }
 unicode-segmentation = "1.13"
 unicode-width = "0.2"
+# The release line over HTTPS: rustls, the web's root certificates, a proxy from the
+# environment.
+ureq = { version = "2.12", default-features = false, features = ["tls", "proxy-from-env"] }
 vte = "0.15"
+zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
@@ -67,7 +83,13 @@ signal-hook = "0.4"
 [target."cfg(windows)".dependencies]
 ctrlc = { version = "3.5", features = ["termination"] }
 
+[build-dependencies]
+# A release build's root keys are checked as it bakes them (build/release_line.rs).
+mg-srel = "0.8.18"
+
 [dev-dependencies]
+# The tests sign the release lines they publish, as a publisher does.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 tempfile = "3.2"
 
 [profile.release]
@@ -78,26 +100,3 @@ strip = true
 # A panic anywhere is fatal: the panic hook restores the terminal, then the process aborts
 # instead of continuing with a dead worker thread.
 panic = "abort"
-
-[package.metadata.deb]
-maintainer = "Bahram Shamshiri <jowharshamshiri@gmail.com>"
-copyright = "2024, Bahram Shamshiri <jowharshamshiri@gmail.com>"
-license-file = ["LICENSE", "4"]
-extended-description = "BoxMux is a YAML-driven terminal UI framework that enables developers to create rich, interactive CLI applications and dashboards through simple configuration files. Features include PTY support, real-time updates, scripting integration, and multi-threaded architecture for responsive terminal interfaces."
-depends = "$auto"
-section = "utils"
-priority = "optional"
-assets = [
-    ["target/release/boxmux", "usr/bin/", "755"],
-    ["README.md", "usr/share/doc/boxmux/README", "644"],
-    ["layouts/*.yaml", "usr/share/doc/boxmux/layouts/", "644"],
-    ["examples/*.yaml", "usr/share/doc/boxmux/examples/", "644"],
-    ["examples/*.sh", "usr/share/doc/boxmux/examples/", "755"],
-]
-
-[package.metadata.generate-rpm]
-summary = "YAML-driven terminal UI framework"
-assets = [
-    { source = "target/release/boxmux", dest = "/usr/bin/boxmux", mode = "755" },
-    { source = "README.md", dest = "/usr/share/doc/boxmux/README", mode = "644", doc = true },
-]

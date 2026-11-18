@@ -10,6 +10,7 @@ pub mod socket;
 pub mod table;
 pub mod terminal;
 pub mod text;
+pub mod upgrade;
 pub mod utils;
 pub mod validation;
 pub mod width;

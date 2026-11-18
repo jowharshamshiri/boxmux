@@ -12,6 +12,39 @@ mouse. A running instance can be controlled from other programs through a local 
 
 ## Installation
 
+### A release
+
+BoxMux is released from [bahramj.com](https://bahramj.com/products/) as signed archives, one
+for each platform: Linux on x86_64 and arm64 (glibc 2.34 or later) and macOS on Apple silicon
+(macOS 12 or later). Each, `boxmux-<version>-<platform>.tar.gz`, unpacks to one directory,
+`boxmux/`, holding the `boxmux` program, `LICENSE`, this README and the ready-made
+configurations in `layouts/` and `examples/`. The apt and dnf packages put the README, the
+licence and those configurations in `/usr/share/doc/boxmux`.
+
+- From the archive: unpack it anywhere and run `boxmux/boxmux`.
+- With apt or dnf, from bahramj.com's package repository (each release's notes say how to add
+  it): `sudo apt install boxmux` or `sudo dnf install boxmux`. The package installs under
+  `/opt/boxmux`, with `/usr/bin/boxmux`.
+- With Homebrew: `brew install jowharshamshiri/tap/boxmux`.
+
+### Upgrading
+
+`boxmux upgrade` installs the newest release of the channel the running BoxMux was published on
+(`release` or `nightly`) for its platform, in place of the running program:
+
+```bash
+boxmux upgrade
+```
+
+It reads the release registry's charter and BoxMux's release manifest from bahramj.com, verifies
+each signature against the root keys the release was built with, and holds the archive to the
+size and SHA-256 the signed manifest gives, to its one directory, with no other entry, and to its
+program saying it is the published version. A release that fails any of these is refused, naming
+the reason (such as `archive_sha256_mismatch` or `manifest_signature_invalid`), and nothing is
+changed; a registry it cannot reach fails, naming the address. It says which release is the
+newest, and installs nothing when that is no later than the running one. A BoxMux installed by
+apt, dnf or Homebrew is that manager's to upgrade: `boxmux upgrade` names its command.
+
 ### From crates.io
 
 You need a stable Rust toolchain ([rustup](https://rustup.rs)).
@@ -31,15 +64,8 @@ cargo build --release
 
 The `layouts/` and `examples/` directories hold ready-made configurations to try.
 
-### Prebuilt packages
-
-Releases are built with `scripts/release.sh`, which runs the mg-test `release` plan
-(`mg-test/release.yaml`). A GitHub release made this way carries:
-
-- `boxmux-<version>-linux-x86_64.tar.gz` and `boxmux-<version>-linux-aarch64.tar.gz`
-- `.deb` and `.rpm` packages for Linux x86-64 and arm64
-- `boxmux-<version>-windows-x86_64.zip`
-- `SHA256SUMS`
+A BoxMux built from source, from crates.io included, has no release line: `boxmux upgrade` says
+so, and the newer source is built the same way.
 
 ## A first interface
 
@@ -113,6 +139,7 @@ Commands:
   query_pty_status      Report on the process in a box's visible tab
   send_pty_input        Type input into the terminal in a box's visible tab
   send_signal           Send a signal to the process in a box's visible tab
+  upgrade               Install the newest release of the channel this boxmux was published on, in place of this one
   help                  Print this message or the help of the given subcommand(s)
 
 Arguments:
@@ -147,7 +174,10 @@ Options:
   metadata)`. Building from a git checkout needs `git`. The form is stable, and scripts may rely
   on it: the line is exactly one of the three above, with nothing else on it.
 - `--log-level` needs `--log-file`. `--dark` and `--light` cannot be combined.
-- The interface options cannot be combined with a control command.
+- The interface options cannot be combined with a control command, nor with `upgrade`, which
+  reaches no running instance and so takes no `--socket` either.
+- `boxmux upgrade` installs the newest release in place of the running program; see
+  [Upgrading](#upgrading).
 - Moving or resizing a box with the mouse writes the new position back into the YAML file,
   keeping comments and units. `--lock` turns this off. Without `--lock`, BoxMux holds a lock
   file (`<config>.lock`) so that a second instance cannot edit the same file.
@@ -256,15 +286,14 @@ tracked files into them and runs the plans in `mg-test/`:
 | `hosts` | Ubuntu x86-64, Windows 11 x86-64 | formatting (Linux only), clippy and all tests |
 | `arm64` | Ubuntu arm64 | formatting, clippy and all tests |
 | `freebsd` | FreeBSD x86-64 | formatting, clippy and all tests |
-| `release` | Ubuntu x86-64 and arm64, Windows 11 x86-64 | release builds and packages |
 
 ```bash
 mg-test run mg-test.yaml --plan hosts
 ```
 
 The runners are `mg-test/test.sh` (Linux and FreeBSD) and `mg-test/test.ps1` (Windows). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and conventions, and
-[CHANGELOG.md](CHANGELOG.md) for the history.
+[CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and conventions. Each release's notes
+are published with it on bahramj.com.
 
 ## License
 
