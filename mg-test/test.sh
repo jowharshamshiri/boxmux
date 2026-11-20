@@ -18,8 +18,10 @@ case "$(uname -s)" in
         fi
         ;;
     FreeBSD)
-        # The live terminal tests start boxmux through bash; rustup needs curl.
-        command -v bash >/dev/null && command -v curl >/dev/null || pkg install -y bash curl
+        # The live terminal tests start boxmux through bash, the version tests make git
+        # repositories, and rustup needs curl.
+        command -v bash >/dev/null && command -v git >/dev/null && command -v curl >/dev/null \
+            || pkg install -y bash git curl
         ;;
     *)
         echo "mg-test/test.sh does not know how to prepare a $(uname -s) guest" >&2

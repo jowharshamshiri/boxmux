@@ -123,8 +123,15 @@ impl Fixture {
 /// A running boxmux in a pseudo-terminal.
 struct LiveBoxMux {
     child: Box<dyn portable_pty::Child + Send + Sync>,
-    /// The terminal's side of the PTY, kept open for as long as the reader runs and to resize
-    /// the terminal.
+    /// The terminal's side of the PTY, kept open for as long as the reader runs and, on Unix,
+    /// to resize the terminal.
+    #[cfg_attr(
+        not(unix),
+        expect(
+            dead_code,
+            reason = "held only to keep the PTY open; resizing is Unix-only"
+        )
+    )]
     master: Box<dyn portable_pty::MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     output: Receiver<Vec<u8>>,
@@ -1262,6 +1269,7 @@ impl Screen {
     /// rows are cut or padded with blanks on the right; a shorter screen loses the blank rows
     /// below the cursor first, then its top rows, so the cursor's row stays in view; a taller
     /// one gains blank rows at the bottom. A wide cluster the new right edge cuts is blanked.
+    #[cfg(unix)]
     fn resize(&mut self, width: usize, height: usize) {
         for y in 0..self.cells.len() {
             let cut = width < self.width && self.cells[y][width].is_empty();

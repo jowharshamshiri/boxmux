@@ -1,10 +1,11 @@
-# Prepares a Windows guest for building BoxMux: the MSVC build tools (once per guest) and
-# Rust (once per tools cache). Dot-sourced by test.ps1 and build.ps1.
+# Prepares a Windows guest for building BoxMux: the MSVC build tools (once per guest), and
+# Rust and Git (once per tools cache). Dot-sourced by test.ps1 and build.ps1.
 $env:RUSTUP_HOME = Join-Path $env:MG_TEST_CACHE_TOOLS 'rustup'
 $env:CARGO_HOME = Join-Path $env:MG_TEST_CACHE_TOOLS 'cargo'
 $env:CARGO_TARGET_DIR = $env:MG_TEST_CACHE_TARGET
 $env:CARGO_TERM_COLOR = 'never'
-$env:PATH = "$env:CARGO_HOME\bin;$env:PATH"
+$gitHome = Join-Path $env:MG_TEST_CACHE_TOOLS 'mingit-2.56.1'
+$env:PATH = "$env:CARGO_HOME\bin;$gitHome\cmd;$env:PATH"
 
 function Invoke-Native([string] $what, [scriptblock] $command) {
     & $command
@@ -30,3 +31,14 @@ if (-not (Test-Path "$env:CARGO_HOME\bin\cargo.exe")) {
     Invoke-Native 'installing Rust' { & $rustup -y --no-modify-path --profile minimal --default-toolchain stable -c clippy -c rustfmt }
 }
 Invoke-Native 'updating Rust' { rustup update stable --no-self-update }
+
+# The version tests make git repositories, and the build reads the commit it is built from.
+if (-not (Test-Path "$gitHome\cmd\git.exe")) {
+    $zip = Join-Path $env:MG_TEST_SCRATCH 'MinGit-2.56.1-64-bit.zip'
+    Invoke-WebRequest 'https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/MinGit-2.56.1-64-bit.zip' -OutFile $zip
+    $sha256 = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+    if ($sha256 -ne '4a92850b6e917da4fd010669b614b55dccf5b0ec333a534cc4be4700dfefdafd') {
+        throw "MinGit-2.56.1-64-bit.zip has SHA-256 $sha256, not the one Git for Windows published"
+    }
+    Expand-Archive $zip -DestinationPath $gitHome
+}
