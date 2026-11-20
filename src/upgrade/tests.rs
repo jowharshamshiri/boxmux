@@ -585,9 +585,10 @@ fn a_package_managers_boxmux_is_left_to_the_manager() {
         .borrow()
         .contains(&Served::archive_url("release", "0.300.1", PLATFORM)));
 
+    let other = installed.folder().join("other");
     std::fs::write(
         &marker,
-        serde_json::json!({ "format": 1, "manager": "apt", "program": "/usr/bin/other", "update": "x" })
+        serde_json::json!({ "format": 1, "manager": "apt", "program": other, "update": "x" })
             .to_string(),
     )
     .unwrap();
