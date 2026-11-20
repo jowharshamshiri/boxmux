@@ -91,7 +91,7 @@ fn cli() -> Command {
         )
         .subcommand(
             Command::new("replace_box_content")
-                .about("Show text in a box's socket tab")
+                .about("Show text in a box's socket tab, or as its own content")
                 .arg(box_id_arg())
                 .arg(Arg::new("content").required(true))
                 .arg(
@@ -99,6 +99,14 @@ fn cli() -> Command {
                         .long("failed")
                         .action(ArgAction::SetTrue)
                         .help("Show the content in the box's error colors"),
+                )
+                .arg(
+                    Arg::new("target")
+                        .long("target")
+                        .value_name("TAB")
+                        .value_parser(["socket", "content"])
+                        .default_value("socket")
+                        .help("The tab to replace: the box's socket tab, or its own content tab"),
                 ),
         )
         .subcommand(
@@ -298,6 +306,9 @@ fn control(socket: &str, name: &str, args: &ArgMatches) -> Result<(), String> {
             box_id: arg(args, "box_id"),
             content: arg(args, "content"),
             success: !args.get_flag("failed"),
+            target: arg(args, "target")
+                .parse()
+                .expect("clap allows only the targets ContentTarget names"),
         },
         "replace_box_script" => SocketFunction::ReplaceBoxScript {
             box_id: arg(args, "box_id"),

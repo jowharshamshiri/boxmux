@@ -292,12 +292,13 @@ Everything a box can show is a **stream**, and a box with more than one stream s
 | Tab | Comes from | Can be closed |
 |-----|------------|---------------|
 | Content | The box's `content` | No |
+| File | The box's `file`, redrawn whenever it changes | No |
 | Choices | The box's `choices` | No |
 | Output | The box's own `script` | No |
 | One per choice | A choice whose output goes to this box, once it prints something (a terminal choice: once it starts) | Yes |
 | One per key | A box `on_keypress` handler, once it prints something | Yes |
 | Source box title | Another box's script redirected here with `redirect_output` | Yes |
-| Socket | Text sent with `replace_box_content` | Yes |
+| Socket | Text sent with `replace_box_content` (to its default target, the socket tab) | Yes |
 | Terminal | A process started with `spawn_pty_process` | Yes |
 
 A box with a single stream shows its `title` (or the stream's name) instead of tabs; in a box with only `choices`, the menu's tab is labelled with the box title.

@@ -1,6 +1,6 @@
 [package]
 name = "boxmux"
-version = "0.292.845"
+version = "0.293.892"
 edition = "2021"
 authors = ["Bahram Shamshiri <jowharshamshiri@gmail.com>"]
 description = "YAML-driven terminal UI framework for rich, interactive CLI applications and dashboards with PTY support"
@@ -57,6 +57,8 @@ interprocess = "2.4"
 jsonschema = { version = "0.59", default-features = false }
 libloading = "0.9"
 log = "0.4"
+# File boxes redraw when their file changes: inotify, FSEvents, kqueue, ReadDirectoryChangesW.
+notify = "8"
 # The release manifest and the registry's charter are signed by a release key that two of the
 # build's root keys certify; the chain is mg-srel's, the words BoxMux reads it by are in
 # src/upgrade/release.rs.

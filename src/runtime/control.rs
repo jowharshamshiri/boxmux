@@ -5,7 +5,7 @@ use super::{Refresh, Runtime};
 use crate::model::common::ExecutionMode;
 use crate::model::stream::{RunId, RunOrigin, Stream, StreamKind, StreamStatus};
 use crate::runtime::display::Display;
-use crate::socket::protocol::{ProcessStatus, Reply, SocketFunction};
+use crate::socket::protocol::{ContentTarget, ProcessStatus, Reply, SocketFunction};
 use crate::{App, MuxBox};
 use std::time::Instant;
 
@@ -16,7 +16,8 @@ impl<D: Display> Runtime<D> {
                 box_id,
                 content,
                 success,
-            } => self.replace_box_content(&box_id, &content, success),
+                target,
+            } => self.replace_box_content(&box_id, &content, success, target),
             SocketFunction::ReplaceBoxScript { box_id, script } => {
                 self.replace_box_script(&box_id, script)
             }
@@ -76,20 +77,31 @@ impl<D: Display> Runtime<D> {
         box_id: &str,
         content: &str,
         success: bool,
+        target: ContentTarget,
     ) -> Result<Reply, String> {
         let muxbox = self.box_mut(box_id)?;
-        let stream_id = format!("{}/socket", box_id);
-        let stream = muxbox
-            .streams
-            .entry(stream_id.clone())
-            .or_insert_with(|| Stream::socket(stream_id.clone()));
-        stream.content = crate::text::sanitize_output(content);
-        stream.status = if success {
-            StreamStatus::Exited(0)
-        } else {
-            StreamStatus::Failed("the sender reported a failure".to_string())
+        let stream = match target {
+            ContentTarget::Socket => {
+                let stream_id = format!("{}/socket", box_id);
+                let stream = muxbox
+                    .streams
+                    .entry(stream_id.clone())
+                    .or_insert_with(|| Stream::socket(stream_id));
+                stream.set_text(content);
+                stream
+            }
+            ContentTarget::Content => muxbox.set_content(content),
         };
-        muxbox.selected_stream_id = Some(stream_id);
+        // Text in the box's own content tab is the box's content; in the socket tab, the last
+        // thing the sender reported.
+        stream.status = match (success, target) {
+            (true, ContentTarget::Content) => StreamStatus::Idle,
+            (true, ContentTarget::Socket) => StreamStatus::Exited(0),
+            (false, _) => StreamStatus::Failed("the sender reported a failure".to_string()),
+        };
+        let stream_id = stream.id.clone();
+        muxbox.switch_to_stream(&stream_id);
+        muxbox.tab_scroll_offset = muxbox.get_active_tab_index();
         Ok(Reply::ok())
     }
 
@@ -270,6 +282,11 @@ impl<D: Display> Runtime<D> {
             }
         }
         self.refresh.remove(box_id);
+        // The replacement's file tabs are new and empty: each is read again.
+        for id in &old_ids {
+            self.files.forget(id);
+        }
+        self.sync_file_boxes();
         self.ctx.app.invalidate_layout_cache();
         self.activate_layout_runs();
         Ok(Reply::ok())
@@ -305,6 +322,7 @@ impl<D: Display> Runtime<D> {
             siblings.push(muxbox);
             Ok(())
         })?;
+        self.sync_file_boxes();
         self.ctx.app.invalidate_layout_cache();
         self.activate_layout_runs();
         Ok(Reply::ok())
@@ -357,6 +375,7 @@ impl<D: Display> Runtime<D> {
             self.stop_runs_of_box(id);
             self.refresh.remove(id);
         }
+        self.sync_file_boxes();
         let layout = self
             .ctx
             .app

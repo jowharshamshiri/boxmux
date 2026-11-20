@@ -12,6 +12,7 @@ description: Complete reference for BoxMux YAML configuration files - file struc
 - [Box Configuration](#box-configuration)
 - [Position Configuration](#position-configuration)
 - [Content and Tabs](#content-and-tabs)
+- [File Boxes](#file-boxes)
 - [Choice Configuration](#choice-configuration)
 - [Script Configuration](#script-configuration)
 - [PTY Configuration](#pty-configuration)
@@ -150,6 +151,8 @@ Boxes are the building blocks of a layout. A box can show static text, a menu, s
 | `min_width`, `min_height`, `max_width`, `max_height` | `integer` | No | - | Size limits in cells (at least 1). |
 | `children` | `array[Box]` | No | - | Boxes inside this box. |
 | `content` | `string` | No | - | Static text. |
+| `file` | `string` | No | - | A file to show, redrawn whenever it changes. See [File Boxes](#file-boxes). |
+| `follow` | `boolean` | No | `false` | Show `file` as a log that grows at its end, kept to the bottom. Needs `file`. |
 | `choices` | `array[Choice]` | No | - | A menu. See [Choice Configuration](#choice-configuration). |
 | `script` | `string` or `array[string]` | No | - | Script whose output the box shows. |
 | `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
@@ -256,6 +259,7 @@ Boxes that share an edge value, such as `x2: 50%` on one box and `x1: 50%` on th
 A box shows one tab for each source of content it has, in this order:
 
 - **Content**: the `content` text.
+- **File**: the `file`'s text.
 - **Choices**: the `choices` menu.
 - **Output**: the output of the box's `script`.
 
@@ -263,7 +267,41 @@ A box with one tab shows its `title` in the top border. A box with several tabs 
 
 Text that fits in the box is centered horizontally and vertically. The content area keeps a one-column margin inside the border. A terminal (`execution_mode: Pty`) fills the whole inside of the border.
 
-Script output and `content` keep their SGR color sequences, so colored output is shown in color, and their OSC 8 hyperlinks, which your terminal shows as links (see [Hyperlinks](styling/theme#hyperlinks)). Other control sequences are removed.
+Script output, `content` and a `file`'s text keep their SGR color sequences, so colored output is shown in color, and their OSC 8 hyperlinks, which your terminal shows as links (see [Hyperlinks](styling/theme#hyperlinks)). Other control sequences are removed.
+
+## File Boxes
+
+A box with `file` shows that file in its File tab and redraws it in the next frame whenever the file changes. The operating system reports each change (inotify on Linux, FSEvents on macOS, kqueue on the BSDs, ReadDirectoryChangesW on Windows), so a file box needs no `refresh_interval` and does not poll. A relative path is relative to the YAML file, and variables work in it as in any other value.
+
+```yaml
+- id: status
+  title: Deploy status
+  position: {x1: 0%, y1: 0%, x2: 50%, y2: 30%}
+  file: state/deploy-status.txt
+
+- id: build
+  title: Build log
+  position: {x1: 0%, y1: 30%, x2: 100%, y2: 100%}
+  file: ${BUILD_DIR}/build.log
+  follow: true
+```
+
+| State of the file | What the File tab shows |
+|-------------------|-------------------------|
+| It exists | Its text. A file written to a new file and renamed over the old one, as editors save, is shown as it is after the rename. |
+| It does not exist, or a folder of its path does not | "Waiting for this file to appear:" and the path as configured, dimmed. The file is shown as soon as it is created, also when the folders of its path are created first. A file that is removed shows this again. |
+| It is a folder, cannot be read, or cannot be watched | The reason and the path, in the box's error colors. |
+
+### Following a log
+
+With `follow: true` the file is a log that grows at its end:
+
+- The tab opens at the end of the file.
+- What is written to the end is added to the tab; only the added part is read. A line still being written shows as the last line until it is finished.
+- While the view is at the bottom, it stays at the bottom as lines are added. Scroll up to read, and the view stays where it is; scroll back to the bottom to follow again.
+- A log that is truncated or replaced (rotated) is read again from its start.
+
+Without `follow`, the whole file is read again at each change, and the scroll position is kept.
 
 ## Choice Configuration
 

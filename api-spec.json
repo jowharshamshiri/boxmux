@@ -22,6 +22,7 @@
   "examples": [
     { "command": "replace_box_content", "box_id": "status", "content": "Deploy finished" },
     { "command": "replace_box_content", "box_id": "status", "content": "Deploy failed", "success": false },
+    { "command": "replace_box_content", "box_id": "status", "content": "Deployed at 14:02", "target": "content" },
     { "command": "replace_box_script", "box_id": "clock", "script": ["date '+%H:%M:%S'"] },
     { "command": "stop_box_refresh", "box_id": "clock" },
     { "command": "start_box_refresh", "box_id": "clock" },
@@ -82,7 +83,7 @@
     },
     "replace_box_content": {
       "type": "object",
-      "description": "Shows text in the box's socket tab (labelled \"Socket\"), creating the tab if needed, and makes that tab visible. The text replaces what the tab showed before.",
+      "description": "Shows text in a tab of the box and makes that tab visible. The text replaces what the tab showed before. By default the tab is the box's socket tab (labelled \"Socket\"), a tab of its own after the box's other tabs, opened the first time; with target content it is the box's own content tab, so the box shows the text as its content with no tab added.",
       "properties": {
         "command": { "const": "replace_box_content" },
         "box_id": { "$ref": "#/definitions/box_id" },
@@ -94,6 +95,12 @@
           "type": "boolean",
           "default": true,
           "description": "false shows the tab in the box's error colors."
+        },
+        "target": {
+          "type": "string",
+          "enum": ["socket", "content"],
+          "default": "socket",
+          "description": "The tab the text goes to. socket: the box's socket tab. content: the box's own content tab, the one its content field fills; the text becomes the box's content, and the tab is opened as the box's first tab only when the box has none."
         }
       },
       "required": ["command", "box_id", "content"],

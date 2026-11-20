@@ -294,6 +294,12 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                 "must be at least 1 millisecond".into(),
             );
         }
+        if muxbox.follow.is_some() && muxbox.file.is_none() {
+            error(
+                format!("{}.follow", location),
+                "follow needs a file to follow".into(),
+            );
+        }
         if muxbox.chart_data.is_some() && muxbox.chart_type.is_none() {
             error(
                 format!("{}.chart_data", location),
@@ -550,6 +556,32 @@ app:
                 errors
             );
         }
+    }
+
+    #[test]
+    fn follow_needs_a_file() {
+        let errors = semantic_errors(
+            r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: log
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          content: not a file
+          follow: true
+        - id: tail
+          position: {x1: "10", y1: "0", x2: "19", y2: "9"}
+          file: build.log
+          follow: true
+"#,
+        );
+        assert_eq!(
+            errors,
+            vec![
+                "app.layouts[0] ('main').children[0] ('log').follow: follow needs a file to follow"
+            ]
+        );
     }
 
     #[test]

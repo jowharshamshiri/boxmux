@@ -12,12 +12,13 @@ Every stream has a kind:
 
 | Kind | Holds | Created |
 |------|-------|---------|
-| Content | The box's static `content` | At load, when `content` is not empty |
+| Content | The box's own `content` | At load, when `content` is not empty; or the first time `replace_box_content` with `target: content` targets a box that has none, as its first tab |
+| File | The box's `file`, read again whenever it changes | At load, when the box has a `file` |
 | Choices | The box's `choices` menu | At load, when `choices` is not empty |
 | Run | The output of one *origin* (see below): text lines, or a terminal screen for PTY runs | The box's own script tab at load (when the box has a `script`); every other one the first time a run of its origin prints something, or, for a `Pty` run, when it starts |
-| Socket | Text sent with the `replace_box_content` control command | The first time that command targets the box |
+| Socket | Text sent with the `replace_box_content` control command (its default `target: socket`) | The first time that command targets the box's socket tab |
 
-Tabs appear in this order: Content, Choices, the box's own script output, then every
+Tabs appear in this order: Content, File, Choices, the box's own script output, then every
 stream created while boxmux runs, in the order they were created.
 
 ### Origins
@@ -83,7 +84,7 @@ At start each box shows its first tab. What a run does to the visible tab:
 | A box script started when its layout is shown, or by its `refresh_interval` | Stays as it was |
 
 A tab that becomes visible is scrolled into view in the tab bar. `replace_box_content` makes
-the socket tab visible.
+the tab it wrote to visible: the socket tab, or with `target: content` the content tab.
 
 ### Status
 

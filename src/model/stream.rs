@@ -67,13 +67,16 @@ impl RunOrigin {
 /// The source of a stream's content.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StreamKind {
-    /// The box's static `content` from the configuration.
+    /// The box's own `content`: from the configuration, or replaced with `replace_box_content`
+    /// targeting `content`.
     Content,
+    /// The box's `file`, read again whenever it changes.
+    File,
     /// The box's `choices` menu.
     Choices,
     /// Output of runs of one origin.
     Run(RunOrigin),
-    /// Content pushed through the socket API with `replace_box_content`.
+    /// Content pushed through the socket API with `replace_box_content` targeting `socket`.
     Socket,
 }
 
@@ -133,6 +136,19 @@ impl Stream {
         }
     }
 
+    pub fn file(id: String, label: String) -> Self {
+        Stream {
+            id,
+            kind: StreamKind::File,
+            label,
+            content: Vec::new(),
+            choices: None,
+            status: StreamStatus::Idle,
+            run: None,
+            terminal: false,
+        }
+    }
+
     pub fn choices(id: String, label: String, choices: Vec<Choice>) -> Self {
         Stream {
             id,
@@ -173,11 +189,11 @@ impl Stream {
     }
 
     /// Whether the tab of this stream, shown in box `owner`, has a close button.
-    /// Configuration-defined content and menus, and a box's own script output, stay for the life
-    /// of the box.
+    /// Configuration-defined content, files and menus, and a box's own script output, stay for
+    /// the life of the box.
     pub fn is_closeable(&self, owner: &str) -> bool {
         match &self.kind {
-            StreamKind::Content | StreamKind::Choices => false,
+            StreamKind::Content | StreamKind::File | StreamKind::Choices => false,
             StreamKind::Run(RunOrigin::BoxScript { box_id }) => box_id != owner,
             StreamKind::Run(_) | StreamKind::Socket => true,
         }

@@ -571,6 +571,61 @@ fn control_commands_answer_and_change_the_screen() {
 }
 
 #[test]
+fn a_file_box_follows_its_file_and_the_content_target_keeps_the_box_to_one_tab() {
+    let fixture = Fixture::new();
+    fs::write(fixture.path("status.txt"), "STATUS_ONE\n").unwrap();
+    let config = fixture.write_config(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: status
+          title: Status
+          position: {x1: "2", y1: "2", x2: "48", y2: "14"}
+          file: status.txt
+        - id: note
+          title: Note
+          position: {x1: "50", y1: "2", x2: "98", y2: "14"}
+          content: NOTE_ONE
+"#,
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("STATUS_ONE");
+
+    // No refresh_interval: only the platform telling boxmux the file changed redraws it.
+    fs::write(fixture.path("status.txt"), "STATUS_TWO\n").unwrap();
+    app.wait_for_text("STATUS_TWO");
+    fs::remove_file(fixture.path("status.txt")).unwrap();
+    app.wait_for_text("Waiting for this file to appear:");
+
+    let output = fixture.control(&[
+        "replace_box_content",
+        "note",
+        "NOTE_TWO",
+        "--target",
+        "content",
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    app.wait_for_text("NOTE_TWO");
+    assert!(
+        app.screen.find("Socket").is_none() && app.screen.find("NOTE_ONE").is_none(),
+        "the note's own content was replaced, with no tab added\n{}",
+        app.screen.text()
+    );
+
+    let output = fixture.control(&["replace_box_content", "note", "x", "--target", "title"]);
+    assert!(!output.status.success(), "an unknown target is an error");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("title"), "{}", stderr);
+}
+
+#[test]
 fn keys_typed_into_a_focused_terminal_reach_the_program() {
     let fixture = Fixture::new();
     let config = fixture.write_config(

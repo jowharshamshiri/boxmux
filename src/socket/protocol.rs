@@ -10,12 +10,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SocketFunction {
-    /// Shows `content` in the box's socket tab. `success: false` shows it in error colors.
+    /// Shows `content` in the tab `target` names: the box's socket tab, or its own content tab.
+    /// `success: false` shows it in error colors.
     ReplaceBoxContent {
         box_id: String,
         content: String,
         #[serde(default = "default_true")]
         success: bool,
+        #[serde(default)]
+        target: ContentTarget,
     },
     /// Replaces the box's script and runs it now.
     ReplaceBoxScript { box_id: String, script: Vec<String> },
@@ -60,6 +63,33 @@ pub enum SocketFunction {
 
 fn default_true() -> bool {
     true
+}
+
+/// The tab `replace_box_content` writes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContentTarget {
+    /// The box's socket tab, a tab of its own after the box's other tabs, opened the first time.
+    #[default]
+    Socket,
+    /// The box's own content tab, the one its `content` fills: the text becomes the box's
+    /// content, and no tab is added unless the box had no content tab.
+    Content,
+}
+
+impl std::str::FromStr for ContentTarget {
+    type Err = String;
+
+    fn from_str(name: &str) -> Result<Self, String> {
+        match name {
+            "socket" => Ok(ContentTarget::Socket),
+            "content" => Ok(ContentTarget::Content),
+            other => Err(format!(
+                "'{}' is not a target; use 'content' or 'socket'",
+                other
+            )),
+        }
+    }
 }
 
 /// A box sent in a request, kept as the JSON the sender wrote. Reading one checks it against
@@ -241,8 +271,37 @@ mod tests {
         .unwrap();
         assert!(matches!(
             request,
-            SocketFunction::ReplaceBoxContent { success: true, .. }
+            SocketFunction::ReplaceBoxContent {
+                success: true,
+                target: ContentTarget::Socket,
+                ..
+            }
         ));
+    }
+
+    #[test]
+    fn replace_box_content_takes_the_content_target_and_refuses_others() {
+        let request: SocketFunction = serde_json::from_str(
+            r#"{"command":"replace_box_content","box_id":"a","content":"hi","target":"content"}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            request,
+            SocketFunction::ReplaceBoxContent {
+                target: ContentTarget::Content,
+                ..
+            }
+        ));
+        let error = serde_json::from_str::<SocketFunction>(
+            r#"{"command":"replace_box_content","box_id":"a","content":"hi","target":"title"}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("title"), "{}", error);
+        assert_eq!("content".parse(), Ok(ContentTarget::Content));
+        assert_eq!("socket".parse(), Ok(ContentTarget::Socket));
+        let typo = "contents".parse::<ContentTarget>().unwrap_err();
+        assert!(typo.contains("'contents'"), "{}", typo);
     }
 
     /// The published protocol schema, `api-spec.json` at the repository root.
@@ -285,6 +344,7 @@ mod tests {
                 box_id: id(),
                 content: "text".into(),
                 success: false,
+                target: ContentTarget::Content,
             },
             SocketFunction::ReplaceBoxScript {
                 box_id: id(),

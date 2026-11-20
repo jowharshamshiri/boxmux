@@ -505,6 +505,15 @@
           "type": "string",
           "description": "Static text content to display in box"
         },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A file to show in the box's file tab, redrawn whenever it changes. A relative path is relative to the configuration file's folder"
+        },
+        "follow": {
+          "type": "boolean",
+          "description": "Show the file as a log: what is written to its end is added, and the box keeps to the bottom while the reader is there. Needs file"
+        },
         "save_in_file": {
           "type": "string",
           "description": "File path to save box content to"

@@ -971,7 +971,7 @@ fn a_paste_is_bracketed_only_for_programs_that_asked() {
     assert!(plain.contains("got[hello]"), "{}", plain);
 }
 
-use crate::socket::protocol::SocketFunction;
+use crate::socket::protocol::{ContentTarget, SocketFunction};
 
 /// A file in the temporary directory that scripts append to, removed when dropped.
 #[cfg(unix)]
@@ -1078,6 +1078,7 @@ app:
         box_id: "a".into(),
         content: "from socket".into(),
         success: true,
+        target: ContentTarget::Socket,
     });
     assert!(socket.ok);
     let reply = runtime.handle_socket(SocketFunction::ReplaceBoxScript {
@@ -1689,4 +1690,380 @@ fn a_confirmation_whose_choice_leaves_the_shown_layout_closes_and_says_so() {
     // Enter in the other layout presses nothing.
     press(&mut runtime, KeyCode::Enter);
     assert!(runtime.executor.runs().next().is_none());
+}
+
+fn tab_labels(runtime: &Runtime<MemoryDisplay>, box_id: &str) -> Vec<String> {
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id(box_id)
+        .unwrap()
+        .get_tab_labels()
+}
+
+#[test]
+fn replace_box_content_targeting_content_replaces_the_box_s_own_tab() {
+    let yaml = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: status
+          title: Status
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          content: starting
+        - id: both
+          position: {x1: "40", y1: "0", x2: "79", y2: "9"}
+          content: static
+          script: ["echo scripted"]
+        - id: bare
+          title: Bare
+          position: {x1: "0", y1: "10", x2: "39", y2: "19"}
+"#;
+    let mut runtime = runtime(yaml, 80, 20);
+    let replace = |box_id: &str, content: &str, success: bool| SocketFunction::ReplaceBoxContent {
+        box_id: box_id.into(),
+        content: content.into(),
+        success,
+        target: ContentTarget::Content,
+    };
+
+    let reply = runtime.handle_socket(replace("status", "deployed", true));
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+    assert!(screen_contains(&runtime, "deployed"));
+    assert!(!screen_contains(&runtime, "starting"));
+    assert_eq!(
+        tab_labels(&runtime, "status"),
+        vec!["Status"],
+        "still one tab"
+    );
+    let status = runtime.ctx.app.get_muxbox_by_id("status").unwrap();
+    assert_eq!(status.content.as_deref(), Some("deployed"));
+    assert!(!status.in_error_state());
+
+    // A failure shows the box's own content in its error colors.
+    let reply = runtime.handle_socket(replace("status", "deploy failed", false));
+    assert!(reply.ok, "{:?}", reply.error);
+    assert_eq!(tab_labels(&runtime, "status"), vec!["Status"]);
+    assert!(runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("status")
+        .unwrap()
+        .in_error_state());
+
+    // The content tab of a box with a script is replaced and shown; no tab is added.
+    pump_until(&mut runtime, "the script's output", |r| {
+        r.ctx.app.get_muxbox_by_id("both").unwrap().streams["both/script"].content
+            == vec!["scripted"]
+    });
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id_mut("both")
+        .unwrap()
+        .switch_to_stream("both/script");
+    let reply = runtime.handle_socket(replace("both", "new static", true));
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+    assert_eq!(tab_labels(&runtime, "both"), vec!["Content", "Output"]);
+    assert!(screen_contains(&runtime, "new static"));
+
+    // A box with no content tab gets one, first, and it is the box's only tab.
+    let reply = runtime.handle_socket(replace("bare", "now with text", true));
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+    assert_eq!(tab_labels(&runtime, "bare"), vec!["Bare"]);
+    assert!(screen_contains(&runtime, "now with text"));
+
+    // The socket target is still a tab of its own.
+    let reply = runtime.handle_socket(SocketFunction::ReplaceBoxContent {
+        box_id: "status".into(),
+        content: "pushed".into(),
+        success: true,
+        target: ContentTarget::Socket,
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    assert_eq!(tab_labels(&runtime, "status"), vec!["Status", "Socket"]);
+}
+
+/// A temporary folder for one file box test, with the configuration of a box `log` showing
+/// `file` (relative to the configuration file) with `extra` fields, in a 60x12 screen.
+fn file_box_runtime(dir: &std::path::Path, file: &str, extra: &str) -> Runtime<MemoryDisplay> {
+    let yaml = format!(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: log
+          title: Log
+          position: {{x1: "0", y1: "0", x2: "59", y2: "11"}}
+          file: {file}
+{extra}
+"#,
+        file = serde_json::to_string(file).unwrap(),
+        extra = extra
+    );
+    let config = dir.join("app.yaml");
+    std::fs::write(&config, &yaml).unwrap();
+    let app = load_app_from_str(&yaml, config.to_str().unwrap()).expect("the configuration loads");
+    let mut ctx = AppContext::new(app, Config::new(1, false, false).unwrap());
+    ctx.yaml_file_path = Some(config);
+    let (sender, events) = crossbeam_channel::unbounded();
+    let mut runtime = Runtime::new(ctx, MemoryDisplay::new(60, 12), sender, events, None);
+    runtime.activate_layout_runs();
+    runtime.render();
+    runtime
+}
+
+/// Waits for the next events, handles them and draws the frame they make, until `done` holds.
+/// Only events wake it: it fails if nothing is reported for five seconds, so what it waits for
+/// must come from the platform's file watching, not from a timer.
+fn pump_events_until(
+    runtime: &mut Runtime<MemoryDisplay>,
+    what: &str,
+    done: impl Fn(&Runtime<MemoryDisplay>) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !done(runtime) {
+        let event = runtime
+            .events
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap_or_else(|_| {
+                panic!(
+                    "nothing was reported while waiting for {}; screen:\n{}",
+                    what,
+                    runtime.display.rows().join("\n")
+                )
+            });
+        runtime.handle(event);
+        while let Ok(event) = runtime.events.try_recv() {
+            runtime.handle(event);
+        }
+        // What they changed is drawn in the next frame, as the event loop draws it: at the
+        // first moment it wakes for, which is no later than the frame delay after the last.
+        runtime.tick(Instant::now());
+        let frame_by = Instant::now() + Duration::from_millis(runtime.ctx.config.frame_delay);
+        while runtime.dirty {
+            let wake = runtime.next_wakeup();
+            assert!(wake <= frame_by, "the change waits for more than one frame");
+            std::thread::sleep(wake.saturating_duration_since(Instant::now()));
+            runtime.tick(Instant::now());
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for {}; screen:\n{}",
+            what,
+            runtime.display.rows().join("\n")
+        );
+    }
+}
+
+#[test]
+fn a_file_box_redraws_in_the_frame_after_its_file_changes_with_no_refresh() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("status.txt"), "first version\n").unwrap();
+    let mut runtime = file_box_runtime(dir.path(), "status.txt", "");
+    assert!(screen_contains(&runtime, "first version"));
+    assert_eq!(tab_labels(&runtime, "log"), vec!["Log"]);
+    assert!(runtime.refresh.is_empty(), "nothing is scheduled to poll");
+
+    std::fs::write(dir.path().join("status.txt"), "second version\n").unwrap();
+    pump_events_until(&mut runtime, "the second version", |r| {
+        screen_contains(r, "second version")
+    });
+    assert!(!screen_contains(&runtime, "first version"));
+
+    // Written to a new file and renamed over the old one, as editors save.
+    std::fs::write(dir.path().join("status.txt.new"), "third version\n").unwrap();
+    std::fs::rename(
+        dir.path().join("status.txt.new"),
+        dir.path().join("status.txt"),
+    )
+    .unwrap();
+    pump_events_until(&mut runtime, "the replacing file", |r| {
+        screen_contains(r, "third version")
+    });
+    // The new file is watched, not the one it replaced.
+    std::fs::write(dir.path().join("status.txt"), "fourth version\n").unwrap();
+    pump_events_until(&mut runtime, "a write to the replacing file", |r| {
+        screen_contains(r, "fourth version")
+    });
+}
+
+#[test]
+fn a_missing_file_shows_a_placeholder_until_it_appears_in_folders_made_later() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut runtime = file_box_runtime(dir.path(), "out/deploy/status.txt", "");
+    assert!(
+        screen_contains(&runtime, "Waiting for this file to appear:"),
+        "{}",
+        runtime.display.rows().join("\n")
+    );
+    assert!(screen_contains(&runtime, "out/deploy/status.txt"));
+    assert!(!runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("log")
+        .unwrap()
+        .in_error_state());
+
+    std::fs::create_dir(dir.path().join("out")).unwrap();
+    std::fs::create_dir(dir.path().join("out/deploy")).unwrap();
+    std::fs::write(dir.path().join("out/deploy/status.txt"), "deployed\n").unwrap();
+    pump_events_until(&mut runtime, "the file made in new folders", |r| {
+        screen_contains(r, "deployed")
+    });
+
+    std::fs::remove_dir_all(dir.path().join("out")).unwrap();
+    pump_events_until(&mut runtime, "the placeholder again", |r| {
+        screen_contains(r, "Waiting for this file to appear:")
+    });
+    std::fs::create_dir_all(dir.path().join("out/deploy")).unwrap();
+    std::fs::write(dir.path().join("out/deploy/status.txt"), "redeployed\n").unwrap();
+    pump_events_until(&mut runtime, "the file made again", |r| {
+        screen_contains(r, "redeployed")
+    });
+}
+
+#[test]
+fn a_file_box_whose_path_is_a_folder_says_so_in_its_error_colors() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("logs")).unwrap();
+    let runtime = file_box_runtime(dir.path(), "logs", "");
+    assert!(screen_contains(&runtime, "This is a folder, not a file"));
+    assert!(runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("log")
+        .unwrap()
+        .in_error_state());
+}
+
+fn numbered(from: usize, to: usize) -> String {
+    (from..=to).map(|n| format!("line {}\n", n)).collect()
+}
+
+fn append(path: &std::path::Path, text: &str) {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+    file.write_all(text.as_bytes()).unwrap();
+}
+
+#[test]
+fn following_a_growing_log_keeps_to_its_bottom_until_the_reader_scrolls_up() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("build.log");
+    std::fs::write(&log, numbered(1, 30)).unwrap();
+    let mut runtime = file_box_runtime(dir.path(), "build.log", "          follow: true");
+    assert!(screen_contains(&runtime, "line 30"), "it opens at the end");
+    assert!(!screen_contains(&runtime, "line 1 "));
+
+    append(&log, &numbered(31, 40));
+    pump_events_until(&mut runtime, "the appended lines", |r| {
+        screen_contains(r, "line 40")
+    });
+    assert!(!screen_contains(&runtime, "line 25"), "kept to the bottom");
+
+    // A line written in two parts shows as one line, once.
+    append(&log, "half of line");
+    pump_events_until(&mut runtime, "the line's first half", |r| {
+        screen_contains(r, "half of line")
+    });
+    append(&log, " 41\n");
+    pump_events_until(&mut runtime, "the whole line", |r| {
+        screen_contains(r, "half of line 41")
+    });
+    let lines = &runtime.ctx.app.get_muxbox_by_id("log").unwrap().streams["log/file"].content;
+    assert_eq!(lines.len(), 41, "{:?}", lines);
+    assert_eq!(lines[40], "half of line 41");
+
+    // Scrolled up to read, the reader stays where they are.
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id_mut("log")
+        .unwrap()
+        .vertical_scroll = Some(0.0);
+    append(&log, &numbered(42, 42));
+    pump_events_until(&mut runtime, "line 42 read", |r| {
+        r.ctx.app.get_muxbox_by_id("log").unwrap().streams["log/file"]
+            .content
+            .len()
+            == 42
+    });
+    assert!(screen_contains(&runtime, "line 1 "));
+    assert!(!screen_contains(&runtime, "line 42"));
+
+    // Back at the bottom, it follows again.
+    runtime
+        .ctx
+        .app
+        .get_muxbox_by_id_mut("log")
+        .unwrap()
+        .vertical_scroll = Some(100.0);
+    append(&log, &numbered(43, 43));
+    pump_events_until(&mut runtime, "line 43", |r| screen_contains(r, "line 43"));
+
+    // A truncated log starts again from its beginning.
+    std::fs::write(&log, "rotated\n").unwrap();
+    pump_events_until(&mut runtime, "the truncated log", |r| {
+        r.ctx.app.get_muxbox_by_id("log").unwrap().streams["log/file"].content == vec!["rotated"]
+    });
+}
+
+#[test]
+fn file_boxes_added_replaced_and_removed_through_the_socket_watch_their_files() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "file a\n").unwrap();
+    std::fs::write(dir.path().join("b.txt"), "file b\n").unwrap();
+    let mut runtime = file_box_runtime(dir.path(), "a.txt", "");
+    let file_box = |id: &str, file: &std::path::Path, y: u16| {
+        serde_json::json!({
+            "id": id,
+            "position": {"x1": "0", "y1": y.to_string(), "x2": "59", "y2": (y + 4).to_string()},
+            "file": file.to_str().unwrap(),
+        })
+        .try_into()
+        .unwrap()
+    };
+
+    let reply = runtime.handle_socket(SocketFunction::ReplaceBox {
+        box_id: "log".into(),
+        new_box: file_box("log", &dir.path().join("b.txt"), 0),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+    assert!(screen_contains(&runtime, "file b"));
+    std::fs::write(dir.path().join("a.txt"), "a changed\n").unwrap();
+    std::fs::write(dir.path().join("b.txt"), "b changed\n").unwrap();
+    pump_events_until(&mut runtime, "the replacement's file", |r| {
+        screen_contains(r, "b changed")
+    });
+
+    let reply = runtime.handle_socket(SocketFunction::AddBox {
+        layout_id: "main".into(),
+        parent_id: None,
+        muxbox: file_box("added", &dir.path().join("a.txt"), 6),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+    assert!(screen_contains(&runtime, "a changed"));
+
+    let reply = runtime.handle_socket(SocketFunction::RemoveBox {
+        box_id: "added".into(),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    let reply = runtime.handle_socket(SocketFunction::RemoveBox {
+        box_id: "log".into(),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    assert!(
+        runtime.files.is_idle(),
+        "the removed boxes' watches are ended"
+    );
 }

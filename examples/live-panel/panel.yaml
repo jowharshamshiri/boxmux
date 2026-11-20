@@ -2,11 +2,12 @@
 # Start it with examples/live-panel/start.sh; see the "Drive BoxMux as a live control panel"
 # page of the documentation.
 #
-# The driver writes the files under $PANEL_STATE that the text boxes show, and replaces the
-# `needs` menu over the control socket, each approval with a `confirm` that asks before it
-# runs. Buttons run buttons.sh, which reports presses, and the answers confirmed, back to the
-# driver. Paths are shell variables, resolved when the scripts run: start.sh exports
-# PANEL_DIR (this folder) and PANEL_STATE (a temporary folder for the run).
+# The driver writes the files under $PANEL_STATE that the text boxes show, each redrawn when
+# its file changes, and replaces the `needs` menu over the control socket, each approval with
+# a `confirm` that asks before it runs. Buttons run buttons.sh, which reports presses, and the
+# answers confirmed, back to the driver. start.sh exports PANEL_DIR (this folder) and
+# PANEL_STATE (a temporary folder for the run): BoxMux substitutes ${PANEL_STATE} in the file
+# paths when it loads this file, and the shell resolves $PANEL_DIR when the scripts run.
 app:
   layouts:
     - id: main
@@ -18,8 +19,7 @@ app:
           position: {x1: "0%", y1: "0", x2: "100%", y2: "5"}
           border_color: bright_cyan
           overflow_behavior: truncate
-          script: ["cat \"$PANEL_STATE/status.txt\""]
-          refresh_interval: 1000
+          file: ${PANEL_STATE}/status.txt
         - id: needs
           title: Needs you
           position: {x1: "0%", y1: "5", x2: "100%", y2: "60%"}
@@ -35,16 +35,14 @@ app:
           position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
           border_color: white
           overflow_behavior: wrap
-          script: ["cat \"$PANEL_STATE/detail.txt\""]
-          refresh_interval: 500
+          file: ${PANEL_STATE}/detail.txt
         - id: log
           title: What the driver is doing
           position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
           border_color: green
           overflow_behavior: wrap
-          auto_scroll_bottom: true
-          script: ["tail -n 40 \"$PANEL_STATE/log.txt\""]
-          refresh_interval: 500
+          file: ${PANEL_STATE}/log.txt
+          follow: true
 
     - id: term
       title: Terminal

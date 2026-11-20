@@ -21,6 +21,8 @@ pub enum Event {
     },
     /// Progress of a running script or PTY session.
     Run(RunEvent),
+    /// A change to a file or folder a file box watches, as the platform reports it.
+    Files(notify::Result<notify::Event>),
 }
 
 #[derive(Debug)]

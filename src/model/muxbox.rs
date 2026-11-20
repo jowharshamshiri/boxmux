@@ -76,6 +76,12 @@ pub struct MuxBox {
     pub vertical_scroll: Option<f64>,
     pub selected: Option<bool>,
     pub content: Option<String>,
+    /// A file shown in the box's file tab, read again whenever it changes. A relative path is
+    /// relative to the configuration file's folder.
+    pub file: Option<String>,
+    /// Whether `file` is a log: what is written to its end is added to the tab, and the box keeps
+    /// to its bottom while the reader is there.
+    pub follow: Option<bool>,
     pub save_in_file: Option<String>,
     /// The tabs of the box. Runtime state, built from the configuration at load.
     #[serde(skip)]
@@ -123,62 +129,43 @@ impl MuxBox {
             .is_some_and(|stream| stream.status.is_error())
     }
 
-    /// Builds the streams the configuration defines: the static content, the choice menu and the
-    /// output tab of the box's own script, in that order. Runtime streams (choice output, socket
-    /// content) are added later and never touched here.
+    /// Builds the streams the configuration defines: the static content, the file, the choice
+    /// menu and the output tab of the box's own script, in that order. Runtime streams (choice
+    /// output, socket content) are added later and never touched here.
     pub fn initialize_streams(&mut self) {
-        let has_content = self
+        let mut streams = IndexMap::new();
+        if self
             .content
             .as_ref()
-            .is_some_and(|content| !content.is_empty());
-        let has_choices = self
-            .choices
-            .as_ref()
-            .is_some_and(|choices| !choices.is_empty());
-        let has_script = self.script.is_some();
-        let defined = [has_content, has_choices, has_script]
-            .iter()
-            .filter(|defined| **defined)
-            .count();
-        // A box with a single tab shows its title on that tab; with several, each tab is named
-        // for what it holds.
-        let sole_label = |kind_label: &str| -> String {
-            if defined == 1 {
-                self.title.clone().unwrap_or_else(|| kind_label.to_string())
-            } else {
-                kind_label.to_string()
-            }
-        };
-
-        let mut streams = IndexMap::new();
-        if has_content {
+            .is_some_and(|content| !content.is_empty())
+        {
             let content = self.content.as_deref().unwrap_or_default();
             let stream = Stream::content(
-                format!("{}/content", self.id),
-                sole_label("Content"),
+                self.content_stream_id(),
+                String::new(),
                 crate::text::sanitize_output(content),
             );
             streams.insert(stream.id.clone(), stream);
         }
-        if has_choices {
-            let mut choices = self.choices.clone().unwrap_or_default();
+        if self.file.is_some() {
+            let stream = Stream::file(format!("{}/file", self.id), String::new());
+            streams.insert(stream.id.clone(), stream);
+        }
+        if let Some(choices) = self.choices.as_ref().filter(|choices| !choices.is_empty()) {
+            let mut choices = choices.clone();
             if let Some(first) = choices.first_mut() {
                 first.selected = true;
             }
-            let stream = Stream::choices(
-                format!("{}/choices", self.id),
-                sole_label("Choices"),
-                choices,
-            );
+            let stream = Stream::choices(format!("{}/choices", self.id), String::new(), choices);
             streams.insert(stream.id.clone(), stream);
         }
-        if has_script {
+        if self.script.is_some() {
             let origin = RunOrigin::BoxScript {
                 box_id: self.id.clone(),
             };
             let stream = Stream::run(
                 origin.stream_id(&self.id),
-                sole_label("Output"),
+                String::new(),
                 origin,
                 self.execution_mode.is_pty(),
             );
@@ -186,6 +173,67 @@ impl MuxBox {
         }
         self.selected_stream_id = streams.keys().next().cloned();
         self.streams = streams;
+        self.label_own_streams();
+    }
+
+    /// The id of the tab that shows the box's own `content`.
+    pub fn content_stream_id(&self) -> String {
+        format!("{}/content", self.id)
+    }
+
+    /// Names the tabs of what the box itself defines: its content, file, menu and own script
+    /// output. A box with a single one shows its title on that tab; with several, each tab is
+    /// named for what it holds.
+    fn label_own_streams(&mut self) {
+        let own = |stream: &Stream| match &stream.kind {
+            StreamKind::Content => Some("Content"),
+            StreamKind::File => Some("File"),
+            StreamKind::Choices => Some("Choices"),
+            StreamKind::Run(RunOrigin::BoxScript { box_id }) if box_id == &self.id => {
+                Some("Output")
+            }
+            StreamKind::Run(_) | StreamKind::Socket => None,
+        };
+        let count = self.streams.values().filter(|s| own(s).is_some()).count();
+        let labels: Vec<(String, String)> = self
+            .streams
+            .values()
+            .filter_map(|stream| {
+                own(stream).map(|kind_label| {
+                    let label = match &self.title {
+                        Some(title) if count == 1 => title.clone(),
+                        _ => kind_label.to_string(),
+                    };
+                    (stream.id.clone(), label)
+                })
+            })
+            .collect();
+        for (id, label) in labels {
+            if let Some(stream) = self.streams.get_mut(&id) {
+                stream.label = label;
+            }
+        }
+    }
+
+    /// Replaces the box's own `content` with `text`, in its configuration and in its content tab,
+    /// which is opened as the first tab when the box has none. Returns the content tab.
+    pub fn set_content(&mut self, text: &str) -> &mut Stream {
+        self.content = Some(text.to_string());
+        let stream_id = self.content_stream_id();
+        if !self.streams.contains_key(&stream_id) {
+            self.streams.shift_insert(
+                0,
+                stream_id.clone(),
+                Stream::content(stream_id.clone(), String::new(), Vec::new()),
+            );
+            self.label_own_streams();
+        }
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
+            .expect("the content tab was opened above");
+        stream.set_text(text);
+        stream
     }
 
     /// The stream for `origin` in this box, created at the end of the tab list when missing.

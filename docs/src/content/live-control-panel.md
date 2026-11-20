@@ -62,32 +62,43 @@ To run the panel beside another program, open it in a split of your terminal, fo
 
 ## Show text the driver writes
 
-Have the driver write plain files, and have boxes show them with a script on a short
-`refresh_interval`:
+Have the driver write plain files, and give each text box the file to show:
 
 ```yaml
+- id: detail
+  title: Details
+  position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
+  overflow_behavior: wrap
+  file: ${PANEL_STATE}/detail.txt
 - id: log
   title: What the driver is doing
   position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
   overflow_behavior: wrap
-  auto_scroll_bottom: true
-  script: ["tail -n 40 \"$PANEL_STATE/log.txt\""]
-  refresh_interval: 500
+  file: ${PANEL_STATE}/log.txt
+  follow: true
 ```
 
-`auto_scroll_bottom` keeps a log at its newest line. The box shows a change within one
-interval. Write a file whole (to a temporary name, then `mv`) when a half-written file would
-mislead the reader.
+A box redraws its file in the next frame after the driver writes it: the operating system
+reports the change, so there is no `refresh_interval` and no polling. `follow: true` makes a
+log of the file: what the driver appends is added, and the box keeps to the newest line while
+the reader is at the bottom. Until the driver has written a file, its box says it is waiting
+for it. Write a file whole (to a temporary name, then `mv`) when a half-written file would
+mislead the reader; the box shows the file that the `mv` puts in place. See
+[File Boxes](/docs/configuration#file-boxes).
 
-`$PANEL_STATE` is a shell variable: BoxMux leaves `$NAME` without braces as written, and the
-shell resolves it from the environment when the script runs. `${NAME}` is substituted by
-BoxMux when it loads the file (see [Variables](/docs/variables)), but not in boxes sent over
-the socket, so the plain `$NAME` form works in both.
+`${PANEL_STATE}` is substituted by BoxMux when it loads the file, from the environment
+`start.sh` exports (see [Variables](/docs/variables)). Boxes sent over the socket are not
+substituted: give their `file` as a full path. In scripts, write `$PANEL_DIR` without braces:
+BoxMux leaves it as written, and the shell resolves it when the script runs.
 
-`replace_box_content` looks like the direct way to set a box's text, but it does not replace
-what the box shows: it adds a tab labelled `Socket` at the end of the box's tabs, and the box
-then has two tabs. Use files, or `replace_box` with new `content`, for text that replaces
-what is there.
+To set a box's text from the driver without a file, replace its content directly:
+
+```sh
+boxmux replace_box_content status "Restarting the web service" --target content
+```
+
+`--target content` replaces the box's own content, so the box keeps its one tab. Without it,
+the text goes to a separate `Socket` tab added beside the box's tabs.
 
 ## Replace a menu when its entries change
 
@@ -287,14 +298,14 @@ bottom border, which the box below draws its own top border over. The header abo
 | The socket sends no events: a press reaches the driver only if the button's script reports it | Report through a log and a pipe, as above |
 | A choice whose script prints opens a tab in its box for that output | Print nothing from a button; write what it has to say to the log |
 | Replacing a menu with `replace_box` moves the selection back to the first entry | Replace the menu only when its entries change |
-| `replace_box_content` adds a `Socket` tab instead of replacing the box's text | Show files with a refreshing script, or replace the box with new `content` |
-| A box showing a file rereads it every `refresh_interval`, and lags behind changes by up to one interval | Keep the interval short (500 to 2000 ms) |
+| `replace_box_content` adds a `Socket` tab beside the box's text | Send it with `--target content` (`"target": "content"`) to replace the box's own text |
+| A file box sent over the socket shows `${PANEL_STATE}/…` literally and waits for that path | Give a box sent over the socket a full path |
 | Every box draws an empty row under its top border | Count it when sizing boxes for a small pane |
 
 ## See also
 
 - [API Reference](/docs/api): `replace_box`, `switch_active_layout`, `spawn_pty_process` and
   the environment of scripts
-- [Configuration Reference](/docs/configuration): `choices`, `confirm`, `redirect_output`,
-  `refresh_interval`, `auto_scroll_bottom`
+- [Configuration Reference](/docs/configuration): `file`, `follow`, `choices`, `confirm`,
+  `redirect_output`
 - [PTY Features](/docs/pty-features): terminals in boxes

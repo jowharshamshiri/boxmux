@@ -10,6 +10,7 @@ pub mod pty;
 
 mod confirm;
 mod control;
+mod files;
 mod input;
 mod runs;
 #[cfg(test)]
@@ -23,6 +24,7 @@ use crate::render::screen::ScreenBuffer;
 use crate::runtime::display::Display;
 use crate::runtime::event::Event;
 use crate::runtime::executor::{Executor, RunSpec};
+use crate::runtime::files::FileBoxes;
 use crate::runtime::runs::PendingTab;
 use crate::AppContext;
 use crossbeam_channel::{Receiver, Sender};
@@ -95,6 +97,8 @@ pub struct Runtime<D: Display> {
     executor: Executor,
     /// Periodic refresh state of box scripts, by box id.
     refresh: HashMap<String, Refresh>,
+    /// The boxes that show a file, and the watches that tell them it changed.
+    files: FileBoxes,
     /// What to run again when a run that is being restarted finishes, by stream id.
     restart_after_stop: HashMap<String, RunSpec>,
     /// The last spec started for each stream, so `restart_pty_process` can run it again.
@@ -150,12 +154,14 @@ impl<D: Display> Runtime<D> {
             environment.push(("BOXMUX_SOCKET".to_string(), socket));
         }
         let executor = Executor::new(sender.clone(), ctx.app.shell, libs, environment);
+        let files = FileBoxes::new(sender.clone(), base_dir);
         let mut runtime = Runtime {
             ctx,
             display,
             events,
             executor,
             refresh: HashMap::new(),
+            files,
             restart_after_stop: HashMap::new(),
             last_spec: HashMap::new(),
             untabbed: HashMap::new(),
@@ -175,6 +181,7 @@ impl<D: Display> Runtime<D> {
         if let Err(e) = runtime.fit_screen() {
             log::warn!("cannot read the terminal's size: {}", e);
         }
+        runtime.sync_file_boxes();
         runtime
     }
 
@@ -259,10 +266,13 @@ impl<D: Display> Runtime<D> {
         wake
     }
 
-    /// Work that happens on time rather than on events: due refreshes, expired notices, and
-    /// drawing a frame when something changed.
+    /// Work that happens on time rather than on events: due refreshes, files reported changed,
+    /// expired notices, and drawing a frame when something changed.
     pub fn tick(&mut self, now: Instant) {
         self.run_due_refreshes(now);
+        if self.files.has_stale() {
+            self.read_file_boxes();
+        }
         if self.notice.as_ref().is_some_and(|n| n.until <= now) {
             self.notice = None;
             self.dirty = true;
@@ -292,6 +302,7 @@ impl<D: Display> Runtime<D> {
                 self.close_stale_confirmation();
             }
             Event::Run(run_event) => self.handle_run_event(run_event),
+            Event::Files(change) => self.files.note(change),
         }
     }
 

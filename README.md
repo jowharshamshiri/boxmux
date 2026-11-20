@@ -189,7 +189,7 @@ A running BoxMux listens on a control socket: `$XDG_RUNTIME_DIR/boxmux.sock` (or
 `--socket` or `$BOXMUX_SOCKET` names another. From another terminal:
 
 ```bash
-boxmux replace_box_content welcome "Deployment finished"
+boxmux replace_box_content welcome "Deployment finished" --target content
 boxmux stop_box_refresh clock
 boxmux switch_active_layout main
 ```
@@ -209,12 +209,15 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
   (`redirect_output`), be appended (`append_output`), follow the newest line
   (`auto_scroll_bottom`) and be saved to a file (`save_in_file`). Shared shell functions can be
   sourced from `libs`.
+- **Files**: a box with `file` shows that file and redraws it as soon as it changes, by the
+  operating system's file watching rather than polling; `follow: true` keeps to the end of a
+  growing log.
 - **Menus**: `choices` run their scripts with Enter or a click; a choice's output opens in a tab of its own, beside the menu.
   A choice can ask for confirmation first (`confirm`), with its own text and answers.
   `hot_keys` bind keys to choices, and `on_keypress` binds keys to scripts at app, layout or
   box level.
-- **Tabs**: a box with several outputs (its content, its script output, menu runs, socket
-  updates) shows them as tabs in its top border; extra tabs can be closed.
+- **Tabs**: a box with several outputs (its content, its file, its script output, menu runs,
+  socket updates) shows them as tabs in its top border; extra tabs can be closed.
 - **Embedded terminal**: `execution_mode: Pty` runs programs such as `htop`, `vim` or a shell in
   the box, with 256 and 24-bit color, the alternate screen, mouse reporting and scrollback.
 - **Charts and tables**: bar, line, histogram, pie and scatter charts; tables from CSV or JSON

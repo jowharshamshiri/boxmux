@@ -151,26 +151,37 @@ that id. Unless stated otherwise, the box can be in any layout, shown or not.
 
 ### replace_box_content
 
-Shows text in the box's **socket tab**. The first call creates the tab, labelled `Socket`,
-at the end of the box's tabs. Each call replaces the tab's text and makes it the visible tab.
+Shows text in a tab of the box, replacing what that tab showed, and makes it the visible tab.
+`target` picks the tab:
+
+- `socket` (the default): the box's **socket tab**, labelled `Socket`. The first call creates
+  it at the end of the box's tabs, beside the tabs the box already has. It can be closed with
+  its `×`, and it does not change the box's `content`.
+- `content`: the box's own **content tab**, the one its `content` fills. The text becomes the
+  box's content, so a box that shows only its content keeps its one tab, with its title, and
+  shows the new text there. A box that had no content tab gets one, as its first tab.
 
 | Field | Type | Required | Default | Meaning |
 |-------|------|----------|---------|---------|
 | `box_id` | string | yes | | The box |
 | `content` | string | yes | | The text. Lines are split on newlines; SGR color sequences and OSC 8 hyperlinks are kept, other control sequences are removed |
 | `success` | boolean | no | `true` | `false` draws the box in its error colors while this tab is visible |
+| `target` | string | no | `socket` | `socket` or `content`: the tab the text goes to |
 
 ```bash
 boxmux replace_box_content status "Deploy finished"
 boxmux replace_box_content status "Deploy failed" --failed
+boxmux replace_box_content status "Deployed at 14:02" --target content
 ```
 
 ```json
 {"command":"replace_box_content","box_id":"status","content":"Deploy failed","success":false}
+{"command":"replace_box_content","box_id":"status","content":"Deployed at 14:02","target":"content"}
 ```
 
-The socket tab can be closed with its `×`. It does not change the box's `content`, which keeps
-its own tab.
+To show a file that something else writes, give the box a `file` instead: it is redrawn
+whenever the file changes, with no command sent (see
+[File Boxes](/docs/configuration#file-boxes)).
 
 ### replace_box_script
 
