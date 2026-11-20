@@ -335,11 +335,12 @@ app:
 
 ## Controlling BoxMux from its own scripts
 
-Every script BoxMux runs has two environment variables:
+Every script BoxMux runs has these environment variables:
 
 - `BOXMUX_SOCKET`: the control socket of this instance.
 - `BOXMUX_BOX`: the id of the box the script's output goes to (its `redirect_output` box when
   it has one; empty for app and layout key handlers).
+- `BOXMUX_OPTION`: in the script of a choice with a `confirm`, the id of the answer chosen.
 
 Scripts run in the directory BoxMux was started from.
 

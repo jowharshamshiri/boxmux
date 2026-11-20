@@ -1,8 +1,10 @@
 //! Starting runs for boxes, choices and key handlers, and applying their output to streams.
 
+use super::confirm::OPTION_VARIABLE;
 use super::event::{RunEvent, RunOutcome};
 use super::executor::{ActiveRun, RunSpec};
 use super::{terminal_size, Runtime};
+use crate::model::choice::Choice;
 use crate::model::common::ExecutionMode;
 use crate::model::stream::{RunId, RunOrigin, Stream, StreamStatus};
 use crate::runtime::display::Display;
@@ -116,6 +118,7 @@ impl<D: Display> Runtime<D> {
                 script,
                 mode,
                 terminal_size: None,
+                environment: Vec::new(),
             },
             &label,
             reveal,
@@ -123,10 +126,9 @@ impl<D: Display> Runtime<D> {
         )
     }
 
-    /// Activates a choice of `box_id`: selects it and runs its script, if it has one. A choice
-    /// whose previous run is still active is not started again; a PTY choice brings its session
-    /// into view instead. The tab of a text run opens when output arrives and is not shown; a
-    /// PTY choice's terminal opens and is shown at once.
+    /// Activates a choice of `box_id`: selects it and runs its script, if it has one, or first
+    /// asks its confirmation, when it declares one. A choice whose previous run is still active
+    /// is not started again, nor asked about; a PTY choice brings its session into view instead.
     pub(super) fn activate_choice(&mut self, box_id: &str, choice_id: &str) {
         let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(box_id) else {
             return;
@@ -143,9 +145,9 @@ impl<D: Display> Runtime<D> {
         let Some(choice) = muxbox.choice_mut(choice_id).map(|c| c.clone()) else {
             return;
         };
-        let Some(script) = choice.script.clone() else {
+        if choice.script.is_none() {
             return;
-        };
+        }
         let origin = RunOrigin::Choice {
             box_id: box_id.to_string(),
             choice_id: choice_id.to_string(),
@@ -167,14 +169,40 @@ impl<D: Display> Runtime<D> {
             log::debug!("choice '{}' is still running as {}", choice_id, run);
             return;
         }
+        match &choice.confirm {
+            Some(confirm) => self.open_confirmation(box_id, &choice, confirm),
+            None => self.start_choice(box_id, &choice, None),
+        }
+    }
+
+    /// Runs the script of `choice` of `box_id`, with `option`, the answer its confirmation was
+    /// given, in `BOXMUX_OPTION`. The tab of a text run opens when output arrives and is not
+    /// shown; a PTY choice's terminal opens and is shown at once.
+    pub(super) fn start_choice(&mut self, box_id: &str, choice: &Choice, option: Option<&str>) {
+        let Some(script) = choice.script.clone() else {
+            return;
+        };
+        let choice_id = choice.id.as_str();
+        let target_box = choice
+            .redirect_output
+            .clone()
+            .unwrap_or_else(|| box_id.to_string());
+        let terminal = choice.execution_mode.is_pty();
+        let environment = option
+            .map(|option| vec![(OPTION_VARIABLE.to_string(), option.to_string())])
+            .unwrap_or_default();
         let label = choice.content.clone().unwrap_or_else(|| choice.id.clone());
         let result = self.start_run(
             RunSpec {
-                origin,
+                origin: RunOrigin::Choice {
+                    box_id: box_id.to_string(),
+                    choice_id: choice_id.to_string(),
+                },
                 target_box,
                 script,
                 mode: choice.execution_mode,
                 terminal_size: None,
+                environment,
             },
             &label,
             // A choice's output never takes the box's view; its terminal does.
@@ -206,6 +234,7 @@ impl<D: Display> Runtime<D> {
                 script,
                 mode: ExecutionMode::Thread,
                 terminal_size: None,
+                environment: Vec::new(),
             },
             key,
             true,
@@ -232,6 +261,7 @@ impl<D: Display> Runtime<D> {
             script,
             mode: ExecutionMode::Immediate,
             terminal_size: None,
+            environment: Vec::new(),
         };
         if let Err(e) = self.executor.start(spec, String::new()) {
             self.notify(format!("key {}: {}", key, e), true);

@@ -5,7 +5,8 @@
 : "${BOXMUX_SOCKET:?is not set: start the panel with start.sh}"
 
 # One line per item: id|kind|label|detail|extra. kind is approve, run or info; extra is
-# key=label;key=label for approve (the confirmation's options) and the command for run.
+# key=label;key=label for approve (the confirmation's options, beside Cancel, whose key is
+# cancel) and the command for run.
 ITEMS=$PANEL_STATE/items
 # Every press, one line each, kept for the driver even while it is not listening.
 EVENTS=$PANEL_STATE/events.log

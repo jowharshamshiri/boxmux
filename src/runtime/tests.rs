@@ -1462,3 +1462,231 @@ app:
     let second = runtime.executor.run_for_origin(&origin).unwrap();
     assert_eq!(size_of(&runtime, second), resized);
 }
+
+/// Prints the answer the choice's confirmation was given.
+#[cfg(unix)]
+const PRINT_OPTION: &str = r#"['echo "picked $BOXMUX_OPTION"']"#;
+#[cfg(windows)]
+const PRINT_OPTION: &str = r#"['echo "picked $env:BOXMUX_OPTION"']"#;
+
+/// A menu whose choices ask before they run: `restart` with the default answers, `deploy` with
+/// its own, of which `abort` cancels.
+fn confirm_menu() -> String {
+    r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: menu
+          title: Menu
+          position: {x1: "0", y1: "0", x2: "39", y2: "5"}
+          tab_order: 1
+          choices:
+            - id: restart
+              content: Restart the service
+              script: PRINT_OPTION
+              confirm:
+                text: Restart the service now? Everyone using it is disconnected.
+            - id: deploy
+              content: Deploy
+              script: PRINT_OPTION
+              confirm:
+                text: Deploy where?
+                options:
+                  - {id: staging, content: Staging}
+                  - {id: prod, content: Production}
+                  - {id: abort, content: Not now}
+                cancel: abort
+    - id: other
+      children:
+        - id: elsewhere
+          position: {x1: "0", y1: "0", x2: "79", y2: "19"}
+          content: Another layout
+"#
+    .replace("PRINT_OPTION", PRINT_OPTION)
+}
+
+/// The output of the choice `choice_id` of the menu, once its run printed.
+fn picked(runtime: &mut Runtime<MemoryDisplay>, choice_id: &str) -> Vec<String> {
+    let stream = format!("menu/choice:menu:{choice_id}");
+    pump_until(runtime, "the choice's output", |r| {
+        !tab_content(r, "menu", &stream).is_empty() && r.executor.runs().next().is_none()
+    });
+    tab_content(runtime, "menu", &stream)
+}
+
+/// Nothing ran, nothing is running and no tab opened: the menu has only its choices.
+fn assert_nothing_ran(runtime: &Runtime<MemoryDisplay>, what: &str) {
+    assert!(
+        runtime.executor.runs().next().is_none(),
+        "{what}: a run was started"
+    );
+    assert_eq!(
+        runtime
+            .ctx
+            .app
+            .get_muxbox_by_id("menu")
+            .unwrap()
+            .get_tab_stream_ids(),
+        vec!["menu/choices".to_string()],
+        "{what}: a tab opened"
+    );
+}
+
+fn press(runtime: &mut Runtime<MemoryDisplay>, code: KeyCode) {
+    runtime.handle(key(code, KeyModifiers::NONE));
+    runtime.render();
+}
+
+#[test]
+fn a_choice_with_a_confirmation_asks_first_and_runs_on_yes_with_the_answer_s_id() {
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    // Enter activates the first choice, which is selected.
+    press(&mut runtime, KeyCode::Enter);
+    assert!(
+        screen_contains(&runtime, "Restart the service now? Everyone using it is"),
+        "the window shows the question"
+    );
+    assert!(
+        screen_contains(&runtime, " Yes    Cancel "),
+        "and the default answers"
+    );
+    assert_nothing_ran(&runtime, "asked");
+    // Yes is marked; Enter presses it.
+    press(&mut runtime, KeyCode::Enter);
+    assert!(
+        !screen_contains(&runtime, " Yes    Cancel "),
+        "the window closed"
+    );
+    assert_eq!(
+        picked(&mut runtime, "restart"),
+        vec!["picked yes".to_string()]
+    );
+}
+
+#[test]
+fn clicking_one_of_a_choice_s_own_answers_runs_it_with_that_answer_s_id() {
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    let at = find(&runtime, "Deploy");
+    click(&mut runtime, at);
+    assert!(screen_contains(&runtime, "Deploy where?"));
+    let at = find(&runtime, "Production");
+    click(&mut runtime, at);
+    assert_eq!(
+        picked(&mut runtime, "deploy"),
+        vec!["picked prod".to_string()]
+    );
+}
+
+#[test]
+fn the_arrow_keys_move_between_the_answers_and_enter_presses_the_one_marked() {
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    let at = find(&runtime, "Deploy");
+    click(&mut runtime, at);
+    // Staging is marked: Right, Right reach Not now, and Left goes back to Production.
+    press(&mut runtime, KeyCode::Right);
+    press(&mut runtime, KeyCode::Right);
+    press(&mut runtime, KeyCode::Left);
+    press(&mut runtime, KeyCode::Enter);
+    assert_eq!(
+        picked(&mut runtime, "deploy"),
+        vec!["picked prod".to_string()]
+    );
+}
+
+/// Something done to a running runtime.
+type Act = dyn Fn(&mut Runtime<MemoryDisplay>);
+
+#[test]
+fn the_answer_that_cancels_escape_and_a_click_outside_close_the_window_and_run_nothing() {
+    let cancel_with = |cancel: &Act| {
+        let mut runtime = runtime(&confirm_menu(), 80, 20);
+        let at = find(&runtime, "Deploy");
+        click(&mut runtime, at);
+        assert!(screen_contains(&runtime, "Deploy where?"));
+        cancel(&mut runtime);
+        runtime
+    };
+    let cases: [(&str, &Act); 4] = [
+        ("the cancel answer", &|r| {
+            let at = find(r, "Not now");
+            click(r, at);
+        }),
+        ("Escape", &|r| press(r, KeyCode::Esc)),
+        ("a click outside", &|r| click(r, (1, 18))),
+        ("the cancel answer by keyboard", &|r| {
+            press(r, KeyCode::Left);
+            press(r, KeyCode::Enter);
+        }),
+    ];
+    for (what, cancel) in cases {
+        let mut runtime = cancel_with(cancel);
+        assert!(
+            !screen_contains(&runtime, "Deploy where?"),
+            "{what}: the window closed"
+        );
+        assert_nothing_ran(&runtime, what);
+        // Nothing starts later either.
+        let start = Instant::now();
+        pump_until(&mut runtime, "a moment", |_| {
+            start.elapsed() > Duration::from_millis(300)
+        });
+        assert_nothing_ran(&runtime, what);
+    }
+
+    // The default Cancel cancels too.
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    press(&mut runtime, KeyCode::Enter);
+    let at = find(&runtime, "Cancel");
+    click(&mut runtime, at);
+    assert!(!screen_contains(&runtime, " Yes    Cancel "));
+    assert_nothing_ran(&runtime, "Cancel");
+}
+
+#[test]
+fn an_open_confirmation_takes_every_key_and_click() {
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    let at = find(&runtime, "Deploy");
+    click(&mut runtime, at);
+    // q would quit, Tab would move the focus, and a click on the menu would run a choice.
+    press(&mut runtime, KeyCode::Char('q'));
+    assert!(!runtime.quit, "q went to the layout");
+    let restart = find(&runtime, "Restart the service");
+    click(&mut runtime, (restart.0, restart.1));
+    // The click was outside the window, so it cancelled, and started nothing.
+    assert!(!screen_contains(&runtime, "Deploy where?"));
+    assert_nothing_ran(&runtime, "a click on the menu under the window");
+}
+
+#[test]
+fn a_confirmation_whose_choice_leaves_the_shown_layout_closes_and_says_so() {
+    let mut runtime = runtime(&confirm_menu(), 80, 20);
+    press(&mut runtime, KeyCode::Enter);
+    assert!(screen_contains(&runtime, " Yes    Cancel "));
+    let (reply, answer) = crossbeam_channel::unbounded();
+    runtime.handle(Event::Socket {
+        function: SocketFunction::SwitchActiveLayout {
+            layout_id: "other".into(),
+        },
+        reply,
+    });
+    assert!(answer.recv().unwrap().ok);
+    runtime.render();
+    assert!(
+        !screen_contains(&runtime, " Yes    Cancel "),
+        "the window closed"
+    );
+    let notice = runtime
+        .notice
+        .as_ref()
+        .map(|n| n.text.clone())
+        .unwrap_or_default();
+    assert!(
+        notice.contains("confirmation of choice 'restart' closed"),
+        "{notice}"
+    );
+    // Enter in the other layout presses nothing.
+    press(&mut runtime, KeyCode::Enter);
+    assert!(runtime.executor.runs().next().is_none());
+}

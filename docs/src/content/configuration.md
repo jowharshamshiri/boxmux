@@ -276,6 +276,7 @@ Choices make a menu inside a box.
 | `id` | `string` | Yes | - | Choice id, unique across the whole file. |
 | `content` | `string` | No | the id | The label shown in the menu. |
 | `script` | `string` or `array[string]` | No | - | Script run when the choice is activated. |
+| `confirm` | `object` | No | - | Ask before the script runs: see [Confirmation](#confirmation). Requires a `script`. |
 | `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
 | `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
 | `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
@@ -286,6 +287,44 @@ What a choice's run shows depends on its `execution_mode`:
 
 - `Immediate` and `Thread`: the output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box, when the script first prints something (an `Immediate` script prints when it ends). The tab opens beside the others and does not take the box's view: click it to see the output. A script that prints nothing opens no tab, and the box keeps showing what it showed; if it fails, a notice at the bottom of the screen says so.
 - `Pty`: the choice's terminal opens in its own tab when the choice starts and is shown at once, since it takes the keyboard. Activating the choice while its program runs shows the terminal again.
+
+### Confirmation
+
+A choice with `confirm` asks before its script runs. Activating it (Enter, a click or a hot key) opens a window over the layout, centered on the screen and drawn in the theme's colors, with the choice's label in its top border, the `text` wrapped to the window, and a button for each answer. The script runs only when an answer other than the one that cancels is chosen, and gets that answer's `id` in the environment variable `BOXMUX_OPTION`. A choice that is still running is not asked about again.
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `text` | `string` | Yes | - | The question. It may hold several lines and SGR colors; long lines wrap. |
+| `options` | `array` | No | Yes (`yes`) and Cancel (`cancel`) | The answers, in the order their buttons are shown. Each has an `id`, unique in the list, and a `content`, the button's label (default: the `id`). |
+| `cancel` | `string` | No | `cancel`, when `options` is left out | The `id` of the answer that cancels. Only with `options`; with no `cancel`, no answer cancels, and Escape still does. At least one answer must not cancel. |
+
+While the window is open it takes the keyboard and the mouse:
+
+- Left and Right (or Up and Down, Tab and Shift+Tab) move between the answers; the first is marked when the window opens.
+- Enter or Space chooses the marked answer; a click chooses the answer clicked.
+- Escape, or a click outside the window, cancels.
+
+The window closes, running nothing, when its choice leaves the shown layout: the layout is switched, or the box is replaced or removed over the control socket, unless the box it is replaced with asks the same question.
+
+```yaml
+choices:
+  - id: restart
+    content: Restart the web service
+    script: [systemctl restart web]
+    confirm:
+      text: Restart the web service? Visitors see errors while it starts.
+
+  - id: deploy
+    content: Deploy release 2.4
+    script: ['./deploy.sh 2.4 "$BOXMUX_OPTION"']
+    confirm:
+      text: Where does release 2.4 go?
+      options:
+        - {id: staging, content: Staging}
+        - {id: production, content: Production}
+        - {id: cancel, content: Not now}
+      cancel: cancel
+```
 
 ### Choice Example
 

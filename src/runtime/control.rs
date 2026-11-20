@@ -149,6 +149,7 @@ impl<D: Display> Runtime<D> {
                 .ok_or_else(|| format!("box '{}' has no script", box_id))?,
             mode: muxbox.execution_mode,
             terminal_size: None,
+            environment: Vec::new(),
         })
     }
 
@@ -395,6 +396,7 @@ impl<D: Display> Runtime<D> {
                 script,
                 mode: ExecutionMode::Pty,
                 terminal_size: None,
+                environment: Vec::new(),
             },
             "Terminal",
             true,

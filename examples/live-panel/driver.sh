@@ -23,18 +23,33 @@ status() {
         "$$" "$waiting" "$handled" > "$PANEL_STATE/status.txt"
 }
 
+# The `confirm` of an approve item's choice, as JSON: its label and details as the question,
+# and its options, then Cancel.
+confirmation() {
+    options=
+    for option in $(printf '%s' "$4" | tr ';' '\n' | cut -d= -f1); do
+        options=$options$(printf '{"id":"%s","content":"%s"},' "$option" "$(json "$(option_label "$1" "$option")")")
+    done
+    printf '{"text":"%s\\n\\n%s","options":[%s{"id":"cancel","content":"✖ Cancel"}],"cancel":"cancel"}' \
+        "$(json "$2")" "$(json "$3")" "$options"
+}
+
 # Replace the whole `needs` box with one built from the items, in one call.
 render() {
     choices= waiting=0
     while IFS='|' read -r id kind label detail extra; do
+        confirm=
         case $kind in
-            approve) mark='✔' action=ask waiting=$((waiting + 1)) ;;
+            approve)
+                mark='✔' action=press waiting=$((waiting + 1))
+                confirm=,\"confirm\":$(confirmation "$id" "$label" "$detail" "$extra")
+                ;;
             run) mark='▶' action=run waiting=$((waiting + 1)) ;;
             info) mark='ℹ' action=show ;;
             *) say "Item '$id' has the unknown kind '$kind'"; return 1 ;;
         esac
-        choice=$(printf '{"id":"%s","content":"%s %s","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"]}' \
-            "$id" "$mark" "$(json "$label")" "$action" "$id")
+        choice=$(printf '{"id":"%s","content":"%s %s","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"]%s}' \
+            "$id" "$mark" "$(json "$label")" "$action" "$id" "$confirm")
         choices=$choices${choices:+,}$choice
     done < "$ITEMS"
     [ -n "$choices" ] || choices='{"id":"none","content":"Nothing needs you"}'

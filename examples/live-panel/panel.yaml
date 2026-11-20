@@ -3,8 +3,9 @@
 # page of the documentation.
 #
 # The driver writes the files under $PANEL_STATE that the text boxes show, and replaces the
-# `needs` menu over the control socket. Buttons run buttons.sh, which reports presses back to
-# the driver. Paths are shell variables, resolved when the scripts run: start.sh exports
+# `needs` menu over the control socket, each approval with a `confirm` that asks before it
+# runs. Buttons run buttons.sh, which reports presses, and the answers confirmed, back to the
+# driver. Paths are shell variables, resolved when the scripts run: start.sh exports
 # PANEL_DIR (this folder) and PANEL_STATE (a temporary folder for the run).
 app:
   layouts:
@@ -44,26 +45,6 @@ app:
           auto_scroll_bottom: true
           script: ["tail -n 40 \"$PANEL_STATE/log.txt\""]
           refresh_interval: 500
-
-    - id: confirm
-      title: Confirm
-      children:
-        - id: confirm_text
-          title: Are you sure?
-          position: {x1: "0%", y1: "0", x2: "100%", y2: "60%"}
-          border_color: bright_yellow
-          overflow_behavior: wrap
-          content: buttons.sh ask fills this in
-        - id: confirm_menu
-          title: Choose
-          position: {x1: "0%", y1: "60%", x2: "100%", y2: "100%"}
-          border_color: bright_green
-          tab_order: 1
-          selected: true
-          choices:
-            - id: cancel
-              content: "✖ Cancel"
-              script: ["\"$PANEL_DIR/buttons.sh\" back"]
 
     - id: term
       title: Terminal

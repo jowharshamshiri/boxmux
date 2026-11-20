@@ -1,10 +1,10 @@
 #!/bin/sh
-# What the panel's buttons run: buttons.sh <action> [<id> [<option>]].
-#   ask <id>             show the confirmation for an item, with its options and Cancel
-#   press <id> <option>  report the confirmed choice to the driver and go back to the panel
-#   run <id>             run the item's command in a terminal, for a step only the human can take
-#   show <id>            show the item's details
-#   back                 go back to the panel
+# What the panel's buttons run: buttons.sh <action> [<id>].
+#   press <id>   report to the driver the answer the item's confirmation was given, which BoxMux
+#                passes in BOXMUX_OPTION
+#   run <id>     run the item's command in a terminal, for a step only the human can take
+#   show <id>    show the item's details
+#   back         go back to the panel
 # It prints nothing, so a press opens no tab over the menu; its failures are written to the log.
 set -eu
 . "$PANEL_DIR/common.sh"
@@ -29,24 +29,12 @@ item() {
 }
 
 case ${1:-} in
-    ask)
-        label=$(item "$2" 3)
-        detail=$(item "$2" 4)
-        options=$(item "$2" 5)
-        menu=
-        for option in $(printf '%s' "$options" | tr ';' '\n' | cut -d= -f1); do
-            menu=$menu$(printf '{"id":"%s","content":"%s","script":["\\"$PANEL_DIR/buttons.sh\\" press %s %s"]},' \
-                "$option" "$(json "$(option_label "$2" "$option")")" "$2" "$option")
-        done
-        bm replace_box confirm_text "$(printf '{"id":"confirm_text","title":"Are you sure?","position":{"x1":"0%%","y1":"0","x2":"100%%","y2":"60%%"},"border_color":"bright_yellow","overflow_behavior":"wrap","content":"%s\\n\\n%s"}' \
-            "$(json "$label")" "$(json "$detail")")"
-        bm replace_box confirm_menu "$(printf '{"id":"confirm_menu","title":"Choose","position":{"x1":"0%%","y1":"60%%","x2":"100%%","y2":"100%%"},"border_color":"bright_green","tab_order":1,"selected":true,"choices":[%s{"id":"cancel","content":"✖ Cancel","script":["\\"$PANEL_DIR/buttons.sh\\" back"]}]}' \
-            "$menu")"
-        bm switch_active_layout confirm
-        ;;
     press)
-        report press "$2" "$3"
-        bm switch_active_layout main
+        if [ -z "${BOXMUX_OPTION:-}" ]; then
+            say "buttons.sh press $2: BOXMUX_OPTION is not set; press runs from a confirmed choice"
+            exit 1
+        fi
+        report press "$2" "$BOXMUX_OPTION"
         ;;
     run)
         command=$(item "$2" 5)

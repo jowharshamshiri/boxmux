@@ -1,0 +1,56 @@
+# Choices that ask before they run. Each `confirm` opens a window over the layout with its text
+# and answers; the script runs only on an answer other than the one that cancels, and reads the
+# answer's id in BOXMUX_OPTION. Escape, or a click outside the window, cancels.
+app:
+  hot_keys:
+    "Ctrl+r": "restart"
+
+  layouts:
+    - id: "main"
+      title: "Confirmations Demo"
+      root: true
+      children:
+        - id: "actions"
+          title: "Actions"
+          position: {x1: "0%", y1: "0%", x2: "40%", y2: "100%"}
+          tab_order: 1
+          selected: true
+          choices:
+            # Yes and Cancel, the default answers.
+            - id: "restart"
+              content: "Restart the web service (Ctrl+r)"
+              script: ["echo \"Restarting the web service ($BOXMUX_OPTION)...\"; sleep 1; echo 'Restarted.'"]
+              execution_mode: Thread
+              redirect_output: "log"
+              append_output: true
+              confirm:
+                text: "Restart the web service? Visitors see errors for about ten seconds while it starts again."
+
+            # Answers of its own: the script reads the one chosen.
+            - id: "deploy"
+              content: "Deploy release 2.4"
+              script: ["echo \"Deploying release 2.4 to $BOXMUX_OPTION...\"; sleep 1; echo \"Release 2.4 runs on $BOXMUX_OPTION.\""]
+              execution_mode: Thread
+              redirect_output: "log"
+              append_output: true
+              confirm:
+                text: "Where does release 2.4 go?"
+                options:
+                  - {id: "staging", content: "Staging"}
+                  - {id: "production", content: "Production"}
+                  - {id: "cancel", content: "Not now"}
+                cancel: "cancel"
+
+            # No confirmation: it runs at once.
+            - id: "status"
+              content: "Show the status"
+              script: ["echo 'Web service: running. Release: 2.3.'"]
+              redirect_output: "log"
+              append_output: true
+
+        - id: "log"
+          title: "Log"
+          position: {x1: "40%", y1: "0%", x2: "100%", y2: "100%"}
+          overflow_behavior: wrap
+          auto_scroll_bottom: true
+          content: "Choose an action. Restart and Deploy ask first; Show the status runs at once."

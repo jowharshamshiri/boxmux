@@ -471,6 +471,58 @@ fn clicking_beside_a_choice_label_runs_nothing() {
     fixture.assert_no_marker_after("build", Duration::from_millis(700));
 }
 
+/// A script that writes the answer its confirmation was given to `markers/<name>`.
+fn write_option_marker(name: &str) -> String {
+    if cfg!(windows) {
+        format!(
+            "Set-Content -NoNewline -Path markers/{} -Value $env:BOXMUX_OPTION",
+            name
+        )
+    } else {
+        format!("printf %s \"$BOXMUX_OPTION\" > markers/{}", name)
+    }
+}
+
+const CONFIRM_MENU: &str = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: menu
+          title: Commands
+          position: {x1: "2", y1: "2", x2: "42", y2: "8"}
+          tab_order: 1
+          choices:
+            - id: deploy
+              content: Deploy
+              script: [WRITE_OPTION]
+              confirm:
+                text: Deploy where?
+                options: [{id: staging, content: Staging}, {id: prod, content: Production}, {id: abort, content: Not now}]
+                cancel: abort
+"#;
+
+#[test]
+fn a_choice_asks_first_runs_nothing_on_escape_and_runs_with_the_answer_clicked() {
+    let fixture = Fixture::new();
+    let script = serde_json::to_string(&write_option_marker("deploy")).unwrap();
+    let config = fixture.write_config(&CONFIRM_MENU.replace("WRITE_OPTION", &script));
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.click_text("Deploy");
+    app.wait_for_text("Deploy where?");
+    app.wait_for_text(" Staging    Production    Not now ");
+    app.send("\x1b");
+    app.wait_until_gone("Deploy where?");
+    fixture.assert_no_marker_after("deploy", Duration::from_millis(700));
+
+    app.click_text("Deploy");
+    app.wait_for_text("Deploy where?");
+    app.click_text("Production");
+    assert_eq!(fixture.wait_for_marker("deploy"), "prod");
+    app.wait_until_gone("Deploy where?");
+}
+
 #[test]
 fn redirected_output_opens_a_tab_shown_when_clicked_that_its_close_button_closes() {
     let fixture = Fixture::new();

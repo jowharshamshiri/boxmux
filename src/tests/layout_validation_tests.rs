@@ -65,4 +65,7 @@ fn feature_demos_contain_the_feature_they_demonstrate() {
     assert!(has("chart_demo.yaml", &|b| b.chart_type.is_some()));
     assert!(has("table_demo.yaml", &|b| b.table_data.is_some()));
     assert!(has("plugin_demo.yaml", &|b| b.plugin_component.is_some()));
+    assert!(has("confirm_demo.yaml", &|b| {
+        b.choices.iter().flatten().any(|c| c.confirm.is_some())
+    }));
 }

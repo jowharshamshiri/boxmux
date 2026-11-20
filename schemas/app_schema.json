@@ -191,6 +191,10 @@
         "script": {
           "$ref": "#/definitions/script"
         },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "description": "Ask before the script runs: a window over the layout shows the text and the options, and the script runs only on an option other than the one that cancels"
+        },
         "execution_mode": {
           "$ref": "#/definitions/execution_mode",
           "description": "Execution mode for choice script"
@@ -206,6 +210,48 @@
       },
       "required": [
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "confirm": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The question shown, wrapped to the window"
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The answers offered, in order (default: Yes (id yes) and Cancel (id cancel))",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The id passed to the script as BOXMUX_OPTION when this answer is chosen"
+              },
+              "content": {
+                "type": "string",
+                "description": "The label of the answer (default: its id)"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "cancel": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The id of the option that cancels; only with options"
+        }
+      },
+      "required": [
+        "text"
       ],
       "additionalProperties": false
     },

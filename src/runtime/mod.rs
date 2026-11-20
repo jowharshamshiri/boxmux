@@ -8,6 +8,7 @@ pub mod executor;
 pub mod keys;
 pub mod pty;
 
+mod confirm;
 mod control;
 mod input;
 mod runs;
@@ -105,6 +106,8 @@ pub struct Runtime<D: Display> {
     button_down: bool,
     drag: Option<Drag>,
     notice: Option<Notice>,
+    /// The confirmation shown over the layout, which takes the keyboard and the mouse.
+    confirmation: Option<confirm::Confirmation>,
     /// The frame currently on screen; `None` forces a complete redraw.
     frame: Option<ScreenBuffer>,
     dirty: bool,
@@ -160,6 +163,7 @@ impl<D: Display> Runtime<D> {
             button_down: false,
             drag: None,
             notice: None,
+            confirmation: None,
             frame: None,
             dirty: true,
             last_present: None,
@@ -285,6 +289,7 @@ impl<D: Display> Runtime<D> {
                 let answer = self.handle_socket(function);
                 // The client may have given up waiting; there is nobody left to tell.
                 let _ = reply.send(answer);
+                self.close_stale_confirmation();
             }
             Event::Run(run_event) => self.handle_run_event(run_event),
         }
@@ -352,10 +357,12 @@ impl<D: Display> Runtime<D> {
         }
     }
 
-    /// The views of the shown layout's boxes as they would be drawn now.
+    /// The views of the shown layout's boxes as they would be drawn now. Under an open
+    /// confirmation no box is hovered.
     pub(crate) fn views(&mut self) -> Vec<crate::render::box_view::BoxView> {
         let bounds = self.ctx.app.active_bounds();
-        let hovered_box = self.pointer.and_then(|(x, y)| {
+        let pointer = self.pointer.filter(|_| self.confirmation.is_none());
+        let hovered_box = pointer.and_then(|(x, y)| {
             let layout = self.ctx.app.get_active_layout()?;
             crate::render::box_at(layout, &bounds, usize::from(x), usize::from(y))
         });
@@ -379,11 +386,14 @@ impl<D: Display> Runtime<D> {
             log::warn!("cannot re-establish terminal modes: {}", e);
         }
         let views = self.views();
-        let hover = self.pointer.and_then(|(x, y)| {
-            let (x, y) = (usize::from(x), usize::from(y));
-            let view = crate::render::view_at(&views, x, y)?;
-            Some((view.id.as_str(), view.hit(x, y)?))
-        });
+        let hover = self
+            .pointer
+            .filter(|_| self.confirmation.is_none())
+            .and_then(|(x, y)| {
+                let (x, y) = (usize::from(x), usize::from(y));
+                let view = crate::render::view_at(&views, x, y)?;
+                Some((view.id.as_str(), view.hit(x, y)?))
+            });
         let mut buffer =
             crate::render::draw(&self.ctx, &views, screen.width(), screen.height(), hover);
         if self.ctx.config.calibrate {
@@ -393,6 +403,11 @@ impl<D: Display> Runtime<D> {
                     style.bg = crate::model::appearance::ColorName::Red.color();
                     buffer.restyle(usize::from(x), usize::from(y), style);
                 }
+            }
+        }
+        if let Some(confirmation) = &self.confirmation {
+            if let Some(view) = self.confirmation_view() {
+                view.draw(&mut buffer, confirmation.focused, self.hovered_answer());
             }
         }
         if let Some(notice) = &self.notice {

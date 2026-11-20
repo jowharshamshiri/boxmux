@@ -30,6 +30,8 @@ pub struct RunSpec {
     /// The terminal size for `Pty` runs. The runtime sets it from the target box each time it
     /// starts the run, a restart included.
     pub terminal_size: Option<TerminalSize>,
+    /// Variables this run has in its environment beside those every run has.
+    pub environment: Vec<(String, String)>,
 }
 
 /// A run that has started and not yet been reported finished.
@@ -148,6 +150,9 @@ impl Executor {
                 for (name, value) in &self.environment {
                     command.env(name, value);
                 }
+                for (name, value) in &spec.environment {
+                    command.env(name, value);
+                }
                 command.env("BOXMUX_BOX", &spec.target_box);
                 Process::Pty(PtySession::spawn(run, command, size, self.events.clone())?)
             }
@@ -157,6 +162,9 @@ impl Executor {
                 crate::platform::detach(&mut command);
                 command.stdout(Stdio::piped()).stderr(Stdio::piped());
                 for (name, value) in &self.environment {
+                    command.env(name, value);
+                }
+                for (name, value) in &spec.environment {
                     command.env(name, value);
                 }
                 command.env("BOXMUX_BOX", &spec.target_box);
@@ -342,6 +350,7 @@ mod tests {
             script: script.iter().map(|s| s.to_string()).collect(),
             mode,
             terminal_size: Some(TerminalSize { rows: 10, cols: 40 }),
+            environment: Vec::new(),
         }
     }
 

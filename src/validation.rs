@@ -2,8 +2,9 @@
 //! every field, and the semantic checks verify what a schema cannot express (unique ids and
 //! references between boxes, layouts and choices).
 
+use crate::model::choice::{Confirm, DEFAULT_CANCEL_OPTION, DEFAULT_CONFIRM_OPTION};
 use crate::model::common::ExecutionMode;
-use crate::{App, MuxBox};
+use crate::{App, Choice, MuxBox};
 use jsonschema::Validator;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -261,6 +262,11 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                     "redirect_output needs a script whose output it redirects".into(),
                 );
             }
+            if let Some(confirm) = &choice.confirm {
+                for problem in confirm_problems(choice, confirm) {
+                    error(format!("{}.choices[{}].confirm", location, i), problem);
+                }
+            }
         }
         if muxbox.execution_mode == ExecutionMode::Pty && muxbox.refresh_interval.is_some() {
             error(
@@ -395,6 +401,47 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
     } else {
         Err(errors)
     }
+}
+
+/// What is wrong with the confirmation of `choice`: it guards a script, its answers have
+/// distinct ids, the answer that cancels is one of them, and at least one answer runs the script.
+fn confirm_problems(choice: &Choice, confirm: &Confirm) -> Vec<String> {
+    let mut problems = Vec::new();
+    if choice.script.is_none() {
+        problems.push(
+            "confirm asks before the choice's script runs, and this choice has no script".into(),
+        );
+    }
+    let Some(options) = &confirm.options else {
+        if let Some(cancel) = &confirm.cancel {
+            problems.push(format!(
+                "cancel '{}' names none of the options: without options the answers are Yes ('{}') and Cancel ('{}'), and Cancel cancels",
+                cancel, DEFAULT_CONFIRM_OPTION, DEFAULT_CANCEL_OPTION
+            ));
+        }
+        return problems;
+    };
+    let mut ids = HashSet::new();
+    for option in options {
+        if !ids.insert(option.id.as_str()) {
+            problems.push(format!("option id '{}' is used more than once", option.id));
+        }
+    }
+    if let Some(cancel) = &confirm.cancel {
+        if !ids.contains(cancel.as_str()) {
+            problems.push(format!(
+                "cancel names no option: there is no option '{}'",
+                cancel
+            ));
+        }
+    }
+    if options
+        .iter()
+        .all(|option| Some(option.id.as_str()) == confirm.cancel.as_deref())
+    {
+        problems.push("every option cancels, so the script could never run".into());
+    }
+    problems
 }
 
 #[cfg(test)]
@@ -589,5 +636,99 @@ app:
             errors[0].location,
             "app.layouts[0] ('main').children[0] ('logs').border_color"
         );
+    }
+
+    /// The semantic errors of a menu whose one choice is `choice`, written as YAML flow.
+    fn choice_errors(choice: &str) -> Vec<String> {
+        semantic_errors(&format!(
+            r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: menu
+          position: {{x1: "0", y1: "0", x2: "9", y2: "9"}}
+          choices: [{}]
+"#,
+            choice
+        ))
+    }
+
+    #[test]
+    fn a_confirmation_is_checked_against_its_choice_and_its_own_answers() {
+        assert_eq!(
+            choice_errors("{id: go, script: [true], confirm: {text: Sure?}}"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            choice_errors(
+                "{id: go, script: [true], confirm: {text: Where?, options: [{id: a}, {id: b}]}}"
+            ),
+            Vec::<String>::new(),
+            "no answer has to cancel: Escape does"
+        );
+        let location = "app.layouts[0] ('main').children[0] ('menu').choices[0].confirm";
+        for (choice, problem) in [
+            (
+                "{id: go, confirm: {text: Sure?}}",
+                "confirm asks before the choice's script runs, and this choice has no script",
+            ),
+            (
+                "{id: go, script: [true], confirm: {text: Sure?, cancel: no}}",
+                "cancel 'no' names none of the options: without options the answers are Yes ('yes') and Cancel ('cancel'), and Cancel cancels",
+            ),
+            (
+                "{id: go, script: [true], confirm: {text: Sure?, options: [{id: a}, {id: b}], cancel: c}}",
+                "cancel names no option: there is no option 'c'",
+            ),
+            (
+                "{id: go, script: [true], confirm: {text: Sure?, options: [{id: a}, {id: a}]}}",
+                "option id 'a' is used more than once",
+            ),
+            (
+                "{id: go, script: [true], confirm: {text: Sure?, options: [{id: stop}], cancel: stop}}",
+                "every option cancels, so the script could never run",
+            ),
+        ] {
+            assert_eq!(
+                choice_errors(choice),
+                vec![format!("{}: {}", location, problem)],
+                "{}",
+                choice
+            );
+        }
+    }
+
+    #[test]
+    fn the_schema_requires_a_confirmation_s_text_and_at_least_one_answer() {
+        let document = |confirm: Value| {
+            serde_json::json!({
+                "app": {"layouts": [{"id": "main", "children": [
+                    {"id": "menu", "position": {"x1": "0", "y1": "0", "x2": "9", "y2": "9"},
+                     "choices": [{"id": "go", "script": ["true"], "confirm": confirm}]}
+                ]}]}
+            })
+        };
+        let at = "app.layouts[0] ('main').children[0] ('menu').choices[0] ('go').confirm";
+        for (confirm, location) in [
+            (serde_json::json!({}), at.to_string()),
+            (serde_json::json!({"text": ""}), format!("{}.text", at)),
+            (
+                serde_json::json!({"text": "Sure?", "options": []}),
+                format!("{}.options", at),
+            ),
+            (
+                serde_json::json!({"text": "Sure?", "options": [{"content": "Yes"}]}),
+                format!("{}.options[0]", at),
+            ),
+            (
+                serde_json::json!({"text": "Sure?", "title": "Hm"}),
+                at.to_string(),
+            ),
+        ] {
+            let errors = validate_schema(&document(confirm.clone())).unwrap_err();
+            assert_eq!(errors.len(), 1, "{}: {:?}", confirm, errors);
+            assert_eq!(errors[0].location, location, "{}", confirm);
+        }
     }
 }

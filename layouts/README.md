@@ -12,13 +12,14 @@ This directory contains impressive showcase layouts that demonstrate BoxMux's ca
 ---
 
 ### 🔄 Interactive Features Demos
-**Files**: `auto_scroll_demo.yaml`, `hotkey_demo.yaml`, `mouse_click_demo.yaml`  
+**Files**: `auto_scroll_demo.yaml`, `hotkey_demo.yaml`, `mouse_click_demo.yaml`, `confirm_demo.yaml`  
 **Target Audience**: Developers, system administrators, anyone wanting enhanced UI interaction  
 
 **Features**:
 - **Auto-Scroll**: Automatic scroll-to-bottom for new content updates
 - **Hotkey Actions**: Direct keyboard shortcuts to trigger commands without menu navigation
 - **Mouse Click Support**: Click on boxes and menu items for immediate execution and selection
+- **Confirmations**: Choices that ask before they run, with default or their own answers (`confirm`)
 - **Enhanced Interaction**: Improved user experience with immediate visual feedback
 
 **Key Innovation**: Uses `auto_scroll_bottom: true` and direct interaction methods for enhanced UX

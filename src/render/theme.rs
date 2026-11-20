@@ -95,6 +95,11 @@ pub struct Palette {
     pub scrollbar_track: Color,
     pub notice: Style,
     pub error_notice: Style,
+    /// The inside of a dialog over the layout.
+    pub dialog: Style,
+    pub dialog_button: Style,
+    /// The button Enter presses.
+    pub dialog_button_focused: Style,
 }
 
 pub fn palette() -> Palette {
@@ -123,6 +128,9 @@ pub fn palette() -> Palette {
         scrollbar_track: ColorName::BrightBlack.color(),
         notice: Style::new(bright_white, FOCUS_BLUE),
         error_notice: Style::new(bright_white, ColorName::Red.color()),
+        dialog: Style::new(fg, bg),
+        dialog_button: Style::new(bright_white, DIM_GRAY),
+        dialog_button_focused: Style::new(bright_white, FOCUS_BLUE),
     }
 }
 

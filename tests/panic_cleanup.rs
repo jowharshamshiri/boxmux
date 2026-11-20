@@ -52,6 +52,7 @@ fn child() {
             script: vec![script.to_string()],
             mode,
             terminal_size: Some(TerminalSize { rows: 10, cols: 40 }),
+            environment: Vec::new(),
         };
         executor
             .start(spec, "out".to_string())

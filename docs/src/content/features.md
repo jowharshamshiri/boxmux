@@ -52,7 +52,8 @@ See the [Configuration Reference](/docs/configuration).
   replacing, `auto_scroll_bottom` keeps the newest line in view, and `save_in_file` writes the
   output to a file.
 - `libs` lists script files sourced before every script.
-- Scripts get `BOXMUX_SOCKET` and `BOXMUX_BOX` in their environment.
+- Scripts get `BOXMUX_SOCKET` and `BOXMUX_BOX` in their environment, and the script of a
+  choice that asks first gets the answer chosen in `BOXMUX_OPTION`.
 - When BoxMux exits, also after a crash, every script that is still running is stopped with
   everything it started (its process group on Unix, its process tree on Windows). A background
   process whose script has already finished and that let go of the script's output
@@ -63,6 +64,8 @@ See the [Configuration Reference](/docs/configuration).
 - `choices` are menu entries. Enter or a click on the label runs the selected entry; its
   output opens a tab in the box (or in the `redirect_output` box), and the entry shows ` …`
   while it runs.
+- A choice with `confirm` asks first, in a window over the layout with its own text and
+  answers, and runs only on an answer that does not cancel.
 - `hot_keys` bind key names to choice ids; `on_keypress` binds key names to scripts in the
   app, a layout or a box.
 - A box with several outputs shows them as tabs in its top border. Tabs opened by runs can be

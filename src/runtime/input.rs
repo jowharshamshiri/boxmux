@@ -32,7 +32,9 @@ impl<D: Display> Runtime<D> {
             // The size it reports may already be stale; each frame asks the terminal for its
             // size as it is drawn.
             TermEvent::Resize(..) => self.redraw_whole(),
-            // Pasted text goes to the focused terminal; nothing else takes text.
+            // Pasted text goes to the focused terminal; nothing else takes text, and nothing
+            // reaches the terminal under an open confirmation.
+            TermEvent::Paste(_) if self.confirmation.is_some() => {}
             TermEvent::Paste(text) => {
                 if let Some(run) = self.focused_terminal_run() {
                     let bytes = self
@@ -86,6 +88,10 @@ impl<D: Display> Runtime<D> {
 
     fn handle_key(&mut self, key: KeyEvent) {
         let key = canonical_key(key);
+        if self.confirmation.is_some() {
+            self.confirmation_key(key);
+            return;
+        }
         // A focused terminal receives every key, Tab and Shift+Tab included, except the escape
         // chord, which takes the focus out of it and then runs what is bound to the chord.
         let terminal = self
@@ -434,6 +440,10 @@ impl<D: Display> Runtime<D> {
         if self.pointer != Some((x, y)) {
             self.pointer = Some((x, y));
             self.dirty = true;
+        }
+        if self.confirmation.is_some() {
+            self.confirmation_mouse(mouse);
+            return;
         }
         // A drag that started in a terminal stays with the terminal until the button is up,
         // with positions clamped to its screen.

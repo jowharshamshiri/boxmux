@@ -5,6 +5,7 @@
 //! order that covers it, which is the one visible there.
 
 pub mod box_view;
+pub mod dialog;
 pub mod screen;
 pub mod scrollbar;
 pub mod styled;

@@ -15,9 +15,9 @@ The repository's `examples/live-panel/` holds a panel built this way:
 
 | File | What it is |
 |------|------------|
-| `panel.yaml` | The layouts: the panel, a confirmation and a terminal |
+| `panel.yaml` | The layouts: the panel and a terminal |
 | `driver.sh` | The driver: writes the text files, builds the menu, acts on presses |
-| `buttons.sh` | What the menu entries run: confirm, report a press, start a terminal step |
+| `buttons.sh` | What the menu entries run: report a press and the answer confirmed, start a terminal step |
 | `common.sh` | Shell functions both scripts use |
 | `start.sh` | Starts the driver in the background and BoxMux in the terminal |
 
@@ -100,7 +100,10 @@ boxmux replace_box needs '{"id":"needs","title":"Needs you: 2",
   "tab_order":1,"selected":true,
   "choices":[
     {"id":"restart-web","content":"✔ Restart the web service",
-     "script":["\"$PANEL_DIR/buttons.sh\" ask restart-web"]},
+     "script":["\"$PANEL_DIR/buttons.sh\" press restart-web"],
+     "confirm":{"text":"Restart the web service?",
+       "options":[{"id":"yes","content":"✔ Yes, restart it"},{"id":"cancel","content":"✖ Cancel"}],
+       "cancel":"cancel"}},
     {"id":"about","content":"ℹ About this panel",
      "script":["\"$PANEL_DIR/buttons.sh\" show about"]}]}'
 ```
@@ -184,41 +187,29 @@ bm() {
 
 ## Confirm before acting
 
-A button that acts at once gets pressed by mistake. Put a confirmation between the press and
-the report: a second layout with a text box and a menu, both filled for the item before the
-layout is shown.
+A button that acts at once gets pressed by mistake. Give its choice a `confirm`: activating it
+opens a window over the panel with the question and its answers, and the script runs only on an
+answer that does not cancel, with the answer's id in `BOXMUX_OPTION`. Escape, or a click
+outside the window, cancels, and so does the answer named by `cancel`.
 
-```yaml
-- id: confirm
-  title: Confirm
-  children:
-    - id: confirm_text
-      title: Are you sure?
-      position: {x1: "0%", y1: "0", x2: "100%", y2: "60%"}
-      overflow_behavior: wrap
-      content: buttons.sh ask fills this in
-    - id: confirm_menu
-      title: Choose
-      position: {x1: "0%", y1: "60%", x2: "100%", y2: "100%"}
-      tab_order: 1
-      selected: true
-      choices:
-        - id: cancel
-          content: "✖ Cancel"
-          script: ["\"$PANEL_DIR/buttons.sh\" back"]
+```json
+{"id":"deploy","content":"✔ Deploy release 2.4",
+ "script":["\"$PANEL_DIR/buttons.sh\" press deploy"],
+ "confirm":{"text":"Deploy release 2.4\n\nDeploys release 2.4. Choose where it goes.",
+   "options":[{"id":"staging","content":"Deploy to staging"},
+              {"id":"production","content":"Deploy to production"},
+              {"id":"cancel","content":"✖ Cancel"}],
+   "cancel":"cancel"}}
 ```
 
-The menu entry for an item runs `buttons.sh ask <id>`, which:
+`render` in `driver.sh` builds the `confirm` of every approval from the item: its label and
+details as the text, its options, then **✖ Cancel**. `buttons.sh press <id>` reports the item and
+`BOXMUX_OPTION` to the driver, so one confirmation can offer several actions, such as **Deploy
+to staging** and **Deploy to production**, and the report names the one chosen. Left out,
+`options` are **Yes** and **Cancel**. See [Confirmation](/docs/configuration#confirmation).
 
-1. replaces `confirm_text` with the item's label and details as its `content`;
-2. replaces `confirm_menu` with one choice per option of the item, each running
-   `buttons.sh press <id> <option>`, and **✖ Cancel**, which runs `buttons.sh back`;
-3. runs `boxmux switch_active_layout confirm`.
-
-Only `press` reports to the driver, then switches back with
-`boxmux switch_active_layout main`. Cancel only switches back. Options let one confirmation
-offer several actions, such as **Deploy to staging** and **Deploy to production**, and the
-report names the one chosen.
+The window stays open while the driver replaces the menu, as long as the new menu has the same
+choice asking the same question; otherwise it closes, and nothing runs.
 
 ## Hand a step to the person in a terminal
 
@@ -298,13 +289,12 @@ bottom border, which the box below draws its own top border over. The header abo
 | Replacing a menu with `replace_box` moves the selection back to the first entry | Replace the menu only when its entries change |
 | `replace_box_content` adds a `Socket` tab instead of replacing the box's text | Show files with a refreshing script, or replace the box with new `content` |
 | A box showing a file rereads it every `refresh_interval`, and lags behind changes by up to one interval | Keep the interval short (500 to 2000 ms) |
-| There is no built-in confirmation for a choice | A confirmation layout, as above |
 | Every box draws an empty row under its top border | Count it when sizing boxes for a small pane |
 
 ## See also
 
 - [API Reference](/docs/api): `replace_box`, `switch_active_layout`, `spawn_pty_process` and
   the environment of scripts
-- [Configuration Reference](/docs/configuration): `choices`, `redirect_output`,
+- [Configuration Reference](/docs/configuration): `choices`, `confirm`, `redirect_output`,
   `refresh_interval`, `auto_scroll_bottom`
 - [PTY Features](/docs/pty-features): terminals in boxes

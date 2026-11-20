@@ -540,6 +540,7 @@ these environment variables in addition to boxmux's own environment:
 |----------|-------|
 | `BOXMUX_SOCKET` | The socket this instance listens on, exactly as boxmux was given or chose it |
 | `BOXMUX_BOX` | The id of the box whose tab receives the script's output: the box itself, or its `redirect_output` target. Empty for app- and layout-level `on_keypress` handlers |
+| `BOXMUX_OPTION` | The `id` of the answer a choice's `confirm` was given, in the script of a choice that asks (see [Confirmation](/docs/configuration#confirmation)). Not set for other scripts |
 | `TERM` | `xterm-256color`, in PTY sessions only. Other scripts keep boxmux's `TERM` |
 
 Because `BOXMUX_SOCKET` is set, a script can control the instance that started it without
