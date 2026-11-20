@@ -43,7 +43,7 @@ See the [Configuration Reference](/docs/configuration).
 ## Files
 
 - `file` shows a file in a box and redraws it in the next frame whenever it changes, as the
-  operating system reports it (inotify, FSEvents, kqueue, ReadDirectoryChangesW), with no
+  operating system reports it (inotify, kqueue, ReadDirectoryChangesW), with no
   polling. A missing file shows that the box waits for it.
 - `follow: true` shows the file as a log: appended text is added, and the box keeps to the
   bottom while the reader is there.

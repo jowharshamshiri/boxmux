@@ -1,5 +1,7 @@
 //! File boxes: a box's `file` shown in its file tab and read again when the platform's file
-//! watching (inotify, FSEvents, kqueue, ReadDirectoryChangesW) reports a change, never by polling.
+//! watching (inotify, kqueue, ReadDirectoryChangesW) reports a change, never by polling. macOS
+//! uses kqueue: FSEvents reports nothing to a watch whose folder is removed with the folder above
+//! it, which leaves a box showing a file whose folders are gone.
 //!
 //! A box watches the folder its file is in, which tells it when the file is created, removed or
 //! replaced, and the file itself while it exists, which tells it when the file is written on
@@ -39,16 +41,13 @@ pub(super) struct FileBoxes {
 struct FileBox {
     /// The path as the configuration gives it.
     file: String,
-    /// The configured path, made absolute.
+    /// The configured path, made absolute: the path events name the file by.
     path: PathBuf,
     follow: bool,
     /// The deepest existing folder of `path`, as watched.
     folder: Option<PathBuf>,
-    /// `path` under the watched `folder`: the path events name it by.
-    watch_path: PathBuf,
-    /// The file the box watches itself, when it exists: `watch_path`, with every symbolic link
-    /// resolved where the platform reports events by the resolved path.
-    file_watch: Option<PathBuf>,
+    /// Whether the box watches the file itself, as it does while the file exists.
+    file_watched: bool,
     /// What changed since the box was last read.
     stale: Option<Change>,
     /// Whether the tab shows the file's text, read since the box was made or since the file
@@ -135,19 +134,18 @@ impl FileBoxes {
         );
         for file_box in self.boxes.values_mut() {
             for path in &event.paths {
-                let change =
-                    if path == &file_box.watch_path || file_box.file_watch.as_ref() == Some(path) {
-                        if written {
-                            Change::Written
-                        } else {
-                            Change::Moved
-                        }
-                    } else if file_box.watch_path.starts_with(path) {
-                        // A folder of the path: it changed, appeared or went away.
-                        Change::Moved
+                let change = if path == &file_box.path {
+                    if written {
+                        Change::Written
                     } else {
-                        continue;
-                    };
+                        Change::Moved
+                    }
+                } else if file_box.path.starts_with(path) {
+                    // A folder of the path: it changed, appeared or went away.
+                    Change::Moved
+                } else {
+                    continue;
+                };
                 file_box.stale = file_box.stale.max(Some(change));
             }
         }
@@ -227,28 +225,22 @@ impl FileBoxes {
             let Some(folder) = path.ancestors().skip(1).find(|folder| folder.is_dir()) else {
                 return Err("No folder of this path exists".to_string());
             };
-            let watched_folder = real_folder(folder);
-            let below = path
-                .strip_prefix(folder)
-                .expect("a folder is a prefix of the path it is a folder of");
-            let watch_path = watched_folder.join(below);
             // Watched anew even when it is the folder watched before: one removed and made again
             // since is another folder, which the old watch does not see.
-            match self.hold(&watched_folder) {
+            match self.hold(folder) {
                 Ok(()) => {}
                 // It went away after it was found: look again.
                 Err(_) if !folder.is_dir() => continue,
                 Err(e) => {
                     return Err(format!(
                         "Cannot watch {} for changes: {}",
-                        watched_folder.display(),
+                        folder.display(),
                         e
                     ))
                 }
             }
             let file_box = self.boxes.get_mut(box_id).expect("the box is registered");
-            let old_folder = file_box.folder.replace(watched_folder);
-            file_box.watch_path = watch_path.clone();
+            let old_folder = file_box.folder.replace(folder.to_path_buf());
             if let Some(old) = old_folder {
                 self.release(&old);
             }
@@ -262,26 +254,20 @@ impl FileBoxes {
             {
                 continue;
             }
-            if let Some(old) = self
-                .boxes
-                .get_mut(box_id)
-                .expect("the box is registered")
-                .file_watch
-                .take()
-            {
-                self.release(&old);
+            let file_box = self.boxes.get_mut(box_id).expect("the box is registered");
+            if std::mem::take(&mut file_box.file_watched) {
+                self.release(&path);
             }
-            if watch_path.is_file() {
-                let file_watch = real_file(&watch_path);
-                match self.hold(&file_watch) {
+            if path.is_file() {
+                match self.hold(&path) {
                     Ok(()) => {
                         self.boxes
                             .get_mut(box_id)
                             .expect("the box is registered")
-                            .file_watch = Some(file_watch);
+                            .file_watched = true;
                     }
                     // Removed after it was found: the folder's watch tells of it.
-                    Err(_) if !watch_path.exists() => {}
+                    Err(_) if !path.exists() => {}
                     Err(e) => return Err(format!("Cannot watch this file for changes: {}", e)),
                 }
             }
@@ -293,8 +279,11 @@ impl FileBoxes {
     /// Drops box `box_id` and every watch only it needed.
     pub(super) fn forget(&mut self, box_id: &str) {
         if let Some(file_box) = self.boxes.remove(box_id) {
-            for path in file_box.folder.iter().chain(file_box.file_watch.iter()) {
-                self.release(path);
+            if let Some(folder) = &file_box.folder {
+                self.release(folder);
+            }
+            if file_box.file_watched {
+                self.release(&file_box.path);
             }
         }
     }
@@ -310,33 +299,6 @@ fn unwatch(watcher: &mut RecommendedWatcher, path: &Path) {
         ) {
             log::warn!("cannot stop watching {}: {}", path.display(), e);
         }
-    }
-}
-
-/// The path a folder's events name it by: with its symbolic links resolved on Unix, where
-/// FSEvents reports resolved paths (a temporary folder under /var is /private/var).
-fn real_folder(folder: &Path) -> PathBuf {
-    #[cfg(unix)]
-    {
-        std::fs::canonicalize(folder).unwrap_or_else(|_| folder.to_path_buf())
-    }
-    #[cfg(not(unix))]
-    {
-        folder.to_path_buf()
-    }
-}
-
-/// The path a watch on the file at `path` reports its events by. FSEvents watches the file a
-/// symbolic link names and reports it by its own path; the other platforms report the path
-/// they were given.
-fn real_file(path: &Path) -> PathBuf {
-    #[cfg(target_os = "macos")]
-    {
-        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        path.to_path_buf()
     }
 }
 
@@ -358,7 +320,7 @@ impl FileBox {
     /// read, when what was added to its end is read. A followed file that is now shorter than
     /// what the tab shows was truncated, and is read whole.
     fn read(&mut self, change: Change) -> Reading {
-        let path = self.watch_path.clone();
+        let path = self.path.clone();
         match std::fs::metadata(&path) {
             Ok(metadata) if metadata.is_dir() => {
                 return Reading::Failed("This is a folder, not a file".to_string())
@@ -467,11 +429,10 @@ impl<D: Display> Runtime<D> {
                 id,
                 FileBox {
                     file,
-                    watch_path: path.clone(),
                     path,
                     follow,
                     folder: None,
-                    file_watch: None,
+                    file_watched: false,
                     stale: Some(Change::Moved),
                     read_once: false,
                     shown: 0,

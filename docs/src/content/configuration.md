@@ -271,7 +271,7 @@ Script output, `content` and a `file`'s text keep their SGR color sequences, so 
 
 ## File Boxes
 
-A box with `file` shows that file in its File tab and redraws it in the next frame whenever the file changes. The operating system reports each change (inotify on Linux, FSEvents on macOS, kqueue on the BSDs, ReadDirectoryChangesW on Windows), so a file box needs no `refresh_interval` and does not poll. A relative path is relative to the YAML file, and variables work in it as in any other value.
+A box with `file` shows that file in its File tab and redraws it in the next frame whenever the file changes. The operating system reports each change (inotify on Linux, kqueue on macOS and the BSDs, ReadDirectoryChangesW on Windows), so a file box needs no `refresh_interval` and does not poll. A relative path is relative to the YAML file, and variables work in it as in any other value.
 
 ```yaml
 - id: status
