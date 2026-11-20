@@ -309,6 +309,27 @@ impl LiveBoxMux {
         }
     }
 
+    /// Waits until `problems` finds nothing wrong with the screen; `what` names what the screen
+    /// should show, and the failure lists what was still wrong.
+    fn wait_for_screen(&mut self, what: &str, problems: impl Fn(&Screen) -> Vec<String>) {
+        let start = Instant::now();
+        loop {
+            self.pump(Duration::from_millis(30));
+            let found = problems(&self.screen);
+            if found.is_empty() {
+                return;
+            }
+            if start.elapsed() >= TIMEOUT {
+                panic!(
+                    "the screen does not show {}:\n{}\n{}",
+                    what,
+                    found.join("\n"),
+                    self.report()
+                );
+            }
+        }
+    }
+
     fn wait_until_gone(&mut self, needle: &str) {
         let start = Instant::now();
         loop {
@@ -349,17 +370,30 @@ impl LiveBoxMux {
         self.click(x, y);
     }
 
-    /// Waits for boxmux to exit and returns whether it exited successfully.
+    /// Waits for boxmux to exit, reads everything it wrote, and returns whether it exited
+    /// successfully.
     fn wait_for_exit(&mut self) -> bool {
         let start = Instant::now();
-        loop {
+        let status = loop {
             self.pump(Duration::from_millis(20));
             if let Some(status) = self.child.try_wait().unwrap() {
-                // Collect what was written just before exiting.
-                self.pump(Duration::from_millis(100));
-                return status.success();
+                break status;
             }
             assert!(start.elapsed() < TIMEOUT, "boxmux did not exit");
+        };
+        // What boxmux wrote just before exiting may still be on its way. Its output ends, and
+        // the reader with it, once no process has the terminal open: the scripts boxmux runs
+        // read no terminal and write to pipes.
+        loop {
+            match self.output.recv_timeout(Duration::from_millis(20)) {
+                Ok(bytes) => self.accept(bytes),
+                Err(mpsc::RecvTimeoutError::Disconnected) => return status.success(),
+                Err(mpsc::RecvTimeoutError::Timeout) => assert!(
+                    start.elapsed() < TIMEOUT,
+                    "boxmux exited, but its terminal's output never ended\n{}",
+                    self.report()
+                ),
+            }
         }
     }
 }
@@ -623,18 +657,18 @@ app:
     );
     app.wait_for_text("got[one]");
     app.send("two\r");
-    thread::sleep(Duration::from_millis(500));
-    app.pump(Duration::from_millis(30));
-    assert!(
-        app.screen.find("got[two]").is_none(),
-        "the terminal kept the focus\n{}",
-        app.report()
-    );
 
     // Tab takes the focus back into the terminal, whose program reads on.
     app.send("\t");
     app.send("three\r");
     app.wait_for_text("got[three]");
+    // The program reads its lines in order: had `two` reached it, it would have been echoed
+    // before `three`, in the frame that shows `three` or an earlier one.
+    assert!(
+        app.screen.find("got[two]").is_none(),
+        "the terminal kept the focus\n{}",
+        app.report()
+    );
 }
 
 #[test]
@@ -761,6 +795,18 @@ struct Link {
     uri: String,
 }
 
+/// Begins a synchronized update (DEC private mode 2026): the terminal keeps showing what it
+/// showed until the update ends.
+const BEGIN_SYNC: &[u8] = b"\x1b[?2026h";
+/// Ends a synchronized update: the terminal shows everything written since it began.
+const END_SYNC: &[u8] = b"\x1b[?2026l";
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
 /// Enough of a terminal to read what boxmux draws: cursor movement, erasing and UTF-8 text.
 ///
 /// It keeps text the way current terminals (WezTerm, kitty, foot) do: each cell holds one
@@ -773,6 +819,10 @@ struct Link {
 ///
 /// It keeps OSC 8 hyperlinks as a terminal does: text printed while one is open is that link in
 /// each cell it goes in, until `ESC ] 8 ; ; ST` closes it; erasing a cell takes its link away.
+///
+/// It shows a synchronized update as WezTerm, kitty and foot do: what is written between
+/// [`BEGIN_SYNC`] and [`END_SYNC`] reaches the screen all at once, when the update ends, however
+/// the PTY splits it into reads. An update that never ends is never shown.
 struct Screen {
     width: usize,
     height: usize,
@@ -848,11 +898,22 @@ impl Screen {
     }
 
     fn apply(&mut self, bytes: &[u8]) {
+        // A held update is looked through only where its end could be: the bytes before were
+        // looked through when they came.
+        let holding = self.pending.starts_with(BEGIN_SYNC);
+        let unseen = self.pending.len().saturating_sub(END_SYNC.len() - 1);
         self.pending.extend_from_slice(bytes);
+        if holding && !contains(&self.pending[unseen..], END_SYNC) {
+            return;
+        }
         let data = std::mem::take(&mut self.pending);
         let mut i = 0;
         while i < data.len() {
             match data[i] {
+                0x1b if data[i..].starts_with(BEGIN_SYNC) && !contains(&data[i..], END_SYNC) => {
+                    self.pending = data[i..].to_vec();
+                    return;
+                }
                 0x1b => match self.escape(&data, i) {
                     Some(next) => {
                         self.last = None;
@@ -1346,6 +1407,83 @@ app:
     );
 }
 
+/// What a terminal shows of the box drawn by [`every_frame_reaches_the_terminal_whole`] while
+/// boxmux draws it: nothing, the box whole with its first text, or the box whole with its second.
+/// A description of anything else, such as a box missing a corner or a text half replaced.
+#[cfg(unix)]
+fn torn_frame(screen: &Screen) -> Option<String> {
+    // The bottom right corner is the box's resize handle.
+    let corners = [(10, 3, "┌"), (60, 3, "┐"), (10, 12, "└"), (60, 12, "⋱")]
+        .iter()
+        .filter(|(x, y, corner)| screen.cell(*x, *y) == *corner)
+        .count();
+    let shown = screen.text();
+    let texts = ["FIRST FRAME TEXT", "OTHER WORDS HERE"]
+        .iter()
+        .filter(|text| shown.contains(*text))
+        .count();
+    match (corners, texts) {
+        (0, 0) | (4, 1) => None,
+        _ => Some(format!(
+            "{} of the box's 4 corners and {} of its texts shown",
+            corners, texts
+        )),
+    }
+}
+
+/// A terminal is never shown half a frame: boxmux writes each frame as one synchronized update,
+/// so a terminal that supports them (WezTerm, kitty, foot) shows none of it until all of it is
+/// there, however the PTY splits it, and a terminal reading the screen as boxmux draws never
+/// finds it half drawn. Unix only, as [`display_width`] is: on Windows the console host writes
+/// its own rendering in place of boxmux's output.
+#[test]
+#[cfg(unix)]
+fn every_frame_reaches_the_terminal_whole() {
+    let fixture = Fixture::new();
+    let config = fixture.write_config(
+        r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: note
+          title: Note
+          position: {x1: "10", y1: "3", x2: "60", y2: "12"}
+          content: FIRST FRAME TEXT
+"#,
+    );
+    let mut app = LiveBoxMux::spawn(&fixture, &config);
+    app.wait_for_text("FIRST FRAME TEXT");
+    let output = fixture.control(&["replace_box_content", "note", "OTHER WORDS HERE"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    app.wait_for_text("OTHER WORDS HERE");
+    // Everything boxmux wrote, read one byte at a time: the smallest pieces a PTY can split it
+    // into, each looked at as it reaches the screen.
+    let mut screen = Screen::new(WIDTH as usize, HEIGHT as usize);
+    for (at, byte) in app.raw.iter().enumerate() {
+        screen.apply(&[*byte]);
+        if let Some(torn) = torn_frame(&screen) {
+            panic!(
+                "after byte {} of {}, the terminal shows a torn frame: {}\n{}",
+                at + 1,
+                app.raw.len(),
+                torn,
+                screen.text()
+            );
+        }
+    }
+    assert!(
+        screen.find("OTHER WORDS HERE").is_some(),
+        "{}",
+        screen.text()
+    );
+}
+
 #[test]
 #[cfg(unix)]
 fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
@@ -1380,12 +1518,17 @@ fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
         }
         assert!(start.elapsed() < TIMEOUT, "boxmux did not stop");
     }
-    let suspended = String::from_utf8_lossy(&app.raw[before..]).to_string();
-    assert!(
-        suspended.contains("\x1b[?1049l"),
-        "the alternate screen is left: {:?}",
-        suspended
-    );
+    // Everything boxmux wrote before it stopped is in the PTY, though the reader may not have
+    // passed all of it on yet; stopped, boxmux writes nothing more.
+    let start = Instant::now();
+    while !String::from_utf8_lossy(&app.raw[before..]).contains("\x1b[?1049l") {
+        assert!(
+            start.elapsed() < TIMEOUT,
+            "boxmux stopped without leaving the alternate screen: {:?}",
+            String::from_utf8_lossy(&app.raw[before..])
+        );
+        app.pump(Duration::from_millis(20));
+    }
     let before = app.raw.len();
     assert_eq!(unsafe { libc::kill(app.pid(), libc::SIGCONT) }, 0);
     let start = Instant::now();
@@ -1463,32 +1606,37 @@ app:
         ("menu", (50, 10, 69, 19)),
     ];
 
-    /// Every edge of the box covering `(x1, y1, x2, y2)` is in its own column and row.
-    fn assert_edges(screen: &Screen, id: &str, (x1, y1, x2, y2): Cells) {
-        let fail = |what: &str| -> ! { panic!("box {}: {}\nscreen:\n{}", id, what, screen.text()) };
-        let at = |x: usize, y: usize| screen.cell(x, y);
-        if (at(x1, y1), at(x2, y1), at(x1, y2)) != ("┌", "┐", "└")
-            || !["┘", "⋱"].contains(&at(x2, y2))
-        {
-            fail("a corner is not where the box's corners are");
-        }
-        for y in y1 + 1..y2 {
-            if at(x1, y) != "│" || !["│", "█"].contains(&at(x2, y)) {
-                fail(&format!("row {} is not closed by its borders", y));
+    /// What keeps an edge of a box of [`WIDTH_BOXES`] out of its own column and row: none when
+    /// every edge of every box is in its place.
+    fn edge_problems(screen: &Screen) -> Vec<String> {
+        let mut problems = Vec::new();
+        for (id, (x1, y1, x2, y2)) in WIDTH_BOXES {
+            let mut fail = |what: String| problems.push(format!("box {}: {}", id, what));
+            let at = |x: usize, y: usize| screen.cell(x, y);
+            if (at(x1, y1), at(x2, y1), at(x1, y2)) != ("┌", "┐", "└")
+                || !["┘", "⋱"].contains(&at(x2, y2))
+            {
+                fail("a corner is not where the box's corners are".to_string());
+            }
+            for y in y1 + 1..y2 {
+                if at(x1, y) != "│" || !["│", "█"].contains(&at(x2, y)) {
+                    fail(format!("row {} is not closed by its borders", y));
+                }
+            }
+            for x in x1 + 1..x2 {
+                if !["─", "■"].contains(&at(x, y2)) {
+                    fail(format!(
+                        "column {} of the bottom border is {:?}",
+                        x,
+                        at(x, y2)
+                    ));
+                }
+            }
+            if at(x1 + 1, y1) != "─" || at(x2 - 1, y1) != "─" {
+                fail("the title or tabs reach the corners".to_string());
             }
         }
-        for x in x1 + 1..x2 {
-            if !["─", "■"].contains(&at(x, y2)) {
-                fail(&format!(
-                    "column {} of the bottom border is {:?}",
-                    x,
-                    at(x, y2)
-                ));
-            }
-        }
-        if at(x1 + 1, y1) != "─" || at(x2 - 1, y1) != "─" {
-            fail("the title or tabs reach the corners");
-        }
+        problems
     }
 
     /// The cells inside the box's border, row by row.
@@ -1528,29 +1676,32 @@ app:
         row.replace('🌅', "🌅 ").replace("☀\u{fe0f}", "☀\u{fe0f} ")
     }
 
-    /// Checks the rows of [`WIDTH_ROWS`] and the tabs; `drawn` maps a row to what the terminal
-    /// shows for it.
-    fn assert_width_rows(screen: &Screen, drawn: fn(&str) -> String) {
+    /// What differs from the rows of [`WIDTH_ROWS`] and the tabs; `drawn` maps a row to what
+    /// the terminal shows for it.
+    fn width_row_problems(screen: &Screen, drawn: fn(&str) -> String) -> Vec<String> {
+        let mut problems = Vec::new();
         for (y, x1, x2, row) in WIDTH_ROWS {
-            assert_eq!(
-                screen.span(y, x1, x2),
-                drawn(row),
-                "row {} from column {}\n{}",
-                y,
-                x1,
-                screen.text()
-            );
+            let shown = screen.span(y, x1, x2);
+            if shown != drawn(row) {
+                problems.push(format!(
+                    "row {} from column {} is {:?}, not {:?}",
+                    y,
+                    x1,
+                    shown,
+                    drawn(row)
+                ));
+            }
         }
         let [a, b] = WIDTH_TABS;
         let tabs = screen.span(0, 50, 99);
-        assert!(
-            [a, b].iter().zip([b, a]).any(
-                |(first, second)| tabs == drawn(&format!("┌── Tabs ─{}─{}───┐", first, second))
-            ),
-            "the tabs are {:?}\n{}",
-            tabs,
-            screen.text()
-        );
+        if ![a, b]
+            .iter()
+            .zip([b, a])
+            .any(|(first, second)| tabs == drawn(&format!("┌── Tabs ─{}─{}───┐", first, second)))
+        {
+            problems.push(format!("the tabs are {:?}", tabs));
+        }
+        problems
     }
 
     /// Runs boxmux on [`WIDTHS`] in `screen`, and checks that every box's edges stay in their
@@ -1560,17 +1711,11 @@ app:
         let config = fixture.write_config(WIDTHS);
         let mut app = LiveBoxMux::spawn_in(&fixture, &config, &[], screen);
         // Both scripts ran: their output opened a tab each in `tabs`, after its own.
-        app.wait_until("both tabs", |screen| {
-            let top = screen.row(0);
-            top.contains("Sunrise") && top.contains("日本 ·")
+        app.wait_for_screen("every box drawn in its columns", |screen| {
+            let mut problems = edge_problems(screen);
+            problems.extend(width_row_problems(screen, drawn));
+            problems
         });
-        app.wait_for_text("Rise");
-        // Let the last frames arrive.
-        app.pump(Duration::from_millis(300));
-        for (id, cells) in WIDTH_BOXES {
-            assert_edges(&app.screen, id, cells);
-        }
-        assert_width_rows(&app.screen, drawn);
         (fixture, app)
     }
 
@@ -1586,32 +1731,33 @@ app:
         }
     }
 
-    /// Checks that every box keeps its edges, and that inside its border `wrap` shows only `wrap`
-    /// on its fourth row and `dawn` only `dawn` on its third: the cells of what they showed
-    /// before are blank. `wrap` and `dawn` are the rows as a terminal giving every cluster the
-    /// width BoxMux does reads them; `drawn` maps them to what this terminal shows.
-    fn assert_replaced(app: &LiveBoxMux, drawn: fn(&str) -> String, wrap: &str, dawn: &str) {
-        for (id, cells) in WIDTH_BOXES {
-            assert_edges(&app.screen, id, cells);
-        }
+    /// Waits until every box keeps its edges, and inside its border `wrap` shows only `wrap` on
+    /// its fourth row and `dawn` only `dawn` on its third: the cells of what they showed before
+    /// are blank. `wrap` and `dawn` are the rows as a terminal giving every cluster the width
+    /// BoxMux does reads them; `drawn` maps them to what this terminal shows.
+    fn wait_for_replaced(app: &mut LiveBoxMux, drawn: fn(&str) -> String, wrap: &str, dawn: &str) {
         // wrap: 18 cells inside the border, 8 rows; dawn: 28 cells, 5 rows.
-        for ((cells, rows, at, row), id) in [
-            ((WIDTH_BOXES[1].1), 8, 3, wrap),
-            ((WIDTH_BOXES[0].1), 5, 2, dawn),
+        let interiors: Vec<_> = [
+            ("wrap", WIDTH_BOXES[1].1, 8, 3, wrap),
+            ("dawn", WIDTH_BOXES[0].1, 5, 2, dawn),
         ]
         .into_iter()
-        .zip(["wrap", "dawn"])
-        {
+        .map(|(id, cells, rows, at, row)| {
             let mut expected = vec![drawn(&" ".repeat(cells.2 - cells.0 - 1)); rows];
             expected[at] = drawn(row);
-            assert_eq!(
-                interior(&app.screen, cells),
-                expected,
-                "inside {}\n{}",
-                id,
-                app.screen.text()
-            );
-        }
+            (id, cells, expected)
+        })
+        .collect();
+        app.wait_for_screen("the new text alone in wrap and dawn", |screen| {
+            let mut problems = edge_problems(screen);
+            for (id, cells, expected) in &interiors {
+                let shown = interior(screen, *cells);
+                if shown != *expected {
+                    problems.push(format!("inside {} is {:?}, not {:?}", id, shown, expected));
+                }
+            }
+            problems
+        });
     }
 
     /// Replaces the text of `wrap` and `dawn` twice and checks that nothing of what they showed
@@ -1619,12 +1765,9 @@ app:
     /// with wide text over the same cells. Each box shows its new line, centered, and blanks.
     fn replace_widths(fixture: &Fixture, app: &mut LiveBoxMux, drawn: fn(&str) -> String) {
         replace_widths_text(fixture, "short", "ok");
-        app.wait_until_gone("dawn →");
-        app.wait_until_gone("sun →");
-        app.pump(Duration::from_millis(300));
         // Centered in the 16 columns of wrap's content area and the 26 of dawn's, each one column
         // in from the border.
-        assert_replaced(
+        wait_for_replaced(
             app,
             drawn,
             &format!("{}short{}", " ".repeat(6), " ".repeat(7)),
@@ -1632,10 +1775,7 @@ app:
         );
 
         replace_widths_text(fixture, "🌅🌅🌅", "→ 日本 ☀\u{fe0f}");
-        app.wait_until_gone("short");
-        app.wait_for_text("→ 日本 ☀");
-        app.pump(Duration::from_millis(300));
-        assert_replaced(
+        wait_for_replaced(
             app,
             drawn,
             &format!("{}🌅🌅🌅{}", " ".repeat(6), " ".repeat(6)),
@@ -1764,14 +1904,13 @@ app:
         );
     }
 
-    /// Runs boxmux on [`LINKS`] until `shown` is on the screen.
+    /// Runs boxmux on [`LINKS`] until `shown` is on the screen, in a whole frame: the rest of
+    /// the box it is in is drawn too.
     fn start(shown: &str) -> (Fixture, LiveBoxMux) {
         let fixture = Fixture::new();
         let config = fixture.write_config(LINKS);
         let mut app = LiveBoxMux::spawn(&fixture, &config);
         app.wait_for_text(shown);
-        // Let the last frames arrive.
-        app.pump(Duration::from_millis(300));
         (fixture, app)
     }
 
@@ -1944,24 +2083,11 @@ impl LiveBoxMux {
     /// Waits until the screen shows the handlebar laid out for the terminal's size, Needs you
     /// `needs` rows tall (see [`handlebar_problems`]).
     fn wait_for_handlebar(&mut self, needs: usize) {
-        let start = Instant::now();
-        loop {
-            self.pump(Duration::from_millis(30));
-            let problems = handlebar_problems(&self.screen, needs);
-            if problems.is_empty() {
-                return;
-            }
-            if start.elapsed() >= TIMEOUT {
-                let size = (self.screen.width, self.screen.height);
-                panic!(
-                    "the handlebar is not laid out for {}x{}:\n{}\n{}",
-                    size.0,
-                    size.1,
-                    problems.join("\n"),
-                    self.report()
-                );
-            }
-        }
+        let what = format!(
+            "the handlebar laid out for {}x{}",
+            self.screen.width, self.screen.height
+        );
+        self.wait_for_screen(&what, |screen| handlebar_problems(screen, needs));
     }
 }
 

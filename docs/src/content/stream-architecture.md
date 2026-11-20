@@ -169,7 +169,9 @@ The loop takes the next event (or wakes up on time for a due refresh, an expirin
 pending frame), handles it and any others already waiting, starts box scripts whose refresh
 is due, and draws a frame if something changed. Frames are drawn at most once per
 `--frame-delay` milliseconds (30 by default), and only the cells that changed are written to
-the terminal.
+the terminal. Each frame is written as one synchronized update (DEC private mode 2026): a
+terminal that supports them, such as WezTerm, kitty or foot, shows a frame only once all of it
+has come, so it never draws one half written. Other terminals ignore the mode.
 
 Because only this thread touches the state, control commands, key presses and script output
 are applied one after another, in the order they arrive.

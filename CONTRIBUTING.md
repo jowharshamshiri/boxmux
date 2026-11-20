@@ -94,7 +94,13 @@ cargo test render::             # one module
 - `src/runtime/tests.rs` runs the real runtime against an in-memory display: configuration in,
   keyboard and mouse events in, frames out, with real scripts.
 - `tests/live_ux.rs` runs the `boxmux` binary in a pseudo-terminal (ConPTY on Windows) and drives
-  it with keys and mouse sequences.
+  it with keys and mouse sequences. It reads the screen back through a small terminal emulator
+  that shows each synchronized update whole, as WezTerm does, however the pseudo-terminal splits
+  the output into reads. A test checks what boxmux shows or wrote only once it has waited for
+  that whole state (`wait_for_text`, `wait_until`, `wait_for_screen`, `wait_for_exit`, which
+  reads until the output ends), never after a fixed time: how soon output arrives, and in what
+  pieces, differs between machines and with their load. Only a check that something does not
+  happen waits a fixed time.
 
 ### Cross-platform runs with mg-test
 

@@ -64,10 +64,12 @@ impl Drop for TerminalDisplay {
     }
 }
 
-/// Leaves full-screen mode: shows the cursor, stops mouse capture, leaves the alternate screen
-/// and raw mode. Safe to call more than once.
+/// Leaves full-screen mode: ends a synchronized update a frame left open (when a panic stopped
+/// it), shows the cursor, stops mouse capture, leaves the alternate screen and raw mode. Safe to
+/// call more than once.
 pub fn restore_terminal() {
     let mut out = io::stdout();
+    let _ = crossterm::execute!(out, terminal::EndSynchronizedUpdate);
     #[cfg(unix)]
     let _ = crossterm::execute!(out, event::DisableBracketedPaste);
     let _ = crossterm::execute!(
@@ -216,11 +218,17 @@ impl Display for TerminalDisplay {
         terminal::size()
     }
 
+    /// Writes the frame as one synchronized update (DEC private mode 2026): a terminal that
+    /// supports them, such as WezTerm, kitty or foot, shows none of it until all of it has come,
+    /// so it never draws a frame half written, however the frame is split on its way. Other
+    /// terminals ignore the mode.
     fn present(&mut self, frame: &ScreenBuffer, previous: Option<&ScreenBuffer>) -> io::Result<()> {
+        queue!(self.out, terminal::BeginSynchronizedUpdate)?;
         write_frame(&mut self.out, frame, previous)?;
         queue!(
             self.out,
-            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset)
+            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset),
+            terminal::EndSynchronizedUpdate
         )?;
         self.out.flush()
     }
