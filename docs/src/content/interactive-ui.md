@@ -89,7 +89,7 @@ app:
 
 ## Menus
 
-A box with `choices` shows them as a menu. The selected entry is marked with `►` and drawn in the selected-menu colors (`selected_menu_fg_color`, `selected_menu_bg_color`).
+A box with `choices` shows them as a menu. The selected entry is marked with `►` and drawn in the selected-menu colors (`selected_menu_fg_color`, `selected_menu_bg_color`). An entry can carry colors of its own, for example to show its priority: see [Choice Colors](/docs/configuration#choice-colors).
 
 - Up and Down move the selection, wrapping at the ends, and scroll the menu to keep it in view.
 - Enter runs the selected entry. Clicking an entry selects and runs it. Only the label is clickable, not the empty space after it.

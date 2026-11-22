@@ -104,6 +104,15 @@ Menus have three pairs:
 | `selected_menu_fg_color`, `selected_menu_bg_color` | The selected entry, marked `►`, which Enter runs. |
 | `highlighted_menu_fg_color`, `highlighted_menu_bg_color` | The entry under the mouse pointer. Tabs under the pointer use these colors too. |
 
+A choice can carry its own colors, which win over the box's menu colors for that entry:
+
+| Choice setting | Applies to | Default |
+|----------------|------------|---------|
+| `fg_color`, `bg_color` | The entry, when it is not selected | `menu_fg_color`, `menu_bg_color` |
+| `selected_fg_color`, `selected_bg_color` | The entry, while it is the selected entry | `selected_menu_fg_color`, `selected_menu_bg_color` |
+
+Each color a choice leaves out comes from the box, color by color. A choice's plain colors never stand in for its selected ones, so the selected entry stays marked, and the entry under the mouse pointer always uses the box's hover colors. [Choice Colors](/docs/configuration#choice-colors) has an example.
+
 When a box has tabs, the titles of the tabs that are not visible use the title colors.
 
 ### Basic Box Appearance
@@ -154,6 +163,9 @@ For each element, BoxMux tries the settings of the box's states in a fixed order
 | Title, error state | `error_selected_title_*` (focused), `error_title_*`, `bright_white` on `red` |
 | Title, otherwise | `selected_title_*` (focused), `highlighted_title_*` (pointer), `title_*`, the box's text and background |
 | Fill character | `selected_fill_char` (focused), `highlighted_fill_char` (pointer), `fill_char`, a space |
+| Menu entry under the pointer | `highlighted_menu_*`, the theme's hover colors |
+| Selected menu entry | the choice's `selected_*`, `selected_menu_*`, the theme's selected-entry colors |
+| Other menu entries | the choice's `fg_color` and `bg_color`, `menu_*`, the box's text and background |
 
 Two consequences:
 

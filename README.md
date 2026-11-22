@@ -213,7 +213,8 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
   operating system's file watching rather than polling; `follow: true` keeps to the end of a
   growing log.
 - **Menus**: `choices` run their scripts with Enter or a click; a choice's output opens in a tab of its own, beside the menu.
-  A choice can ask for confirmation first (`confirm`), with its own text and answers.
+  A choice can ask for confirmation first (`confirm`), with its own text and answers, and can
+  carry its own colors, selected and not, to show its priority or kind.
   `hot_keys` bind keys to choices, and `on_keypress` binds keys to scripts at app, layout or
   box level.
 - **Tabs**: a box with several outputs (its content, its file, its script output, menu runs,

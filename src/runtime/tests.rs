@@ -2067,3 +2067,187 @@ fn file_boxes_added_replaced_and_removed_through_the_socket_watch_their_files() 
         "the removed boxes' watches are ended"
     );
 }
+
+use crate::model::appearance::ColorName;
+use crate::render::screen::Color;
+use crate::render::theme::palette;
+
+/// A queue of items whose choices carry colors of their own, by priority, and one that does not.
+const COLORED_MENU: &str = r#"
+app:
+  layouts:
+    - id: main
+      root: true
+      children:
+        - id: queue
+          title: Queue
+          position: {x1: "0", y1: "0", x2: "39", y2: "9"}
+          tab_order: 1
+          choices:
+            - id: urgent
+              content: Urgent item
+              fg_color: bright_red
+              bg_color: black
+              selected_fg_color: black
+              selected_bg_color: bright_red
+            - id: review
+              content: Review item
+              fg_color: yellow
+              bg_color: blue
+              selected_fg_color: blue
+              selected_bg_color: yellow
+            - id: plain
+              content: Plain item
+"#;
+
+/// The text and background colors of the cells of `text` on screen and of the two cells of the
+/// entry's marker before it, which every cell of them must share.
+fn colors_of(runtime: &Runtime<MemoryDisplay>, text: &str) -> (Color, Color) {
+    let (x, y) = find(runtime, text);
+    let frame = runtime.display.frame.as_ref().expect("a frame was drawn");
+    let start = x as usize - 2;
+    let cells: Vec<(Color, Color)> = (start..x as usize + text.chars().count())
+        .map(|column| {
+            let cell = frame
+                .get(column, y as usize)
+                .expect("the cell is on screen");
+            (cell.style.fg, cell.style.bg)
+        })
+        .collect();
+    assert!(
+        cells.iter().all(|colors| *colors == cells[0]),
+        "every cell of '{}' and its marker has the same colors: {:?}",
+        text,
+        cells
+    );
+    cells[0]
+}
+
+fn named(fg: ColorName, bg: ColorName) -> (Color, Color) {
+    (fg.color(), bg.color())
+}
+
+#[test]
+fn each_choice_is_drawn_in_its_own_colors_selected_and_not() {
+    let mut runtime = runtime(COLORED_MENU, 40, 10);
+    let theme = palette();
+    let selected = (theme.menu_selected.fg, theme.menu_selected.bg);
+    let plain = (theme.fg, theme.bg);
+
+    assert_eq!(
+        colors_of(&runtime, "Urgent item"),
+        named(ColorName::Black, ColorName::BrightRed),
+        "the selected entry in its selected colors"
+    );
+    assert_eq!(
+        colors_of(&runtime, "Review item"),
+        named(ColorName::Yellow, ColorName::Blue)
+    );
+    assert_eq!(
+        colors_of(&runtime, "Plain item"),
+        plain,
+        "an entry without colors of its own in the box's"
+    );
+
+    runtime.handle(key(KeyCode::Down, KeyModifiers::NONE));
+    runtime.render();
+    assert_eq!(
+        colors_of(&runtime, "Urgent item"),
+        named(ColorName::BrightRed, ColorName::Black)
+    );
+    assert_eq!(
+        colors_of(&runtime, "Review item"),
+        named(ColorName::Blue, ColorName::Yellow)
+    );
+
+    runtime.handle(key(KeyCode::Down, KeyModifiers::NONE));
+    runtime.render();
+    assert_eq!(
+        colors_of(&runtime, "Review item"),
+        named(ColorName::Yellow, ColorName::Blue)
+    );
+    assert_eq!(
+        colors_of(&runtime, "Plain item"),
+        selected,
+        "the selected entry without colors of its own in the box's selected colors"
+    );
+
+    // The entry under the pointer shows the box's hover colors, as every entry does.
+    let at = find(&runtime, "Urgent item");
+    runtime.handle(mouse(MouseEventKind::Moved, at.0, at.1));
+    runtime.render();
+    assert_eq!(
+        colors_of(&runtime, "Urgent item"),
+        (theme.menu_hovered.fg, theme.menu_hovered.bg)
+    );
+}
+
+#[test]
+fn a_choice_without_its_selected_colors_is_drawn_selected_in_the_box_selected_colors() {
+    // A choice's selected colors stand for the selection mark, as the box's do: its plain colors
+    // never mark it selected.
+    let yaml = COLORED_MENU
+        .replace("              selected_fg_color: black\n", "")
+        .replace("              selected_bg_color: bright_red\n", "");
+    let runtime = runtime(&yaml, 40, 10);
+    let theme = palette();
+    assert_eq!(
+        colors_of(&runtime, "Urgent item"),
+        (theme.menu_selected.fg, theme.menu_selected.bg)
+    );
+}
+
+#[test]
+fn the_colors_of_a_choice_change_on_a_running_layout_through_the_socket() {
+    let mut runtime = runtime(COLORED_MENU, 40, 10);
+    // A request as a client writes it on the socket, read as the server reads it.
+    let request = serde_json::json!({
+        "command": "replace_box",
+        "box_id": "queue",
+        "new_box": {
+            "id": "queue",
+            "title": "Queue",
+            "position": {"x1": "0", "y1": "0", "x2": "39", "y2": "9"},
+            "tab_order": 1,
+            "choices": [
+                {"id": "urgent", "content": "Urgent item",
+                 "fg_color": "magenta", "bg_color": "white",
+                 "selected_fg_color": "bright_white", "selected_bg_color": "magenta"},
+                {"id": "review", "content": "Review item",
+                 "fg_color": "green", "bg_color": "black"},
+                {"id": "plain", "content": "Plain item", "fg_color": "cyan"}
+            ]
+        }
+    })
+    .to_string();
+    let function: SocketFunction = serde_json::from_str(&request).unwrap();
+    let reply = runtime.handle_socket(function);
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+
+    let theme = palette();
+    assert_eq!(
+        colors_of(&runtime, "Urgent item"),
+        named(ColorName::BrightWhite, ColorName::Magenta)
+    );
+    assert_eq!(
+        colors_of(&runtime, "Review item"),
+        named(ColorName::Green, ColorName::Black)
+    );
+    assert_eq!(
+        colors_of(&runtime, "Plain item"),
+        (ColorName::Cyan.color(), theme.bg),
+        "a color the choice leaves out comes from the box"
+    );
+
+    // A color that is not a color name is refused, naming the field, and nothing changes.
+    let request = request.replace("\"green\"", "\"crimson\"");
+    let error = serde_json::from_str::<SocketFunction>(&request)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("fg_color"), "{error}");
+    assert_eq!(
+        colors_of(&runtime, "Review item"),
+        named(ColorName::Green, ColorName::Black)
+    );
+}

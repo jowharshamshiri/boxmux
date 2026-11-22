@@ -123,6 +123,9 @@ The new box takes the old one's place and focus. It replaces everything: repeat 
 position, colors and `tab_order`, since nothing is kept from the old box. The example keeps
 its items in one file, a line per item, and `render` in `driver.sh` turns them into choices,
 each marked by kind: `✔` asks for approval, `▶` runs a terminal step, `ℹ` shows details.
+An entry can carry colors of its own as well, such as `"fg_color":"bright_red"` with
+`"selected_bg_color":"bright_red"` for what is urgent, and the replacement sets them as it sets
+the label (see [Choice Colors](/docs/configuration#choice-colors)).
 Keep each entry's text short and put the long text in a details box.
 
 Replace a menu only when its entries change: the replacement moves the person's selection

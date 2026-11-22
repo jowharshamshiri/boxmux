@@ -395,8 +395,7 @@ mod tests {
             redirect_output: None,
             append_output: None,
             execution_mode: ExecutionMode::default(),
-            selected: false,
-            waiting: false,
+            ..Choice::default()
         }
     }
 

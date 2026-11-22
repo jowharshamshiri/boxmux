@@ -206,6 +206,22 @@
         "append_output": {
           "type": "boolean",
           "description": "Whether to append choice output or replace"
+        },
+        "fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "The entry's text color (default: the box's menu_fg_color)"
+        },
+        "bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "The entry's background (default: the box's menu_bg_color)"
+        },
+        "selected_fg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "The entry's text color while it is the selected entry (default: the box's selected_menu_fg_color)"
+        },
+        "selected_bg_color": {
+          "$ref": "#/definitions/color_name",
+          "description": "The entry's background while it is the selected entry (default: the box's selected_menu_bg_color)"
         }
       },
       "required": [

@@ -7,9 +7,14 @@
 //! whose visible tab failed the `error_*` ones (`error_selected_*` when it is also focused).
 //! A state-specific setting falls back to the plain setting, except where the theme marks the
 //! state itself: the focused border and the error border and title.
+//!
+//! A menu entry is drawn in the box's menu colors, or in its selected-entry colors when it is
+//! the selected entry; a choice's own colors for its state win over the box's, color by color.
+//! The entry under the pointer is always drawn in the box's hover colors.
 
 use super::screen::{Color, Style};
 use crate::model::appearance::{ColorName, Overflow, TitlePosition};
+use crate::model::choice::Choice;
 use crate::model::layout::Layout;
 use crate::model::muxbox::MuxBox;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -311,6 +316,26 @@ impl BoxStyle {
             filled: setting!(scope, fill).unwrap_or(true),
             overflow: setting!(scope, overflow_behavior).unwrap_or_default(),
             title_position: setting!(scope, title_position).unwrap_or_default(),
+        }
+    }
+
+    /// The colors of menu entry `choice`, selected or not, under no pointer: its own colors for
+    /// that state, each left out one the box's. A choice's plain colors never stand in for its
+    /// selected ones, so the selected entry stays marked.
+    pub fn choice(&self, choice: &Choice, selected: bool) -> Style {
+        let (base, fg, bg) = if selected {
+            (
+                self.menu_selected,
+                choice.selected_fg_color,
+                choice.selected_bg_color,
+            )
+        } else {
+            (self.menu, choice.fg_color, choice.bg_color)
+        };
+        Style {
+            fg: fg.map_or(base.fg, ColorName::color),
+            bg: bg.map_or(base.bg, ColorName::color),
+            ..base
         }
     }
 }

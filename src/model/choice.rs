@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::appearance::ColorName;
 use crate::model::common::{deserialize_script, ExecutionMode};
 
 /// An entry of a box's menu: a label and the script it runs when activated.
@@ -18,6 +19,16 @@ pub struct Choice {
     pub append_output: Option<bool>,
     #[serde(default)]
     pub execution_mode: ExecutionMode,
+    /// The entry's text color in the menu; the box's menu text color when left out.
+    pub fg_color: Option<ColorName>,
+    /// The entry's background in the menu; the box's menu background when left out.
+    pub bg_color: Option<ColorName>,
+    /// The entry's text color while it is the selected entry; the box's selected-entry text
+    /// color when left out, so the selection stays marked.
+    pub selected_fg_color: Option<ColorName>,
+    /// The entry's background while it is the selected entry; the box's selected-entry
+    /// background when left out.
+    pub selected_bg_color: Option<ColorName>,
     /// The entry Enter activates. Runtime state.
     #[serde(skip)]
     pub selected: bool,

@@ -514,9 +514,7 @@ mod tests {
             confirm: None,
             redirect_output: None,
             append_output: None,
-            execution_mode: Default::default(),
-            selected: false,
-            waiting: false,
+            ..Default::default()
         }]);
         nested.initialize_streams();
         let layout = layout(vec![muxbox("p", None, Some(vec![nested]))]);

@@ -318,6 +318,8 @@ Choices make a menu inside a box.
 | `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
 | `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
 | `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
+| `fg_color`, `bg_color` | color name | No | the box's menu colors | The entry's own text and background colors: see [Choice Colors](#choice-colors). |
+| `selected_fg_color`, `selected_bg_color` | color name | No | the box's selected-entry colors | The entry's own colors while it is the selected entry. |
 
 Up and Down move the selection (marked with `►`) and wrap around. Enter, or a click on a label, runs the selected choice. While the script runs, the label ends with ` …`. Activating a choice that is still running does not start it again.
 
@@ -325,6 +327,37 @@ What a choice's run shows depends on its `execution_mode`:
 
 - `Immediate` and `Thread`: the output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box, when the script first prints something (an `Immediate` script prints when it ends). The tab opens beside the others and does not take the box's view: click it to see the output. A script that prints nothing opens no tab, and the box keeps showing what it showed; if it fails, a notice at the bottom of the screen says so.
 - `Pty`: the choice's terminal opens in its own tab when the choice starts and is shown at once, since it takes the keyboard. Activating the choice while its program runs shows the terminal again.
+
+### Choice Colors
+
+Each entry can carry colors of its own, so a menu shows each item's priority or kind at a glance. They take the [color names](#color-names) the box colors take.
+
+| Property | The entry | Default |
+|----------|-----------|---------|
+| `fg_color` | Text, when the entry is not selected | the box's `menu_fg_color` |
+| `bg_color` | Background, when the entry is not selected | the box's `menu_bg_color` |
+| `selected_fg_color` | Text, while it is the selected entry (marked `►`) | the box's `selected_menu_fg_color` |
+| `selected_bg_color` | Background, while it is the selected entry | the box's `selected_menu_bg_color` |
+
+Each color the entry leaves out comes from the box for that state, so an entry without colors of its own looks as every entry of the box does. An entry's `fg_color` and `bg_color` are never used for the selected entry: give it `selected_fg_color` and `selected_bg_color` too, or it is drawn in the box's selected-entry colors when selected, which keeps the selection visible. The entry under the mouse pointer is drawn in the box's hover colors (`highlighted_menu_fg_color`, `highlighted_menu_bg_color`), whatever its own. SGR color sequences in the entry's `content` still color the text they cover.
+
+```yaml
+choices:
+  - id: outage
+    content: 'Database is down'
+    fg_color: bright_red
+    selected_fg_color: black
+    selected_bg_color: bright_red
+  - id: review
+    content: 'Review the release notes'
+    fg_color: yellow
+    selected_fg_color: black
+    selected_bg_color: yellow
+  - id: docs
+    content: 'Read the guide'
+```
+
+To change an entry's colors on a running interface, replace its box over the control socket with `replace_box`, as for its label: see [Replace a menu when its entries change](/docs/live-control-panel#replace-a-menu-when-its-entries-change).
 
 ### Confirmation
 
@@ -619,7 +652,7 @@ Boxes and layouts accept the same color settings:
 | Title text | `title_fg_color` | `selected_title_fg_color` | `highlighted_title_fg_color` | `error_title_fg_color` | `error_selected_title_fg_color` |
 | Title background | `title_bg_color` | `selected_title_bg_color` | `highlighted_title_bg_color` | `error_title_bg_color` | `error_selected_title_bg_color` |
 
-Menu entries have their own settings: `menu_fg_color` and `menu_bg_color` for entries, `selected_menu_fg_color` and `selected_menu_bg_color` for the selected entry (the one Enter runs), and `highlighted_menu_fg_color` and `highlighted_menu_bg_color` for the entry under the mouse pointer.
+Menu entries have their own settings: `menu_fg_color` and `menu_bg_color` for entries, `selected_menu_fg_color` and `selected_menu_bg_color` for the selected entry (the one Enter runs), and `highlighted_menu_fg_color` and `highlighted_menu_bg_color` for the entry under the mouse pointer. A choice can set its own `fg_color`, `bg_color`, `selected_fg_color` and `selected_bg_color`, which win over the box's for that entry: see [Choice Colors](#choice-colors).
 
 A box is in the error state when its visible tab's last run failed.
 

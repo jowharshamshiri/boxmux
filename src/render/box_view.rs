@@ -299,11 +299,7 @@ impl BoxView {
                 .enumerate()
                 .map(|(index, choice)| {
                     let selected = spec.selected_choice == Some(index);
-                    let item_style = if selected {
-                        style.menu_selected
-                    } else {
-                        style.menu
-                    };
+                    let item_style = style.choice(choice, selected);
                     let marker = if selected { "► " } else { "  " };
                     let label = choice.content.as_deref().unwrap_or(&choice.id);
                     let waiting = if choice.waiting { " …" } else { "" };
