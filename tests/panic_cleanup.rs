@@ -12,14 +12,20 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// The scripts sleep long enough that one still running when it is checked was not killed.
-/// The PTY script ignores the hangup it gets when its terminal closes with the child, which
-/// would otherwise end it without any cleanup; it says when it is ready.
+/// How long the test waits for something a script does (getting ready, going away) before it
+/// calls it hung and fails, naming what it waited for. It bounds a hang, not the work: on a
+/// machine loaded well past its cores starting one process can take seconds. The scripts sleep
+/// longer than this, so one still running when the bound passes was not killed.
+const HANG_BOUND: Duration = Duration::from_secs(120);
+
+/// The scripts sleep longer than the hang bound. The PTY script ignores the hangup it gets when
+/// its terminal closes with the child, which would otherwise end it without any cleanup; it says
+/// when it is ready.
 #[cfg(unix)]
-const PTY_SCRIPT: &str = "trap '' HUP; echo ready; sleep 300";
+const PTY_SCRIPT: &str = "trap '' HUP; echo ready; sleep 600";
 #[cfg(windows)]
-const PTY_SCRIPT: &str = "echo ready; Start-Sleep 300";
-const PIPED_SCRIPT: &str = "sleep 300";
+const PTY_SCRIPT: &str = "echo ready; Start-Sleep 600";
+const PIPED_SCRIPT: &str = "sleep 600";
 
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("child") {
@@ -58,7 +64,7 @@ fn child() {
             .start(spec, "out".to_string())
             .expect("the script starts");
     }
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + HANG_BOUND;
     while !executor.runs().any(|(_, run)| {
         run.pty()
             .is_some_and(|pty| pty.snapshot().lines.iter().any(|l| l.contains("ready")))
@@ -98,7 +104,7 @@ fn parent() {
     assert_eq!(status.code(), Some(101), "the child ends with a panic");
     assert_eq!(pids.len(), 2, "the child reports both scripts: {:?}", line);
 
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + HANG_BOUND;
     let survivors = loop {
         let survivors: Vec<u32> = pids.iter().copied().filter(|&pid| running(pid)).collect();
         if survivors.is_empty() || Instant::now() > deadline {

@@ -101,6 +101,12 @@ cargo test render::             # one module
   reads until the output ends), never after a fixed time: how soon output arrives, and in what
   pieces, differs between machines and with their load. Only a check that something does not
   happen waits a fixed time.
+- Every test waits on the event it checks: a script's output or exit, a terminal's screen, a
+  process going away. A wait fails only when its hang bound passes (two minutes: `HANG_BOUND`
+  in `src/tests/mod.rs` and `tests/panic_cleanup.rs`, `TIMEOUT` in `tests/live_ux.rs`), and says
+  what it waited for. The bound catches a hang, not a slow machine: a loaded machine can take
+  seconds to start one process. A program a test needs running sleeps ten minutes, longer than
+  the bound, so only being stopped ends it while the test looks.
 
 ### Cross-platform runs with mg-test
 

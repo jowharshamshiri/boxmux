@@ -5,6 +5,7 @@ use super::display::MemoryDisplay;
 use super::event::Event;
 use super::Runtime;
 use crate::model::app::{load_app_from_str, AppContext};
+use crate::tests::HANG_BOUND;
 use crate::Config;
 use crossterm::event::{
     Event as TermEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -21,14 +22,13 @@ fn runtime(yaml: &str, cols: u16, rows: u16) -> Runtime<MemoryDisplay> {
     runtime
 }
 
-/// Handles events and ticks until `done` holds, failing after five seconds.
+/// Handles events and ticks until `done` holds, failing as hung after the hang bound.
 fn pump_until(
     runtime: &mut Runtime<MemoryDisplay>,
     what: &str,
     done: impl Fn(&Runtime<MemoryDisplay>) -> bool,
 ) {
-    // PowerShell takes seconds to start on a cold Windows machine.
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + HANG_BOUND;
     loop {
         while let Ok(event) = runtime.events.recv_timeout(Duration::from_millis(5)) {
             runtime.handle(event);
@@ -98,11 +98,14 @@ const FAIL_LOUDLY: &str = "['echo broken >&2', 'exit 3']";
 #[cfg(windows)]
 const FAIL_LOUDLY: &str = "['[Console]::Error.WriteLine(\"broken\")', 'exit 3']";
 
-/// Prints `started`, then waits on two child processes for 30 seconds.
+/// Prints `started`, then waits on two child processes. Scripts and terminal programs that a
+/// test needs running wait for 600 seconds, longer than any wait of a test ([`HANG_BOUND`]),
+/// so only being stopped ends them while the test looks; the executor stops them when the
+/// test ends.
 #[cfg(unix)]
-const LONG_RUNNING: &str = "['echo started', 'sleep 30 & sleep 30']";
+const LONG_RUNNING: &str = "['echo started', 'sleep 600 & sleep 600']";
 #[cfg(windows)]
-const LONG_RUNNING: &str = "['echo started', 'Start-Sleep 30']";
+const LONG_RUNNING: &str = "['echo started', 'Start-Sleep 600']";
 
 fn menu() -> String {
     MENU.replace("FAIL_LOUDLY", FAIL_LOUDLY)
@@ -365,9 +368,9 @@ fn a_choice_that_prints_late_opens_its_tab_then_without_taking_focus() {
 
 /// Prints `term up`, then waits.
 #[cfg(unix)]
-const TERMINAL_UP: &str = "['echo term up', 'sleep 5']";
+const TERMINAL_UP: &str = "['echo term up', 'sleep 600']";
 #[cfg(windows)]
-const TERMINAL_UP: &str = "['echo \"term up\"', 'Start-Sleep 5']";
+const TERMINAL_UP: &str = "['echo \"term up\"', 'Start-Sleep 600']";
 
 #[test]
 fn a_terminal_choice_opens_and_shows_its_terminal_when_started() {
@@ -704,11 +707,11 @@ app:
         - id: streaming
           position: {x1: "0", y1: "0", x2: "39", y2: "4"}
           execution_mode: Thread
-          script: ['echo slow-started', 'sleep 30']
+          script: ['echo slow-started', 'sleep 600']
         - id: waiting
           position: {x1: "0", y1: "5", x2: "39", y2: "9"}
           execution_mode: Immediate
-          script: ['sleep 30']
+          script: ['sleep 600']
         - id: counter
           position: {x1: "40", y1: "0", x2: "79", y2: "9"}
           refresh_interval: 50
@@ -811,7 +814,7 @@ app:
         // The script and both of its background children are killed and reaped: nothing is
         // left in the process group.
         let group = pids[0] as i32;
-        let deadline = Instant::now() + Duration::from_secs(2);
+        let deadline = Instant::now() + HANG_BOUND;
         while unsafe { libc::kill(-group, 0) } == 0 {
             assert!(
                 Instant::now() < deadline,
@@ -852,10 +855,10 @@ fn every_shipped_layout_renders_at_any_screen_size() {
 
 /// Prints an OSC 52 clipboard write of "hi" (base64 `aGk=`), then waits.
 #[cfg(unix)]
-const COPY_HI: &str = r#"["printf '\\033]52;c;aGk=\\007copied'", "sleep 5"]"#;
+const COPY_HI: &str = r#"["printf '\\033]52;c;aGk=\\007copied'", "sleep 600"]"#;
 #[cfg(windows)]
 const COPY_HI: &str =
-    r#"["Write-Host -NoNewline \"$([char]27)]52;c;aGk=$([char]7)copied\"", "Start-Sleep 5"]"#;
+    r#"["Write-Host -NoNewline \"$([char]27)]52;c;aGk=$([char]7)copied\"", "Start-Sleep 600"]"#;
 
 #[test]
 fn a_terminal_program_can_copy_to_the_clipboard() {
@@ -944,7 +947,7 @@ app:
             - printf '\033[?2004{}ready\n'
             - read -r line
             - printf 'got[%s]\n' "$line" | cat -v
-            - sleep 5
+            - sleep 600
 "#,
         mode
     );
@@ -1355,12 +1358,13 @@ app:
         "runs not stopped by replacing their boxes: {:?}",
         not_stopped
     );
-    // Stopped, they end at once, well within their sleep.
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // Stopped, they end well within their sleep.
+    let deadline = Instant::now() + HANG_BOUND;
     while runtime.executor.runs().count() > 0 {
         assert!(
             Instant::now() < deadline,
-            "runs still under way 5 s after their boxes were replaced"
+            "runs still under way {:?} after their boxes were replaced",
+            HANG_BOUND
         );
         while let Ok(event) = runtime.events.recv_timeout(Duration::from_millis(5)) {
             runtime.handle(event);
@@ -1369,7 +1373,7 @@ app:
     #[cfg(unix)]
     for pid in pids {
         // Nothing is left in either run's process group.
-        let deadline = Instant::now() + Duration::from_secs(2);
+        let deadline = Instant::now() + HANG_BOUND;
         while unsafe { libc::kill(-(pid as i32), 0) } == 0 {
             assert!(
                 Instant::now() < deadline,
@@ -1383,9 +1387,9 @@ app:
 
 /// A terminal program that runs until it is stopped.
 #[cfg(unix)]
-const LONG_TERMINAL: &str = "sleep 30";
+const LONG_TERMINAL: &str = "sleep 600";
 #[cfg(windows)]
-const LONG_TERMINAL: &str = "Start-Sleep 30";
+const LONG_TERMINAL: &str = "Start-Sleep 600";
 
 #[test]
 fn a_terminal_for_a_box_in_no_layout_is_refused_naming_the_box() {
@@ -1821,25 +1825,23 @@ app:
 }
 
 /// Waits for the next events, handles them and draws the frame they make, until `done` holds.
-/// Only events wake it: it fails if nothing is reported for five seconds, so what it waits for
-/// must come from the platform's file watching, not from a timer.
+/// Only events wake it, never a timer, so what it waits for must come from the platform's file
+/// watching; it fails when the hang bound passes first.
 fn pump_events_until(
     runtime: &mut Runtime<MemoryDisplay>,
     what: &str,
     done: impl Fn(&Runtime<MemoryDisplay>) -> bool,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + HANG_BOUND;
     while !done(runtime) {
-        let event = runtime
-            .events
-            .recv_timeout(Duration::from_secs(5))
-            .unwrap_or_else(|_| {
-                panic!(
-                    "nothing was reported while waiting for {}; screen:\n{}",
-                    what,
-                    runtime.display.rows().join("\n")
-                )
-            });
+        let event = runtime.events.recv_deadline(deadline).unwrap_or_else(|_| {
+            panic!(
+                "nothing was reported for {:?} while waiting for {}; screen:\n{}",
+                HANG_BOUND,
+                what,
+                runtime.display.rows().join("\n")
+            )
+        });
         runtime.handle(event);
         while let Ok(event) = runtime.events.try_recv() {
             runtime.handle(event);

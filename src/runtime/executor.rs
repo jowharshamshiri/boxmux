@@ -336,9 +336,11 @@ fn exit_signal(_status: &std::process::ExitStatus) -> i32 {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use crossbeam_channel::unbounded;
+    use crate::tests::HANG_BOUND;
+    use crossbeam_channel::{unbounded, Receiver};
+    use std::time::Instant;
 
-    fn executor() -> (Executor, crossbeam_channel::Receiver<Event>) {
+    fn executor() -> (Executor, Receiver<Event>) {
         let (tx, rx) = unbounded();
         (Executor::new(tx, Shell::Sh, Vec::new(), Vec::new()), rx)
     }
@@ -354,20 +356,112 @@ mod tests {
         }
     }
 
-    fn finished(
-        rx: &crossbeam_channel::Receiver<Event>,
-    ) -> (Vec<String>, Option<String>, RunOutcome) {
+    /// The next event, failing as hung, naming `what` the test waits for, when none comes
+    /// within the hang bound.
+    fn next_event(rx: &Receiver<Event>, what: &str) -> Event {
+        rx.recv_timeout(HANG_BOUND).unwrap_or_else(|_| {
+            panic!(
+                "timed out after {:?} waiting for {}: the run hangs",
+                HANG_BOUND, what
+            )
+        })
+    }
+
+    /// Collects a script run's streamed lines, its collected output and its outcome.
+    fn finished(rx: &Receiver<Event>) -> (Vec<String>, Option<String>, RunOutcome) {
         let mut lines = Vec::new();
         loop {
-            match rx
-                .recv_timeout(Duration::from_secs(10))
-                .expect("run must finish")
-            {
+            match next_event(rx, "the script's end") {
                 Event::Run(RunEvent::Output { text, .. }) => lines.push(text),
                 Event::Run(RunEvent::Finished {
                     output, outcome, ..
                 }) => return (lines, output, outcome),
                 _ => {}
+            }
+        }
+    }
+
+    /// A PTY run watched as the runtime watches it: its terminal is looked at after each update,
+    /// which lets the next update be reported. Each wait ends at what it waits for, and fails,
+    /// naming it, when the run ends without it or `bound` passes without it.
+    struct PtyWatch<'a> {
+        executor: &'a Executor,
+        events: &'a Receiver<Event>,
+        run: RunId,
+        bound: Duration,
+        outcome: Option<RunOutcome>,
+    }
+
+    impl<'a> PtyWatch<'a> {
+        fn new(
+            executor: &'a Executor,
+            events: &'a Receiver<Event>,
+            run: RunId,
+            bound: Duration,
+        ) -> Self {
+            PtyWatch {
+                executor,
+                events,
+                run,
+                bound,
+                outcome: None,
+            }
+        }
+
+        /// What the terminal shows, without colours and other escape codes. Taking it clears
+        /// the session's update flag, so output after it is reported again.
+        fn screen(&self) -> String {
+            let snapshot = self
+                .executor
+                .get(self.run)
+                .expect("the run is known until the test forgets it")
+                .pty()
+                .expect("the run is a PTY run")
+                .snapshot();
+            crate::utils::strip_ansi_codes(&snapshot.lines.join("\n"))
+        }
+
+        /// Waits until the terminal shows `text`, which is `what` the program prints.
+        fn wait_for_text(&mut self, what: &str, text: &str) {
+            let deadline = Instant::now() + self.bound;
+            loop {
+                let shown = self.screen();
+                if shown.contains(text) {
+                    return;
+                }
+                if let Some(outcome) = &self.outcome {
+                    panic!(
+                        "the run ended ({:?}) before {} (\"{}\") was shown; \
+                         its terminal shows:\n{}",
+                        outcome, what, text, shown
+                    );
+                }
+                self.next_until(deadline, what, &shown);
+            }
+        }
+
+        /// Waits until the run has ended and returns how.
+        fn wait_for_end(&mut self) -> RunOutcome {
+            let deadline = Instant::now() + self.bound;
+            loop {
+                if let Some(outcome) = &self.outcome {
+                    return outcome.clone();
+                }
+                let shown = self.screen();
+                self.next_until(deadline, "the run's end", &shown);
+            }
+        }
+
+        fn next_until(&mut self, deadline: Instant, what: &str, shown: &str) {
+            match self.events.recv_deadline(deadline) {
+                Ok(Event::Run(RunEvent::Finished { run, outcome, .. })) if run == self.run => {
+                    self.outcome = Some(outcome)
+                }
+                Ok(_) => {}
+                Err(_) => panic!(
+                    "timed out after {:?} waiting for {}: the run hangs; its terminal shows:\n{}",
+                    self.bound, what, shown
+                ),
             }
         }
     }
@@ -419,18 +513,42 @@ mod tests {
         let (mut ex, rx) = executor();
         let marker = tempfile::NamedTempFile::new().unwrap();
         let path = marker.path().display().to_string();
-        let script = format!("(sleep 30; echo late > '{}') & sleep 30", path);
+        let script = format!(
+            "(sleep 30; echo late > '{}') & echo started; sleep 30",
+            path
+        );
         let id = ex
             .start(spec(&[&script], ExecutionMode::Thread), "s".into())
             .unwrap();
-        std::thread::sleep(Duration::from_millis(200));
+        // The background child is started once the script says so.
+        loop {
+            if let Event::Run(RunEvent::Output { text, .. }) =
+                next_event(&rx, "the script to start its background child")
+            {
+                assert_eq!(text, "started\n");
+                break;
+            }
+        }
         let pgid = ex.get(id).unwrap().pid();
         ex.stop(id);
         let (_, _, outcome) = finished(&rx);
         assert_eq!(outcome, RunOutcome::Signaled(libc::SIGTERM));
-        // Nothing of the process group is left: signal 0 fails with ESRCH.
-        std::thread::sleep(Duration::from_millis(100));
-        assert_eq!(unsafe { libc::killpg(pgid as i32, 0) }, -1);
+        // Nothing of the process group is left once its killed members are reaped: signal 0
+        // then fails with ESRCH.
+        let deadline = Instant::now() + HANG_BOUND;
+        while unsafe { libc::killpg(pgid as i32, 0) } == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "process group {} survived its run's stop for {:?}",
+                pgid,
+                HANG_BOUND
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
         assert_eq!(std::fs::read_to_string(marker.path()).unwrap(), "");
     }
 
@@ -438,7 +556,7 @@ mod tests {
     fn pty_run_renders_terminal_output_and_answers_cursor_queries() {
         let (mut ex, rx) = executor();
         // `dd` waits for the cursor position reply to the DSR query; without a reply the
-        // script would hang until the timeout.
+        // script would hang until the hang bound.
         let id = ex
             .start(
                 spec(
@@ -456,18 +574,32 @@ mod tests {
                 "s".into(),
             )
             .unwrap();
-        let mut finished_outcome = None;
-        while finished_outcome.is_none() {
-            if let Event::Run(RunEvent::Finished { outcome, .. }) = rx
-                .recv_timeout(Duration::from_secs(10))
-                .expect("pty run must finish")
-            {
-                finished_outcome = Some(outcome);
-            }
-        }
-        let snapshot = ex.get(id).unwrap().pty().unwrap().snapshot();
-        let screen = crate::utils::strip_ansi_codes(&snapshot.lines.join("\n"));
-        assert!(screen.contains("hi got:1;3"), "screen was: {}", screen);
-        assert_eq!(finished_outcome, Some(RunOutcome::Exited(0)));
+        let mut watch = PtyWatch::new(&ex, &rx, id, HANG_BOUND);
+        watch.wait_for_text("the run's output", "hi");
+        watch.wait_for_text("the answer to its cursor position query", "hi got:1;3");
+        assert_eq!(watch.wait_for_end(), RunOutcome::Exited(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "timed out after 1s waiting for the run's output: the run hangs")]
+    fn a_wait_on_a_terminal_program_that_never_prints_fails_naming_what_it_waited_for() {
+        let (mut ex, rx) = executor();
+        let id = ex
+            .start(spec(&["exec sleep 30"], ExecutionMode::Pty), "s".into())
+            .unwrap();
+        // The program prints nothing whatever the bound, so a short one is enough.
+        PtyWatch::new(&ex, &rx, id, Duration::from_secs(1)).wait_for_text("the run's output", "hi");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "the run ended (Exited(0)) before the run's output (\"hi\") was shown"
+    )]
+    fn a_wait_on_a_terminal_program_that_ends_without_printing_fails_at_its_end() {
+        let (mut ex, rx) = executor();
+        let id = ex
+            .start(spec(&["exit 0"], ExecutionMode::Pty), "s".into())
+            .unwrap();
+        PtyWatch::new(&ex, &rx, id, HANG_BOUND).wait_for_text("the run's output", "hi");
     }
 }

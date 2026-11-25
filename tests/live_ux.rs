@@ -16,8 +16,12 @@ use unicode_width::UnicodeWidthChar;
 
 const WIDTH: u16 = 100;
 const HEIGHT: u16 = 30;
-// PowerShell can take seconds to start on a cold Windows machine.
-const TIMEOUT: Duration = Duration::from_secs(30);
+/// How long a test waits for something boxmux or a script does before it calls it hung and
+/// fails, naming what it waited for. It bounds a hang, not the work: every wait ends at what it
+/// waits for, while on a machine loaded well past its cores starting one process can take
+/// seconds, and PowerShell takes seconds to start on a cold Windows machine. Programs a test
+/// needs running sleep 600 seconds, longer than this, so only being stopped ends them sooner.
+const TIMEOUT: Duration = Duration::from_secs(120);
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_boxmux")
@@ -682,9 +686,9 @@ app:
         .replace(
             "SCRIPT",
             if cfg!(windows) {
-                r#"'$line = Read-Host "ready>"; Write-Output "got:$line"; Start-Sleep 30'"#
+                r#"'$line = Read-Host "ready>"; Write-Output "got:$line"; Start-Sleep 600'"#
             } else {
-                r#"'printf "ready> "; read line; echo "got:$line"; sleep 30'"#
+                r#"'printf "ready> "; read line; echo "got:$line"; sleep 600'"#
             },
         ),
     );
@@ -829,7 +833,7 @@ app:
         - id: worker
           position: {x1: "0", y1: "0", x2: "40", y2: "10"}
           execution_mode: Thread
-          script: ['sleep 300 & echo $! > markers/child', 'echo started', 'wait']
+          script: ['sleep 600 & echo $! > markers/child', 'echo started', 'wait']
 "#,
     );
     let mut app = LiveBoxMux::spawn(&fixture, &config);
@@ -840,7 +844,7 @@ app:
     let start = Instant::now();
     while unsafe { libc::kill(child, 0) } == 0 {
         assert!(
-            start.elapsed() < Duration::from_secs(3),
+            start.elapsed() < TIMEOUT,
             "the script's child {} survived",
             child
         );
@@ -2007,7 +2011,7 @@ app:
           title: Term
           position: {x1: "0", y1: "10", x2: "21", y2: "16"}
           execution_mode: Pty
-          script: ['printf "go \033]8;id=term;https://example.com/term\033\\\\to 日本 terminals link text\033]8;;\033\\\\ end\n"; sleep 30']
+          script: ['printf "go \033]8;id=term;https://example.com/term\033\\\\to 日本 terminals link text\033]8;;\033\\\\ end\n"; sleep 600']
 "#;
 
     /// The link of each column `text` takes where it is on the screen, and of the column on
