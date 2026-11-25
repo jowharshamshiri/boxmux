@@ -105,7 +105,13 @@ case "$(uname -s)" in
 esac
 [ "$(command -v cargo)" = "$QRUST_HOME/bin/cargo" ] || die "cargo on PATH is $(command -v cargo), not QuickRust's"
 qrust toolchain update --channel stable || die "qrust toolchain update failed"
-qrust gc || die "qrust gc failed"
+if [ "$(uname -s)" = FreeBSD ]; then
+    # A collection needs the list of running processes, which QuickRust reads on Linux, macOS and
+    # Windows only: on FreeBSD it refuses to collect, so the cache is left as it is.
+    echo "QuickRust cannot collect its cache on FreeBSD: it is left as it is"
+else
+    qrust gc || die "qrust gc failed"
+fi
 
 echo "$(qrust --version), $(cargo --version)"
 
