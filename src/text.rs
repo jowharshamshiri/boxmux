@@ -3,13 +3,20 @@
 //! Script output is a stream of bytes meant for a terminal. A box shows it as lines, so each
 //! line is reduced to what a terminal would leave on screen for that line: carriage returns go
 //! back to the start of the line and later text overwrites earlier text (progress bars),
-//! backspace steps back one column, tabs advance to the next 8-column stop, SGR color sequences
-//! are kept, each column keeps the OSC 8 hyperlink ([`crate::link`]) it was written in, and
-//! every other control character or escape sequence is dropped. Columns are counted as
-//! [`crate::width`] says: a wide cluster takes two, a combining mark joins the cluster before
-//! it.
+//! backspace steps back one column, tabs move to the next 8-column stop without writing the
+//! columns they pass, each column keeps the style its SGR sequences gave it ([`apply_sgr`]) and
+//! the OSC 8 hyperlink ([`crate::link`]) it was written in, and every other control character or
+//! escape sequence is dropped. Overwriting a column replaces its text, style and link and leaves
+//! every other column as it was. Columns are counted as [`crate::width`] says: a wide cluster
+//! takes two, a combining mark joins the cluster before it.
+//!
+//! The line comes back as text with SGR sequences where its columns' style changes, starting
+//! from no style: a reset returns to it, as it returns to a box's own colors when drawn.
 
 use crate::link::{self, Link, LinkChange};
+use crate::render::screen::{Attrs, Color, Style};
+use crate::render::styled::apply_sgr;
+use crate::terminal::TermColor;
 use crate::width::{clusters, width, Glyph};
 use std::iter::Peekable;
 use std::str::Chars;
@@ -87,12 +94,12 @@ pub fn read_escape(chars: &mut Peekable<Chars>) -> Escape {
     }
 }
 
-/// One column of a line being rebuilt: the SGR sequences that precede it, what it shows
-/// (`None` for the right half of a two-column cluster) and the hyperlink it was written in.
+/// One column of a line being rebuilt: what it shows (`None` for the right half of a two-column
+/// cluster), the style it was written in and the hyperlink it was written in.
 #[derive(Clone)]
 struct Column {
-    styles: String,
     glyph: Option<Glyph>,
+    style: Style,
     link: Option<Arc<Link>>,
 }
 
@@ -100,8 +107,8 @@ impl Column {
     /// A column nothing was written to.
     fn blank() -> Column {
         Column {
-            styles: String::new(),
             glyph: Some(Glyph::SPACE),
+            style: Style::default(),
             link: None,
         }
     }
@@ -112,8 +119,8 @@ impl Column {
 struct Line {
     columns: Vec<Column>,
     cursor: usize,
-    /// SGR sequences not yet attached to a column.
-    pending_styles: String,
+    /// The style text written now is in.
+    style: Style,
     /// The hyperlink text written now goes in.
     link: Option<Arc<Link>>,
     /// The column of the cluster written last, while the cursor has not been moved since: a
@@ -144,8 +151,10 @@ impl Line {
             self.columns.push(Column::blank());
         }
         self.unsplit(x);
-        self.columns[x].glyph = None;
-        self.columns[x].link = self.columns[x - 1].link.clone();
+        self.columns[x] = Column {
+            glyph: None,
+            ..self.columns[x - 1].clone()
+        };
     }
 
     fn put(&mut self, cluster: &str) {
@@ -171,18 +180,14 @@ impl Line {
             self.columns.push(Column::blank());
         }
         let at = self.cursor;
-        let styles = std::mem::take(&mut self.pending_styles);
         let column = Column {
-            styles,
             glyph: Some(Glyph::new(cluster)),
+            style: self.style,
             link: self.link.clone(),
         };
         if at < self.columns.len() {
             self.unsplit(at);
-            // Overwriting keeps styles attached to the old column so earlier color changes
-            // still take effect.
-            let previous = std::mem::replace(&mut self.columns[at], column);
-            self.columns[at].styles.insert_str(0, &previous.styles);
+            self.columns[at] = column;
         } else {
             self.columns.push(column);
         }
@@ -206,13 +211,14 @@ impl Line {
         self.last = None;
     }
 
-    /// The line as text: its columns with their SGR sequences, and each run of columns of one
-    /// hyperlink inside that link's OSC 8 sequences.
+    /// The line as text: an SGR sequence before each column whose style differs from the one
+    /// before it (the first from no style), and each run of columns of one hyperlink inside that
+    /// link's OSC 8 sequences.
     fn into_text(self, capacity: usize) -> String {
         let mut out = String::with_capacity(capacity);
         let mut open: Option<&Arc<Link>> = None;
+        let mut style = Style::default();
         for column in &self.columns {
-            out.push_str(&column.styles);
             let Some(glyph) = &column.glyph else {
                 continue;
             };
@@ -225,14 +231,72 @@ impl Line {
                 }
                 open = column.link.as_ref();
             }
+            if column.style != style {
+                push_style_change(&mut out, style, column.style);
+                style = column.style;
+            }
             glyph.push_to(&mut out);
         }
         if open.is_some() {
             out.push_str(link::CLOSE);
         }
-        out.push_str(&self.pending_styles);
         out
     }
+}
+
+/// Writes the SGR sequence that changes text in style `from` to style `to`: a reset alone back
+/// to no style, the parameters of `to` alone from no style, and a reset followed by them
+/// otherwise.
+fn push_style_change(out: &mut String, from: Style, to: Style) {
+    let mut params: Vec<String> = Vec::new();
+    if from != Style::default() {
+        params.push("0".into());
+    }
+    for (flag, code) in [
+        (Attrs::BOLD, "1"),
+        (Attrs::DIM, "2"),
+        (Attrs::ITALIC, "3"),
+        (Attrs::UNDERLINE, "4"),
+        (Attrs::BLINK, "5"),
+        (Attrs::REVERSE, "7"),
+        (Attrs::HIDDEN, "8"),
+        (Attrs::STRIKETHROUGH, "9"),
+    ] {
+        if to.attrs.contains(flag) {
+            params.push(code.into());
+        }
+    }
+    params.extend(term_color(to.fg).map(|color| color.sgr(false)));
+    params.extend(term_color(to.bg).map(|color| color.sgr(true)));
+    out.push_str("\u{1b}[");
+    out.push_str(&params.join(";"));
+    out.push('m');
+}
+
+/// The color an SGR sequence selects for `color`; `None` for [`Color::Reset`], no color.
+fn term_color(color: Color) -> Option<TermColor> {
+    let index = match color {
+        Color::Reset => return None,
+        Color::AnsiValue(n) => n,
+        Color::Rgb { r, g, b } => return Some(TermColor::Rgb(r, g, b)),
+        Color::Black => 0,
+        Color::DarkRed => 1,
+        Color::DarkGreen => 2,
+        Color::DarkYellow => 3,
+        Color::DarkBlue => 4,
+        Color::DarkMagenta => 5,
+        Color::DarkCyan => 6,
+        Color::Grey => 7,
+        Color::DarkGrey => 8,
+        Color::Red => 9,
+        Color::Green => 10,
+        Color::Yellow => 11,
+        Color::Blue => 12,
+        Color::Magenta => 13,
+        Color::Cyan => 14,
+        Color::White => 15,
+    };
+    Some(TermColor::Indexed(index))
 }
 
 /// Reduces one line of terminal output (without its newline) to displayable text.
@@ -250,24 +314,12 @@ pub fn sanitize_line(text: &str) -> String {
         match ch {
             '\r' => line.move_to(0),
             '\u{8}' => line.move_to(line.cursor.saturating_sub(1)),
-            '\t' => {
-                // The spaces a tab leaves are no text of a link.
-                let link = line.link.take();
-                for _ in 0..8 - line.cursor % 8 {
-                    line.put(" ");
-                }
-                line.link = link;
-                line.last = None;
-            }
+            '\t' => line.move_to(line.cursor + 8 - line.cursor % 8),
             '\u{1b}' => match read_escape(&mut chars) {
                 Escape::Csi {
                     params,
                     final_char: 'm',
-                } => {
-                    line.pending_styles.push_str("\u{1b}[");
-                    line.pending_styles.push_str(&params);
-                    line.pending_styles.push('m');
-                }
+                } => apply_sgr(&params, &mut line.style, Style::default()),
                 Escape::Osc(body) => match link::parse_osc(&body) {
                     Some(LinkChange::Open(opened)) => line.link = Some(opened),
                     Some(LinkChange::Close) => line.link = None,
@@ -291,6 +343,109 @@ pub fn sanitize_output(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::render::screen::{Attrs, Color, Style};
+    use crate::render::styled::styled_glyphs;
+
+    /// The text of `line` once sanitized, cut where its style changes: each piece with the style
+    /// it is drawn in on a box whose own style is the default.
+    fn styled_runs(line: &str) -> Vec<(String, Style)> {
+        let mut runs: Vec<(String, Style)> = Vec::new();
+        for glyph in styled_glyphs(&sanitize_line(line), Style::default()) {
+            match runs.last_mut() {
+                Some((text, style)) if *style == glyph.style => glyph.glyph.push_to(text),
+                _ => {
+                    let mut text = String::new();
+                    glyph.glyph.push_to(&mut text);
+                    runs.push((text, glyph.style));
+                }
+            }
+        }
+        runs
+    }
+
+    fn fg(fg: Color) -> Style {
+        Style::new(fg, Color::Reset)
+    }
+
+    fn bg(bg: Color) -> Style {
+        Style::new(Color::Reset, bg)
+    }
+
+    fn bold() -> Style {
+        let mut style = Style::default();
+        style.attrs.insert(Attrs::BOLD);
+        style
+    }
+
+    #[test]
+    fn overwriting_after_a_carriage_return_keeps_the_color_of_each_column_it_does_not_write() {
+        assert_eq!(sanitize_line("\u{1b}[31mabc\u{1b}[0m\rX"), "X\u{1b}[31mbc");
+        assert_eq!(
+            styled_runs("\u{1b}[31mabc\u{1b}[0m\rX"),
+            vec![
+                ("X".into(), Style::default()),
+                ("bc".into(), fg(Color::AnsiValue(1)))
+            ]
+        );
+    }
+
+    #[test]
+    fn overwriting_after_a_carriage_return_keeps_the_background_of_each_column_it_does_not_write() {
+        assert_eq!(
+            styled_runs("\u{1b}[44mabc\u{1b}[0m\rX"),
+            vec![
+                ("X".into(), Style::default()),
+                ("bc".into(), bg(Color::AnsiValue(4)))
+            ]
+        );
+    }
+
+    #[test]
+    fn overwriting_after_a_carriage_return_keeps_the_bold_of_each_column_it_does_not_write() {
+        assert_eq!(
+            styled_runs("\u{1b}[1mabc\u{1b}[0m\rX"),
+            vec![("X".into(), Style::default()), ("bc".into(), bold())]
+        );
+    }
+
+    #[test]
+    fn overwriting_text_is_in_the_style_in_force_as_each_column_is_written() {
+        let red = Color::AnsiValue(1);
+        assert_eq!(
+            sanitize_line("abcd\r\u{1b}[31mX\u{1b}[42mY\u{1b}[0m"),
+            "\u{1b}[31mX\u{1b}[0;31;42mY\u{1b}[0mcd"
+        );
+        assert_eq!(
+            styled_runs("abcd\r\u{1b}[31mX\u{1b}[0mY"),
+            vec![("X".into(), fg(red)), ("Ycd".into(), Style::default())]
+        );
+        // Backspace steps back over one column, and overwrites that one alone.
+        assert_eq!(
+            styled_runs("\u{1b}[31mab\u{1b}[0m\u{8}Z"),
+            vec![("a".into(), fg(red)), ("Z".into(), Style::default())]
+        );
+    }
+
+    #[test]
+    fn a_tab_moves_the_cursor_over_columns_without_writing_them() {
+        let red = Color::AnsiValue(1);
+        assert_eq!(
+            styled_runs("\u{1b}[31mabcdefghij\u{1b}[0m\r\tX"),
+            vec![
+                ("abcdefgh".into(), fg(red)),
+                ("X".into(), Style::default()),
+                ("j".into(), fg(red))
+            ]
+        );
+        // Columns a tab moves over past the end of the line are blank, in no style.
+        assert_eq!(
+            styled_runs("a\u{1b}[41m\tb"),
+            vec![
+                ("a       ".into(), Style::default()),
+                ("b".into(), bg(Color::AnsiValue(1)))
+            ]
+        );
+    }
 
     #[test]
     fn carriage_return_overwrites_from_the_line_start() {

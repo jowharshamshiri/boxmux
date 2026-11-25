@@ -307,7 +307,7 @@ Script output keeps its SGR color and style sequences. Boxes show:
 - 256-color (`38;5;N`) and 24-bit (`38;2;R;G;B`) colors.
 - Bold, dim, italic, underline, blink, reverse, hidden and strikethrough.
 
-A reset (`ESC[0m`) returns to the box's own text and background colors. Each line starts in the box's colors; a color set on one line does not continue on the next line. OSC 8 hyperlinks are kept (see [Hyperlinks](#hyperlinks)). Other escape sequences, such as cursor movement, are removed. A carriage return goes back to the start of the line, so progress bars show their last state.
+A reset (`ESC[0m`) returns to the box's own text and background colors. Each line starts in the box's colors; a color set on one line does not continue on the next line. OSC 8 hyperlinks are kept (see [Hyperlinks](#hyperlinks)). Other escape sequences, such as cursor movement, are removed. A carriage return goes back to the start of the line, so progress bars show their last state; text written over part of a line changes the colors of only the columns it covers, as in a terminal.
 
 ```yaml
 - id: log_viewer

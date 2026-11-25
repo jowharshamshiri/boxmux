@@ -130,10 +130,13 @@ script. Both are checked when the file is loaded.
 
 Box `on_keypress` handlers always run in `Thread` mode. Socket spawns always run in `Pty` mode.
 
-Output is cleaned before it is shown: a carriage return goes back to the start of the line
-(later text overwrites earlier text, as progress bars expect), backspace steps back, tabs
-advance to the next 8-column stop, SGR color sequences are kept, and other control characters
-and escape sequences are removed. Invalid UTF-8 is shown with replacement characters.
+Output is cleaned before it is shown, to what a terminal would show of each line: a carriage
+return goes back to the start of the line (later text overwrites earlier text, as progress bars
+expect), backspace steps back, tabs move to the next 8-column stop without writing over the
+columns they pass, SGR color sequences are kept, and other control characters and escape
+sequences are removed. Each column keeps the colors it was written in: text written over part of
+a line replaces only the columns it covers, in the colors in force as it is written, and the
+rest of the line keeps its own. Invalid UTF-8 is shown with replacement characters.
 
 ### append_output
 

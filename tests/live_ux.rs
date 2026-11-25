@@ -944,6 +944,75 @@ struct Link {
     uri: String,
 }
 
+/// A color an SGR sequence selects: an entry of the 256-color palette (the first 16 the basic
+/// and bright colors) or a 24-bit color.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Ink {
+    Indexed(u8),
+    Rgb(u8, u8, u8),
+}
+
+/// What a cell is drawn in, of what SGR sequences set: its colors (`None` the terminal's own)
+/// and whether it is bold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Pen {
+    fg: Option<Ink>,
+    bg: Option<Ink>,
+    bold: bool,
+}
+
+impl Pen {
+    /// Applies the parameters of one SGR sequence, as a terminal does: `0` resets, `1` and `22`
+    /// set and clear bold, and `30`–`49` and `90`–`107` set the colors, `38` and `48` with
+    /// `5;n` or `2;r;g;b`. Every other parameter changes nothing this terminal keeps.
+    fn apply(&mut self, params: &[usize]) {
+        let byte = |k: usize| params.get(k).and_then(|&v| u8::try_from(v).ok());
+        let mut i = 0;
+        while i < params.len() {
+            match params[i] {
+                0 => *self = Pen::default(),
+                1 => self.bold = true,
+                22 => self.bold = false,
+                n @ 30..=37 => self.fg = Some(Ink::Indexed((n - 30) as u8)),
+                n @ 40..=47 => self.bg = Some(Ink::Indexed((n - 40) as u8)),
+                n @ 90..=97 => self.fg = Some(Ink::Indexed((n - 90 + 8) as u8)),
+                n @ 100..=107 => self.bg = Some(Ink::Indexed((n - 100 + 8) as u8)),
+                39 => self.fg = None,
+                49 => self.bg = None,
+                code @ (38 | 48) => {
+                    let (ink, used) = match params.get(i + 1) {
+                        Some(5) => (byte(i + 2).map(Ink::Indexed), 2),
+                        Some(2) => match (byte(i + 2), byte(i + 3), byte(i + 4)) {
+                            (Some(r), Some(g), Some(b)) => (Some(Ink::Rgb(r, g, b)), 4),
+                            _ => (None, params.len()),
+                        },
+                        _ => (None, params.len()),
+                    };
+                    if let Some(ink) = ink {
+                        if code == 38 {
+                            self.fg = Some(ink);
+                        } else {
+                            self.bg = Some(ink);
+                        }
+                    }
+                    i += used;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+
+    /// What erasing leaves in a cell while this pen is in force: a blank in its background, as
+    /// xterm and the terminals that follow it erase.
+    fn erased(self) -> Pen {
+        Pen {
+            bg: self.bg,
+            ..Pen::default()
+        }
+    }
+}
+
 /// Begins a synchronized update (DEC private mode 2026): the terminal keeps showing what it
 /// showed until the update ends.
 const BEGIN_SYNC: &[u8] = b"\x1b[?2026h";
@@ -969,6 +1038,9 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// It keeps OSC 8 hyperlinks as a terminal does: text printed while one is open is that link in
 /// each cell it goes in, until `ESC ] 8 ; ; ST` closes it; erasing a cell takes its link away.
 ///
+/// It keeps each cell's colors and bold as SGR sequences set them when the cell was printed
+/// (see [`Pen`]).
+///
 /// It shows a synchronized update as WezTerm, kitty and foot do: what is written between
 /// [`BEGIN_SYNC`] and [`END_SYNC`] reaches the screen all at once, when the update ends, however
 /// the PTY splits it into reads. An update that never ends is never shown.
@@ -986,6 +1058,10 @@ struct Screen {
     links: Vec<Vec<Option<Link>>>,
     /// The hyperlink text printed now goes in.
     link: Option<Link>,
+    /// What each cell is drawn in.
+    pens: Vec<Vec<Pen>>,
+    /// What text printed now is drawn in.
+    pen: Pen,
     /// Every OSC 8 sequence boxmux wrote that is not a well-formed opening or closing one.
     malformed_links: Vec<String>,
     x: usize,
@@ -1015,6 +1091,8 @@ impl Screen {
             cells: vec![vec![" ".to_string(); width]; height],
             links: vec![vec![None; width]; height],
             link: None,
+            pens: vec![vec![Pen::default(); width]; height],
+            pen: Pen::default(),
             malformed_links: Vec::new(),
             x: 0,
             y: 0,
@@ -1137,7 +1215,9 @@ impl Screen {
                 if private && matches!(data[j], b'h' | b'l') && params.contains(&7) {
                     self.autowrap = data[j] == b'h';
                 }
-                if !private {
+                if !private && data[j] == b'm' {
+                    self.pen.apply(&params);
+                } else if !private {
                     self.wrap_pending = false;
                     match data[j] {
                         b'H' | b'f' => {
@@ -1156,6 +1236,9 @@ impl Screen {
                             }
                             for row in &mut self.links {
                                 row.fill(None);
+                            }
+                            for row in &mut self.pens {
+                                row.fill(self.pen.erased());
                             }
                         }
                         b'K' => {
@@ -1232,6 +1315,7 @@ impl Screen {
             self.unsplit(x, self.y);
             self.cells[self.y][x] = " ".to_string();
             self.links[self.y][x] = None;
+            self.pens[self.y][x] = self.pen.erased();
         }
     }
 
@@ -1278,12 +1362,14 @@ impl Screen {
         self.unsplit(x, y);
         self.cells[y][x] = ch.to_string();
         self.links[y][x] = self.link.clone();
+        self.pens[y][x] = self.pen;
         if width == 2 && x + 1 < self.width {
             if x + 2 < self.width && self.cells[y][x + 2].is_empty() {
                 self.cells[y][x + 2] = " ".to_string();
             }
             self.cells[y][x + 1] = String::new();
             self.links[y][x + 1] = self.link.clone();
+            self.pens[y][x + 1] = self.pen;
         }
         self.last = Some((x, y));
         self.advance(x, width);
@@ -1310,6 +1396,8 @@ impl Screen {
         self.cells.push(vec![" ".to_string(); self.width]);
         self.links.remove(0);
         self.links.push(vec![None; self.width]);
+        self.pens.remove(0);
+        self.pens.push(vec![self.pen.erased(); self.width]);
         self.scrolled += 1;
     }
 
@@ -1323,9 +1411,11 @@ impl Screen {
             let cut = width < self.width && self.cells[y][width].is_empty();
             self.cells[y].resize(width, " ".to_string());
             self.links[y].resize(width, None);
+            self.pens[y].resize(width, Pen::default());
             if cut {
                 self.cells[y][width - 1] = " ".to_string();
                 self.links[y][width - 1] = None;
+                self.pens[y][width - 1] = Pen::default();
             }
         }
         while self.cells.len() > height
@@ -1334,15 +1424,18 @@ impl Screen {
         {
             self.cells.pop();
             self.links.pop();
+            self.pens.pop();
         }
         while self.cells.len() > height {
             self.cells.remove(0);
             self.links.remove(0);
+            self.pens.remove(0);
             self.y = self.y.saturating_sub(1);
         }
         while self.cells.len() < height {
             self.cells.push(vec![" ".to_string(); width]);
             self.links.push(vec![None; width]);
+            self.pens.push(vec![Pen::default(); width]);
         }
         self.width = width;
         self.height = height;
@@ -2698,4 +2791,98 @@ fn a_terminal_started_in_a_hidden_layout_s_box_has_its_size_there_and_follows_th
         "{}",
         app.report()
     );
+}
+
+/// Script output that overwrites part of a styled line after a carriage return, read through the
+/// test terminal's cells. Unix only, for the reason [`display_width`] gives.
+#[cfg(unix)]
+mod overwritten_styles {
+    use super::*;
+
+    /// A box whose script prints a red line, a line on a blue background and a bold one, each
+    /// with its style reset and its first column overwritten after a carriage return.
+    const OVERWRITES: &str = r#"
+app:
+  layouts:
+    - id: main
+      title: Overwrites
+      root: true
+      children:
+        - id: out
+          title: Out
+          position: {x1: "0", y1: "0", x2: "40", y2: "8"}
+          script: ['printf "\033[31mred line\033[0m\rX\n\033[44mblue line\033[0m\rY\n\033[1mbold line\033[0m\rZ\n"']
+"#;
+
+    /// The pens of the first cell of `shown` and of the rest of it, where it is on the screen,
+    /// and of the cell after it: the box's own.
+    fn pens(app: &LiveBoxMux, shown: &str) -> (Pen, Vec<Pen>, Pen) {
+        let (x, y) = app
+            .screen
+            .find(shown)
+            .unwrap_or_else(|| panic!("{:?} is not shown\n{}", shown, app.screen.text()));
+        let end = x + shown.chars().count();
+        let row = &app.screen.pens[y];
+        (row[x], row[x + 1..end].to_vec(), row[end])
+    }
+
+    #[test]
+    fn text_overwritten_after_a_carriage_return_keeps_the_style_of_each_column_it_does_not_cover() {
+        let fixture = Fixture::new();
+        let config = fixture.write_config(OVERWRITES);
+        let mut app = LiveBoxMux::spawn(&fixture, &config);
+        app.wait_for_text("Zold line");
+        let red = Some(Ink::Indexed(1));
+        let blue = Some(Ink::Indexed(4));
+
+        let (first, rest, body) = pens(&app, "Xed line");
+        assert!(
+            body.fg != red && body.bg != blue && !body.bold,
+            "the box's own style is none of the script's: {:?}",
+            body
+        );
+        assert_eq!(
+            first,
+            body,
+            "X is written after the reset\n{}",
+            app.report()
+        );
+        let colored = Pen { fg: red, ..body };
+        assert!(
+            rest.iter().all(|pen| *pen == colored),
+            "\"ed line\" stays red: {:?}\n{}",
+            rest,
+            app.report()
+        );
+
+        let (first, rest, body) = pens(&app, "Ylue line");
+        assert_eq!(
+            first,
+            body,
+            "Y is written after the reset\n{}",
+            app.report()
+        );
+        let backed = Pen { bg: blue, ..body };
+        assert!(
+            rest.iter().all(|pen| *pen == backed),
+            "\"lue line\" stays on blue: {:?}\n{}",
+            rest,
+            app.report()
+        );
+
+        let (first, rest, body) = pens(&app, "Zold line");
+        assert_eq!(
+            first,
+            body,
+            "Z is written after the reset\n{}",
+            app.report()
+        );
+        let bold = Pen { bold: true, ..body };
+        assert!(
+            rest.iter().all(|pen| *pen == bold),
+            "\"old line\" stays bold: {:?}\n{}",
+            rest,
+            app.report()
+        );
+    }
 }
