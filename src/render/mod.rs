@@ -13,6 +13,7 @@ pub mod tab_bar;
 pub mod theme;
 
 use crate::model::app::AppContext;
+use crate::model::appearance::Sides;
 use crate::model::bounds::Bounds;
 use crate::model::layout::Layout;
 use crate::model::muxbox::MuxBox;
@@ -71,12 +72,6 @@ pub fn box_at(
         .map(|placed| placed.muxbox.id.clone())
 }
 
-/// Where a box's generated content (chart, table, plugin output) goes: inside the border,
-/// with a one-column margin.
-fn generated_area(bounds: &Bounds) -> Option<Bounds> {
-    bounds.shrink(1, 1)?.shrink(1, 0)
-}
-
 /// The data a chart or table is drawn from: the configured data, or the latest output of the
 /// box's script.
 fn data_text(configured: Option<&String>, muxbox: &MuxBox) -> Option<String> {
@@ -88,7 +83,14 @@ fn data_text(configured: Option<&String>, muxbox: &MuxBox) -> Option<String> {
     })
 }
 
-fn generated_content(ctx: &AppContext, muxbox: &MuxBox, bounds: &Bounds) -> Option<Vec<String>> {
+/// The chart, table or plugin output of a box at `bounds` with padding `padding`, made for the
+/// size of its content area.
+fn generated_content(
+    ctx: &AppContext,
+    muxbox: &MuxBox,
+    bounds: &Bounds,
+    padding: Sides,
+) -> Option<Vec<String>> {
     let wants = muxbox.plugin_component.is_some()
         || muxbox.chart_type.is_some()
         || muxbox.table_data.is_some()
@@ -96,7 +98,7 @@ fn generated_content(ctx: &AppContext, muxbox: &MuxBox, bounds: &Bounds) -> Opti
     if !wants {
         return None;
     }
-    let Some(area) = generated_area(bounds) else {
+    let Some(area) = box_view::content_area(bounds, padding) else {
         return Some(Vec::new());
     };
     let (width, height) = (area.width(), area.height());
@@ -184,7 +186,7 @@ pub fn views(
             },
             state,
         );
-        let generated = generated_content(ctx, muxbox, &box_bounds);
+        let generated = generated_content(ctx, muxbox, &box_bounds, style.padding);
         let stream = muxbox.get_selected_stream();
         let content = match (&generated, stream) {
             (Some(lines), _) => Content::Generated(lines.clone()),

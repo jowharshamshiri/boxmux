@@ -143,6 +143,10 @@ On a layout, `fill: false` leaves the terminal's own background behind the boxes
 
 `title_position` puts the title at the `left`, `center` (default) or `right` of the top border.
 
+### Padding and Alignment
+
+`padding` sets the empty cells between the border and the content, per side (`top` and `bottom` default to 0, `left` and `right` to 1), and `content_align: top_left` starts text that fits at the top-left corner of the padded area instead of centering it. See [Padding and Alignment](/docs/configuration#padding-and-alignment).
+
 ## States and Fallbacks
 
 A box can be in several states at once:

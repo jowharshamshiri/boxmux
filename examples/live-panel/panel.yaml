@@ -13,6 +13,9 @@ app:
     - id: main
       root: true
       title: Control panel
+      # Text starts on the row under each border, so a small pane loses no rows.
+      content_align: top_left
+      padding: {top: 0}
       children:
         - id: status
           title: Status
@@ -46,6 +49,8 @@ app:
 
     - id: term
       title: Terminal
+      content_align: top_left
+      padding: {top: 0}
       children:
         - id: term_bar
           title: Terminal

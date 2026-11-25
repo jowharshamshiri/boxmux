@@ -2253,3 +2253,167 @@ fn the_colors_of_a_choice_change_on_a_running_layout_through_the_socket() {
         named(ColorName::Green, ColorName::Black)
     );
 }
+
+/// Shipped layouts that set no padding or alignment, each drawn at 80x24 without running its
+/// scripts, as BoxMux drew them before boxes had either setting.
+const RENDERED_LAYOUTS: [&str; 5] = [
+    "chart_demo",
+    "choice_overflow_demo",
+    "scrollbar_test",
+    "tab_click_test",
+    "text_wrapping_demo",
+];
+
+#[test]
+fn the_default_padding_and_alignment_draw_shipped_layouts_as_before() {
+    for name in RENDERED_LAYOUTS {
+        let path = std::path::PathBuf::from(format!("layouts/{}.yaml", name));
+        let source = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !source.contains("padding") && !source.contains("content_align"),
+            "{} must keep the defaults",
+            path.display()
+        );
+        let app = crate::load_app_from_yaml(&path).unwrap();
+        let ctx = AppContext::new(app, Config::new(1, false, false).unwrap());
+        let (sender, events) = crossbeam_channel::unbounded();
+        let mut runtime = Runtime::new(ctx, MemoryDisplay::new(80, 24), sender, events, None);
+        runtime.render();
+        let expected =
+            std::fs::read_to_string(format!("tests/renderings/{}.80x24.txt", name)).unwrap();
+        let drawn = runtime.display.rows();
+        let expected: Vec<&str> = expected.lines().collect();
+        assert_eq!(drawn, expected, "{}", path.display());
+    }
+}
+
+/// The live panel's stack of boxes in a 36x24 pane: three text boxes around a menu.
+fn panel(settings: &str) -> String {
+    format!(
+        r#"
+app:
+  layouts:
+    - id: main
+{settings}
+      children:
+        - id: status
+          title: Status
+          position: {{x1: "0%", y1: "0", x2: "100%", y2: "5"}}
+          content: "one status line"
+        - id: needs
+          title: Needs you
+          position: {{x1: "0%", y1: "5", x2: "100%", y2: "60%"}}
+          choices:
+            - id: a
+              content: Restart the web service
+            - id: b
+              content: About this panel
+        - id: detail
+          title: Details
+          position: {{x1: "0%", y1: "60%", x2: "100%", y2: "80%"}}
+          content: "the detail"
+        - id: log
+          title: Log
+          position: {{x1: "0%", y1: "80%", x2: "100%", y2: "100%"}}
+          padding: {{left: 0}}
+          content: "first\nsecond"
+"#
+    )
+}
+
+#[test]
+fn boxes_aligned_top_left_without_top_padding_start_their_text_under_the_border() {
+    let runtime = runtime(
+        &panel("      content_align: top_left\n      padding: {top: 0}"),
+        36,
+        24,
+    );
+    let rows = runtime.display.rows();
+    let screen = rows.join("\n");
+    assert!(rows[0].contains(" Status "), "{}", screen);
+    assert!(rows[1].starts_with("│ one status line "), "{}", screen);
+    assert!(rows[5].contains(" Needs you "), "{}", screen);
+    assert!(
+        rows[6].starts_with("│ ► Restart the web service"),
+        "{}",
+        screen
+    );
+    assert!(rows[7].starts_with("│   About this panel"), "{}", screen);
+    assert!(rows[14].contains(" Details "), "{}", screen);
+    assert!(rows[15].starts_with("│ the detail "), "{}", screen);
+    // The log's own padding has no left column; its other sides come from the layout.
+    assert!(rows[18].contains(" Log "), "{}", screen);
+    assert!(rows[19].starts_with("│first "), "{}", screen);
+    assert!(rows[20].starts_with("│second "), "{}", screen);
+    assert_eq!(find(&runtime, "Restart"), (4, 6));
+}
+
+#[test]
+fn boxes_without_the_settings_center_text_that_fits() {
+    let runtime = runtime(&panel(""), 36, 24);
+    let rows = runtime.display.rows();
+    let screen = rows.join("\n");
+    // Status has four rows inside its border, Details three and Log five: each box's text is
+    // centered, below an empty row. The menu starts under its border.
+    assert_eq!(
+        rows[1], "│                                  │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[2], "│         one status line          │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[6], "│ ► Restart the web service        │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[15], "│                                  │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[16], "│            the detail            │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[19], "│                                  │",
+        "{}",
+        screen
+    );
+    assert_eq!(
+        rows[20], "│             first                │",
+        "{}",
+        screen
+    );
+}
+
+#[test]
+fn a_chart_is_made_for_its_padded_area_and_drawn_in_it() {
+    let chart = |padding: &str| {
+        format!(
+            r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: chart
+          position: {{x1: "0", y1: "0", x2: "29", y2: "9"}}
+          content_align: center
+          padding: {padding}
+          chart_type: bar
+          chart_data: "a,1"
+"#
+        )
+    };
+    // Twenty-eight columns inside the border: twenty-six are room enough for a chart.
+    let roomy = runtime(&chart("{}"), 30, 10);
+    assert!(!screen_contains(&roomy, "too small"));
+    // Left with nineteen columns, it is too small, said from the padded corner.
+    let narrow = runtime(&chart("{top: 2, left: 5, right: 4}"), 30, 10);
+    assert_eq!(find(&narrow, "too small"), (6, 3));
+}

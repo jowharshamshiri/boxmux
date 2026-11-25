@@ -13,7 +13,7 @@
 //! The entry under the pointer is always drawn in the box's hover colors.
 
 use super::screen::{Color, Style};
-use crate::model::appearance::{ColorName, Overflow, TitlePosition};
+use crate::model::appearance::{ColorName, ContentAlign, Overflow, Sides, TitlePosition};
 use crate::model::choice::Choice;
 use crate::model::layout::Layout;
 use crate::model::muxbox::MuxBox;
@@ -168,6 +168,10 @@ pub struct BoxStyle {
     pub filled: bool,
     pub overflow: Overflow,
     pub title_position: TitlePosition,
+    /// Empty cells between the border and text, menus and generated content.
+    pub padding: Sides,
+    /// Where text that fits is placed in the padded area.
+    pub content_align: ContentAlign,
 }
 
 /// The box, its enclosing boxes from the nearest out, and its layout: where settings are
@@ -316,6 +320,13 @@ impl BoxStyle {
             filled: setting!(scope, fill).unwrap_or(true),
             overflow: setting!(scope, overflow_behavior).unwrap_or_default(),
             title_position: setting!(scope, title_position).unwrap_or_default(),
+            padding: Sides::resolve(
+                std::iter::once(scope.muxbox)
+                    .chain(scope.ancestors.iter().copied())
+                    .filter_map(|b| b.padding.as_ref())
+                    .chain(scope.layout.padding.as_ref()),
+            ),
+            content_align: setting!(scope, content_align).unwrap_or_default(),
         }
     }
 
@@ -518,5 +529,51 @@ mod tests {
         assert_eq!(style.overflow, Overflow::Wrap);
         assert_eq!(style.title_position, TitlePosition::Left);
         assert!(!style.filled);
+    }
+
+    #[test]
+    fn padding_sides_and_content_alignment_are_inherited() {
+        use crate::model::appearance::Padding;
+        let layout = Layout {
+            padding: Some(Padding {
+                left: Some(3),
+                ..Padding::default()
+            }),
+            content_align: Some(ContentAlign::TopLeft),
+            ..Layout::default()
+        };
+        let enclosing = MuxBox {
+            padding: Some(Padding {
+                top: Some(2),
+                ..Padding::default()
+            }),
+            ..MuxBox::default()
+        };
+        let muxbox = MuxBox {
+            padding: Some(Padding {
+                top: Some(0),
+                ..Padding::default()
+            }),
+            ..MuxBox::default()
+        };
+        let style = resolve(&muxbox, &[&enclosing], &layout, BoxState::default());
+        assert_eq!(
+            style.padding,
+            Sides {
+                top: 0,
+                bottom: 0,
+                left: 3,
+                right: 1
+            }
+        );
+        assert_eq!(style.content_align, ContentAlign::TopLeft);
+        let style = resolve(
+            &MuxBox::default(),
+            &[],
+            &Layout::default(),
+            BoxState::default(),
+        );
+        assert_eq!(style.padding, Sides::DEFAULT);
+        assert_eq!(style.content_align, ContentAlign::Center);
     }
 }

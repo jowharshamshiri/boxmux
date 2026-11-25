@@ -1,0 +1,24 @@
+                                                                                
+                                                                                
+        ┌───────────── Content ─ Choices ──────────────┐                        
+        │                                              │                        
+        │                                              │                        
+        │               ┌───────────── Content ─ Choices ──────────────┐        
+        │               │                                              │        
+        │               │                                              │        
+        │               │                                              │        
+        │               │                                              │        
+        │               │                Box 2 content                 │        
+        │               │                                              │        
+        │               │                                              │        
+        │               │                                              │        
+        └───────────────│                                              │        
+                        │                                              │        
+                        └──────────────────────────────────────────────⋱        
+        ┌──────────────────────── Instructions ────────────────────────┐        
+        │ Tab Click Test:                                              █        
+        │ 1. Box 1 (red, z=1) and Box 2 (green, z=10) overlap          █        
+        │ 2. Click tabs on overlapping area - should affect Box 2 (hig █        
+        │ 3. Click tabs on non-overlapping areas - should affect corre │        
+        └■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■────────────⋱        
+                                                                                

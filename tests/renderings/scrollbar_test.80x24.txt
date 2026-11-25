@@ -1,0 +1,24 @@
+                                                                                
+    ┌─ Static Content (should scr… ─┐      ┌─ Script Output (should scro… ─┐    
+    │ This is a very long line that █      │                               │    
+    │ Line 2 of content             █      │                               │    
+    │ Line 3 of content             █      │                               │    
+    │ Line 4 of content             █      │                               │    
+    │ Line 5 of content             │      │                               │    
+    │ Line 6 of content             │      │                               │    
+    │ Line 7 of content             │      │                               │    
+    │ Line 8 of content             │      │                               │    
+    └■■■■■■■■───────────────────────⋱      └───────────────────────────────⋱    
+                                                                                
+                                                                                
+    ┌─ Many Choices (should scrol… ─┐      ┌─ Scrollbar Test Instructions ─┐    
+    │ ► Choice 1 - Very long choice █      │ SCROLLBAR TEST:               █    
+    │   Choice 2                    █      │                               █    
+    │   Choice 3                    █      │ 1. Static content (top-left): █    
+    │   Choice 4                    █      │ 2. Script output (top-right): █    
+    │   Choice 5                    █      │ 3. Many choices (bottom-left) █    
+    │   Choice 6                    █      │                               █    
+    │   Choice 7                    │      │ Test:                         │    
+    │   Choice 8                    │      │ - Click on scrollbars to jump │    
+    └■■■■■■■■■■■■───────────────────⋱      └■■■■■■■■■■■────────────────────⋱    
+                                                                                

@@ -7,20 +7,20 @@ use super::scrollbar::{Scrollbar, ScrollbarHit};
 use super::styled::{styled_glyphs, width_of, wrap, StyledGlyph};
 use super::tab_bar::{TabBar, TabHit, TabSpec, TabStyles};
 use super::theme::BoxStyle;
-use crate::model::appearance::{Overflow, TitlePosition};
+use crate::model::appearance::{ContentAlign, Overflow, Sides, TitlePosition};
 use crate::model::bounds::Bounds;
 use crate::model::choice::Choice;
 
 /// What a box's content area shows.
 pub enum Content<'a> {
-    /// Text lines that may contain SGR color sequences and OSC 8 hyperlinks. Lines that fit are
-    /// centered.
+    /// Text lines that may contain SGR color sequences and OSC 8 hyperlinks. Text that fits is
+    /// centered unless the box's `content_align` says otherwise.
     Text(&'a [String]),
     /// Generated text (charts, tables, plugin output) laid out from the top-left.
     Generated(Vec<String>),
     /// A choice menu; `selected` is the entry Enter activates.
     Menu(&'a [Choice]),
-    /// The screen of a terminal program, shown without margins.
+    /// The screen of a terminal program, filling the whole inside of the border.
     Terminal(&'a [String]),
     Nothing,
 }
@@ -197,6 +197,12 @@ fn window(chars: &[StyledGlyph], skip: usize, width: usize) -> Vec<StyledGlyph> 
     out
 }
 
+/// Where text, menus and generated content go in a box at `outer`: inside its border, less its
+/// padding. `None` when nothing fits.
+pub fn content_area(outer: &Bounds, padding: Sides) -> Option<Bounds> {
+    outer.shrink(1, 1)?.inset(padding)
+}
+
 impl BoxView {
     pub fn new(spec: BoxSpec) -> BoxView {
         let outer = spec.bounds;
@@ -269,8 +275,8 @@ impl BoxView {
         let (kind, area) = match spec.content {
             Content::Nothing => return,
             Content::Terminal(_) => (Kind::Terminal, Some(inner)),
-            Content::Menu(_) => (Kind::Menu, inner.shrink(1, 0)),
-            Content::Text(_) | Content::Generated(_) => (Kind::Text, inner.shrink(1, 0)),
+            Content::Menu(_) => (Kind::Menu, inner.inset(style.padding)),
+            Content::Text(_) | Content::Generated(_) => (Kind::Text, inner.inset(style.padding)),
         };
         let Some(area) = area else {
             return;
@@ -361,8 +367,11 @@ impl BoxView {
             body.offset_x = offset_for_percent(spec.horizontal_scroll, body.max_offset_x());
         }
 
-        // Text that fits is centered in each direction that has room.
-        let (pad_x, pad_y) = if kind == Kind::Text && matches!(spec.content, Content::Text(_)) {
+        // Text that fits is centered in each direction that has room, unless it is aligned to the
+        // top-left corner.
+        let centered =
+            style.content_align == ContentAlign::Center && matches!(spec.content, Content::Text(_));
+        let (pad_x, pad_y) = if centered {
             (
                 area.width().saturating_sub(content_width) / 2,
                 area.height().saturating_sub(content_height) / 2,
@@ -939,6 +948,289 @@ mod tests {
             });
             assert_eq!(render(&v, 20, 3)[0], expected);
         }
+    }
+
+    /// A box of `bounds` with `padding` and `align`, showing `content` under `header`.
+    fn padded(
+        bounds: Bounds,
+        padding: Sides,
+        align: ContentAlign,
+        header: Header,
+        content: Content,
+    ) -> BoxView {
+        let mut s = style(Overflow::Scroll);
+        s.padding = padding;
+        s.content_align = align;
+        BoxView::new(BoxSpec {
+            id: "p",
+            bounds,
+            style: s,
+            header,
+            content,
+            selected_choice: Some(0),
+            horizontal_scroll: 0.0,
+            vertical_scroll: 0.0,
+            resizable: false,
+        })
+    }
+
+    #[test]
+    fn text_aligned_top_left_with_no_top_padding_starts_on_the_row_under_the_border() {
+        let content = lines(&["ab"]);
+        let top_left = padded(
+            Bounds::new(0, 0, 9, 4),
+            Sides {
+                top: 0,
+                ..Sides::DEFAULT
+            },
+            ContentAlign::TopLeft,
+            Header::Title("Box"),
+            Content::Text(&content),
+        );
+        let rows = render(&top_left, 10, 5);
+        assert_eq!(rows[0], "┌─ Box ──┐");
+        assert_eq!(rows[1], "│ ab     │", "{:?}", rows);
+        assert_eq!(rows[2], "│        │", "{:?}", rows);
+        // With a row of padding it starts on the row below that.
+        let below = padded(
+            Bounds::new(0, 0, 9, 4),
+            Sides {
+                top: 1,
+                left: 0,
+                ..Sides::DEFAULT
+            },
+            ContentAlign::TopLeft,
+            Header::Title("Box"),
+            Content::Text(&content),
+        );
+        let rows = render(&below, 10, 5);
+        assert_eq!(rows[1], "│        │", "{:?}", rows);
+        assert_eq!(rows[2], "│ab      │", "{:?}", rows);
+    }
+
+    #[test]
+    fn the_default_padding_and_alignment_center_text_inside_a_one_column_margin() {
+        let content = lines(&["ab"]);
+        let v = padded(
+            Bounds::new(0, 0, 9, 4),
+            Sides::DEFAULT,
+            ContentAlign::Center,
+            Header::Title("Box"),
+            Content::Text(&content),
+        );
+        assert_eq!(v.body.as_ref().unwrap().area, Bounds::new(2, 1, 7, 3));
+        let rows = render(&v, 10, 5);
+        assert_eq!(rows[1], "│        │", "{:?}", rows);
+        assert_eq!(rows[2], "│   ab   │", "{:?}", rows);
+    }
+
+    #[test]
+    fn centered_text_is_centered_in_the_padded_area() {
+        let content = lines(&["ab"]);
+        let v = padded(
+            Bounds::new(0, 0, 11, 6),
+            Sides {
+                top: 2,
+                bottom: 0,
+                left: 4,
+                right: 0,
+            },
+            ContentAlign::Center,
+            Header::None,
+            Content::Text(&content),
+        );
+        // The padded area is columns 5 to 10 and rows 3 to 5.
+        assert_eq!(v.body.as_ref().unwrap().area, Bounds::new(5, 3, 10, 5));
+        let rows = render(&v, 12, 7);
+        assert_eq!(rows[4], "│      ab  │", "{:?}", rows);
+    }
+
+    #[test]
+    fn menus_start_at_the_padded_corner_and_their_entries_are_hit_there() {
+        let choices = vec![
+            Choice {
+                id: "a".into(),
+                content: Some("Alpha".into()),
+                ..Choice::default()
+            },
+            Choice {
+                id: "b".into(),
+                content: Some("Bravo".into()),
+                ..Choice::default()
+            },
+        ];
+        let v = padded(
+            Bounds::new(0, 0, 13, 5),
+            Sides {
+                top: 1,
+                bottom: 0,
+                left: 2,
+                right: 1,
+            },
+            ContentAlign::TopLeft,
+            Header::None,
+            Content::Menu(&choices),
+        );
+        let rows = render(&v, 14, 6);
+        assert_eq!(rows[1], "│            │", "{:?}", rows);
+        assert_eq!(rows[2], "│  ► Alpha   │", "{:?}", rows);
+        assert_eq!(rows[3], "│    Bravo   │", "{:?}", rows);
+        assert_eq!(v.hit(3, 2), Some(BoxHit::Choice(0)), "the marker");
+        assert_eq!(v.hit(5, 3), Some(BoxHit::Choice(1)));
+        assert_eq!(v.hit(5, 1), Some(BoxHit::Other), "the padding above");
+        assert_eq!(v.hit(2, 2), Some(BoxHit::Other), "the padding beside");
+    }
+
+    #[test]
+    fn content_hits_are_counted_from_the_padded_corner_and_padding_is_not_content() {
+        let content = lines(&["one", "two"]);
+        let v = padded(
+            Bounds::new(0, 0, 9, 5),
+            Sides {
+                top: 1,
+                bottom: 1,
+                left: 2,
+                right: 0,
+            },
+            ContentAlign::TopLeft,
+            Header::None,
+            Content::Text(&content),
+        );
+        assert_eq!(v.hit(3, 2), Some(BoxHit::Content { column: 0, row: 0 }));
+        assert_eq!(v.hit(4, 3), Some(BoxHit::Content { column: 1, row: 1 }));
+        assert_eq!(v.hit(3, 1), Some(BoxHit::Other), "top padding");
+        assert_eq!(v.hit(3, 4), Some(BoxHit::Other), "bottom padding");
+        assert_eq!(v.hit(2, 2), Some(BoxHit::Other), "left padding");
+    }
+
+    #[test]
+    fn scrolling_measures_the_padded_view_and_the_scrollbars_stay_on_the_border() {
+        let content: Vec<String> = (0..10).map(|i| format!("line {} of the text", i)).collect();
+        let v = padded(
+            Bounds::new(0, 0, 11, 6),
+            Sides {
+                top: 1,
+                bottom: 1,
+                left: 1,
+                right: 1,
+            },
+            ContentAlign::TopLeft,
+            Header::None,
+            Content::Text(&content),
+        );
+        let body = v.body.as_ref().unwrap();
+        // Five rows inside the border, three of them for the text; eight columns, six for it.
+        assert_eq!((body.area.width(), body.area.height()), (8, 3));
+        assert_eq!(body.max_offset_y(), 7);
+        assert_eq!(body.max_offset_x(), 10);
+        let vertical = v.vertical_scrollbar.unwrap();
+        assert_eq!((vertical.start, vertical.track), (1, 5));
+        assert_eq!((vertical.content, vertical.view), (10, 3));
+        let horizontal = v.horizontal_scrollbar.unwrap();
+        assert_eq!((horizontal.start, horizontal.track), (1, 10));
+        assert_eq!((horizontal.content, horizontal.view), (18, 8));
+        let rows = render(&v, 12, 7);
+        let start = |row: &str| row.chars().take(11).collect::<String>();
+        assert_eq!(start(&rows[1]), "│          ", "{:?}", rows);
+        assert_eq!(start(&rows[2]), "│ line 0 o ", "{:?}", rows);
+        assert_eq!(start(&rows[4]), "│ line 2 o ", "{:?}", rows);
+        assert_eq!(start(&rows[5]), "│          ", "{:?}", rows);
+        assert_eq!(rows[6].chars().nth(1), Some('■'), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_tab_s_content_takes_the_padding_and_the_tabs_stay_in_the_border() {
+        let content = lines(&["out"]);
+        let v = padded(
+            Bounds::new(0, 0, 19, 3),
+            Sides {
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+            },
+            ContentAlign::TopLeft,
+            Header::Tabs {
+                tabs: vec![
+                    TabSpec {
+                        label: "One".into(),
+                        closeable: false,
+                    },
+                    TabSpec {
+                        label: "Two".into(),
+                        closeable: false,
+                    },
+                ],
+                active: 1,
+                offset: 0,
+            },
+            Content::Text(&content),
+        );
+        let rows = render(&v, 20, 4);
+        assert!(
+            rows[0].contains("One") && rows[0].contains("Two"),
+            "{:?}",
+            rows
+        );
+        assert_eq!(rows[1], "│out               │", "{:?}", rows);
+        assert!(matches!(
+            v.hit(rows[0].chars().position(|c| c == 'T').unwrap(), 0),
+            Some(BoxHit::Tab(_))
+        ));
+    }
+
+    #[test]
+    fn a_terminal_fills_the_inside_of_the_border_whatever_the_padding() {
+        let screen = lines(&["$ ls"]);
+        let v = padded(
+            Bounds::new(0, 0, 9, 3),
+            Sides {
+                top: 1,
+                bottom: 1,
+                left: 2,
+                right: 2,
+            },
+            ContentAlign::Center,
+            Header::None,
+            Content::Terminal(&screen),
+        );
+        assert_eq!(v.body.as_ref().unwrap().area, Bounds::new(1, 1, 8, 2));
+        assert_eq!(render(&v, 10, 4)[1], "│$ ls    │");
+    }
+
+    #[test]
+    fn padding_larger_than_the_inside_leaves_no_content_area() {
+        let content = lines(&["ab"]);
+        let v = padded(
+            Bounds::new(0, 0, 9, 3),
+            Sides {
+                top: 1,
+                bottom: 1,
+                ..Sides::DEFAULT
+            },
+            ContentAlign::Center,
+            Header::Title("Box"),
+            Content::Text(&content),
+        );
+        assert!(v.body.is_none());
+        let rows = render(&v, 10, 4);
+        assert_eq!(rows[1], "│        │");
+        assert_eq!(rows[2], "│        │");
+        assert_eq!(
+            content_area(&Bounds::new(0, 0, 9, 3), Sides::DEFAULT),
+            Some(Bounds::new(2, 1, 7, 2))
+        );
+        assert_eq!(
+            content_area(
+                &Bounds::new(0, 0, 9, 3),
+                Sides {
+                    top: 1,
+                    bottom: 1,
+                    ..Sides::DEFAULT
+                }
+            ),
+            None
+        );
     }
 
     #[test]

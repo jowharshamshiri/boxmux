@@ -1,0 +1,24 @@
+                                                                                
+    ┌──── Text Wrapping Demo (wrap) ────┐  ┌─ Text Scrolling Demo (scrol… ─┐    
+    │                                   │  │                               │    
+    │                                   │  │                               │    
+    │                                   │  │                               │    
+    │ This is a very long line of text  │  │                               │    
+    │ that will be wrapped to fit       │  │                               │    
+    │ within the box boundaries. It     │  │                               │    
+    │ demonstrates the text wrapping    │  │                               │    
+    │ functionality that preserves word │  │ This is the same very long li │    
+    │ boundaries and handles multiple   │  │                               │    
+    │ lines properly. You should see    │  │                               │    
+    │ this text wrap nicely within the  │  │                               │    
+    │ box without horizontal            │  │                               │    
+    │ scrollbars.                       │  │                               │    
+    │                                   │  │                               │    
+    │                                   │  │                               │    
+    │                                   │  │                               │    
+    └───────────────────────────────────⋱  └■■■■───────────────────────────⋱    
+                                                                                
+                ┌──────────── Wrapped Choices Demo ────────────┐                
+                │ ► Short choice                               █                
+                └──────────────────────────────────────────────⋱                
+                                                                                

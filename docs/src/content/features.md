@@ -32,6 +32,7 @@ See the [Configuration Reference](/docs/configuration).
 - `z_index` decides which of two overlapping sibling boxes is drawn on top.
 - `overflow_behavior`: `scroll` (default, with scrollbars on the border), `wrap` or `truncate`.
 - `title_position`: `left`, `center` or `right`.
+- `padding`: empty cells between the border and the content, per side; `content_align`: `center` (default) or `top_left` for text that fits.
 - Colors: 16 ANSI color names for borders, text, titles and menus, with separate settings for
   the focused box (`selected_*`), the box under the pointer (`highlighted_*`) and boxes whose
   last run failed (`error_*`). Colors are inherited from enclosing boxes and the layout.

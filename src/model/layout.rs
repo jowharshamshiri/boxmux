@@ -25,6 +25,8 @@ pub struct Layout {
     pub title_fg_color: Option<crate::model::appearance::ColorName>,
     pub title_bg_color: Option<crate::model::appearance::ColorName>,
     pub title_position: Option<crate::model::appearance::TitlePosition>,
+    pub padding: Option<crate::model::appearance::Padding>,
+    pub content_align: Option<crate::model::appearance::ContentAlign>,
     pub selected_title_bg_color: Option<crate::model::appearance::ColorName>,
     pub selected_title_fg_color: Option<crate::model::appearance::ColorName>,
     pub highlighted_title_bg_color: Option<crate::model::appearance::ColorName>,

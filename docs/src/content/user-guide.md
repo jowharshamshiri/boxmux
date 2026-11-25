@@ -175,7 +175,7 @@ A box can show static `content`, the output of a `script`, a menu of `choices`, 
 - `save_in_file: 'output.txt'` writes the output of the box's script to a file (relative to the YAML file) after each run.
 - Scripts run in the directory BoxMux was started from. They get two environment variables: `BOXMUX_BOX` (the box the output goes to) and `BOXMUX_SOCKET` (the control socket of this instance).
 
-Text that fits in a box is centered in it. When it does not fit, `overflow_behavior` decides what happens:
+Text that fits in a box is centered in it, unless the box sets `content_align: top_left` (see [Padding and Alignment](/docs/configuration#padding-and-alignment)). When it does not fit, `overflow_behavior` decides what happens:
 
 | Value | Behavior |
 |-------|----------|

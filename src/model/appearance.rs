@@ -93,10 +93,93 @@ pub enum TitlePosition {
     Right,
 }
 
+/// Where text that fits in a box is placed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ContentAlign {
+    /// Centered in each direction that has room.
+    #[default]
+    Center,
+    /// From the top-left corner of the content area.
+    TopLeft,
+}
+
+/// Empty cells between a box's border and its content, as written in configuration. A side left
+/// out takes the enclosing box's or the layout's, else its default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Padding {
+    pub top: Option<usize>,
+    pub bottom: Option<usize>,
+    pub left: Option<usize>,
+    pub right: Option<usize>,
+}
+
+/// The padding of each side of a box, every side decided.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Sides {
+    pub top: usize,
+    pub bottom: usize,
+    pub left: usize,
+    pub right: usize,
+}
+
+impl Sides {
+    /// The padding of a side no configuration sets: no rows above or below the content, one
+    /// column on each side of it.
+    pub const DEFAULT: Sides = Sides {
+        top: 0,
+        bottom: 0,
+        left: 1,
+        right: 1,
+    };
+
+    /// Each side from the first of `paddings`, nearest first, that sets it, else its default.
+    pub fn resolve<'a>(paddings: impl Iterator<Item = &'a Padding> + Clone) -> Sides {
+        let side = |pick: fn(&Padding) -> Option<usize>, default: usize| {
+            paddings.clone().find_map(pick).unwrap_or(default)
+        };
+        Sides {
+            top: side(|p| p.top, Sides::DEFAULT.top),
+            bottom: side(|p| p.bottom, Sides::DEFAULT.bottom),
+            left: side(|p| p.left, Sides::DEFAULT.left),
+            right: side(|p| p.right, Sides::DEFAULT.right),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crossterm::style::Color;
+
+    #[test]
+    fn each_side_of_the_padding_comes_from_the_nearest_setting_of_it() {
+        let own = Padding {
+            top: Some(0),
+            ..Padding::default()
+        };
+        let enclosing = Padding {
+            top: Some(3),
+            left: Some(2),
+            ..Padding::default()
+        };
+        let layout = Padding {
+            left: Some(4),
+            bottom: Some(1),
+            ..Padding::default()
+        };
+        assert_eq!(
+            Sides::resolve([own, enclosing, layout].iter()),
+            Sides {
+                top: 0,
+                bottom: 1,
+                left: 2,
+                right: 1
+            }
+        );
+        assert_eq!(Sides::resolve([].iter()), Sides::DEFAULT);
+    }
 
     #[test]
     fn base_and_bright_colors_are_distinct_ansi_colors() {
@@ -124,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn the_schema_lists_exactly_the_overflow_and_title_positions() {
+    fn the_schema_lists_exactly_the_overflow_title_positions_and_content_alignments() {
         let schema: serde_json::Value =
             serde_json::from_str(crate::validation::APP_SCHEMA).unwrap();
         let list = |def: &str| -> Vec<String> {
@@ -157,5 +240,20 @@ mod tests {
                 serde_json::to_value(TitlePosition::Right).unwrap(),
             ])
         );
+        assert_eq!(
+            list("content_align"),
+            names(&[
+                serde_json::to_value(ContentAlign::Center).unwrap(),
+                serde_json::to_value(ContentAlign::TopLeft).unwrap(),
+            ])
+        );
+        let padding: Vec<&String> = schema["definitions"]["padding"]["properties"]
+            .as_object()
+            .expect("padding has properties")
+            .keys()
+            .collect();
+        let fields = serde_json::to_value(Padding::default()).unwrap();
+        let fields: Vec<&String> = fields.as_object().unwrap().keys().collect();
+        assert_eq!(padding, fields);
     }
 }

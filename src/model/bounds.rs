@@ -263,6 +263,19 @@ impl Bounds {
             y2: self.y2 - dy,
         })
     }
+
+    /// The bounds less `sides.top` rows at the top, `sides.bottom` at the bottom, `sides.left`
+    /// columns on the left and `sides.right` on the right; `None` when no cell is left.
+    pub fn inset(&self, sides: crate::model::appearance::Sides) -> Option<Bounds> {
+        (self.width() > sides.left + sides.right && self.height() > sides.top + sides.bottom).then(
+            || Bounds {
+                x1: self.x1 + sides.left,
+                y1: self.y1 + sides.top,
+                x2: self.x2 - sides.right,
+                y2: self.y2 - sides.bottom,
+            },
+        )
+    }
 }
 
 impl std::fmt::Display for Bounds {
@@ -477,6 +490,33 @@ mod tests {
         assert_eq!(b.shrink(1, 1), Some(Bounds::new(1, 1, 3, 1)));
         assert_eq!(b.shrink(1, 2), None);
         assert_eq!(b.shrink(3, 0), None);
+    }
+
+    #[test]
+    fn insetting_takes_each_side_on_its_own_and_too_far_leaves_nothing() {
+        use crate::model::appearance::Sides;
+        let b = Bounds::new(0, 0, 9, 4);
+        let sides = Sides {
+            top: 0,
+            bottom: 2,
+            left: 1,
+            right: 3,
+        };
+        assert_eq!(b.inset(sides), Some(Bounds::new(1, 0, 6, 2)));
+        assert_eq!(b.inset(Sides { top: 3, ..sides }), None);
+        assert_eq!(b.inset(Sides { left: 7, ..sides }), None);
+        assert_eq!(
+            b.inset(Sides { left: 6, ..sides }),
+            Some(Bounds::new(6, 0, 6, 2))
+        );
+        assert_eq!(
+            b.inset(Sides {
+                left: 5,
+                top: 2,
+                ..sides
+            }),
+            Some(Bounds::new(5, 2, 6, 2))
+        );
     }
 
     fn boxed(position: &str, anchor: Anchor, min: Option<usize>, max: Option<usize>) -> MuxBox {

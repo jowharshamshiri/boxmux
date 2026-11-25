@@ -289,10 +289,24 @@ position: {x1: "0%", y1: "60%", x2: "100%", y2: "80%"}
 position: {x1: "0%", y1: "80%", x2: "100%", y2: "100%"}
 ```
 
-Count three rows of every box for its frame: the top border, an empty row under it, and the
-bottom border, which the box below draws its own top border over. The header above, from row
-0 to row 5, has room for three lines of text, on rows 2 to 4. Keep menu entries short, and use
-`overflow_behavior: wrap` on menus and details so that nothing is cut off at the right edge.
+Count two rows of every box for its frame: the top border and the bottom border, which the box
+below draws its own top border over. The header above, from row 0 to row 5, has room for four
+lines of text, on rows 1 to 4.
+
+Text that fits in a box is centered in it unless the box says otherwise, so a short text, or a
+log that has not yet filled its box, sits below empty rows. Have every box of the panel start
+its text on the row under its border, as `panel.yaml` does:
+
+```yaml
+- id: main
+  content_align: top_left
+  padding: {top: 0}
+```
+
+A layout's `content_align` and `padding` are the defaults of its boxes; a box can set its own.
+See [Padding and Alignment](/docs/configuration#padding-and-alignment). Keep menu entries short,
+and use `overflow_behavior: wrap` on menus and details so that nothing is cut off at the right
+edge.
 
 ## Things to know
 
@@ -303,7 +317,7 @@ bottom border, which the box below draws its own top border over. The header abo
 | Replacing a menu with `replace_box` moves the selection back to the first entry | Replace the menu only when its entries change |
 | `replace_box_content` adds a `Socket` tab beside the box's text | Send it with `--target content` (`"target": "content"`) to replace the box's own text |
 | A file box sent over the socket shows `${PANEL_STATE}/…` literally and waits for that path | Give a box sent over the socket a full path |
-| Every box draws an empty row under its top border | Count it when sizing boxes for a small pane |
+| Text that fits in a box is centered, below empty rows when it is short | Set `content_align: top_left` on the layout, or on the box |
 
 ## See also
 

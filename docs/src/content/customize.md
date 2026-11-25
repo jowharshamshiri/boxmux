@@ -264,7 +264,7 @@ A box's `children` are positioned inside it. Their percentages refer to the pare
       content: 'Main content area'
 ```
 
-Colors, `fill`, fill characters, `overflow_behavior`, `title_position`, `refresh_interval` and `variables` are inherited by nested boxes unless they set their own.
+Colors, `fill`, fill characters, `overflow_behavior`, `title_position`, `padding`, `content_align`, `refresh_interval` and `variables` are inherited by nested boxes unless they set their own.
 
 ## Advanced Customization Features
 

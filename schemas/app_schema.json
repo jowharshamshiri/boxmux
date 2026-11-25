@@ -148,6 +148,41 @@
         "right"
       ]
     },
+    "content_align": {
+      "type": "string",
+      "enum": [
+        "center",
+        "top_left"
+      ],
+      "description": "Where text that fits in a box is placed: center centers it in each direction that has room, top_left starts it at the top-left corner of the padded area. Menus, charts, tables and plugin output always start at the top-left corner."
+    },
+    "padding": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Empty rows between the top border and the content (default 0)"
+        },
+        "bottom": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Empty rows between the content and the bottom border (default 0)"
+        },
+        "left": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Empty columns between the left border and the content (default 1)"
+        },
+        "right": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Empty columns between the content and the right border (default 1)"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Empty cells, per side, between the border and text, menus, charts, tables and plugin output. A side left out takes the enclosing box's or the layout's, else its default. A terminal fills the whole inside of the border."
+    },
     "input_bounds": {
       "type": "object",
       "properties": {
@@ -385,6 +420,12 @@
         "title_position": {
           "$ref": "#/definitions/title_position",
           "description": "Horizontal alignment of title"
+        },
+        "padding": {
+          "$ref": "#/definitions/padding"
+        },
+        "content_align": {
+          "$ref": "#/definitions/content_align"
         },
         "error_border_color": {
           "$ref": "#/definitions/color_name",
@@ -703,6 +744,14 @@
         "title_position": {
           "$ref": "#/definitions/title_position",
           "description": "Horizontal alignment of title"
+        },
+        "padding": {
+          "$ref": "#/definitions/padding",
+          "description": "Default for the boxes of the layout"
+        },
+        "content_align": {
+          "$ref": "#/definitions/content_align",
+          "description": "Default for the boxes of the layout"
         },
         "selected_title_bg_color": {
           "$ref": "#/definitions/color_name",

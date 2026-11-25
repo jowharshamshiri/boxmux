@@ -19,6 +19,7 @@ description: Complete reference for BoxMux YAML configuration files - file struc
 - [Keyboard Configuration](#keyboard-configuration)
 - [Focus and Navigation](#focus-and-navigation)
 - [Overflow and Scrolling](#overflow-and-scrolling)
+- [Padding and Alignment](#padding-and-alignment)
 - [Text Width](#text-width)
 - [Color Reference](#color-reference)
 - [Chart Configuration](#chart-configuration)
@@ -114,6 +115,8 @@ A layout is one screen of boxes. The layout with `root: true` is shown at start;
 | `selected_fill_char`, `highlighted_fill_char` | `char` | No | - | Defaults for the boxes of the layout. |
 | `overflow_behavior` | `string` | No | `scroll` | Default for the boxes of the layout. |
 | `title_position` | `string` | No | `center` | Default for the boxes of the layout. |
+| `padding` | `object` | No | `{top: 0, bottom: 0, left: 1, right: 1}` | Default for the boxes of the layout, side by side. See [Padding and Alignment](#padding-and-alignment). |
+| `content_align` | `string` | No | `center` | Default for the boxes of the layout. |
 | `on_keypress` | `object` | No | - | Key name to script lines, active while the layout is shown. |
 | `variables` | `object` | No | - | Variables for the strings inside this layout. |
 | Color settings | `string` | No | theme | Every color setting listed under [Color Reference](#color-reference). Boxes use them when they do not set their own. |
@@ -169,6 +172,8 @@ Boxes are the building blocks of a layout. A box can show static text, a menu, s
 | `overflow_behavior` | `string` | No | inherited, else `scroll` | `scroll`, `wrap` or `truncate`. |
 | `horizontal_scroll`, `vertical_scroll` | `number` | No | `0` | Initial scroll position, in percent (0 to 100). |
 | `title_position` | `string` | No | inherited, else `center` | `left`, `center` or `right`. |
+| `padding` | `object` | No | inherited, else `{top: 0, bottom: 0, left: 1, right: 1}` | Empty cells between the border and the content: `top`, `bottom`, `left` and `right`, each inherited on its own. See [Padding and Alignment](#padding-and-alignment). |
+| `content_align` | `string` | No | inherited, else `center` | `center` or `top_left`: where text that fits goes. |
 | `z_index` | `integer` | No | `0` | Drawing order among sibling boxes. Higher is on top. |
 | `fill` | `boolean` | No | inherited, else `true` | `false` leaves the background unpainted, so what is beneath shows through. |
 | `fill_char`, `selected_fill_char`, `highlighted_fill_char` | `char` | No | inherited, else `' '` | Character that fills empty cells, normally, when focused, and under the mouse pointer. |
@@ -607,6 +612,42 @@ Tab moves the focus to the next box in `tab_order`, wrapping around. Shift+Tab m
   content: |
     This long line breaks at the box edge instead of needing horizontal scrolling.
 ```
+
+## Padding and Alignment
+
+`padding` sets the empty cells, per side, between a box's border and its text, menu, chart, table or plugin output:
+
+| Side | Default | |
+|------|---------|---|
+| `top` | `0` | Empty rows under the top border |
+| `bottom` | `0` | Empty rows above the bottom border |
+| `left` | `1` | Empty columns after the left border |
+| `right` | `1` | Empty columns before the right border |
+
+Each side is a number of cells, 0 or more. A side the box leaves out comes from the nearest enclosing box that sets it, else from the layout, else its default, so `padding: {left: 0}` changes only the left side. A terminal fills the whole inside of its border whatever the padding. When the padding leaves no cell inside the border, the box shows its border and title only.
+
+`content_align` decides where text that fits in the padded area goes:
+
+| Value | Behaviour |
+|-------|-----------|
+| `center` (default) | Centered in each direction that has room. Text shorter than its box sits below empty rows. |
+| `top_left` | From the top-left corner of the padded area. |
+
+In a direction the text does not fit, it starts at the edge of the padded area either way. Menus, charts, tables and plugin output always start at the top-left corner of the padded area.
+
+With `content_align: top_left` and `padding: {top: 0}`, a box's first line sits on the row under its top border, so a stack of boxes in a small terminal loses no rows:
+
+```yaml
+- id: panel
+  content_align: top_left
+  padding: {top: 0}
+  children:
+    - id: status
+      position: {x1: 0%, y1: "0", x2: 100%, y2: "5"}
+      content: "first line, on row 1"
+```
+
+Tabs stay in the top border and the scrollbars on the right and bottom borders; what each tab shows is drawn in the padded area, and the scrollbars measure how much of the content the padded area shows. A click on the padding is a click on the box, not on its content or a menu entry.
 
 ## Text Width
 

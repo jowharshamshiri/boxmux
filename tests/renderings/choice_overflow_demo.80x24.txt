@@ -1,0 +1,24 @@
+┌─── Many Choices (Scroll Mode) ────┐      ┌──── Long Choices (Wrap Mode) ─────┐
+│ ► First Choice                    │      │ ► Very long choice that should    │
+│   Second Choice                   │      │   wrap to multiple lines in       │
+│   Third Choice                    │      │   narrow box                      │
+│   Fourth Choice                   │      │   Another really long choice text │
+│   Fifth Choice                    │      │   that demonstrates wrapping      │
+│   Sixth Choice                    │      │   behavior                        │
+│   Seventh Choice                  │      │   Third extremely long choice     │
+│   Eighth Choice                   │      │   demonstrating text wrapping     │
+│   Ninth Choice                    │      │   functionality                   │
+│   Tenth Choice                    │      │   Fourth choice with very long    │
+│   Eleventh Choice                 │      │   text to test wrapping with      │
+│   Twelfth Choice                  │      │   scrolling                       │
+│   Thirteenth Choice               │      │   Fifth wrapped choice to test    │
+│   Fourteenth Choice               │      │   vertical scrolling of wrapped   │
+│   Fifteenth Choice                │      │   content                         │
+│                                   │      │                                   │
+│                                   │      │                                   │
+│                                   │      │                                   │
+│                                   │      │                                   │
+│                                   │      │                                   │
+┌─────────────────────────────────── Status ───────────────────────────────────┐
+│ Demo: Use Arrow Keys to Scroll | Both boxes should show scrollbars when choi │
+└■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■───────────⋱
