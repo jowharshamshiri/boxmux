@@ -13,11 +13,13 @@ die() { echo "mg-test/test.sh: $*" >&2; exit 1; }
 
 # Rust is built by QuickRust, and QuickRust is the one thing installed for it: it installs and
 # manages the toolchain itself and decides where builds go. Its home is the rust cache, so the
-# toolchain, the crates it downloaded and its build cache outlive the guest. Nothing here
-# updates in the background, so nothing still writes into the cache when the run ends: the
-# toolchain and QuickRust are brought up to date below, before the build.
+# toolchain, the crates it downloaded and its build cache outlive the guest. QuickRust starts
+# nothing in the background, so no process of it is left running, writing into the cache, when
+# the run ends: the toolchain and QuickRust are brought up to date and the cache is collected
+# below, before the build.
+system_path="$PATH"
 export QRUST_HOME="$MG_TEST_CACHE_RUST/qrust"
-export QRUST_TOOLCHAIN_AUTO_UPDATE=off QRUST_SELF_UPDATE_CHECK=off
+export QRUST_TOOLCHAIN_AUTO_UPDATE=off QRUST_SELF_UPDATE_CHECK=off QRUST_CACHE_GC=off
 export PATH="$QRUST_HOME/bin:$PATH" CARGO_TERM_COLOR=never
 
 # QuickRust publishes Linux builds: the release channel's latest archive for this machine, from
@@ -54,8 +56,9 @@ install_quickrust_release() {
 
 # QuickRust publishes no FreeBSD build, so it is built from its source, at this commit of
 # https://github.com/machinefabric/quickrust, with FreeBSD's own Rust package, which is removed
-# again once `qrust setup` has copied QuickRust into its home. The commit built is kept beside
-# the home: QuickRust is built again when this one changes.
+# again once `qrust setup` has copied QuickRust into its home. The package's cargo builds with the
+# package's rustc: the system's PATH, without the QuickRust a cache may already hold. The commit
+# built is kept beside the home: QuickRust is built again when this one changes.
 QUICKRUST_SOURCE=https://github.com/machinefabric/quickrust
 QUICKRUST_COMMIT=75d52f464b92e5e77db3077e414a0960079ab9c7
 quickrust_built="$MG_TEST_CACHE_RUST/quickrust-commit"
@@ -68,7 +71,7 @@ install_quickrust_source() {
     git -C "$source" fetch -q --depth 1 "$QUICKRUST_SOURCE" "$QUICKRUST_COMMIT" \
         || die "$QUICKRUST_SOURCE has no commit $QUICKRUST_COMMIT"
     git -C "$source" checkout -q FETCH_HEAD
-    (cd "$source" && /usr/local/bin/cargo build --release --locked) || die "QuickRust did not build"
+    (cd "$source" && PATH="$system_path" /usr/local/bin/cargo build --release --locked) || die "QuickRust did not build"
     "$source/target/release/qrust" setup --no-modify-path || die "qrust setup failed"
     echo "$QUICKRUST_COMMIT" > "$quickrust_built"
     rm -rf "$source"
@@ -102,6 +105,7 @@ case "$(uname -s)" in
 esac
 [ "$(command -v cargo)" = "$QRUST_HOME/bin/cargo" ] || die "cargo on PATH is $(command -v cargo), not QuickRust's"
 qrust toolchain update --channel stable || die "qrust toolchain update failed"
+qrust gc || die "qrust gc failed"
 
 echo "$(qrust --version), $(cargo --version)"
 

@@ -3,14 +3,16 @@
 #
 # Rust is built by QuickRust, and QuickRust is the one thing installed for it: it installs and
 # manages the toolchain itself and decides where builds go. Its home is the rust cache, so the
-# toolchain, the crates it downloaded and its build cache outlive the guest. Nothing here updates
-# in the background, so nothing still writes into the cache when the run ends: the toolchain and
-# QuickRust are brought up to date below, before the build.
+# toolchain, the crates it downloaded and its build cache outlive the guest. QuickRust starts
+# nothing in the background, so no process of it is left running when the run ends, writing into
+# the cache or holding the log a step's output goes to: the toolchain and QuickRust are brought up
+# to date and the cache is collected below, before the build.
 if (-not $env:MG_TEST_CACHE_RUST) { throw 'the rust cache is not mounted; the plan must declare it' }
 if (-not $env:MG_TEST_CACHE_TOOLS) { throw 'the tools cache is not mounted; the plan must declare it' }
 $env:QRUST_HOME = Join-Path $env:MG_TEST_CACHE_RUST 'qrust'
 $env:QRUST_TOOLCHAIN_AUTO_UPDATE = 'off'
 $env:QRUST_SELF_UPDATE_CHECK = 'off'
+$env:QRUST_CACHE_GC = 'off'
 $env:CARGO_TERM_COLOR = 'never'
 $qrustBin = Join-Path $env:QRUST_HOME 'bin'
 $gitHome = Join-Path $env:MG_TEST_CACHE_TOOLS 'mingit-2.56.1'
@@ -64,6 +66,7 @@ if (Test-Path -LiteralPath (Join-Path $qrustBin 'qrust.exe')) {
 $cargoOnPath = (Get-Command cargo -ErrorAction SilentlyContinue).Source
 if ($cargoOnPath -notlike "$qrustBin\*") { throw "cargo on PATH is '$cargoOnPath', not QuickRust's" }
 Invoke-Native 'updating the stable toolchain' { qrust toolchain update --channel stable }
+Invoke-Native 'collecting QuickRust''s cache' { qrust gc }
 
 # The version tests make git repositories, and the build reads the commit it is built from.
 if (-not (Test-Path "$gitHome\cmd\git.exe")) {

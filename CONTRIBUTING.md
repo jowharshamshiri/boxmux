@@ -138,6 +138,9 @@ chooses where builds go. Its home is each target's `rust` cache, so the toolchai
 the build output carry over from one run to the next; Windows keeps Git in its `tools` cache. On
 Linux and Windows the runner installs the release channel's latest QuickRust from its release
 manifest, checking the archive's SHA-256 and size, and has it update itself on later runs.
+Every runner brings the toolchain up to date and collects QuickRust's cache before it builds,
+and QuickRust starts nothing in the background, so nothing of it is still running, writing into
+the cache or holding a log open, when the run ends.
 QuickRust publishes no FreeBSD build, so on FreeBSD the runner builds it once from its source, at
 the commit `QUICKRUST_COMMIT` in `mg-test/test.sh` names, with FreeBSD's own Rust package, which
 it removes again once QuickRust is set up. macOS is covered by the Unix code path but there are
