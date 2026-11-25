@@ -240,6 +240,36 @@ impl LiveBoxMux {
         self.screen.resize(usize::from(cols), usize::from(rows));
     }
 
+    /// Waits until boxmux has written its first frame, and gives the terminal `cols` x `rows`
+    /// cells before the screen shows any of it: the frame, drawn for the size the terminal had,
+    /// reaches a screen of the new size. A terminal multiplexer does this when it resizes a pane
+    /// while the pane's output still waits to be read.
+    #[cfg(unix)]
+    fn resize_with_first_frame_in_flight(&mut self, cols: u16, rows: u16) {
+        let mut held = Vec::new();
+        let start = Instant::now();
+        while !contains(&held, END_SYNC) {
+            assert!(
+                start.elapsed() < TIMEOUT,
+                "boxmux wrote no frame: {:?}",
+                String::from_utf8_lossy(&held)
+            );
+            if let Ok(bytes) = self.output.recv_timeout(Duration::from_millis(30)) {
+                held.extend(bytes);
+            }
+        }
+        self.master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("the PTY resizes");
+        self.screen.resize(usize::from(cols), usize::from(rows));
+        self.accept(held);
+    }
+
     #[cfg(unix)]
     fn pid(&self) -> i32 {
         self.child.process_id().expect("boxmux has a pid") as i32
@@ -885,6 +915,7 @@ fn a_termination_signal_restores_the_terminal() {
         "the cursor is shown again: {:?}",
         after
     );
+    assert!(app.screen.autowrap, "autowrap is on again: {:?}", after);
 }
 
 #[test]
@@ -937,6 +968,11 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// It shows a synchronized update as WezTerm, kitty and foot do: what is written between
 /// [`BEGIN_SYNC`] and [`END_SYNC`] reaches the screen all at once, when the update ends, however
 /// the PTY splits it into reads. An update that never ends is never shown.
+///
+/// It wraps as a terminal does with autowrap (DECAWM) on, as it starts: a character printed
+/// past the last column goes to the start of the next row, and on the last row scrolls the
+/// screen up. With autowrap off (`ESC [ ? 7 l`), as WezTerm and xterm have it, such a character
+/// is printed in the last column instead, over what was there, and nothing wraps or scrolls.
 struct Screen {
     width: usize,
     height: usize,
@@ -951,6 +987,8 @@ struct Screen {
     x: usize,
     y: usize,
     wrap_pending: bool,
+    /// Whether autowrap (DECAWM) is on.
+    autowrap: bool,
     /// How many times the screen scrolled up: a line feed or a character wrapped past the last
     /// column on the last row moves every row up one and blanks the last, as a terminal does.
     scrolled: usize,
@@ -977,6 +1015,7 @@ impl Screen {
             x: 0,
             y: 0,
             wrap_pending: false,
+            autowrap: true,
             scrolled: 0,
             pending: Vec::new(),
             last: None,
@@ -1091,6 +1130,9 @@ impl Screen {
                     .collect();
                 let n = |k: usize| params.get(k).copied().filter(|v| *v > 0).unwrap_or(1);
                 let private = data[i + 2] == b'?';
+                if private && matches!(data[j], b'h' | b'l') && params.contains(&7) {
+                    self.autowrap = data[j] == b'h';
+                }
                 if !private {
                     self.wrap_pending = false;
                     match data[j] {
@@ -1220,8 +1262,10 @@ impl Screen {
             return;
         }
         // Like a real terminal, a character after the last column goes to the next line, and
-        // on the last row scrolls the screen up.
-        if self.wrap_pending || self.x + width > self.width {
+        // on the last row scrolls the screen up; with autowrap off it goes in the last column.
+        if !self.autowrap {
+            self.x = self.x.min(self.width.saturating_sub(width));
+        } else if self.wrap_pending || self.x + width > self.width {
             self.x = 0;
             self.line_feed();
             self.wrap_pending = false;
@@ -1245,7 +1289,7 @@ impl Screen {
     fn advance(&mut self, x: usize, width: usize) {
         if x + width >= self.width {
             self.x = self.width - 1;
-            self.wrap_pending = true;
+            self.wrap_pending = self.autowrap;
         } else {
             self.x = x + width;
         }
@@ -1478,8 +1522,19 @@ fn q_quits_with_success() {
     let config = fixture.write_config(&menu());
     let mut app = LiveBoxMux::spawn(&fixture, &config);
     app.wait_for_text("READY");
+    // BoxMux draws with autowrap off, and turns it back on as it leaves. On Windows the console
+    // host between boxmux and the test writes its own screen out, in its own modes.
+    let unix = cfg!(unix);
+    assert!(
+        !(unix && app.screen.autowrap),
+        "autowrap is on while boxmux runs"
+    );
     app.send("q");
     assert!(app.wait_for_exit(), "q exits successfully");
+    assert!(
+        !unix || app.screen.autowrap,
+        "autowrap is not turned back on"
+    );
 }
 
 #[test]
@@ -1644,6 +1699,7 @@ fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
         );
         app.pump(Duration::from_millis(20));
     }
+    assert!(app.screen.autowrap, "boxmux stopped with autowrap off");
     let before = app.raw.len();
     assert_eq!(unsafe { libc::kill(app.pid(), libc::SIGCONT) }, 0);
     let start = Instant::now();
@@ -1652,6 +1708,7 @@ fn ctrl_z_suspends_with_the_terminal_restored_and_continuing_redraws() {
         app.pump(Duration::from_millis(20));
     }
     app.wait_for_text("READY");
+    assert!(!app.screen.autowrap, "boxmux came back with autowrap on");
 }
 
 /// Text widths as BoxMux draws them, read through the test terminal. Unix only: on Windows
@@ -2250,6 +2307,280 @@ fn a_terminal_resized_as_boxmux_starts_and_back_and_forth_is_drawn_at_each_size_
         app.wait_for_handlebar(NEEDS);
         app.resize(to.0 + 7, to.1 + 4);
         app.wait_for_handlebar(NEEDS);
+    }
+}
+
+/// One layout of empty boxes, each with its title and its position: `(title, x1, y1, x2, y2)`.
+fn boxes(positions: &[(&str, &str, &str, &str, &str)]) -> String {
+    let mut yaml =
+        "app:\n  layouts:\n    - id: main\n      root: true\n      children:\n".to_string();
+    for (title, x1, y1, x2, y2) in positions {
+        yaml.push_str(&format!(
+            "        - id: {}\n          title: {}\n          position: {{x1: \"{}\", y1: \"{}\", x2: \"{}\", y2: \"{}\"}}\n",
+            title.to_lowercase(),
+            title,
+            x1,
+            y1,
+            x2,
+            y2
+        ));
+    }
+    yaml
+}
+
+/// A box over the whole screen.
+fn whole_box() -> String {
+    boxes(&[("Whole", "0%", "0%", "100%", "100%")])
+}
+
+/// Boxes stacked from the top of the screen to its bottom, split at `splits`, the percentages
+/// where each box ends and the next begins.
+fn stacked_rows(splits: &[&str]) -> String {
+    let edges: Vec<&str> = ["0%"]
+        .into_iter()
+        .chain(splits.iter().copied())
+        .chain(["100%"])
+        .collect();
+    let titles = ["A", "B", "C", "D"];
+    let positions: Vec<_> = edges
+        .windows(2)
+        .zip(titles)
+        .map(|(edge, title)| (title, "0%", edge[0], "100%", edge[1]))
+        .collect();
+    boxes(&positions)
+}
+
+/// Boxes side by side from the left of the screen to its right, split at `splits`, the
+/// percentages where each box ends and the next begins.
+fn stacked_columns(splits: &[&str]) -> String {
+    let edges: Vec<&str> = ["0%"]
+        .into_iter()
+        .chain(splits.iter().copied())
+        .chain(["100%"])
+        .collect();
+    let titles = ["A", "B", "C", "D"];
+    let positions: Vec<_> = edges
+        .windows(2)
+        .zip(titles)
+        .map(|(edge, title)| (title, edge[0], "0%", edge[1], "100%"))
+        .collect();
+    boxes(&positions)
+}
+
+/// The character in cell (`x`, `y`) of `screen`; a space for the right half of a wide one.
+fn char_at(screen: &Screen, x: usize, y: usize) -> char {
+    screen.cells[y][x].chars().next().unwrap_or(' ')
+}
+
+/// A side of a box, or its scrollbar.
+const SIDE: [char; 2] = ['│', '█'];
+/// The bottom right corner of a box, or the resize handle drawn in it.
+const BOTTOM_RIGHT: [char; 2] = ['┘', '⋱'];
+
+/// What is wrong with empty boxes laid out on `screen` whose borders should be exactly at
+/// `columns` (each box's left border, the last box's right border last) and `rows` (likewise
+/// top to bottom): every border where it belongs, each box's title on its top border, nothing
+/// inside any box, and the screen never scrolled. Boxes that share an edge share its border,
+/// the later box's drawn over the earlier's.
+fn grid_problems(
+    screen: &Screen,
+    columns: &[usize],
+    rows: &[usize],
+    titles: &[&str],
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    if screen.scrolled > 0 {
+        problems.push(format!(
+            "the screen scrolled {} times: something was written past its last row or column",
+            screen.scrolled
+        ));
+    }
+    let (right, bottom) = (screen.width - 1, screen.height - 1);
+    if columns.first() != Some(&0) || columns.last() != Some(&right) {
+        problems.push(format!(
+            "the borders expected at columns {:?} do not span the screen's {} columns",
+            columns, screen.width
+        ));
+    }
+    if rows.first() != Some(&0) || rows.last() != Some(&bottom) {
+        problems.push(format!(
+            "the borders expected at rows {:?} do not span the screen's {} rows",
+            rows, screen.height
+        ));
+    }
+    for y in 0..screen.height {
+        let top = rows[..rows.len() - 1].contains(&y);
+        for x in 0..screen.width {
+            let left = columns[..columns.len() - 1].contains(&x);
+            let expected: &[char] = match (left, x == right, top, y == bottom) {
+                (true, _, true, _) => &['┌'],
+                (_, true, true, _) => &['┐'],
+                (true, _, _, true) => &['└'],
+                (_, true, _, true) => &BOTTOM_RIGHT,
+                (true, _, _, _) | (_, true, _, _) => &SIDE,
+                // A top border holds its box's title.
+                (_, _, true, _) | (_, _, _, true) => continue,
+                _ => &[' '],
+            };
+            let found = char_at(screen, x, y);
+            if !expected.contains(&found) {
+                problems.push(format!(
+                    "cell ({}, {}) is {:?}, not {:?}: {:?}",
+                    x,
+                    y,
+                    found,
+                    expected,
+                    screen.row(y)
+                ));
+            }
+        }
+    }
+    // Boxes stacked top to bottom each have their own top border; side by side, they share one.
+    for (i, title) in titles.iter().enumerate() {
+        let y = if rows.len() > 2 { rows[i] } else { 0 };
+        let row = screen.row(y);
+        if !row.contains(title) {
+            problems.push(format!("row {} lacks the title {}: {:?}", y, title, row));
+        }
+    }
+    problems
+}
+
+/// A terminal size, and the columns and rows the borders of a layout drawn at that size are on.
+struct Borders {
+    cols: u16,
+    rows: u16,
+    /// The column of each box's left border, the last box's right border last.
+    at_columns: Vec<usize>,
+    /// The row of each box's top border, the last box's bottom border last.
+    at_rows: Vec<usize>,
+}
+
+/// One way of laying out boxes to the edges of the screen, and where their borders are at
+/// each size the tests draw it.
+struct EdgeLayout {
+    what: &'static str,
+    yaml: String,
+    titles: &'static [&'static str],
+    sizes: Vec<Borders>,
+}
+
+/// Boxes laid out to the edges of the screen: one box over all of it, boxes stacked top to
+/// bottom split at a third and two thirds and at odd percentages, and the same side by side.
+/// Each at 30, 48 and 70 rows (or columns), its borders where 0% is the first row and 100% the
+/// last, a box's bottom border on the row the next box's top border shares.
+fn edge_layouts() -> Vec<EdgeLayout> {
+    let full = |cols: u16, rows: u16| Borders {
+        cols,
+        rows,
+        at_columns: vec![0, usize::from(cols) - 1],
+        at_rows: vec![0, usize::from(rows) - 1],
+    };
+    let across = |cols: u16, between: [usize; 2]| Borders {
+        cols,
+        rows: 20,
+        at_columns: vec![0, between[0], between[1], usize::from(cols) - 1],
+        at_rows: vec![0, 19],
+    };
+    let down = |rows: u16, between: [usize; 2]| Borders {
+        cols: 48,
+        rows,
+        at_columns: vec![0, 47],
+        at_rows: vec![0, between[0], between[1], usize::from(rows) - 1],
+    };
+    vec![
+        EdgeLayout {
+            what: "a box from 0% to 100% both ways",
+            yaml: whole_box(),
+            titles: &["Whole"],
+            sizes: vec![
+                full(48, 30),
+                full(48, 48),
+                full(48, 70),
+                full(30, 20),
+                full(70, 20),
+            ],
+        },
+        EdgeLayout {
+            what: "boxes stacked at 33% and 66%",
+            yaml: stacked_rows(&["33%", "66%"]),
+            titles: &["A", "B", "C"],
+            // 33% of 29, 47 and 69 rows past the first is 9.57, 15.51 and 22.77; 66% is 19.14,
+            // 31.02 and 45.54.
+            sizes: vec![down(30, [10, 19]), down(48, [16, 31]), down(70, [23, 46])],
+        },
+        EdgeLayout {
+            what: "boxes stacked at 12.5% and 57%",
+            yaml: stacked_rows(&["12.5%", "57%"]),
+            titles: &["A", "B", "C"],
+            // 12.5% of 29, 47 and 69 is 3.625, 5.875 and 8.625; 57% is 16.53, 26.79 and 39.33.
+            sizes: vec![down(30, [4, 17]), down(48, [6, 27]), down(70, [9, 39])],
+        },
+        EdgeLayout {
+            what: "boxes side by side at 33% and 66%",
+            yaml: stacked_columns(&["33%", "66%"]),
+            titles: &["A", "B", "C"],
+            sizes: vec![
+                across(30, [10, 19]),
+                across(48, [16, 31]),
+                across(70, [23, 46]),
+            ],
+        },
+        EdgeLayout {
+            what: "boxes side by side at 21% and 57%",
+            yaml: stacked_columns(&["21%", "57%"]),
+            titles: &["A", "B", "C"],
+            // 21% of 29, 47 and 69 columns past the first is 6.09, 9.87 and 14.49.
+            sizes: vec![
+                across(30, [6, 17]),
+                across(48, [10, 27]),
+                across(70, [14, 39]),
+            ],
+        },
+    ]
+}
+
+impl LiveBoxMux {
+    /// Waits until the screen shows `layout` with its borders where `borders` has them (see
+    /// [`grid_problems`]).
+    fn wait_for_edges(&mut self, layout: &EdgeLayout, borders: &Borders) {
+        let what = format!(
+            "{} at {}x{}",
+            layout.what, self.screen.width, self.screen.height
+        );
+        self.wait_for_screen(&what, |screen| {
+            grid_problems(screen, &borders.at_columns, &borders.at_rows, layout.titles)
+        });
+    }
+}
+
+#[test]
+fn boxes_laid_out_to_the_screen_s_edges_end_on_its_last_row_and_column() {
+    for layout in edge_layouts() {
+        for borders in &layout.sizes {
+            let fixture = Fixture::new();
+            let config = fixture.write_config(&layout.yaml);
+            let screen = Screen::new(usize::from(borders.cols), usize::from(borders.rows));
+            let mut app = LiveBoxMux::spawn_in(&fixture, &config, &[], screen);
+            app.wait_for_edges(&layout, borders);
+        }
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn a_frame_drawn_for_a_larger_terminal_than_it_reaches_never_scrolls_the_screen() {
+    // The frame is drawn for 7 more columns and 5 more rows than the terminal has once it
+    // arrives: each of its rows reaches past the last column, the last ones past the last row.
+    for layout in edge_layouts() {
+        for borders in &layout.sizes {
+            let fixture = Fixture::new();
+            let config = fixture.write_config(&layout.yaml);
+            let screen = Screen::new(usize::from(borders.cols + 7), usize::from(borders.rows + 5));
+            let mut app = LiveBoxMux::spawn_in(&fixture, &config, &[], screen);
+            app.resize_with_first_frame_in_flight(borders.cols, borders.rows);
+            app.wait_for_edges(&layout, borders);
+        }
     }
 }
 

@@ -19,7 +19,8 @@ pub trait Display {
     fn set_title(&mut self, title: &str) -> io::Result<()>;
     /// Puts text on the system clipboard of the terminal (OSC 52).
     fn copy_to_clipboard(&mut self, text: &str) -> io::Result<()>;
-    /// Re-establishes raw mode and mouse capture after a child process may have reset them.
+    /// Re-establishes raw mode and mouse capture, and turns autowrap off again, after a child
+    /// process may have reset them.
     fn reassert_modes(&mut self) -> io::Result<()>;
     /// Returns the terminal to normal mode before the process stops (Ctrl+Z).
     fn suspend(&mut self) -> io::Result<()>;
@@ -32,8 +33,17 @@ pub struct TerminalDisplay {
 }
 
 impl TerminalDisplay {
-    /// Switches the terminal to the alternate screen, raw mode and mouse capture. The terminal
-    /// is restored when the display is dropped, and by the panic hook installed here.
+    /// Switches the terminal to the alternate screen, raw mode and mouse capture, with autowrap
+    /// off. The terminal is restored when the display is dropped, and by the panic hook
+    /// installed here.
+    ///
+    /// Autowrap is off so that nothing BoxMux writes can wrap or scroll the screen. A frame is
+    /// drawn for the size the terminal has when it is drawn, but a terminal can be resized
+    /// while the frame is on its way, as a terminal multiplexer resizes a pane while the pane's
+    /// output waits to be read. With autowrap on, each row of a frame drawn wider than the
+    /// terminal it reaches would run onto the next, and the last row's would scroll the whole
+    /// screen up; with it off, a row is cut at the last column, and the frame drawn after the
+    /// resize replaces it whole.
     pub fn enter() -> io::Result<TerminalDisplay> {
         install_panic_hook();
         let mut display = TerminalDisplay {
@@ -50,6 +60,7 @@ impl TerminalDisplay {
             terminal::EnterAlternateScreen,
             event::EnableMouseCapture,
             cursor::Hide,
+            terminal::DisableLineWrap,
             terminal::Clear(terminal::ClearType::All)
         )?;
         enable_bracketed_paste(&mut self.out)?;
@@ -65,8 +76,8 @@ impl Drop for TerminalDisplay {
 }
 
 /// Leaves full-screen mode: ends a synchronized update a frame left open (when a panic stopped
-/// it), shows the cursor, stops mouse capture, leaves the alternate screen and raw mode. Safe to
-/// call more than once.
+/// it), shows the cursor, stops mouse capture, turns autowrap back on, leaves the alternate
+/// screen and raw mode. Safe to call more than once.
 pub fn restore_terminal() {
     let mut out = io::stdout();
     let _ = crossterm::execute!(out, terminal::EndSynchronizedUpdate);
@@ -76,6 +87,7 @@ pub fn restore_terminal() {
         out,
         event::DisableMouseCapture,
         cursor::Show,
+        terminal::EnableLineWrap,
         terminal::LeaveAlternateScreen
     );
     let _ = terminal::disable_raw_mode();
@@ -249,7 +261,11 @@ impl Display for TerminalDisplay {
 
     fn reassert_modes(&mut self) -> io::Result<()> {
         crate::platform::ensure_raw_mode();
-        queue!(self.out, event::EnableMouseCapture)?;
+        queue!(
+            self.out,
+            event::EnableMouseCapture,
+            terminal::DisableLineWrap
+        )?;
         enable_bracketed_paste(&mut self.out)?;
         self.out.flush()
     }
