@@ -1,11 +1,20 @@
-# Prepares a Windows guest for building BoxMux: the MSVC build tools (once per guest), and
-# Rust and Git (once per tools cache). Dot-sourced by test.ps1 and build.ps1.
-$env:RUSTUP_HOME = Join-Path $env:MG_TEST_CACHE_TOOLS 'rustup'
-$env:CARGO_HOME = Join-Path $env:MG_TEST_CACHE_TOOLS 'cargo'
-$env:CARGO_TARGET_DIR = $env:MG_TEST_CACHE_TARGET
+# Prepares a Windows guest for building BoxMux: the MSVC build tools (once per guest), QuickRust
+# (once per rust cache) and Git (once per tools cache). Dot-sourced by test.ps1.
+#
+# Rust is built by QuickRust, and QuickRust is the one thing installed for it: it installs and
+# manages the toolchain itself and decides where builds go. Its home is the rust cache, so the
+# toolchain, the crates it downloaded and its build cache outlive the guest. Nothing here updates
+# in the background, so nothing still writes into the cache when the run ends: the toolchain and
+# QuickRust are brought up to date below, before the build.
+if (-not $env:MG_TEST_CACHE_RUST) { throw 'the rust cache is not mounted; the plan must declare it' }
+if (-not $env:MG_TEST_CACHE_TOOLS) { throw 'the tools cache is not mounted; the plan must declare it' }
+$env:QRUST_HOME = Join-Path $env:MG_TEST_CACHE_RUST 'qrust'
+$env:QRUST_TOOLCHAIN_AUTO_UPDATE = 'off'
+$env:QRUST_SELF_UPDATE_CHECK = 'off'
 $env:CARGO_TERM_COLOR = 'never'
+$qrustBin = Join-Path $env:QRUST_HOME 'bin'
 $gitHome = Join-Path $env:MG_TEST_CACHE_TOOLS 'mingit-2.56.1'
-$env:PATH = "$env:CARGO_HOME\bin;$gitHome\cmd;$env:PATH"
+$env:PATH = "$qrustBin;$gitHome\cmd;$env:PATH"
 
 function Invoke-Native([string] $what, [scriptblock] $command) {
     & $command
@@ -25,12 +34,36 @@ if (-not $haveVc) {
     if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "installing the MSVC build tools failed with exit code $($p.ExitCode)" }
 }
 
-if (-not (Test-Path "$env:CARGO_HOME\bin\cargo.exe")) {
-    $rustup = Join-Path $env:MG_TEST_SCRATCH 'rustup-init.exe'
-    Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $rustup
-    Invoke-Native 'installing Rust' { & $rustup -y --no-modify-path --profile minimal --default-toolchain stable -c clippy -c rustfmt }
+# The release channel's latest QuickRust for Windows, from the release manifest, checked against
+# the manifest's SHA-256 and size before anything in it runs; once installed, QuickRust updates
+# itself.
+if (Test-Path -LiteralPath (Join-Path $qrustBin 'qrust.exe')) {
+    Invoke-Native 'updating QuickRust' { qrust self update }
+} else {
+    $manifest = Invoke-RestMethod 'https://release.machinefabric.com/quickrust/manifest'
+    $release = $manifest.channels.release
+    $build = $release.versions.($release.latestVersion).platforms.'windows-x86_64'
+    if (-not $build) { throw "QuickRust $($release.latestVersion) has no windows-x86_64 build" }
+    $zips = @($build.installers | Where-Object { $_.type -eq 'zip' })
+    if ($zips.Count -ne 1) { throw "the QuickRust manifest lists $($zips.Count) zip archives for windows-x86_64 $($release.latestVersion), not one" }
+    $archive = $zips[0]
+    $unpacked = Join-Path $env:MG_TEST_SCRATCH 'quickrust-install'
+    if (Test-Path -LiteralPath $unpacked) { Remove-Item -LiteralPath $unpacked -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $unpacked | Out-Null
+    $zip = Join-Path $unpacked 'qrust.zip'
+    Write-Host "installing QuickRust from $($archive.path)"
+    Invoke-WebRequest $archive.path -OutFile $zip
+    $size = (Get-Item -LiteralPath $zip).Length
+    if ($size -ne [int64] $archive.size) { throw "$($archive.path) is $size bytes, not the $($archive.size) the manifest says" }
+    $sha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($sha256 -ne $archive.sha256.ToLowerInvariant()) { throw "$($archive.path) has SHA-256 $sha256, not the manifest's $($archive.sha256)" }
+    Expand-Archive -LiteralPath $zip -DestinationPath $unpacked
+    Invoke-Native 'qrust setup' { & (Join-Path $unpacked 'quickrust\qrust.exe') setup --no-modify-path }
+    Remove-Item -LiteralPath $unpacked -Recurse -Force
 }
-Invoke-Native 'updating Rust' { rustup update stable --no-self-update }
+$cargoOnPath = (Get-Command cargo -ErrorAction SilentlyContinue).Source
+if ($cargoOnPath -notlike "$qrustBin\*") { throw "cargo on PATH is '$cargoOnPath', not QuickRust's" }
+Invoke-Native 'updating the stable toolchain' { qrust toolchain update --channel stable }
 
 # The version tests make git repositories, and the build reads the commit it is built from.
 if (-not (Test-Path "$gitHome\cmd\git.exe")) {

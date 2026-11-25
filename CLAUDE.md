@@ -7,7 +7,7 @@ top of it.
 ## Testing
 
 - `cargo test` runs everything on one machine. Other operating systems are covered by the
-  mg-test plans in `mg-test.yaml` and `mg-test/` (hosts, arm64, freebsd, release), as
+  mg-test plans in `mg-test.yaml` and `mg-test/` (hosts, arm64, freebsd), as
   CONTRIBUTING.md describes.
 - The repository has no GitHub Actions workflows and gets none: cross-platform runs go through
   mg-test.

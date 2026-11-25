@@ -9,14 +9,13 @@ targets:
     uses: ubuntu-2604-x86-64-pve
     resources: {cpu: 4, memory: 8GiB, disk: 64GiB}
     caches:
-      tools: {}
-      target: {}
+      rust: {}
   windows-x86-64:
     uses: windows-11-x86-64-pve
     allocationTimeout: 60m
     caches:
+      rust: {}
       tools: {}
-      target: {}
 tasks:
   test-linux-x86-64:
     target: linux-x86-64

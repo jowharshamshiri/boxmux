@@ -116,8 +116,8 @@ copies the tracked files of the working tree into them and runs the plans in `mg
 | Plan | Machines | What runs |
 |------|----------|-----------|
 | `hosts` | Ubuntu x86-64, Windows 11 x86-64 | formatting (Linux), clippy, all tests |
-| `arm64` | Ubuntu arm64 | clippy, all tests |
-| `freebsd` | FreeBSD x86-64 | clippy, all tests |
+| `arm64` | Ubuntu arm64 | formatting, clippy, all tests |
+| `freebsd` | FreeBSD x86-64 | formatting, clippy, all tests |
 
 ```bash
 mg-test validate mg-test.yaml
@@ -129,7 +129,18 @@ mg-test destroy RUN_ID                         # give the machines back
 ```
 
 The runners are `mg-test/test.sh` (POSIX sh) and `mg-test/test.ps1` (PowerShell); each writes
-one result per test to `out/results.jsonl`. macOS is covered by the Unix code path but there are
+one result per test to `out/results.jsonl`, and stops at the first check that fails (formatting,
+then clippy), reporting it as a failed item.
+
+The guests build with [QuickRust](https://github.com/machinefabric/quickrust), and nothing else
+of Rust is installed on them: QuickRust installs and updates the stable toolchain itself and
+chooses where builds go. Its home is each target's `rust` cache, so the toolchain, the crates and
+the build output carry over from one run to the next; Windows keeps Git in its `tools` cache. On
+Linux and Windows the runner installs the release channel's latest QuickRust from its release
+manifest, checking the archive's SHA-256 and size, and has it update itself on later runs.
+QuickRust publishes no FreeBSD build, so on FreeBSD the runner builds it once from its source, at
+the commit `QUICKRUST_COMMIT` in `mg-test/test.sh` names, with FreeBSD's own Rust package, which
+it removes again once QuickRust is set up. macOS is covered by the Unix code path but there are
 no macOS machines to test on.
 
 ## Documentation

@@ -8,8 +8,7 @@ targets:
     uses: ubuntu-2604-arm64-pve
     resources: {cpu: 4, memory: 8GiB, disk: 64GiB}
     caches:
-      tools: {}
-      target: {}
+      rust: {}
 tasks:
   test-linux-arm64:
     target: linux-arm64
