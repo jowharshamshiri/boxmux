@@ -321,6 +321,7 @@ Choices make a menu inside a box.
 | `script` | `string` or `array[string]` | No | - | Script run when the choice is activated. |
 | `confirm` | `object` | No | - | Ask before the script runs: see [Confirmation](#confirmation). Requires a `script`. |
 | `execution_mode` | `string` | No | `Immediate` | `Immediate`, `Thread` or `Pty`. |
+| `output` | `string` | No | `tab` | `tab`: the output opens a tab, as below. `none`: the output is discarded and no tab opens; a failure is told in a notice. Requires a `script`. |
 | `redirect_output` | `string` | No | - | Box id that shows the output. Requires a `script`. |
 | `append_output` | `boolean` | No | `false` | Add new output after the old output instead of replacing it. |
 | `fg_color`, `bg_color` | color name | No | the box's menu colors | The entry's own text and background colors: see [Choice Colors](#choice-colors). |
@@ -328,10 +329,22 @@ Choices make a menu inside a box.
 
 Up and Down move the selection (marked with `►`) and wrap around. Enter, or a click on a label, runs the selected choice. While the script runs, the label ends with ` …`. Activating a choice that is still running does not start it again.
 
+A program can change a menu while someone reads it by replacing its box over the control socket (`replace_box`). The selection stays on the entry of the same `id` when the new menu has one, and the menu stays scrolled to the rows it showed, moving only as far as it takes to keep that entry in view. When the new menu has no entry of that id, its first entry is selected, and it is scrolled as the new box says: to its top unless it sets `vertical_scroll`.
+
 What a choice's run shows depends on its `execution_mode`:
 
 - `Immediate` and `Thread`: the output opens in its own tab, labelled with the choice's label, in the box itself or in the `redirect_output` box, when the script first prints something (an `Immediate` script prints when it ends). The tab opens beside the others and does not take the box's view: click it to see the output. A script that prints nothing opens no tab, and the box keeps showing what it showed; if it fails, a notice at the bottom of the screen says so.
 - `Pty`: the choice's terminal opens in its own tab when the choice starts and is shown at once, since it takes the keyboard. Activating the choice while its program runs shows the terminal again.
+
+A choice with `output: none` runs its script with the output discarded: no tab opens anywhere, whatever the script prints, and the box keeps showing what it showed. Use it for a choice that only acts or signals another program, so a stray line never opens a tab over the menu. The label still ends with ` …` while the script runs, and a script that fails (exits with a status other than 0, or is ended by a signal) is told in a notice at the bottom of the screen, such as `choice 'restart' of box 'menu' exited with code 3`. Since there is no output to place, such a choice takes no `redirect_output` or `append_output`, and runs `Immediate`: `Thread` and `Pty` are refused. Its `BOXMUX_BOX` is empty.
+
+```yaml
+choices:
+  - id: restart
+    content: Restart the web service
+    output: none
+    script: ['systemctl --user restart web']
+```
 
 ### Choice Colors
 
@@ -447,7 +460,7 @@ A script is either a single string or a list of strings:
 
 The elements of a list are joined with newlines and run as one script, in one shell process. The script runs in the shell set by `app.shell`, in the directory boxmux was started from. The files listed in `app.libs` are sourced first. Standard output and standard error are both shown.
 
-Every script gets two extra environment variables: `BOXMUX_SOCKET`, the name of the control socket, and `BOXMUX_BOX`, the id of the box that shows the output. A script can use them to call `boxmux` control commands, such as `boxmux replace_box_content`.
+Every script gets two extra environment variables: `BOXMUX_SOCKET`, the name of the control socket, and `BOXMUX_BOX`, the id of the box that shows the output (empty when the output is shown nowhere: app and layout `on_keypress` handlers, and choices with `output: none`). A script can use them to call `boxmux` control commands, such as `boxmux replace_box_content`.
 
 ### Execution Modes
 
@@ -887,6 +900,7 @@ Besides the types and allowed values of every key, the loader checks:
 - `redirect_output` names an existing box, and `next_focus_id` names a box in the same layout.
 - Every `hot_keys` entry names an existing choice.
 - A choice with `redirect_output` has a `script`.
+- A choice with `output: none` has a `script`, and no `redirect_output`, `append_output` or `execution_mode` other than `Immediate`.
 - `refresh_interval` is at least 1, needs a `script`, a `plugin_component` or children, and is not set on a `Pty` box.
 - Key names in `hot_keys` and `on_keypress` are valid key names (see [Key names](/docs/advanced-features#key-names)), and neither `q` nor, on Unix, `Ctrl+z` is bound.
 - `min_width`/`min_height` are not larger than `max_width`/`max_height`.

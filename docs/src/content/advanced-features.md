@@ -119,6 +119,7 @@ the libraries for the shell the app uses (`app.shell`).
 
 | Setting | Where | Effect |
 |---------|-------|--------|
+| `output: none` | choice | Discards the output: no tab opens, and a failure is told in a notice. Needs a script; takes no `redirect_output` or `append_output`, and runs `Immediate`. |
 | `redirect_output` | box, choice | Shows the output in another box (any layout), in a tab of its own. Needs a script. |
 | `append_output` | box, choice | Adds each run's output after the previous output instead of replacing it. |
 | `auto_scroll_bottom` | box | Scrolls to the newest line when the visible tab gets new output. |
@@ -339,7 +340,7 @@ Every script BoxMux runs has these environment variables:
 
 - `BOXMUX_SOCKET`: the control socket of this instance.
 - `BOXMUX_BOX`: the id of the box the script's output goes to (its `redirect_output` box when
-  it has one; empty for app and layout key handlers).
+  it has one; empty for app and layout key handlers and choices with `output: none`).
 - `BOXMUX_OPTION`: in the script of a choice with a `confirm`, the id of the answer chosen.
 
 Scripts run in the directory BoxMux was started from.

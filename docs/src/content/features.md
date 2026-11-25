@@ -72,7 +72,9 @@ See the [Configuration Reference](/docs/configuration).
 
 - `choices` are menu entries. Enter or a click on the label runs the selected entry; its
   output opens a tab in the box (or in the `redirect_output` box), and the entry shows ` …`
-  while it runs.
+  while it runs. A choice with `output: none` discards its output and opens no tab; a failure
+  shows a notice.
+- A menu replaced over the control socket keeps the selected entry, by id, and its scroll.
 - A choice with `confirm` asks first, in a window over the layout with its own text and
   answers, and runs only on an answer that does not cancel.
 - `hot_keys` bind key names to choice ids; `on_keypress` binds key names to scripts in the

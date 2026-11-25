@@ -94,6 +94,7 @@ A box with `choices` shows them as a menu. The selected entry is marked with `�
 - Up and Down move the selection, wrapping at the ends, and scroll the menu to keep it in view.
 - Enter runs the selected entry. Clicking an entry selects and runs it. Only the label is clickable, not the empty space after it.
 - While an entry's script runs, the entry shows ` …`. Running it again while it runs only brings its output tab into view.
+- A menu that a program replaces over the control socket keeps the selected entry, by id, and the rows it showed, so it can change while you read it.
 - An entry with `confirm` asks before it runs, in a window over the layout. Left and Right move between its answers, Enter chooses one, and Escape or a click outside the window cancels. See [Confirmation](/docs/configuration#confirmation).
 
 With `overflow_behavior: wrap`, long labels wrap and continue under the label, not under the `►` marker. With `truncate` they are cut with `…`.

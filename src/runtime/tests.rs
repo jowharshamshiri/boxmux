@@ -320,6 +320,65 @@ fn a_choice_that_fails_silently_says_so_in_a_notice_and_opens_no_tab() {
     assert_eq!((tabs, visible), (before.0, before.1));
 }
 
+/// Prints a line to standard output and one to standard error, and exits with status 0.
+#[cfg(unix)]
+const CHATTY: &str = "['echo chatter', 'echo more chatter >&2']";
+#[cfg(windows)]
+const CHATTY: &str = "['echo chatter', '[Console]::Error.WriteLine(\"more chatter\")']";
+
+/// The quiet menu, its first choice declaring `output: none`.
+fn discarding_menu(script: &str) -> String {
+    quiet_menu(script, "Immediate").replace(
+        "              execution_mode: Immediate\n",
+        "              execution_mode: Immediate\n              output: none\n",
+    )
+}
+
+#[test]
+fn a_choice_with_output_none_opens_no_tab_whatever_it_prints() {
+    let mut runtime = runtime(&discarding_menu(CHATTY), 80, 12);
+    let before = menu_view(&runtime);
+    let at = find(&runtime, "Write a file");
+    click(&mut runtime, at);
+    assert!(choice_waiting(&runtime), "the choice started");
+    assert!(
+        screen_contains(&runtime, "Write a file …"),
+        "the running choice is marked as any is"
+    );
+    pump_until(&mut runtime, "the chatty run to finish", |r| {
+        !choice_waiting(r) && r.executor.runs().next().is_none()
+    });
+    assert_eq!(
+        menu_view(&runtime),
+        before,
+        "the box keeps its tabs, its visible tab and its screen"
+    );
+    assert!(!screen_contains(&runtime, "chatter"));
+    assert!(runtime.notice.is_none(), "a clean exit says nothing");
+}
+
+#[test]
+fn a_choice_with_output_none_that_fails_says_so_in_a_notice_and_opens_no_tab() {
+    let mut runtime = runtime(&discarding_menu(FAIL_LOUDLY), 80, 12);
+    let before = menu_view(&runtime);
+    let at = find(&runtime, "Write a file");
+    click(&mut runtime, at);
+    pump_until(&mut runtime, "the failure notice", |r| {
+        r.notice.as_ref().is_some_and(|n| n.is_error)
+    });
+    let notice = runtime.notice.as_ref().unwrap().text.clone();
+    assert_eq!(
+        notice, "choice 'quiet' of box 'menu' exited with code 3",
+        "the notice names the choice and how it ended"
+    );
+    pump_until(&mut runtime, "the run to be forgotten", |r| {
+        !choice_waiting(r) && r.executor.runs().next().is_none()
+    });
+    let (tabs, visible, _) = menu_view(&runtime);
+    assert_eq!((tabs, visible), (before.0, before.1));
+    assert!(!screen_contains(&runtime, "broken"));
+}
+
 #[test]
 fn a_choice_that_prints_late_opens_its_tab_then_without_taking_focus() {
     for mode in ["Immediate", "Thread"] {
@@ -1284,6 +1343,151 @@ fn replacing_a_box_keeps_the_runs_its_choices_started_and_their_output_reaches_t
         .get("menu/choice:menu:slow")
         .unwrap();
     assert_eq!(stream.status, crate::model::stream::StreamStatus::Exited(0));
+}
+
+/// A focused menu of eight rows whose entries are `item <n>`, id `c<n>`, for each n of `entries`, as a program
+/// sends it with `replace_box`.
+fn long_menu(entries: impl IntoIterator<Item = usize>) -> String {
+    let choices: Vec<String> = entries
+        .into_iter()
+        .map(|n| format!(r#"{{"id": "c{n}", "content": "item {n}", "script": ["echo {n}"]}}"#))
+        .collect();
+    format!(
+        r#"{{"id": "menu", "title": "Menu", "position": {{"x1": "0", "y1": "0", "x2": "39", "y2": "9"}},
+            "tab_order": 1, "selected": true, "content_align": "top_left", "padding": {{"top": 0}},
+            "choices": [{}]}}"#,
+        choices.join(", ")
+    )
+}
+
+fn long_menu_runtime(entries: impl IntoIterator<Item = usize>) -> Runtime<MemoryDisplay> {
+    let yaml = format!(
+        "app:\n  layouts:\n    - id: main\n      root: true\n      children:\n        - {}\n",
+        long_menu(entries)
+    );
+    runtime(&yaml, 40, 10)
+}
+
+/// The id of the menu's selected entry, and the first row of the menu the box shows.
+fn menu_reading(runtime: &mut Runtime<MemoryDisplay>) -> (Option<String>, usize) {
+    let selected = runtime
+        .ctx
+        .app
+        .get_muxbox_by_id("menu")
+        .and_then(|b| b.choices_stream())
+        .and_then(|s| s.choices.as_ref())
+        .and_then(|choices| choices.iter().find(|c| c.selected))
+        .map(|c| c.id.clone());
+    let offset = runtime
+        .views()
+        .into_iter()
+        .find(|view| view.id == "menu")
+        .and_then(|view| view.body)
+        .expect("the menu is shown")
+        .offset_y;
+    (selected, offset)
+}
+
+fn replace_menu(runtime: &mut Runtime<MemoryDisplay>, entries: impl IntoIterator<Item = usize>) {
+    let reply = runtime.handle_socket(SocketFunction::ReplaceBox {
+        box_id: "menu".into(),
+        new_box: long_menu(entries).parse().unwrap(),
+    });
+    assert!(reply.ok, "{:?}", reply.error);
+    runtime.render();
+}
+
+#[test]
+fn replacing_a_menu_keeps_the_selected_entry_and_the_scroll_while_the_entry_remains() {
+    // Twenty entries in eight rows. Down twelve times selects item 13 and scrolls it to the last row (rows 5 to
+    // 12 are shown); Up three times selects item 10 without scrolling.
+    let mut runtime = long_menu_runtime(1..=20);
+    for _ in 0..12 {
+        press(&mut runtime, KeyCode::Down);
+    }
+    for _ in 0..3 {
+        press(&mut runtime, KeyCode::Up);
+    }
+    assert_eq!(menu_reading(&mut runtime), (Some("c10".to_string()), 5));
+    assert!(screen_contains(&runtime, "► item 10"));
+
+    // The program adds an entry above and two below: item 10 is still there, one row lower. The menu keeps its
+    // rows, not its scroll in percent, which in the longer menu would be row 6.
+    replace_menu(&mut runtime, (0..=22).collect::<Vec<_>>());
+    assert_eq!(
+        menu_reading(&mut runtime),
+        (Some("c10".to_string()), 5),
+        "the selection follows its id and the menu stays on the rows it showed"
+    );
+    assert!(screen_contains(&runtime, "► item 10"));
+    assert!(
+        screen_contains(&runtime, "item 5 ") && !screen_contains(&runtime, "item 4 "),
+        "the rows from row 5 are shown, now items 5 to 12"
+    );
+
+    // Down moves on from the kept selection.
+    press(&mut runtime, KeyCode::Down);
+    assert_eq!(menu_reading(&mut runtime).0, Some("c11".to_string()));
+}
+
+#[test]
+fn replacing_a_menu_brings_the_kept_selection_into_view_when_the_old_scroll_no_longer_shows_it() {
+    let mut runtime = long_menu_runtime(1..=20);
+    for _ in 0..12 {
+        press(&mut runtime, KeyCode::Down);
+    }
+    assert_eq!(menu_reading(&mut runtime), (Some("c13".to_string()), 5));
+    // Three entries come in above: item 13 moves to row 15, below the eight rows from row 5.
+    let mut entries: Vec<usize> = vec![100, 101, 102];
+    entries.extend(1..=20);
+    replace_menu(&mut runtime, entries);
+    assert_eq!(
+        menu_reading(&mut runtime),
+        (Some("c13".to_string()), 8),
+        "the menu scrolls only as far as the arrow keys would, to show item 13 on its last row"
+    );
+    assert!(screen_contains(&runtime, "► item 13"));
+}
+
+#[test]
+fn a_menu_replaced_while_its_layout_is_hidden_keeps_its_selection_and_scroll_for_when_it_is_shown()
+{
+    let yaml = format!(
+        "app:\n  layouts:\n    - id: main\n      root: true\n      children:\n        - {}\n    - id: other\n      children:\n        - {{id: note, position: {{x1: \"0\", y1: \"0\", x2: \"39\", y2: \"9\"}}, content: elsewhere}}\n",
+        long_menu(1..=20)
+    );
+    let mut runtime = runtime(&yaml, 40, 10);
+    for _ in 0..12 {
+        press(&mut runtime, KeyCode::Down);
+    }
+    assert_eq!(menu_reading(&mut runtime), (Some("c13".to_string()), 5));
+    let switch = |runtime: &mut Runtime<MemoryDisplay>, layout: &str| {
+        let reply = runtime.handle_socket(SocketFunction::SwitchActiveLayout {
+            layout_id: layout.into(),
+        });
+        assert!(reply.ok, "{:?}", reply.error);
+        runtime.render();
+    };
+    switch(&mut runtime, "other");
+    replace_menu(&mut runtime, 1..=20);
+    switch(&mut runtime, "main");
+    assert_eq!(menu_reading(&mut runtime), (Some("c13".to_string()), 5));
+    assert!(screen_contains(&runtime, "► item 13"));
+}
+
+#[test]
+fn replacing_a_menu_without_the_selected_entry_selects_the_first_and_shows_the_top() {
+    let mut runtime = long_menu_runtime(1..=20);
+    for _ in 0..12 {
+        press(&mut runtime, KeyCode::Down);
+    }
+    assert_eq!(menu_reading(&mut runtime), (Some("c13".to_string()), 5));
+    replace_menu(
+        &mut runtime,
+        (1..=20).filter(|n| *n != 13).collect::<Vec<_>>(),
+    );
+    assert_eq!(menu_reading(&mut runtime), (Some("c1".to_string()), 0));
+    assert!(screen_contains(&runtime, "► item 1 "));
 }
 
 #[test]

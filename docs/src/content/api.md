@@ -269,6 +269,14 @@ redraw a menu while a choice pressed in it is still under way. A child the new b
 has is gone, with everything running for it, as with `remove_box`. If the box's layout is
 shown, the new box's script starts.
 
+A menu keeps its reader's place. For the old box and each child the new box still has, the
+selection stays on the entry with the same `id` when the new box's menu has one, and, when the
+menu was the visible tab and still is, the menu stays scrolled to the rows it showed, moving
+only as far as it takes to keep the selected entry in view (a box whose layout is not shown
+keeps its scroll in percent). A program can so add and remove entries while someone reads
+the list. When the selected entry is gone, the new menu selects its first entry and is
+scrolled as the new box says.
+
 Errors: `the new box has id '<a>' but replaces '<b>'; ids must match`, and validation errors
 (see [Box objects](#box-objects)).
 
@@ -550,7 +558,7 @@ these environment variables in addition to boxmux's own environment:
 | Variable | Value |
 |----------|-------|
 | `BOXMUX_SOCKET` | The socket this instance listens on, exactly as boxmux was given or chose it |
-| `BOXMUX_BOX` | The id of the box whose tab receives the script's output: the box itself, or its `redirect_output` target. Empty for app- and layout-level `on_keypress` handlers |
+| `BOXMUX_BOX` | The id of the box whose tab receives the script's output: the box itself, or its `redirect_output` target. Empty when the output is shown nowhere: app- and layout-level `on_keypress` handlers, and choices with `output: none` |
 | `BOXMUX_OPTION` | The `id` of the answer a choice's `confirm` was given, in the script of a choice that asks (see [Confirmation](/docs/configuration#confirmation)). Not set for other scripts |
 | `TERM` | `xterm-256color`, in PTY sessions only. Other scripts keep boxmux's `TERM` |
 

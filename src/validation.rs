@@ -2,7 +2,7 @@
 //! every field, and the semantic checks verify what a schema cannot express (unique ids and
 //! references between boxes, layouts and choices).
 
-use crate::model::choice::{Confirm, DEFAULT_CANCEL_OPTION, DEFAULT_CONFIRM_OPTION};
+use crate::model::choice::{ChoiceOutput, Confirm, DEFAULT_CANCEL_OPTION, DEFAULT_CONFIRM_OPTION};
 use crate::model::common::ExecutionMode;
 use crate::{App, Choice, MuxBox};
 use jsonschema::Validator;
@@ -262,6 +262,11 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
                     "redirect_output needs a script whose output it redirects".into(),
                 );
             }
+            if choice.output == ChoiceOutput::None {
+                for (field, problem) in discarded_output_problems(choice) {
+                    error(format!("{}.choices[{}].{}", location, i, field), problem);
+                }
+            }
             if let Some(confirm) = &choice.confirm {
                 for problem in confirm_problems(choice, confirm) {
                     error(format!("{}.choices[{}].confirm", location, i), problem);
@@ -407,6 +412,42 @@ pub fn validate_semantics(app: &App) -> Result<(), Vec<ValidationError>> {
     } else {
         Err(errors)
     }
+}
+
+/// What is wrong with `choice`, whose output is discarded, as the field each problem is in and the problem: it has a
+/// script, and nothing that places or shows output.
+fn discarded_output_problems(choice: &Choice) -> Vec<(&'static str, String)> {
+    let mut problems = Vec::new();
+    if choice.script.is_none() {
+        problems.push((
+            "output",
+            "output: none needs a script whose output it discards".to_string(),
+        ));
+    }
+    if choice.redirect_output.is_some() {
+        problems.push((
+            "redirect_output",
+            "output: none discards the output; there is none to redirect".to_string(),
+        ));
+    }
+    if choice.append_output.is_some() {
+        problems.push((
+            "append_output",
+            "output: none discards the output; there is none to append".to_string(),
+        ));
+    }
+    match choice.execution_mode {
+        ExecutionMode::Immediate => {}
+        ExecutionMode::Thread => problems.push((
+            "execution_mode",
+            "Thread streams the output into a tab; output: none opens none".to_string(),
+        )),
+        ExecutionMode::Pty => problems.push((
+            "execution_mode",
+            "Pty shows a terminal in a tab; output: none opens none".to_string(),
+        )),
+    }
+    problems
 }
 
 /// What is wrong with the confirmation of `choice`: it guards a script, its answers have
@@ -556,6 +597,41 @@ app:
                 errors
             );
         }
+    }
+
+    #[test]
+    fn a_choice_with_output_none_has_a_script_and_nothing_that_shows_output() {
+        let errors = semantic_errors(
+            r#"
+app:
+  layouts:
+    - id: main
+      children:
+        - id: menu
+          position: {x1: "0", y1: "0", x2: "9", y2: "9"}
+          choices:
+            - {id: quiet, script: ["true"], output: none}
+            - {id: empty, output: none}
+            - {id: elsewhere, script: ["true"], output: none, redirect_output: log}
+            - {id: piled, script: ["true"], output: none, append_output: true}
+            - {id: streamed, script: ["true"], output: none, execution_mode: Thread}
+            - {id: terminal, script: ["top"], output: none, execution_mode: Pty}
+            - {id: shown, script: ["true"], output: tab, redirect_output: log}
+        - id: log
+          position: {x1: "10", y1: "0", x2: "19", y2: "9"}
+"#,
+        );
+        let at = "app.layouts[0] ('main').children[0] ('menu').choices";
+        assert_eq!(
+            errors,
+            vec![
+                format!("{at}[1].output: output: none needs a script whose output it discards"),
+                format!("{at}[2].redirect_output: output: none discards the output; there is none to redirect"),
+                format!("{at}[3].append_output: output: none discards the output; there is none to append"),
+                format!("{at}[4].execution_mode: Thread streams the output into a tab; output: none opens none"),
+                format!("{at}[5].execution_mode: Pty shows a terminal in a tab; output: none opens none"),
+            ]
+        );
     }
 
     #[test]

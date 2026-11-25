@@ -229,6 +229,7 @@ When a run fails (non-zero exit status), the box shows it with its error colors:
 - Enter runs the selected entry; clicking an entry's label runs it.
 - While a choice runs, its entry shows ` …`. Selecting it again while it runs does not start a second copy.
 - When the script prints something, the output opens in a tab named after the choice: in the box named by `redirect_output`, or in the menu's own box. The tab does not take the box's view, so the menu stays on screen; click the tab to see the output. A script that prints nothing opens no tab; if it fails, a notice says so at the bottom of the screen.
+- A choice with `output: none` discards what its script prints and never opens a tab, for a choice that only acts; if it fails, a notice says so.
 - A choice with `execution_mode: Pty` is a terminal: its tab opens and is shown as soon as it starts, and selecting it again while it runs shows it.
 - `append_output: true` on a choice appends each run to its tab.
 

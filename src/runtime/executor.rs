@@ -23,7 +23,8 @@ const TERMINATE_GRACE: Duration = Duration::from_millis(500);
 #[derive(Debug, Clone)]
 pub struct RunSpec {
     pub origin: RunOrigin,
-    /// The box whose stream receives the output.
+    /// The box whose stream receives the output; empty when the output is discarded (app and
+    /// layout key handlers, choices with `output: none`). A discarded run's output is not read.
     pub target_box: String,
     pub script: Vec<String>,
     pub mode: ExecutionMode,
@@ -160,7 +161,12 @@ impl Executor {
                 let mut command = Command::new(program);
                 command.args(args).arg(&text);
                 crate::platform::detach(&mut command);
-                command.stdout(Stdio::piped()).stderr(Stdio::piped());
+                let output = if spec.target_box.is_empty() {
+                    Stdio::null
+                } else {
+                    Stdio::piped
+                };
+                command.stdout(output()).stderr(output());
                 for (name, value) in &self.environment {
                     command.env(name, value);
                 }
@@ -235,7 +241,8 @@ impl Drop for Executor {
 }
 
 /// Reads a run's output and waits for it, then reports the outcome. `Thread` runs report each
-/// complete line as it arrives; `Immediate` runs report the whole output at the end.
+/// complete line as it arrives; `Immediate` runs report the whole output at the end. A run whose
+/// output is discarded has no pipes to read and reports no output.
 fn spawn_waiter(
     run: RunId,
     mut child: std::process::Child,
@@ -243,8 +250,11 @@ fn spawn_waiter(
     mode: ExecutionMode,
     events: Sender<Event>,
 ) -> Result<(), String> {
-    let stdout = child.stdout.take().expect("stdout is piped");
-    let stderr = child.stderr.take().expect("stderr is piped");
+    let pipes = match (child.stdout.take(), child.stderr.take()) {
+        (Some(stdout), Some(stderr)) => Some((stdout, stderr)),
+        (None, None) => None,
+        _ => unreachable!("standard output and standard error are piped, or discarded, together"),
+    };
     let streaming = mode == ExecutionMode::Thread;
     let collected = std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
 
@@ -289,16 +299,24 @@ fn spawn_waiter(
             })
             .map_err(|e| format!("cannot start an output reader: {}", e))
     };
-    let out_reader = spawn_reader("stdout", Box::new(stdout))?;
-    let err_reader = spawn_reader("stderr", Box::new(stderr))?;
+    let readers = match pipes {
+        Some((stdout, stderr)) => Some((
+            spawn_reader("stdout", Box::new(stdout))?,
+            spawn_reader("stderr", Box::new(stderr))?,
+        )),
+        None => None,
+    };
 
     std::thread::Builder::new()
         .name(format!("wait-{}", run))
         .spawn(move || {
             // Output is complete once both pipes closed; only then is the exit reported, so
             // the runtime never sees output after the run finished.
-            let _ = out_reader.join();
-            let _ = err_reader.join();
+            let read = readers.is_some();
+            if let Some((out_reader, err_reader)) = readers {
+                let _ = out_reader.join();
+                let _ = err_reader.join();
+            }
             let outcome = match tree.wait_with(|| child.wait()) {
                 Ok(status) => match status.code() {
                     Some(code) => RunOutcome::Exited(code),
@@ -306,7 +324,7 @@ fn spawn_waiter(
                 },
                 Err(e) => RunOutcome::Failed(format!("cannot wait for the script: {}", e)),
             };
-            let output = (!streaming).then(|| {
+            let output = (read && !streaming).then(|| {
                 let bytes = collected
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);

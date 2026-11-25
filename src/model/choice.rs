@@ -15,6 +15,9 @@ pub struct Choice {
     /// cancelling.
     #[serde(default)]
     pub confirm: Option<Confirm>,
+    /// Whether the script's output opens a tab, or is discarded.
+    #[serde(default)]
+    pub output: ChoiceOutput,
     pub redirect_output: Option<String>,
     pub append_output: Option<bool>,
     #[serde(default)]
@@ -35,6 +38,19 @@ pub struct Choice {
     /// The choice's script is running. Runtime state.
     #[serde(skip)]
     pub waiting: bool,
+}
+
+/// Where a choice's script output goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChoiceOutput {
+    /// A tab of the choice's box, or of its `redirect_output` box, opened when the script first
+    /// prints something.
+    #[default]
+    Tab,
+    /// Nowhere: the script runs with its output discarded and opens no tab. A failure is told in
+    /// a notice.
+    None,
 }
 
 /// The question a choice asks before it runs: its text and the answers offered.

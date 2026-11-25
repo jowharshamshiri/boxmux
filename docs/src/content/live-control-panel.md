@@ -110,17 +110,17 @@ boxmux replace_box needs '{"id":"needs","title":"Needs you: 2",
   "position":{"x1":"0%","y1":"5","x2":"100%","y2":"60%"},
   "tab_order":1,"selected":true,
   "choices":[
-    {"id":"restart-web","content":"✔ Restart the web service",
+    {"id":"restart-web","content":"✔ Restart the web service","output":"none",
      "script":["\"$PANEL_DIR/buttons.sh\" press restart-web"],
      "confirm":{"text":"Restart the web service?",
        "options":[{"id":"yes","content":"✔ Yes, restart it"},{"id":"cancel","content":"✖ Cancel"}],
        "cancel":"cancel"}},
-    {"id":"about","content":"ℹ About this panel",
+    {"id":"about","content":"ℹ About this panel","output":"none",
      "script":["\"$PANEL_DIR/buttons.sh\" show about"]}]}'
 ```
 
-The new box takes the old one's place and focus. It replaces everything: repeat the
-position, colors and `tab_order`, since nothing is kept from the old box. The example keeps
+The new box takes the old one's place and focus. It replaces the whole definition: repeat the
+position, colors and `tab_order`, since none of the old box's settings is kept. The example keeps
 its items in one file, a line per item, and `render` in `driver.sh` turns them into choices,
 each marked by kind: `✔` asks for approval, `▶` runs a terminal step, `ℹ` shows details.
 An entry can carry colors of its own as well, such as `"fg_color":"bright_red"` with
@@ -128,8 +128,11 @@ An entry can carry colors of its own as well, such as `"fg_color":"bright_red"` 
 the label (see [Choice Colors](/docs/configuration#choice-colors)).
 Keep each entry's text short and put the long text in a details box.
 
-Replace a menu only when its entries change: the replacement moves the person's selection
-back to the first entry, even when they were reading another one. A button's script must not
+The replacement keeps the person's place: the selection stays on the entry with the same `id`,
+and the menu stays on the rows it showed, scrolling only as far as it takes to keep that entry
+in view. So the driver can add and remove entries while the person reads the list, as long as
+each item keeps its choice `id` from one replacement to the next. When the selected entry is
+gone, the selection goes to the first entry. A button's script must not
 replace the box it was started from, because replacing a box stops everything running for
 it, the script included; let the driver replace the menu after the button has reported.
 
@@ -182,13 +185,15 @@ presses it missed from the log, starting from the count it kept.
 
 ## Keep a button silent
 
-A choice's run opens a tab only when its script prints something, and that tab does not take
-the box's view: the menu stays in front of the person. A button that prints nothing opens no
-tab at all; if it exits with a failure, a notice at the bottom of the screen says so.
+A choice's run opens a tab in its box as soon as its script prints something. The tab does not
+take the box's view, but it fills the box's top border, and the person sees something happen
+that they need not look at. A button that only reports or acts gives its choice
+`output: none`: whatever its script prints is discarded, and no tab opens anywhere. If the
+script fails, a notice at the bottom of the screen says so, naming the choice and its exit
+status. `render` in `driver.sh` gives every choice it builds `"output":"none"`.
 
-So a button writes what it has to say where the person reads it, and prints nothing. The
-example's buttons write to the log box, and its `bm` function writes a refused control command
-there too:
+So a button writes what it has to say where the person reads it. The example's buttons write
+to the log box, and its `bm` function writes a refused control command there too:
 
 ```sh
 bm() {
@@ -313,8 +318,8 @@ edge.
 | What happens | What to do |
 |--------------|------------|
 | The socket sends no events: a press reaches the driver only if the button's script reports it | Report through a log and a pipe, as above |
-| A choice whose script prints opens a tab in its box for that output | Print nothing from a button; write what it has to say to the log |
-| Replacing a menu with `replace_box` moves the selection back to the first entry | Replace the menu only when its entries change |
+| A choice whose script prints opens a tab in its box for that output | Give a button `output: none`, and write what it has to say to the log |
+| Replacing a menu with `replace_box` keeps the selection only on an entry of the same `id` | Keep each item's choice `id` the same from one replacement to the next |
 | `replace_box_content` adds a `Socket` tab beside the box's text | Send it with `--target content` (`"target": "content"`) to replace the box's own text |
 | A file box sent over the socket shows `${PANEL_STATE}/…` literally and waits for that path | Give a box sent over the socket a full path |
 | Text that fits in a box is centered, below empty rows when it is short | Set `content_align: top_left` on the layout, or on the box |
@@ -324,5 +329,5 @@ edge.
 - [API Reference](/docs/api): `replace_box`, `switch_active_layout`, `spawn_pty_process` and
   the environment of scripts
 - [Configuration Reference](/docs/configuration): `file`, `follow`, `choices`, `confirm`,
-  `redirect_output`
+  `output`, `redirect_output`
 - [PTY Features](/docs/pty-features): terminals in boxes

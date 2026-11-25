@@ -60,6 +60,7 @@ app:
           choices:
             - id: term_back
               content: "◀ Back to the panel"
+              output: none
               script: ["\"$PANEL_DIR/buttons.sh\" back"]
         - id: term_box
           title: Run

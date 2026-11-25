@@ -5,7 +5,8 @@
 #   run <id>     run the item's command in a terminal, for a step only the human can take
 #   show <id>    show the item's details
 #   back         go back to the panel
-# It prints nothing, so a press opens no tab over the menu; its failures are written to the log.
+# Its choices discard its output (`output: none`), so a press opens no tab over the menu: what
+# it has to say, its failures included, is written to the log.
 set -eu
 . "$PANEL_DIR/common.sh"
 

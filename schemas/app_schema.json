@@ -234,6 +234,15 @@
           "$ref": "#/definitions/execution_mode",
           "description": "Execution mode for choice script"
         },
+        "output": {
+          "type": "string",
+          "enum": [
+            "tab",
+            "none"
+          ],
+          "default": "tab",
+          "description": "Where the script's output goes: tab (a tab of the box, or of redirect_output, opened when the script first prints) or none (discarded: no tab opens, and a failure is told in a notice). none takes no redirect_output or append_output, and the Immediate execution_mode"
+        },
         "redirect_output": {
           "type": "string",
           "description": "ID of box to redirect choice output to"

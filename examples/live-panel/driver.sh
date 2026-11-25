@@ -34,7 +34,9 @@ confirmation() {
         "$(json "$2")" "$(json "$3")" "$options"
 }
 
-# Replace the whole `needs` box with one built from the items, in one call.
+# Replace the whole `needs` box with one built from the items, in one call. Each item keeps its
+# id as its choice's id, so the person's selection stays on it. Every button discards its
+# output: buttons.sh writes what it has to say to the log.
 render() {
     choices= waiting=0
     while IFS='|' read -r id kind label detail extra; do
@@ -48,7 +50,7 @@ render() {
             info) mark='ℹ' action=show ;;
             *) say "Item '$id' has the unknown kind '$kind'"; return 1 ;;
         esac
-        choice=$(printf '{"id":"%s","content":"%s %s","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"]%s}' \
+        choice=$(printf '{"id":"%s","content":"%s %s","output":"none","script":["\\"$PANEL_DIR/buttons.sh\\" %s %s"]%s}' \
             "$id" "$mark" "$(json "$label")" "$action" "$id" "$confirm")
         choices=$choices${choices:+,}$choice
     done < "$ITEMS"

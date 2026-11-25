@@ -4,9 +4,11 @@ use super::executor::RunSpec;
 use super::{Refresh, Runtime};
 use crate::model::common::ExecutionMode;
 use crate::model::stream::{RunId, RunOrigin, Stream, StreamKind, StreamStatus};
+use crate::render::box_view::percent_for_offset;
 use crate::runtime::display::Display;
 use crate::socket::protocol::{ContentTarget, ProcessStatus, Reply, SocketFunction};
 use crate::{App, MuxBox};
+use std::collections::HashMap;
 use std::time::Instant;
 
 impl<D: Display> Runtime<D> {
@@ -222,6 +224,12 @@ impl<D: Display> Runtime<D> {
                 new_box.id, box_id
             ));
         }
+        // Where each shown box is scrolled, in rows and columns, before it is replaced.
+        let old_offsets: HashMap<String, (usize, usize)> = self
+            .views()
+            .into_iter()
+            .filter_map(|view| Some((view.id, view.body.map(|b| (b.offset_x, b.offset_y))?)))
+            .collect();
         let old = self
             .ctx
             .app
@@ -238,6 +246,7 @@ impl<D: Display> Runtime<D> {
         let mut old_ids = Vec::new();
         collect_ids(old, &mut old_ids);
         let mut kept_ids = Vec::new();
+        let mut kept_menus = Vec::new();
         for id in &old_ids {
             let Some(replacement) = find_box_mut(&mut new_box, id) else {
                 continue;
@@ -268,6 +277,9 @@ impl<D: Display> Runtime<D> {
                     }
                 }
             }
+            if let Some(kept) = keep_menu_reading(previous, replacement) {
+                kept_menus.push((id.clone(), kept));
+            }
             kept_ids.push(id.clone());
         }
         self.change_structure(|app| {
@@ -288,8 +300,36 @@ impl<D: Display> Runtime<D> {
         }
         self.sync_file_boxes();
         self.ctx.app.invalidate_layout_cache();
+        for (id, kept) in kept_menus {
+            self.restore_menu_scroll(&id, kept, old_offsets.get(&id).copied());
+        }
         self.activate_layout_runs();
         Ok(Reply::ok())
+    }
+
+    /// Scrolls the replaced menu `box_id` back to where its reader had it: to the same rows and
+    /// columns when it is shown (the scroll in percent is not the same rows once the menu's length
+    /// changed), then as little further as it takes to show the kept selection.
+    fn restore_menu_scroll(
+        &mut self,
+        box_id: &str,
+        kept: KeptMenu,
+        old_offset: Option<(usize, usize)>,
+    ) {
+        if !kept.scroll {
+            return;
+        }
+        if let (Some((x, y)), Some(body)) = (old_offset, self.view_of(box_id).and_then(|v| v.body))
+        {
+            let muxbox = self
+                .ctx
+                .app
+                .get_muxbox_by_id_mut(box_id)
+                .expect("the box was just replaced");
+            muxbox.horizontal_scroll = Some(percent_for_offset(x, body.max_offset_x()));
+            muxbox.vertical_scroll = Some(percent_for_offset(y, body.max_offset_y()));
+            self.scroll_choice_into_view(box_id, kept.selected);
+        }
     }
 
     fn add_box(
@@ -520,7 +560,46 @@ fn without_nulls(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
-/// Builds the tabs of a box (and its children) added or replaced at runtime.
+/// The reading of a menu that a replacement of its box keeps.
+struct KeptMenu {
+    /// The index of the kept selection in the replacement's menu.
+    selected: usize,
+    /// Whether the menu was the visible tab, and is in the replacement, so its scroll is kept.
+    scroll: bool,
+}
+
+/// Carries the selection of `previous`'s menu into `replacement`'s, when the replacement still has
+/// the selected entry, by id; otherwise the replacement keeps its first entry selected, and its
+/// own scroll. A menu that was and is the visible tab keeps its scroll with its selection: in
+/// percent here, which is all a box that is not shown has; a shown one is put back on the same
+/// rows once the replacement is in place (`restore_menu_scroll`).
+fn keep_menu_reading(previous: &MuxBox, replacement: &mut MuxBox) -> Option<KeptMenu> {
+    let selected_id = previous
+        .choices_stream()?
+        .choices
+        .as_ref()?
+        .iter()
+        .find(|choice| choice.selected)?
+        .id
+        .clone();
+    let choices = replacement.choices_stream_mut()?.choices.as_mut()?;
+    let selected = choices.iter().position(|choice| choice.id == selected_id)?;
+    for (i, choice) in choices.iter_mut().enumerate() {
+        choice.selected = i == selected;
+    }
+    let shows_menu = |muxbox: &MuxBox| {
+        muxbox
+            .get_selected_stream()
+            .is_some_and(|s| s.choices.is_some())
+    };
+    let scroll = shows_menu(previous) && shows_menu(replacement);
+    if scroll {
+        replacement.horizontal_scroll = previous.horizontal_scroll;
+        replacement.vertical_scroll = previous.vertical_scroll;
+    }
+    Some(KeptMenu { selected, scroll })
+}
+
 /// The ids of `muxbox` and of every box it holds, itself first.
 fn collect_ids(muxbox: &MuxBox, ids: &mut Vec<String>) {
     ids.push(muxbox.id.clone());
@@ -541,6 +620,7 @@ fn find_box_mut<'a>(muxbox: &'a mut MuxBox, id: &str) -> Option<&'a mut MuxBox> 
         .find_map(|child| find_box_mut(child, id))
 }
 
+/// Builds the tabs of a box (and its children) added or replaced at runtime.
 fn prepare_new_box(muxbox: &mut MuxBox) {
     muxbox.initialize_streams();
     let parent_layout = muxbox.parent_layout_id.clone();

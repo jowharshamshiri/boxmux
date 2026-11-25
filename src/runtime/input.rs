@@ -318,27 +318,36 @@ impl<D: Display> Runtime<D> {
         for (i, choice) in choices.iter_mut().enumerate() {
             choice.selected = i == next;
         }
-        if let Some(body) = self.view_of(box_id).and_then(|view| view.body) {
-            if let Some(rows) = body.rows_of_choice(next) {
-                let height = body.area.height();
-                let offset = if rows.start < body.offset_y {
-                    rows.start
-                } else if rows.end > body.offset_y + height {
-                    rows.end.saturating_sub(height)
-                } else {
-                    body.offset_y
-                };
-                if let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(box_id) {
-                    muxbox.vertical_scroll = Some(percent_for_offset(offset, body.max_offset_y()));
-                }
-            }
-        }
+        self.scroll_choice_into_view(box_id, next);
         self.dirty = true;
         true
     }
 
+    /// Scrolls `box_id`, when it is shown, as little as it takes to show the whole of its menu
+    /// entry `index`.
+    pub(super) fn scroll_choice_into_view(&mut self, box_id: &str, index: usize) {
+        let Some(body) = self.view_of(box_id).and_then(|view| view.body) else {
+            return;
+        };
+        let Some(rows) = body.rows_of_choice(index) else {
+            return;
+        };
+        let height = body.area.height();
+        let offset = if rows.start < body.offset_y {
+            rows.start
+        } else if rows.end > body.offset_y + height {
+            rows.end.saturating_sub(height)
+        } else {
+            body.offset_y
+        };
+        if let Some(muxbox) = self.ctx.app.get_muxbox_by_id_mut(box_id) {
+            muxbox.vertical_scroll = Some(percent_for_offset(offset, body.max_offset_y()));
+        }
+        self.dirty = true;
+    }
+
     /// The view of `box_id` in the shown layout, as it would be drawn now.
-    fn view_of(&mut self, box_id: &str) -> Option<BoxView> {
+    pub(super) fn view_of(&mut self, box_id: &str) -> Option<BoxView> {
         self.views().into_iter().find(|view| view.id == box_id)
     }
 

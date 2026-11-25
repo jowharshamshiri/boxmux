@@ -4,7 +4,7 @@ use super::confirm::OPTION_VARIABLE;
 use super::event::{RunEvent, RunOutcome};
 use super::executor::{ActiveRun, RunSpec};
 use super::{terminal_size, Runtime};
-use crate::model::choice::Choice;
+use crate::model::choice::{Choice, ChoiceOutput};
 use crate::model::common::ExecutionMode;
 use crate::model::stream::{RunId, RunOrigin, Stream, StreamStatus};
 use crate::runtime::display::Display;
@@ -63,16 +63,7 @@ impl<D: Display> Runtime<D> {
         } else {
             self.untabbed.insert(run, pending);
         }
-        if let RunOrigin::Choice { box_id, choice_id } = &spec.origin {
-            if let Some(choice) = self
-                .ctx
-                .app
-                .get_muxbox_by_id_mut(box_id)
-                .and_then(|b| b.choice_mut(choice_id))
-            {
-                choice.waiting = true;
-            }
-        }
+        self.set_choice_waiting(&spec.origin, true);
         self.last_spec.insert(stream_id, spec);
         self.dirty = true;
         Ok(run)
@@ -177,27 +168,36 @@ impl<D: Display> Runtime<D> {
 
     /// Runs the script of `choice` of `box_id`, with `option`, the answer its confirmation was
     /// given, in `BOXMUX_OPTION`. The tab of a text run opens when output arrives and is not
-    /// shown; a PTY choice's terminal opens and is shown at once.
+    /// shown; a PTY choice's terminal opens and is shown at once; the output of a choice with
+    /// `output: none` is discarded.
     pub(super) fn start_choice(&mut self, box_id: &str, choice: &Choice, option: Option<&str>) {
         let Some(script) = choice.script.clone() else {
             return;
         };
         let choice_id = choice.id.as_str();
+        let origin = RunOrigin::Choice {
+            box_id: box_id.to_string(),
+            choice_id: choice_id.to_string(),
+        };
+        let environment = option
+            .map(|option| vec![(OPTION_VARIABLE.to_string(), option.to_string())])
+            .unwrap_or_default();
+        if choice.output == ChoiceOutput::None {
+            match self.start_discarded_run(origin.clone(), script, environment) {
+                Ok(_) => self.set_choice_waiting(&origin, true),
+                Err(e) => self.notify(format!("choice '{}': {}", choice_id, e), true),
+            }
+            return;
+        }
         let target_box = choice
             .redirect_output
             .clone()
             .unwrap_or_else(|| box_id.to_string());
         let terminal = choice.execution_mode.is_pty();
-        let environment = option
-            .map(|option| vec![(OPTION_VARIABLE.to_string(), option.to_string())])
-            .unwrap_or_default();
         let label = choice.content.clone().unwrap_or_else(|| choice.id.clone());
         let result = self.start_run(
             RunSpec {
-                origin: RunOrigin::Choice {
-                    box_id: box_id.to_string(),
-                    choice_id: choice_id.to_string(),
-                },
+                origin,
                 target_box,
                 script,
                 mode: choice.execution_mode,
@@ -245,8 +245,7 @@ impl<D: Display> Runtime<D> {
         }
     }
 
-    /// Runs an app- or layout-level `on_keypress` handler. Its output is not shown; a failure
-    /// is reported as a notice.
+    /// Runs an app- or layout-level `on_keypress` handler, its output discarded.
     pub(super) fn start_global_keypress(&mut self, scope: &str, key: &str, script: Vec<String>) {
         let origin = RunOrigin::GlobalKeypress {
             scope: scope.to_string(),
@@ -255,17 +254,43 @@ impl<D: Display> Runtime<D> {
         if self.executor.run_for_origin(&origin).is_some() {
             return;
         }
+        if let Err(e) = self.start_discarded_run(origin, script, Vec::new()) {
+            self.notify(format!("key {}: {}", key, e), true);
+        }
+    }
+
+    /// Starts a run whose output is discarded: it opens no tab anywhere, and a failure is told in
+    /// a notice when it ends.
+    fn start_discarded_run(
+        &mut self,
+        origin: RunOrigin,
+        script: Vec<String>,
+        environment: Vec<(String, String)>,
+    ) -> Result<RunId, String> {
         let spec = RunSpec {
             origin,
             target_box: String::new(),
             script,
             mode: ExecutionMode::Immediate,
             terminal_size: None,
-            environment: Vec::new(),
+            environment,
         };
-        if let Err(e) = self.executor.start(spec, String::new()) {
-            self.notify(format!("key {}: {}", key, e), true);
+        self.executor.start(spec, String::new())
+    }
+
+    /// Marks the choice `origin` names as running, or no longer running, when its box still has it.
+    fn set_choice_waiting(&mut self, origin: &RunOrigin, waiting: bool) {
+        if let RunOrigin::Choice { box_id, choice_id } = origin {
+            if let Some(choice) = self
+                .ctx
+                .app
+                .get_muxbox_by_id_mut(box_id)
+                .and_then(|b| b.choice_mut(choice_id))
+            {
+                choice.waiting = waiting;
+            }
         }
+        self.dirty = true;
     }
 
     pub(super) fn handle_run_event(&mut self, event: RunEvent) {
@@ -354,20 +379,16 @@ impl<D: Display> Runtime<D> {
                 RunOutcome::Failed(reason) => StreamStatus::Failed(reason.clone()),
             }
         };
-        if let RunOrigin::Choice { box_id, choice_id } = &active.origin {
-            if let Some(choice) = self
-                .ctx
-                .app
-                .get_muxbox_by_id_mut(box_id)
-                .and_then(|b| b.choice_mut(choice_id))
-            {
-                choice.waiting = false;
-            }
-        }
-        if let RunOrigin::GlobalKeypress { key, .. } = &active.origin {
+        self.set_choice_waiting(&active.origin, false);
+        if active.target_box.is_empty() {
+            // The output was discarded: only a failure is told.
             if status.is_error() {
                 self.notify(
-                    format!("the handler for key {} failed: {:?}", key, status),
+                    format!(
+                        "{} {}",
+                        describe_origin(&active.origin),
+                        describe_failure(&status)
+                    ),
                     true,
                 );
             }
