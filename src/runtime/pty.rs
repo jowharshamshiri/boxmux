@@ -30,7 +30,9 @@ impl TerminalSize {
 }
 
 pub struct PtySession {
-    master: Box<dyn MasterPty + Send>,
+    /// The terminal's side of the pseudo-terminal. On Windows it is taken and closed when the
+    /// program exits, which ends the terminal's output there.
+    master: Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     emulator: Arc<Mutex<Emulator>>,
     /// Set by the reader when the screen changed and the runtime has not looked at it yet;
@@ -54,8 +56,9 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl PtySession {
     /// Starts `command` in a new PTY of `size`. Output is read on a background thread that
-    /// sends [`RunEvent::TerminalUpdated`] when the screen changes and [`RunEvent::Finished`]
-    /// when the process has exited and its output is fully read.
+    /// sends [`RunEvent::TerminalUpdated`] when the screen changes; another waits for the
+    /// process and its output and sends [`RunEvent::Finished`] once it has exited and its
+    /// output is fully read.
     pub fn spawn(
         run: RunId,
         command: CommandBuilder,
@@ -80,7 +83,8 @@ impl PtySession {
             .spawn_command(command)
             .map_err(|e| format!("cannot start the process in a pseudo-terminal: {}", e))?;
         // The child holds its own copy of the slave; ours must close so the reader sees EOF
-        // when the child exits.
+        // when the child exits on Unix, and so the pseudo-console closes with the master on
+        // Windows.
         drop(pair.slave);
         let Some(pid) = child.process_id() else {
             let _ = child.kill();
@@ -93,59 +97,66 @@ impl PtySession {
             usize::from(size.rows.max(1)),
         )));
         let dirty = Arc::new(AtomicBool::new(false));
+        let master = Arc::new(Mutex::new(Some(pair.master)));
 
         let thread_emulator = emulator.clone();
         let thread_writer = writer.clone();
         let thread_dirty = dirty.clone();
-        let thread_tree = tree.clone();
-        std::thread::Builder::new()
+        let reading = std::thread::Builder::new()
             .name(format!("pty-{}", run))
-            .spawn(move || {
-                let mut buffer = [0u8; 16 * 1024];
-                loop {
-                    match reader.read(&mut buffer) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let responses = {
-                                let mut emulator = lock(&thread_emulator);
-                                emulator.process_bytes(&buffer[..n]);
-                                emulator.take_responses()
-                            };
-                            if !responses.is_empty() {
-                                let mut writer = lock(&thread_writer);
-                                for response in responses {
-                                    // A process that stopped reading its terminal cannot get
-                                    // the answer; its output keeps being shown regardless.
-                                    let _ = writer.write_all(response.as_bytes());
-                                }
-                                let _ = writer.flush();
-                            }
-                            if !thread_dirty.swap(true, Ordering::AcqRel)
-                                && events
-                                    .send(Event::Run(RunEvent::TerminalUpdated { run }))
-                                    .is_err()
-                            {
-                                // The runtime is gone; nobody will read the output.
-                                break;
-                            }
-                        }
-                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                        // EIO is how Linux reports that the child side closed.
-                        Err(_) => break,
-                    }
+            .spawn({
+                let events = events.clone();
+                move || {
+                    read_output(
+                        &mut *reader,
+                        &thread_emulator,
+                        &thread_writer,
+                        &thread_dirty,
+                        // Sending fails only when the runtime is gone. The dirty flag then
+                        // stays set, so no update is sent again.
+                        || {
+                            let _ = events.send(Event::Run(RunEvent::TerminalUpdated { run }));
+                        },
+                    )
                 }
-                let outcome = match thread_tree.wait_with(|| child.wait()) {
-                    Ok(status) => {
-                        if status.success() {
-                            RunOutcome::Exited(0)
-                        } else {
-                            match status.signal() {
-                                Some(signal) => RunOutcome::Failed(format!("ended by {}", signal)),
-                                None => RunOutcome::Exited(status.exit_code() as i32),
-                            }
-                        }
+            })
+            .map_err(|e| {
+                // Nothing would read or wait for the process.
+                tree.kill();
+                format!("cannot start the PTY reader thread: {}", e)
+            })?;
+        let thread_tree = tree.clone();
+        #[cfg(windows)]
+        let thread_master = master.clone();
+        std::thread::Builder::new()
+            .name(format!("pty-wait-{}", run))
+            .spawn(move || {
+                // The run ends after the last of its output has been shown.
+                let read_to_end = move || {
+                    if reading.join().is_err() {
+                        log::error!("the reader of PTY {} panicked", run);
                     }
-                    Err(e) => RunOutcome::Failed(format!("cannot wait for the process: {}", e)),
+                };
+                // On Unix the output ends by itself once no process has the terminal open, and
+                // the terminal stays resizable for whatever still has it open after the
+                // program. The program is reaped only once its output has been read: reaping it
+                // first loses the end of the output on FreeBSD.
+                #[cfg(unix)]
+                let outcome = {
+                    read_to_end();
+                    outcome_of(thread_tree.wait_with(|| child.wait()))
+                };
+                // On Windows the console host keeps the terminal's output open until the
+                // pseudo-console is closed, whether its program has exited or not; closing it
+                // makes the host write out what it has not yet and end the output. It is closed
+                // outside the lock, as the host may take a while.
+                #[cfg(windows)]
+                let outcome = {
+                    let outcome = outcome_of(thread_tree.wait_with(|| child.wait()));
+                    let console = lock(&thread_master).take();
+                    drop(console);
+                    read_to_end();
+                    outcome
                 };
                 // Sending fails only when the runtime has shut down.
                 let _ = events.send(Event::Run(RunEvent::Finished {
@@ -155,13 +166,13 @@ impl PtySession {
                 }));
             })
             .map_err(|e| {
-                // Nothing would read or wait for the process.
+                // Nothing would wait for the process; the reader ends with its output.
                 tree.kill();
-                format!("cannot start the PTY reader thread: {}", e)
+                format!("cannot start the PTY waiter thread: {}", e)
             })?;
 
         Ok(PtySession {
-            master: pair.master,
+            master,
             writer,
             emulator,
             dirty,
@@ -192,9 +203,13 @@ impl PtySession {
         if size == self.size {
             return Ok(());
         }
-        self.master
-            .resize(size.to_pty_size())
-            .map_err(|e| format!("cannot resize the pseudo-terminal: {}", e))?;
+        // A pseudo-console closed at its program's exit has no process left to tell; the
+        // emulator still shows the program's last screen at the box's size.
+        if let Some(master) = lock(&self.master).as_ref() {
+            master
+                .resize(size.to_pty_size())
+                .map_err(|e| format!("cannot resize the pseudo-terminal: {}", e))?;
+        }
         lock(&self.emulator)
             .resize_screen(usize::from(size.cols.max(1)), usize::from(size.rows.max(1)));
         self.size = size;
@@ -263,6 +278,65 @@ impl PtySession {
     }
 }
 
+/// Reads the terminal's output into `emulator` until the output ends, answering the program's
+/// queries through `writer` and calling `notify` each time the screen changes while `dirty` is
+/// clear. The output is read to its end even when nobody is notified any more: on Windows the
+/// console host cannot close while its output is not read.
+fn read_output(
+    reader: &mut dyn Read,
+    emulator: &Mutex<Emulator>,
+    writer: &Mutex<Box<dyn Write + Send>>,
+    dirty: &AtomicBool,
+    notify: impl Fn(),
+) {
+    let mut buffer = [0u8; 16 * 1024];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => return,
+            Ok(n) => {
+                let responses = {
+                    let mut emulator = lock(emulator);
+                    emulator.process_bytes(&buffer[..n]);
+                    emulator.take_responses()
+                };
+                if !responses.is_empty() {
+                    let mut writer = lock(writer);
+                    for response in responses {
+                        // A process that stopped reading its terminal cannot get the answer;
+                        // its output keeps being shown regardless.
+                        let _ = writer.write_all(response.as_bytes());
+                    }
+                    let _ = writer.flush();
+                }
+                if !dirty.swap(true, Ordering::AcqRel) {
+                    notify();
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            // EIO is how Linux reports that the child side closed, a broken pipe how Windows
+            // reports that the console host closed.
+            Err(_) => return,
+        }
+    }
+}
+
+/// How a terminal program ended, from waiting for it.
+fn outcome_of(waited: std::io::Result<portable_pty::ExitStatus>) -> RunOutcome {
+    match waited {
+        Ok(status) => {
+            if status.success() {
+                RunOutcome::Exited(0)
+            } else {
+                match status.signal() {
+                    Some(signal) => RunOutcome::Failed(format!("ended by {}", signal)),
+                    None => RunOutcome::Exited(status.exit_code() as i32),
+                }
+            }
+        }
+        Err(e) => RunOutcome::Failed(format!("cannot wait for the process: {}", e)),
+    }
+}
+
 /// What the runtime needs from a PTY session's terminal state at one point in time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSnapshot {
@@ -273,4 +347,115 @@ pub struct TerminalSnapshot {
     pub mouse_reporting: bool,
     pub application_cursor_keys: bool,
     pub application_keypad: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::HANG_BOUND;
+    use crossbeam_channel::{unbounded, Receiver};
+    use std::time::{Duration, Instant};
+
+    /// A terminal program that runs `script` in the platform's shell.
+    fn program(script: &str) -> CommandBuilder {
+        let mut command = if cfg!(windows) {
+            let mut command = CommandBuilder::new("powershell");
+            command.args(["-NoLogo", "-NoProfile", "-Command"]);
+            command
+        } else {
+            let mut command = CommandBuilder::new("sh");
+            command.arg("-c");
+            command
+        };
+        command.arg(script);
+        command.cwd(std::env::current_dir().unwrap());
+        command
+    }
+
+    fn start(script: &str) -> (PtySession, Receiver<Event>) {
+        let (tx, rx) = unbounded();
+        let session = PtySession::spawn(
+            RunId(1),
+            program(script),
+            TerminalSize { rows: 10, cols: 60 },
+            tx,
+        )
+        .unwrap();
+        (session, rx)
+    }
+
+    /// Waits, as the runtime does, looking at the terminal after each update, until the run
+    /// reports its end, and returns how it ended with what its terminal showed then.
+    fn wait_for_end(session: &PtySession, events: &Receiver<Event>) -> (RunOutcome, String) {
+        let deadline = Instant::now() + HANG_BOUND;
+        loop {
+            match events.recv_deadline(deadline) {
+                Ok(Event::Run(RunEvent::TerminalUpdated { .. })) => {
+                    session.snapshot();
+                }
+                Ok(Event::Run(RunEvent::Finished { outcome, .. })) => {
+                    let shown = session.snapshot().lines.join("\n");
+                    return (outcome, crate::utils::strip_ansi_codes(&shown));
+                }
+                Ok(_) => {}
+                Err(_) => panic!(
+                    "the terminal run reported no end within {:?}; its terminal shows:\n{}",
+                    HANG_BOUND,
+                    session.snapshot().lines.join("\n")
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn a_terminal_run_ends_when_its_program_exits_with_its_code_and_its_last_output_shown() {
+        let script = if cfg!(windows) {
+            "Write-Output 'last words'; exit 3"
+        } else {
+            "echo 'last words'; exit 3"
+        };
+        let (session, events) = start(script);
+        let (outcome, shown) = wait_for_end(&session, &events);
+        assert_eq!(
+            outcome,
+            RunOutcome::Exited(3),
+            "its terminal shows:\n{}",
+            shown
+        );
+        assert!(
+            shown.contains("last words"),
+            "the program's last output is not shown:\n{}",
+            shown
+        );
+    }
+
+    #[test]
+    fn a_stopped_terminal_run_ends() {
+        let script = if cfg!(windows) {
+            "Write-Output started; Start-Sleep 600"
+        } else {
+            "echo started; sleep 600"
+        };
+        let (session, events) = start(script);
+        let deadline = Instant::now() + HANG_BOUND;
+        while !crate::utils::strip_ansi_codes(&session.snapshot().lines.join("\n"))
+            .contains("started")
+        {
+            match events.recv_deadline(deadline) {
+                Ok(Event::Run(RunEvent::Finished { outcome, .. })) => {
+                    panic!("the program ended ({:?}) before it was stopped", outcome)
+                }
+                Ok(_) => {}
+                Err(_) => panic!("the program printed nothing within {:?}", HANG_BOUND),
+            }
+        }
+        session.process_tree().terminate(Duration::from_secs(5));
+        let (outcome, shown) = wait_for_end(&session, &events);
+        assert_ne!(
+            outcome,
+            RunOutcome::Exited(0),
+            "its terminal shows:\n{}",
+            shown
+        );
+    }
 }

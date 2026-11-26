@@ -127,16 +127,9 @@ impl Fixture {
 /// A running boxmux in a pseudo-terminal.
 struct LiveBoxMux {
     child: Box<dyn portable_pty::Child + Send + Sync>,
-    /// The terminal's side of the PTY, kept open for as long as the reader runs and, on Unix,
-    /// to resize the terminal.
-    #[cfg_attr(
-        not(unix),
-        expect(
-            dead_code,
-            reason = "held only to keep the PTY open; resizing is Unix-only"
-        )
-    )]
-    master: Box<dyn portable_pty::MasterPty + Send>,
+    /// The terminal's side of the PTY, which resizes the terminal; closed once boxmux has
+    /// exited (see [`LiveBoxMux::wait_for_exit`]).
+    master: Option<Box<dyn portable_pty::MasterPty + Send>>,
     writer: Box<dyn Write + Send>,
     output: Receiver<Vec<u8>>,
     /// Every byte boxmux wrote to the terminal.
@@ -216,7 +209,7 @@ impl LiveBoxMux {
         });
         LiveBoxMux {
             child,
-            master: pair.master,
+            master: Some(pair.master),
             writer,
             output: rx,
             raw: Vec::new(),
@@ -234,6 +227,8 @@ impl LiveBoxMux {
         // What boxmux wrote before the resize is drawn at the old size.
         self.pump(Duration::from_millis(30));
         self.master
+            .as_ref()
+            .expect("the terminal is open while boxmux runs")
             .resize(PtySize {
                 rows,
                 cols,
@@ -263,6 +258,8 @@ impl LiveBoxMux {
             }
         }
         self.master
+            .as_ref()
+            .expect("the terminal is open while boxmux runs")
             .resize(PtySize {
                 rows,
                 cols,
@@ -422,9 +419,13 @@ impl LiveBoxMux {
             }
             assert!(start.elapsed() < TIMEOUT, "boxmux did not exit");
         };
-        // What boxmux wrote just before exiting may still be on its way. Its output ends, and
-        // the reader with it, once no process has the terminal open: the scripts boxmux runs
-        // read no terminal and write to pipes.
+        // What boxmux wrote just before exiting may still be on its way. On Windows the console
+        // host between boxmux and the test writes it out and ends the output only when the
+        // pseudo-console is closed, which closing the terminal's side does; on Unix closing it
+        // changes nothing, as the reader holds its own copy.
+        drop(self.master.take());
+        // The output ends, and the reader with it, once no process has the terminal open: the
+        // scripts boxmux runs read no terminal and write to pipes.
         loop {
             match self.output.recv_timeout(Duration::from_millis(20)) {
                 Ok(bytes) => self.accept(bytes),
