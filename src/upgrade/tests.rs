@@ -103,19 +103,20 @@ fn the_baked_release_line_is_read_back_as_it_was_given() {
     });
 }
 
-/// BoxMux is published for four platforms, each by the registry's name, the Windows one as a
-/// zip; any other is no platform BoxMux is published for.
+/// BoxMux is published for three platforms, each by the registry's name, the Windows one as a
+/// zip; any other is no platform BoxMux is published for, Linux on arm64 among them, where
+/// BoxMux is built from source.
 #[test]
-fn boxmux_is_published_for_four_platforms() {
+fn boxmux_is_published_for_three_platforms() {
     assert_eq!(platform_of("linux", "x86_64"), Some("linux-x86_64"));
-    assert_eq!(platform_of("linux", "aarch64"), Some("linux-arm64"));
     assert_eq!(platform_of("macos", "aarch64"), Some("darwin-arm64"));
     assert_eq!(platform_of("windows", "x86_64"), Some("windows-x86_64"));
+    assert_eq!(platform_of("linux", "aarch64"), None);
     assert_eq!(platform_of("macos", "x86_64"), None);
     assert_eq!(platform_of("freebsd", "x86_64"), None);
     assert_eq!(
-        release::archive_name("1.2.3", "linux-arm64"),
-        "boxmux-1.2.3-linux-arm64.tar.gz"
+        release::archive_name("1.2.3", "linux-x86_64"),
+        "boxmux-1.2.3-linux-x86_64.tar.gz"
     );
     assert_eq!(
         release::archive_name("1.2.3", "windows-x86_64"),
@@ -297,7 +298,7 @@ fn a_manifest_that_is_not_boxmuxs_or_not_whole_is_refused() {
         }) => message,
         other => panic!("expected a refusal of the content, got {:?}", other),
     };
-    assert!(message(&good, "linux-arm64").contains("not published for linux-arm64"));
+    assert!(message(&good, "darwin-arm64").contains("not published for darwin-arm64"));
     let other = String::from_utf8(good.clone())
         .unwrap()
         .replace("\"appId\":\"boxmux\"", "\"appId\":\"wsb\"");

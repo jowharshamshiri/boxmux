@@ -121,7 +121,7 @@ pub const NO_LINE: &str = "this boxmux was built from source, so it has no relea
                            release";
 
 /// The registry's name for the platform this BoxMux runs on, or `None` where BoxMux is not
-/// published.
+/// published: Linux on arm64 among them, where BoxMux is built from source.
 pub fn platform() -> Option<&'static str> {
     platform_of(std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -130,7 +130,6 @@ pub fn platform() -> Option<&'static str> {
 pub fn platform_of(os: &str, arch: &str) -> Option<&'static str> {
     Some(match (os, arch) {
         ("linux", "x86_64") => "linux-x86_64",
-        ("linux", "aarch64") => "linux-arm64",
         ("macos", "aarch64") => "darwin-arm64",
         ("windows", "x86_64") => "windows-x86_64",
         _ => return None,

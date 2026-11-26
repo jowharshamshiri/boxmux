@@ -383,7 +383,7 @@ mod tests {
     /// `boxmux upgrade` unpacks each archive boxmux-dist makes into the program it installs.
     #[test]
     fn the_updater_unpacks_each_archive_into_the_program_it_installs() {
-        for (platform, program) in [("linux-arm64", "boxmux"), ("windows-x86_64", "boxmux.exe")] {
+        for (platform, program) in [("linux-x86_64", "boxmux"), ("windows-x86_64", "boxmux.exe")] {
             let dir = tempfile::tempdir().unwrap();
             let staging = dir.path().join("staged");
             std::fs::create_dir(&staging).unwrap();
@@ -402,7 +402,7 @@ mod tests {
                 "app: {}"
             );
             #[cfg(unix)]
-            if platform == "linux-arm64" {
+            if platform == "linux-x86_64" {
                 use std::os::unix::fs::PermissionsExt;
                 let mode = std::fs::metadata(root.join("boxmux"))
                     .unwrap()

@@ -10,7 +10,6 @@ source:
   exclude: ["docs/*"]
 plans:
   - mg-test/hosts.yaml
-  - mg-test/arm64.yaml
   - mg-test/freebsd.yaml
 defaults:
   allocationTimeout: 45m

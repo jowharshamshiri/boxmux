@@ -15,8 +15,9 @@ mouse. A running instance can be controlled from other programs through a local 
 ### A release
 
 BoxMux is released from [bahramj.com](https://bahramj.com/products/) as signed archives, one
-for each platform: Linux on x86_64 and arm64 (glibc 2.34 or later) and macOS on Apple silicon
-(macOS 12 or later). Each, `boxmux-<version>-<platform>.tar.gz`, unpacks to one directory,
+for each platform: Linux on x86_64 (glibc 2.34 or later) and macOS on Apple silicon (macOS 12
+or later). Linux on arm64 has no release: build it from source there (`cargo install boxmux`).
+Each, `boxmux-<version>-<platform>.tar.gz`, unpacks to one directory,
 `boxmux/`, holding the `boxmux` program, `LICENSE`, this README and the ready-made
 configurations in `layouts/` and `examples/`. The apt and dnf packages put the README, the
 licence and those configurations in `/usr/share/doc/boxmux`.
@@ -245,7 +246,8 @@ line per request; see the [API reference](https://boxmux.com/docs/api).
 
 ## Platforms
 
-- Linux (x86-64 and arm64) and FreeBSD: tested.
+- Linux on x86-64 and FreeBSD: tested.
+- Linux on arm64: builds from source, and is not tested on arm64 machines.
 - macOS: uses the same Unix code, but is not tested on macOS machines.
 - Windows 10 and later: terminals use ConPTY; scripts run in PowerShell unless `app.shell`
   says otherwise; `send_signal` is not supported; the terminal background is not queried, so
@@ -289,7 +291,6 @@ tracked files into them and runs the plans in `mg-test/`:
 | Plan | Machines | What runs |
 |------|----------|-----------|
 | `hosts` | Ubuntu x86-64, Windows 11 x86-64 | formatting (Linux only), clippy and all tests |
-| `arm64` | Ubuntu arm64 | formatting, clippy and all tests |
 | `freebsd` | FreeBSD x86-64 | formatting, clippy and all tests |
 
 ```bash

@@ -28,11 +28,6 @@ pub const PLATFORMS: &[Platform] = &[
         macos_deployment_target: None,
     },
     Platform {
-        id: "linux-arm64",
-        target: "aarch64-unknown-linux-gnu",
-        macos_deployment_target: None,
-    },
-    Platform {
         id: "darwin-arm64",
         target: "aarch64-apple-darwin",
         macos_deployment_target: Some("12.0"),
@@ -92,7 +87,10 @@ mod tests {
             };
             assert_eq!(release::platform_of(os, arch), Some(p.id), "{}", p.target);
         }
-        assert_eq!(PLATFORMS.len(), 4);
+        assert_eq!(PLATFORMS.len(), 3);
+        // Linux on arm64 is not released: a machine there builds BoxMux from source.
+        assert_eq!(release::platform_of("linux", "aarch64"), None);
+        assert!(named("linux-arm64").is_err());
     }
 
     /// The machine running the tests builds its own platform's release and no other.
@@ -107,7 +105,7 @@ mod tests {
         }
         let e = named("freebsd-x86_64").unwrap_err();
         assert!(
-            e.contains("linux-x86_64, linux-arm64, darwin-arm64, windows-x86_64"),
+            e.contains("(platforms: linux-x86_64, darwin-arm64, windows-x86_64)"),
             "{}",
             e
         );

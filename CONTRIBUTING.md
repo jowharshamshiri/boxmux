@@ -116,13 +116,15 @@ copies the tracked files of the working tree into them and runs the plans in `mg
 | Plan | Machines | What runs |
 |------|----------|-----------|
 | `hosts` | Ubuntu x86-64, Windows 11 x86-64 | formatting (Linux), clippy, all tests |
-| `arm64` | Ubuntu arm64 | formatting, clippy, all tests |
 | `freebsd` | FreeBSD x86-64 | formatting, clippy, all tests |
+
+There is no Linux arm64 plan: the only arm64 guest is emulated on x86-64, and too slow to run
+the suite.
 
 ```bash
 mg-test validate mg-test.yaml
-mg-test run mg-test.yaml --plan hosts          # waits and reports
-mg-test run mg-test.yaml --plan arm64 --detach # returns a run id
+mg-test run mg-test.yaml --plan hosts            # waits and reports
+mg-test run mg-test.yaml --plan freebsd --detach # returns a run id
 mg-test results RUN_ID
 mg-test logs RUN_ID --task test-windows-x86-64
 mg-test destroy RUN_ID                         # give the machines back
@@ -173,9 +175,10 @@ changelog. What a release needs from this repository is `tools/boxmux-dist`:
 cargo run --locked -p boxmux-dist -- release --platform linux-x86_64 --out-dir out/dist
 ```
 
-It builds `boxmux` for the platform it runs on (`linux-x86_64`, `linux-arm64`, `darwin-arm64`;
-`windows-x86_64` once its release build is set up) with the release line in its environment,
-the five variables `build/release_line.rs` names, and writes
+It builds `boxmux` for the platform it runs on (`linux-x86_64`, `darwin-arm64`; `windows-x86_64`
+once its release build is set up; Linux on arm64 is not released, and is built from source)
+with the release line in its environment, the five variables `build/release_line.rs` names, and
+writes
 `boxmux-<version>-<platform>.tar.gz` (a `.zip` for Windows), whose one directory `boxmux/` holds
 the program, `LICENSE`, `README.md` and the demo configurations (`layouts/*.yaml`,
 `examples/*.yaml` and `examples/*.sh`), and nothing else: an AppleDouble `._` file among them
@@ -184,8 +187,8 @@ stops the release, naming it. It stops, saying why, unless
 it, the program carries no path of the machine it was built on, and `boxmux --version` names the
 version. The same files make the same archive, byte for byte.
 
-On Linux the build links with the rust-lld the toolchain ships, through cc, as rustc links x86_64
-Linux by default and not arm64 Linux, and stops, naming the path, when the toolchain has no
+On Linux the build links with the rust-lld the toolchain ships, through cc, whichever linker
+rustc would pick for the target itself, and stops, naming the path, when the toolchain has no
 `lib/rustlib/<triple>/bin/gcc-ld/ld.lld`. std reaches `pidfd_spawnp` and `pidfd_getpid` (glibc
 2.39) weakly, and runs without them; rust-lld makes a glibc version needed only that way a weak
 need, which an older glibc starts the program past, where GNU ld would make it a hard one.
